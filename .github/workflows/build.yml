@@ -1,0 +1,34 @@
+name: mglet-build
+
+on:
+  pull_request:
+    branches: [ master ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    strategy:
+      matrix:
+        image: ["intel-impi-image:sha-2077c6a", "gnu-ompi-image:sha-2077c6a"]
+        build: ["Release", "Debug"]
+      fail-fast: false
+
+    container: ghcr.io/kmturbulenz/${{ matrix.image }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build MGLET
+      run: |
+        source /opt/bashrc || true
+        mkdir build
+        cd build
+        cmake -GNinja -DCMAKE_BUILD_TYPE="${{ matrix.build }}" ..
+        ninja
+        ls -R
