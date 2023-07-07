@@ -68,8 +68,7 @@ CONTAINS
                         DO i2 = MAX(i-1, 1), i
                             DO j2 = MAX(j-1, 1), MIN(j+1, jj)
                                 DO k2 = MAX(k-1, 1), MIN(k+1, kk)
-                                    knoten(k2, j2, i2) = &
-                                        MIN(knoten(k2, j2, i2)-1.0, -1.0_realk)
+                                    knoten(k2, j2, i2) = -1.0
                                 END DO
                             END DO
                         END DO
@@ -78,8 +77,7 @@ CONTAINS
                         DO i2 = MAX(i-1, 1), MIN(i+1, ii)
                             DO j2 = MAX(j-1, 1), j
                                 DO k2 = MAX(k-1, 1), MIN(k+1, kk)
-                                    knoten(k2, j2, i2) = &
-                                        MIN(knoten(k2, j2, i2)-1.0, -1.0_realk)
+                                    knoten(k2, j2, i2) = -1.0
                                 END DO
                             END DO
                         END DO
@@ -88,8 +86,7 @@ CONTAINS
                         DO i2 = MAX(i-1, 1), MIN(i+1, ii)
                             DO j2 = MAX(j-1, 1), MIN(j+1, jj)
                                 DO k2 = MAX(k-1, 1), k
-                                    knoten(k2, j2, i2) = &
-                                        MIN(knoten(k2, j2, i2)-1.0, -1.0_realk)
+                                    knoten(k2, j2, i2) = -1.0
                                 END DO
                             END DO
                         END DO

@@ -8,8 +8,8 @@ MODULE topol_mod
 
     TYPE :: topol_t
         INTEGER(intk) :: n = 0
-        REAL(realk), POINTER :: topol(:)
-        INTEGER(intk), POINTER :: bodyid(:)
+        REAL(realk), POINTER, CONTIGUOUS :: topol(:)
+        INTEGER(intk), POINTER, CONTIGUOUS :: bodyid(:)
 
         INTEGER(intk), PRIVATE :: nbody
         INTEGER(intk), PRIVATE, ALLOCATABLE :: ids(:)

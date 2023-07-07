@@ -15,14 +15,14 @@ MODULE stencilio_mod
     PRIVATE
 
     TYPE :: int_stencils_t
-        INTEGER(kind=intk), ALLOCATABLE :: arr(:)
+        INTEGER(intk), ALLOCATABLE :: arr(:)
     CONTAINS
         PRIVATE
         FINAL :: int_stencils_destructor
     END TYPE int_stencils_t
 
     TYPE :: real_stencils_t
-        REAL(kind=realk), ALLOCATABLE :: arr(:)
+        REAL(realk), ALLOCATABLE :: arr(:)
     CONTAINS
         PRIVATE
         FINAL :: real_stencils_destructor
@@ -33,7 +33,7 @@ MODULE stencilio_mod
     PUBLIC :: stencilio_write_list, stencilio_write, stencilio_read_list, &
         stencilio_read, stencilio_read_master, stencilio_read_master_cptr, &
         stencilio_write_master, stencilio_write_master_cptr, &
-        int_stencils_t, real_stencils_t
+        stencilio_append_master_cptr, int_stencils_t, real_stencils_t
 
 CONTAINS
 
@@ -49,7 +49,8 @@ CONTAINS
     END SUBROUTINE real_stencils_destructor
 
 
-    SUBROUTINE stencilio_write(group_id, name, stencils, get_ptr, get_len)
+    SUBROUTINE stencilio_write(group_id, name, stencils, get_ptr, get_len, &
+            indexlist, extend, ncmp, same_kind)
         USE grids_mod, ONLY: mygrids, nmygrids
         USE commbuf_mod, ONLY: bigbuf, intbuf, increase_bigbuf, increase_intbuf
 
@@ -73,6 +74,11 @@ CONTAINS
         END INTERFACE
         OPTIONAL :: get_ptr, get_len
 
+        LOGICAL, OPTIONAL :: indexlist
+        LOGICAL, OPTIONAL :: extend
+        INTEGER(intk), OPTIONAL :: ncmp
+        LOGICAL, OPTIONAL :: same_kind
+
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: stencilInfo(:, :), &
             grpStencilInfo(:,:), totStencilInfo(:,:)
@@ -95,14 +101,14 @@ CONTAINS
         INTEGER(int32) :: mpi_dtype
 
         INTEGER(intk) :: len, ptr
-        INTEGER(intk) :: rank
+        INTEGER(intk) :: rank, r, ncmp2
         INTEGER(intk) :: maxarr
-        INTEGER(HSIZE_T) :: shape(1)
-        INTEGER(HSIZE_T) :: count(1), offset(1)
+        INTEGER(HSIZE_T) :: shape1(1), offset1(1), count1(1)
+        INTEGER(HSIZE_T) :: shape2(2), curr_shape2(2)
+        INTEGER(HSIZE_T) :: count2(2), offset2(2)
+        INTEGER(HSIZE_T) :: maxdims2(2), chunksize2(2)
         INTEGER(HID_T) :: dset_id, plist_id, filespace, memspace
-
         INTEGER(HID_T) :: hdf5_memtype, hdf5_filetype
-
         TYPE(C_PTR) :: cptr
 
         ! Local per-node data buffer
@@ -110,7 +116,7 @@ CONTAINS
         REAL(kind=realk), ALLOCATABLE, TARGET :: localbuf_r(:)
         CLASS(*), POINTER :: localbuf(:)
 
-        LOGICAL :: finishBlock
+        LOGICAL :: finishBlock, write_indexlist, append, link_exists
         INTEGER(kind=int32) :: ierr
 
         SELECT TYPE (stencils)
@@ -130,7 +136,15 @@ CONTAINS
             CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mglet_mpi_int%MPI_val, &
                 MPI_MAX, MPI_COMM_WORLD, ierr)
             IF (maxarr <= HUGE(1_int16)) THEN
-                hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                IF (PRESENT(same_kind)) THEN
+                    IF (same_kind) THEN
+                        hdf5_filetype = mglet_hdf5_int
+                    ELSE
+                        hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                    END IF
+                ELSE
+                    hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                END IF
             ELSE
                 hdf5_filetype = mglet_hdf5_int
             END IF
@@ -163,7 +177,15 @@ CONTAINS
             CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mglet_mpi_int%MPI_val, &
                 MPI_MAX, MPI_COMM_WORLD, ierr)
             IF (maxarr <= HUGE(1_int16)) THEN
-                hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                IF (PRESENT(same_kind)) THEN
+                    IF (same_kind) THEN
+                        hdf5_filetype = mglet_hdf5_int
+                    ELSE
+                        hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                    END IF
+                ELSE
+                    hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
+                END IF
             ELSE
                 hdf5_filetype = mglet_hdf5_int
             END IF
@@ -245,11 +267,19 @@ CONTAINS
         END DO
 
         ! Write Index table
-        ALLOCATE(idx64(nMyGrids))
-        idx64 = stencilInfo(3, :)
-        CALL stencilio_write_list(group_id, TRIM(name)//"Index", &
-            idx64, index=.TRUE.)
-        DEALLOCATE(idx64)
+        write_indexlist = .TRUE.
+        IF (PRESENT(indexlist)) THEN
+            IF (.NOT. indexlist) THEN
+                write_indexlist = .FALSE.
+            END IF
+        END IF
+        IF (write_indexlist) THEN
+            ALLOCATE(idx64(nMyGrids))
+            idx64 = stencilInfo(3, :)
+            CALL stencilio_write_list(group_id, TRIM(name)//"Index", &
+                idx64, index=.TRUE.)
+            DEALLOCATE(idx64)
+        END IF
 
         ! Collect list
         CALL MPI_Gatherv(stencilInfo, INT(3*nMyGrids, int32), &
@@ -307,7 +337,7 @@ CONTAINS
             END SELECT
         END DO
 
-        IF ( my_len < 0 ) THEN
+        IF (my_len < 0) THEN
             ! check the preceding summation loop (possible source of overflow)
             WRITE(*,*) "Probably integer overflow in my_len"
             CALL errr(__FILE__, __LINE__)
@@ -357,21 +387,21 @@ CONTAINS
             ! If the overall stencil length per IO node exceed what can be
             ! put in a 32-bit integer, then add more IO nodes...
             ALLOCATE(grdOffsets(nGrpGrids))
-            offset(1) = 0
+            offset2(1) = 0
             grdOffsets = 0
             DO i = 1, nGrpGrids
                 j = idx(i)
-                grdOffsets(j) = offset(1)
-                offset(1) = offset(1) + grpStencilInfo(3, j)
+                grdOffsets(j) = offset2(1)
+                offset2(1) = offset2(1) + grpStencilInfo(3, j)
 
                 ! Check that grdOffsets does not overflow in next loop
                 ! iteration
                 !
                 ! offset(1) is of kind HSIZE_T, which on all MGLET-relevant
                 ! platforms is 64-bit
-                IF (offset(1) > HUGE(1_intk)) THEN
+                IF (offset2(1) > HUGE(1_intk)) THEN
                     WRITE(*,*) "Integer overflow:"
-                    WRITE(*,*) "Offset of stencils: ", offset(1)
+                    WRITE(*,*) "Offset of stencils: ", offset2(1)
                     WRITE(*,*) "Exceed: ", HUGE(1_int32)
                     CALL errr(__FILE__, __LINE__)
                 END IF
@@ -487,10 +517,55 @@ CONTAINS
         CALL MPI_Allreduce(ioproc_len, total_len, 1, MPI_INTEGER8, MPI_SUM, &
             iocomm%MPI_val, ierr)
 
+        rank = 1
+        shape2(1) = total_len
+        shape2(2) = 0
+
+        ! Optionally support organizing the data in 2-D datasets
+        ncmp2 = 1
+        IF (PRESENT(ncmp)) THEN
+            IF (MOD(total_len, INT(ncmp, int64)) > 0) THEN
+                WRITE(*,*) total_len, ncmp
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            IF (ncmp > 1) THEN
+                rank = 2
+                shape2(1) = ncmp
+                shape2(2) = total_len/ncmp
+            END IF
+            ncmp2 = ncmp
+        END IF
+
+        append = .FALSE.
+        IF (PRESENT(extend)) THEN
+            IF (extend) THEN
+                append = .TRUE.
+            END IF
+        END IF
+
         ! Open/create dataset and filespace
-        shape(1) = total_len
-        CALL hdf5common_dataset_create(name, shape, hdf5_filetype, group_id, &
-            dset_id, filespace)
+        curr_shape2 = 0
+        IF (append) THEN
+            CALL hdf5common_dataset_exists(name, group_id, link_exists, &
+                curr_shape2(1:rank))
+            IF (link_exists) THEN
+                CALL hdf5common_dataset_open(name, curr_shape2(1:rank), &
+                    group_id, dset_id, filespace)
+                shape2(rank) = shape2(rank) + curr_shape2(rank)
+                CALL hdf5common_dataset_extend(dset_id, filespace, &
+                    shape2(1:rank))
+            ELSE
+                maxdims2 = shape2
+                maxdims2(rank) = H5S_UNLIMITED_F
+                chunksize2 = shape2
+                CALL hdf5common_dataset_create(name, shape2(1:rank), &
+                    hdf5_filetype, group_id, dset_id, filespace, &
+                    maxdims2(1:rank), chunksize2(1:rank))
+            END IF
+        ELSE
+            CALL hdf5common_dataset_create(name, shape2(1:rank), &
+                hdf5_filetype, group_id, dset_id, filespace)
+        END IF
 
         ! This is to mitigate an assert-error in HDF5 when the dataset have no
         ! data. There is no need to continue in this case.
@@ -500,15 +575,14 @@ CONTAINS
         END IF
 
         ! Create memspace and select entire memspace as one hyperslab
-        rank = 1
-        shape(1) = ioproc_len
-        CALL h5screate_simple_f(rank, shape, memspace, ierr)
+        shape1 = ioproc_len
+        CALL h5screate_simple_f(1, shape1, memspace, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
-        offset(1) = 0
-        count = ioproc_len
-        CALL h5sselect_hyperslab_f(memspace, H5S_SELECT_SET_F, &
-            offset, count, ierr)
+        offset1 = 0
+        count1 = ioproc_len
+        CALL h5sselect_hyperslab_f(memspace, H5S_SELECT_SET_F, offset1, &
+            count1, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! select hyperslab in filespace (already exists)
@@ -548,14 +622,14 @@ CONTAINS
         ! Determine offset for each individual grid
         CALL sortix(nTotGrids, totStencilInfo(2, :), idx)
 
-        offset(1) = 0
+        offset2(1) = 0
         grdOffsets = 0
         DO i = 1, nTotGrids
             j = idx(i)
             igrid = totStencilInfo(2, j)
             IF (igrid > nTotGrids) CALL errr(__FILE__, __LINE__)
-            grdOffsets(igrid) = offset(1)
-            offset(1) = offset(1) + totStencilInfo(3, j)
+            grdOffsets(igrid) = offset2(1)
+            offset2(1) = offset2(1) + totStencilInfo(3, j)
         END DO
 
         IF (MINVAL(grdOffsets) < 0) THEN
@@ -565,18 +639,24 @@ CONTAINS
         END IF
 
         finishBlock = .FALSE.
-        offset = 0
-        count = 0
+        offset2 = 0
+        count2 = 0
+        IF (rank == 1) THEN
+            r = 1
+        ELSE
+            r = 2
+            count2(1) = ncmp2
+        END IF
         DO i = 1, nGrpGrids
             igrid = grpStencilInfo(2, i)
 
             ! Start new block?
-            IF (count(1) == 0) THEN
-                offset(1) = grdOffsets(igrid)
-                count(1) = 0
+            IF (count2(r) == 0) THEN
+                offset2(r) = curr_shape2(r) + grdOffsets(igrid)/ncmp2
+                count2(r) = 0
             END IF
 
-            count(1) = count(1) + grpStencilInfo(3, i)
+            count2(r) = count2(r) + grpStencilInfo(3, i)/ncmp2
 
             ! Finish current block
             IF (i < nGrpGrids) THEN
@@ -589,22 +669,22 @@ CONTAINS
 
             ! Define hyperslab
             IF ( finishBlock ) THEN
-                IF ( count(1) < 0 ) THEN
+                IF ( count2(r) < 0 ) THEN
                     WRITE(*,*) "Probably integer overflow in count(1)"
                     CALL errr(__FILE__, __LINE__)
                 END IF
-                IF ( offset(1) < 0 ) THEN
+                IF ( offset2(r) < 0 ) THEN
                     WRITE(*,*) "Probably integer overflow in offset(1)"
                     CALL errr(__FILE__, __LINE__)
                 END IF
-                IF (count(1) > 0) THEN
+                IF (count2(r) > 0) THEN
                     CALL h5sselect_hyperslab_f(filespace, H5S_SELECT_OR_F, &
-                        offset, count, ierr)
+                        offset2, count2, ierr)
                     IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
                 END IF
 
-                offset = 0
-                count = 0
+                offset2(r) = 0
+                count2(r) = 0
                 finishBlock = .FALSE.
             END IF
         END DO
@@ -1752,5 +1832,69 @@ CONTAINS
 
         CALL hdf5common_dataset_close(dset_id, filespace)
     END SUBROUTINE stencilio_write_master_cptr
+
+
+    ! Appends a list to the end of a dataset, appending happens at last
+    ! dimension
+    SUBROUTINE stencilio_append_master_cptr(group_id, name, cptr, shape, dtype)
+
+        ! Subroutine arguments
+        INTEGER(hid_t), INTENT(IN) :: group_id
+        CHARACTER(LEN=*), INTENT(IN) :: name
+        TYPE(C_PTR), INTENT(in) :: cptr
+        INTEGER(hsize_t), INTENT(IN) :: shape(:)
+        INTEGER(hid_t), INTENT(IN) :: dtype
+
+        ! Local variables
+        INTEGER(hsize_t) :: existing_shape(SIZE(shape))
+        INTEGER(hsize_t) :: offset(SIZE(shape))
+        INTEGER(hsize_t) :: count(SIZE(shape))
+        INTEGER(hsize_t) :: new_shape(SIZE(shape))
+        INTEGER(hid_t) :: dset_id, filespace, memspace
+        INTEGER(intk) :: rank
+        INTEGER(int32) :: hdferr
+
+        IF (.NOT. ioproc) RETURN
+
+        rank = SIZE(shape)
+
+        ! Open dataset, extend, make filespace selection
+        CALL hdf5common_dataset_open(name, existing_shape, group_id, dset_id, &
+            filespace)
+
+        offset = 0
+        offset(rank) = existing_shape(rank)
+        count = shape
+        new_shape = existing_shape
+        new_shape(rank) = existing_shape(rank) + shape(rank)
+
+        CALL hdf5common_dataset_extend(dset_id, filespace, new_shape, &
+            offset, count)
+        IF (myid /= 0) THEN
+            CALL h5sselect_none_f(filespace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Memspace
+        CALL h5screate_simple_f(rank, shape, memspace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        IF (myid == 0) THEN
+            CALL h5sselect_all_f(memspace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        ELSE
+            CALL h5sselect_none_f(memspace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL h5dwrite_f(dset_id, dtype, cptr, hdferr, &
+            file_space_id=filespace, mem_space_id=memspace)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL hdf5common_dataset_close(dset_id, filespace)
+
+        CALL h5sclose_f(memspace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+    END SUBROUTINE stencilio_append_master_cptr
 
 END MODULE stencilio_mod

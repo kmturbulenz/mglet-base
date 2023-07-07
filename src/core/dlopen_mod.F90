@@ -1,7 +1,9 @@
 MODULE dlopen_mod
     USE,  INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_CHAR, C_INT, C_NULL_PTR, &
         C_NULL_FUNPTR, C_NULL_CHAR, C_FUNPTR, C_ASSOCIATED, C_F_POINTER
-    USE precision_mod, ONLY: intk
+    USE precision_mod
+    USE fort7_mod
+    USE comms_mod
     USE err_mod, ONLY: errr
 
     IMPLICIT NONE(type, external)
@@ -60,26 +62,24 @@ MODULE dlopen_mod
 
 CONTAINS
     SUBROUTINE init_dlopen()
-        TYPE(C_PTR) :: c_string
-        INTEGER(intk) :: str_len
-        CHARACTER(len=1024), POINTER :: f_string
+        INTEGER(intk) :: i, nlibs
+        CHARACTER(len=mglet_filename_max) :: soname, jsonptr
 
-        ! Load library
-        handle(shlib_idx + 1) = dlopen(C_NULL_CHAR, &
-            INT(IOR(RTLD_GLOBAL, RTLD_LAZY), KIND=C_INT))
-
-        IF (C_ASSOCIATED(handle(shlib_idx + 1))) THEN
-            shlib_idx = shlib_idx + 1
-        ELSE
-            c_string = dlerror()
-            CALL C_F_POINTER(c_string, f_string)
-            str_len = MIN(INDEX(f_string, C_NULL_CHAR), 1024)
-
-            WRITE(*,*) 'shlib_load: Error loading '
-            WRITE(*,*) 'shlib_load: dlerror said: ', f_string(1:str_len)
-            CALL errr(__FILE__, __LINE__)
+        IF (.NOT. fort7%exists("/libs")) THEN
+            RETURN
         END IF
+        CALL fort7%get_size("/libs", nlibs)
+        IF (nlibs <= 0) RETURN
+
+        IF (myid == 0) WRITE(*, '("LOADING LIBRARIES:")')
+        DO i = 1, nlibs
+            WRITE(jsonptr, '("/libs/", I0)') i-1
+            CALL fort7%get_value(jsonptr, soname)
+            CALL shlib_load(soname)
+        END DO
+        IF (myid == 0) WRITE(*, '()')
     END SUBROUTINE init_dlopen
+
 
     ! Load shared libraries
     SUBROUTINE shlib_load(soname, required)
@@ -113,7 +113,7 @@ CONTAINS
             INT(IOR(RTLD_GLOBAL, RTLD_LAZY), KIND=C_INT))
 
         IF (C_ASSOCIATED(handle(shlib_idx + 1))) THEN
-            WRITE(*,*) 'shlib_load: ', soname, ' loaded'
+            IF (myid == 0) WRITE(*, '(4X, A)') TRIM(soname)
             shlib_idx = shlib_idx + 1
         ELSE
             c_string = dlerror()

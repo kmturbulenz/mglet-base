@@ -76,8 +76,9 @@ CONTAINS
     END SUBROUTINE cutcorner_level
 
 
-    SUBROUTINE cutcorner_grid(kk, jj, ii, ntopol, ntrimax, xstag, ystag, zstag, &
-        ddx, ddy, ddz, topol, kanteu, kantev, kantew, triau, triav, triaw)
+    SUBROUTINE cutcorner_grid(kk, jj, ii, ntopol, ntrimax, xstag, ystag, &
+        zstag, ddx, ddy, ddz, topol, kanteu, kantev, kantew, triau, triav, &
+        triaw)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, ntopol, ntrimax
@@ -95,8 +96,7 @@ CONTAINS
         INTEGER(intk) :: ntrilim(3, 2)
         REAL(realk) :: xp, yp, zp, a, b, c, x1, y1, z1
         REAL(realk) :: x2, y2, z2, x3, y3, z3, betrag
-        REAL(realk) :: eps1, eps2, eps3, eps
-
+        REAL(realk) :: length, eps
         REAL(realk) :: xmin, xmax, ymin, ymax, zmin, zmax
 
         ! Initializing variables
@@ -205,11 +205,14 @@ CONTAINS
                 DO j = ntrilim(2,1), ntrilim(2,2)
                     DO k = ntrilim(3,1), ntrilim(3,2)
 
-                        eps1 = maccur*ddx(i)
-                        eps2 = maccur*ddy(j)
-                        eps3 = maccur*ddz(k)
-                        eps = sqrt(eps1**2 + eps2**2 + eps3**2)
+                        ! The length is the middle length when the cell has
+                        ! different edge lengths.
+                        length = (ddx(i) + ddy(j) + ddz(k)) &
+                            - MIN(ddx(i), ddy(j), ddz(k)) &
+                            - MAX(ddx(i), ddy(j), ddz(k))
+                        eps = maccur*length
 
+                        ! TODO: Cleanup usage of xp, yp, zp - remove??
                         xp = xstag(i)
                         yp = ystag(j)
                         zp = zstag(k)
@@ -218,8 +221,7 @@ CONTAINS
                             ddx, ddy, ddz, &
                             i, j, k, a, b, c, xp, yp, zp, &
                             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
-                            eps, eps1, eps2, eps3, &
-                            xmin, xmax, ymin, ymax, zmin, zmax, &
+                            eps, xmin, xmax, ymin, ymax, zmin, zmax, &
                             found, foundx, foundy, foundz)
 
                         IF (foundx == 1) THEN
@@ -297,6 +299,8 @@ CONTAINS
             yp = ystag(j)
             zp = zstag(k)
 
+            ! TODO: Is this numerically safe? Use xstag(i-1) instead like in
+            ! intinface?
             IF (direction == 1) xp = xp - ddx(i)
             IF (direction == 2) yp = yp - ddy(j)
             IF (direction == 3) zp = zp - ddz(k)
@@ -348,7 +352,6 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ntopol, direction
         REAL(realk), INTENT(in) :: topol(3, 3, ntopol)
 
-
         ! Local variables
         REAL(realk) :: a, b, c, x1, y1, z1, x2, y2, z2, x3, y3, z3
         REAL(realk) :: betrag
@@ -392,11 +395,10 @@ CONTAINS
     END SUBROUTINE calcint
 
 
-    PURE SUBROUTINE intinface(kk, jj, ii, xstag, ystag, zstag, ddx, ddy ,ddz, &
+    PURE SUBROUTINE intinface(kk, jj, ii, xstag, ystag, zstag, ddx, ddy, ddz, &
             i, j, k, a, b, c, xp, yp, zp, &
             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
-            eps, eps1, eps2, eps3, &
-            xmin, xmax, ymin, ymax, zmin, zmax,&
+            eps, xmin, xmax, ymin, ymax, zmin, zmax,&
             found, foundx, foundy, foundz)
 
         ! Subroutine arguments
@@ -407,7 +409,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: a, b, c
         REAL(realk), INTENT(in) :: xp, yp, zp
         REAL(realk), INTENT(in) :: x1, y1, z1, x2, y2, z2, x3, y3, z3
-        REAL(realk), INTENT(in) :: eps, eps1, eps2, eps3
+        REAL(realk), INTENT(in) :: eps
         REAL(realk), INTENT(in) :: xmin, xmax, ymin, ymax, zmin, zmax
         INTEGER(intk), INTENT(out) :: found, foundx, foundy, foundz
 
@@ -415,6 +417,7 @@ CONTAINS
         REAL(realk) :: betrag
         REAL(realk) :: px, py, pz, abx, aby, abz, s1, s2, s3
         REAL(realk) :: xx, yy, zz
+        REAL(realk) :: xfront, yright, zbottom
 
         ! Initialize return variables to default value
         found = 0
@@ -422,13 +425,36 @@ CONTAINS
         foundy = 0
         foundz = 0
 
+        ! xstag(i)-ddx(i) is numerically different from xstag(i-1) - make sure
+        ! both cells sharing a face "sees" the same value! Small errors still
+        ! done on front, right, bottom faces of a grid!
+        IF (i == 1) THEN
+            xfront = xstag(1) - ddx(1) - eps
+        ELSE
+            xfront = xstag(i-1)
+        END IF
+
+        IF (j == 1) THEN
+            yright = ystag(1) - ddy(1) - eps
+        ELSE
+            yright = ystag(j-1)
+        END IF
+
+        IF (k == 1) THEN
+            zbottom = zstag(1) - ddz(1) - eps
+        ELSE
+            zbottom = zstag(k-1)
+        END IF
+
         IF (a /= 0.0) THEN
             ! x-Kante
             xx = (-c*(zp-z1)-b*(yp-y1))/a + x1
             yy = yp
             zz = zp
 
-            IF ((xx >= xstag(i)-ddx(i)-eps1) .AND. (xx <= xstag(i)+eps1)) THEN
+            ! This checks if the intersection point is somewhere on the edge
+            ! itself
+            IF ((xx > xfront) .AND. (xx <= xstag(i))) THEN
                 ! d1 Vektor berechnen = Gerade von Dreiecksseitenmittelpkt.
                 ! zu Schnittpunkt xx,yy,zz
                 px = xx-0.5*(x2+x1)
@@ -436,14 +462,16 @@ CONTAINS
                 pz = zz-0.5*(z2+z1)
 
                 ! Hier nur ein paar Abkürzungen
-                abx= (x2-x1)
-                aby= (y2-y1)
-                abz= (z2-z1)
+                abx = (x2-x1)
+                aby = (y2-y1)
+                abz = (z2-z1)
+
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
+
                 ! ab=[abx,aby,abz] Einheitsvektor von Eckpunkt 1 zu 2
                 ! n=[a,b,c]        Normalenvektor des Dreiecks
                 ! p=[px,py,pz]     von Dreieckseitenmitelpunkt zum Schniittpunkt
@@ -459,8 +487,9 @@ CONTAINS
                 abx = (x3-x2)
                 aby = (y3-y2)
                 abz = (z3-z2)
+
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
@@ -474,6 +503,7 @@ CONTAINS
                 abx = (x1-x3)
                 aby = (y1-y3)
                 abz = (z1-z3)
+
                 ! normieren
                 betrag = sqrt(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
@@ -482,12 +512,14 @@ CONTAINS
 
                 s3 = px*(aby*c-abz*b) + py*(abz*a-abx*c) + pz*(abx*b-aby*a)
 
-                ! Zum Schluss noch schauen, ob der Schnittpunkt
-                ! wirklich im Dreieck liegt.
-                IF ((s1 < eps) .AND. (s2 < eps) .AND. (s3 < eps)) THEN
-                    IF ((xx >= xmin-eps1) .AND. (xx <= xmax+eps1) .AND. &
-                            (yy >= ymin-eps2) .AND. (yy <= ymax+eps2) .AND. &
-                            (zz >= zmin-eps3) .AND. (zz <= zmax+eps3) ) THEN
+                ! Cheks that the intersection point is within the triangle.
+                ! Please refer to Nikolaus Peller' theis, "Numerische
+                ! Simulation turbulenter Strömungen mit Immersed Boundaries"
+                ! page 44-46.
+                IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
+                    IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
+                            (yy >= ymin-eps) .AND. (yy <= ymax+eps) .AND. &
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
                         found  = 1
                         foundx = 1
                     END IF
@@ -500,7 +532,9 @@ CONTAINS
             yy = (-c*(zp-z1)-a*(xp-x1))/b + y1
             zz = zp
 
-            IF ((yy >= ystag(j)-ddy(j)-eps2) .AND. (yy <= ystag(j)+eps2)) THEN
+            ! This checks if the intersection point is somewhere on the edge
+            ! itself
+            IF ((yy > yright) .AND. (yy <= ystag(j))) THEN
                 px = xx-0.5*(x2+x1)
                 py = yy-0.5*(y2+y1)
                 pz = zz-0.5*(z2+z1)
@@ -508,8 +542,9 @@ CONTAINS
                 abx = (x2-x1)
                 aby = (y2-y1)
                 abz = (z2-z1)
+
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
@@ -522,8 +557,9 @@ CONTAINS
                 abx = (x3-x2)
                 aby = (y3-y2)
                 abz = (z3-z2)
+
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
@@ -537,17 +573,19 @@ CONTAINS
                 abx = (x1-x3)
                 aby = (y1-y3)
                 abz = (z1-z3)
+
                 ! normieren
                 betrag = sqrt(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
+
                 s3 = px*(aby*c-abz*b) + py*(abz*a-abx*c) + pz*(abx*b-aby*a)
 
-                IF ((s1 < eps) .AND. (s2 < eps) .AND. (s3 < eps)) THEN
-                    IF ((xx >= xmin-eps1) .AND. (xx <= xmax+eps1) .AND. &
-                            (yy >= ymin-eps2) .AND. (yy <= ymax+eps2).AND.&
-                            (zz >= zmin-eps3) .AND. (zz <= zmax+eps3) ) THEN
+                IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
+                    IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
+                            (yy >= ymin-eps) .AND. (yy <= ymax+eps).AND.&
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
                         found  = 1
                         foundy = 1
                     END IF
@@ -560,7 +598,9 @@ CONTAINS
             yy = yp
             zz = (-b*(yp-y1)-a*(xp-x1))/c + z1
 
-            IF ((zz >= zstag(k)-ddz(k)-eps3).AND.(zz <= zstag(k)+eps3)) THEN
+            ! This checks if the intersection point is somewhere on the edge
+            ! itself
+            IF ((zz > zbottom).AND.(zz <= zstag(k))) THEN
                 px = xx-0.5*(x2+x1)
                 py = yy-0.5*(y2+y1)
                 pz = zz-0.5*(z2+z1)
@@ -583,7 +623,7 @@ CONTAINS
                 aby = (y3-y2)
                 abz = (z3-z2)
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
@@ -597,16 +637,17 @@ CONTAINS
                 aby = (y1-y3)
                 abz = (z1-z3)
                 ! normieren
-                betrag = sqrt(abx**2 + aby**2 + abz**2)
+                betrag = SQRT(abx**2 + aby**2 + abz**2)
                 abx = abx/betrag
                 aby = aby/betrag
                 abz = abz/betrag
 
                 s3 = px*(aby*c-abz*b) + py*(abz*a-abx*c) + pz*(abx*b-aby*a)
-                IF ((s1 < eps) .AND. (s2 < eps) .AND. (s3 < eps)) THEN
-                    IF ( (xx >= xmin-eps1) .AND. (xx <= xmax+eps1) .AND. &
-                            (yy >= ymin-eps2) .AND. (yy <= ymax+eps2) .AND. &
-                            (zz >= zmin-eps3) .AND. (zz <= zmax+eps3) ) THEN
+
+                IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
+                    IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
+                            (yy >= ymin-eps) .AND. (yy <= ymax+eps) .AND. &
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
                         found  = 1
                         foundz = 1
                     END IF
