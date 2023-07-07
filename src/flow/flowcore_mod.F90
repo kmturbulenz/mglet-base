@@ -17,12 +17,12 @@ MODULE flowcore_mod
     REAL(realk), PROTECTED :: targetcflmax
     REAL(realk), PROTECTED :: gradp(3)
 
+    ! TODO: Allocatable length - some expressions can be LONG!
     CHARACTER(len=1024), PROTECTED :: uinf_expr(3) = ""
     LOGICAL, PROTECTED :: uinf_is_expr = .FALSE.
 
-    PUBLIC :: init_flowcore, finish_flowcore, has_flow, dcont, dread, &
-        solve_flow, gmol, rho, uinf, uinf_expr, uinf_is_expr, tu_level, &
-        targetcflmax, gradp
+    PUBLIC :: init_flowcore, finish_flowcore, has_flow, solve_flow, gmol, &
+        rho, uinf, uinf_expr, uinf_is_expr, tu_level, targetcflmax, gradp
 
 CONTAINS
     SUBROUTINE init_flowcore()

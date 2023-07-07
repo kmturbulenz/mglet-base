@@ -241,7 +241,7 @@ CONTAINS
                 nkafl = 0
                 nknfl = 0
             ELSE
-                WRITE(*, *) "floffencon", k, j, i, ifl
+                WRITE(*, *) "floffencon", k, j, i, ifl, ierrfloffencon
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF

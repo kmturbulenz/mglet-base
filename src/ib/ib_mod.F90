@@ -2,10 +2,13 @@ MODULE ib_mod
     USE blocknodes_mod
     USE ctof_mod
     USE cutcorner_mod
+    USE flzelle_mod
     USE ftoc_mod
     USE ibconst_mod
     USE ibcore_mod
+    USE knotenundkanten_mod
     USE parent_mod
+    USE punktekoordinaten_mod
     USE topol_mod
     USE gc_mod, gc_constructor => constructor
     USE noib_mod, noib_constructor => constructor

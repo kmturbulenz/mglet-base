@@ -97,6 +97,7 @@ MODULE field_mod
 
         PROCEDURE :: copy_from
         PROCEDURE :: multiply
+        PROCEDURE :: shift
         PROCEDURE :: get_buffers
         PROCEDURE :: init_buffers
         PROCEDURE :: finish
@@ -560,6 +561,65 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE multiply
+
+
+    ! Shift position (staggering) of field. The destination field istag, jstag,
+    ! kstag determine the interpolation of the source fields
+    !
+    ! Prior content in the field is discarded, but the staggering of the
+    ! destination determine the interpolation of the source fields.
+    SUBROUTINE shift(this, that)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+        CLASS(field_t), INTENT(in) :: that
+
+        ! Local variables
+        INTEGER(intk) :: igr, ilevel, igrid
+        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: kstart, jstart, istart
+        INTEGER(intk) :: kstop, jstop, istop
+        INTEGER(intk) :: k1, j1, i1
+        REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), in(:, :, :)
+
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            ilevel = level(igrid)
+
+            ! All fields must be defiend on the same levels
+            IF (.NOT. this%active_level(ilevel)) CYCLE
+            IF (that%active_level(ilevel) .EQV. .FALSE.) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL this%get_ptr(out, igrid)
+            CALL that%get_ptr(in, igrid)
+
+            istart = 1
+            istop = ii
+            CALL get_stag_shift(i1, istart, istop, ii, this%istag, that%istag)
+
+            jstart = 1
+            jstop = jj
+            CALL get_stag_shift(j1, jstart, jstop, jj, this%jstag, that%jstag)
+
+            kstart = 1
+            kstop = kk
+            CALL get_stag_shift(k1, kstart, kstop, kk, this%kstag, that%kstag)
+
+            DO i = istart, istop
+                DO j = jstart, jstop
+                    DO k = kstart, kstop
+                        out(k, j, i) = 0.125*(in(k, j, i) + in(k+k1, j, i) &
+                            + in(k, j+j1, i) + in(k, j, i+i1) &
+                            + in(k+k1, j+j1, i) + in(k+k1, j, i+i1) &
+                            + in(k, j+j1, i+i1) + in(k+k1, j+j1, i+i1))
+                    END DO
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE shift
 
 
     SUBROUTINE init_buffers(this)

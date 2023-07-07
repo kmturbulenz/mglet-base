@@ -159,20 +159,18 @@ CONTAINS
         INTEGER(intk) :: icell, icellsgeom
         INTEGER(intk) :: ika, npoints
         INTEGER(intk) :: knotenzelle(8), kanten(12)
-        INTEGER(intk) :: bodyIDKanten(12)
+        INTEGER(intk) :: bodyidkanten(12)
         INTEGER(intk) :: nfixed_cells
-
 
         REAL(realk) :: umean(3), sum, this_vel(3)
         INTEGER(intk) :: ikante, idir, idmin, irepeat
 
         INTEGER(intk), ALLOCATABLE :: icelllist(:), cellind(:)
         INTEGER(intk), ALLOCATABLE :: connect(:, :), ncon(:)
+        REAL(realk), ALLOCATABLE :: xx(:, :), arealist(:)
 
         INTEGER(intk) :: indi, indj, indk
         REAL(realk) :: indnn
-
-        REAL(realk), ALLOCATABLE :: xx(:, :), arealist(:)
 
         ALLOCATE(icelllist(ncells))
         ALLOCATE(arealist(ncells))
