@@ -78,7 +78,7 @@ CONTAINS
 
     SUBROUTINE cutcorner_grid(kk, jj, ii, ntopol, ntrimax, xstag, ystag, &
         zstag, ddx, ddy, ddz, topol, kanteu, kantev, kantew, triau, triav, &
-        triaw)
+        triaw, exactedge)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, ntopol, ntrimax
@@ -89,6 +89,7 @@ CONTAINS
             kantew(kk, jj, ii)
         INTEGER(intk), INTENT(out) :: triau(ntrimax, kk, jj, ii), &
             triav(ntrimax, kk, jj, ii), triaw(ntrimax, kk, jj, ii)
+        LOGICAL, OPTIONAL, INTENT(in) :: exactedge
 
         ! Local variables
         INTEGER(intk) :: found, foundx, foundy, foundz
@@ -98,6 +99,7 @@ CONTAINS
         REAL(realk) :: x2, y2, z2, x3, y3, z3, betrag
         REAL(realk) :: length, eps
         REAL(realk) :: xmin, xmax, ymin, ymax, zmin, zmax
+        LOGICAL :: exactedge2
 
         ! Initializing variables
         kanteu = 0.0
@@ -107,6 +109,12 @@ CONTAINS
         triau = 0
         triav = 0
         triaw = 0
+
+        IF (PRESENT(exactedge)) THEN
+            exactedge2 = exactedge
+        ELSE
+            exactedge2 = .FALSE.
+        END IF
 
         ! Loop over all triangles and compute the intersections with the grid
         triangles: DO itri = 1, ntopol
@@ -222,7 +230,7 @@ CONTAINS
                             i, j, k, a, b, c, xp, yp, zp, &
                             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
                             eps, xmin, xmax, ymin, ymax, zmin, zmax, &
-                            found, foundx, foundy, foundz)
+                            found, foundx, foundy, foundz, .FALSE.)
 
                         IF (foundx == 1) THEN
                             CALL insertcutpoint(kk, jj, ii, ntopol, ntrimax, &
@@ -399,7 +407,7 @@ CONTAINS
             i, j, k, a, b, c, xp, yp, zp, &
             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
             eps, xmin, xmax, ymin, ymax, zmin, zmax,&
-            found, foundx, foundy, foundz)
+            found, foundx, foundy, foundz, exactedge)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -412,12 +420,14 @@ CONTAINS
         REAL(realk), INTENT(in) :: eps
         REAL(realk), INTENT(in) :: xmin, xmax, ymin, ymax, zmin, zmax
         INTEGER(intk), INTENT(out) :: found, foundx, foundy, foundz
+        LOGICAL, INTENT(in) :: exactedge
 
         ! Local variables
         REAL(realk) :: betrag
         REAL(realk) :: px, py, pz, abx, aby, abz, s1, s2, s3
         REAL(realk) :: xx, yy, zz
         REAL(realk) :: xfront, yright, zbottom
+        REAL(realk) :: epsedge
 
         ! Initialize return variables to default value
         found = 0
@@ -446,6 +456,15 @@ CONTAINS
             zbottom = zstag(k-1)
         END IF
 
+        ! Controls what happens when an intersection is in between
+        ! two edges edge. The exact edge intersection will only cut the
+        ! lower side edge, otherwise bot are marked as intersected.
+        IF (exactedge) THEN
+            epsedge = 0.0
+        ELSE
+            epsedge = eps
+        END IF
+
         IF (a /= 0.0) THEN
             ! x-Kante
             xx = (-c*(zp-z1)-b*(yp-y1))/a + x1
@@ -454,7 +473,7 @@ CONTAINS
 
             ! This checks if the intersection point is somewhere on the edge
             ! itself
-            IF ((xx > xfront) .AND. (xx <= xstag(i))) THEN
+            IF ((xx > xfront - epsedge) .AND. (xx <= xstag(i) + epsedge)) THEN
                 ! d1 Vektor berechnen = Gerade von Dreiecksseitenmittelpkt.
                 ! zu Schnittpunkt xx,yy,zz
                 px = xx-0.5*(x2+x1)
@@ -534,7 +553,7 @@ CONTAINS
 
             ! This checks if the intersection point is somewhere on the edge
             ! itself
-            IF ((yy > yright) .AND. (yy <= ystag(j))) THEN
+            IF ((yy > yright - epsedge) .AND. (yy <= ystag(j) + epsedge)) THEN
                 px = xx-0.5*(x2+x1)
                 py = yy-0.5*(y2+y1)
                 pz = zz-0.5*(z2+z1)
@@ -600,7 +619,7 @@ CONTAINS
 
             ! This checks if the intersection point is somewhere on the edge
             ! itself
-            IF ((zz > zbottom).AND.(zz <= zstag(k))) THEN
+            IF ((zz > zbottom - epsedge).AND.(zz <= zstag(k) + epsedge)) THEN
                 px = xx-0.5*(x2+x1)
                 py = yy-0.5*(y2+y1)
                 pz = zz-0.5*(z2+z1)
