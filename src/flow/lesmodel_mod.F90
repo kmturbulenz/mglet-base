@@ -567,12 +567,13 @@ CONTAINS
     END SUBROUTINE setginbody
 
 
-    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: k, j, i2, i3
@@ -630,12 +631,13 @@ CONTAINS
     END SUBROUTINE bfront
 
 
-    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: k, i, j2, j3
@@ -693,12 +695,13 @@ CONTAINS
     END SUBROUTINE bright
 
 
-    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: j, i, k2, k3

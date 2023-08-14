@@ -17,14 +17,15 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
                CFI_cdesc_t* x, CFI_cdesc_t* y, CFI_cdesc_t* z,
                CFI_cdesc_t* dx, CFI_cdesc_t* dy, CFI_cdesc_t* dz,
                CFI_cdesc_t* ddx, CFI_cdesc_t* ddy, CFI_cdesc_t* ddz,
-               CFI_cdesc_t* xstag, CFI_cdesc_t* ystag, CFI_cdesc_t* zstag)
+               int* ierr)
 {
     T x_p, y_p, z_p;
     T dx_p, dy_p, dz_p;
     T ddx_p, ddy_p, ddz_p;
-    T xstag_p, ystag_p, zstag_p;
     T res_v;
     T randval_p;
+
+    *ierr = 0;
 
     // Initialize RNG with a non-deterministic random number as seed, define
     // a real distribution that lies in the interval [0.0, 1.0)
@@ -35,6 +36,7 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     typedef exprtk::symbol_table<T> symbol_table_t;
     typedef exprtk::expression<T> expression_t;
     typedef exprtk::parser<T> parser_t;
+    typedef exprtk::parser_error::type error_t;
 
     symbol_table_t symbol_table;
     symbol_table.add_constants();  // pi, epsilon and inf
@@ -55,18 +57,38 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     symbol_table.add_variable("ddy", ddy_p);
     symbol_table.add_variable("ddz", ddz_p);
 
-    symbol_table.add_variable("xstag", xstag_p);
-    symbol_table.add_variable("ystag", ystag_p);
-    symbol_table.add_variable("zstag", zstag_p);
-
     symbol_table.add_variable(name, res_v);
     symbol_table.add_variable("rand", randval_p);
+
+    // Give possibility to print to terminal (debugging)
+    exprtk::rtl::io::package<T> io_package;
+    symbol_table.add_package(io_package);
 
     expression_t expression;
     expression.register_symbol_table(symbol_table);
 
     parser_t parser;
-    parser.compile(expr, expression);
+    if (!parser.compile(expr, expression))
+    {
+        // See exprtk_simple_example_08.cpp for error handling
+        printf("Error: %s\tExpression: %s\n", parser.error().c_str(), expr);
+
+        for (std::size_t i = 0; i < parser.error_count(); ++i)
+        {
+            error_t error = parser.get_error(i);
+            exprtk::parser_error::update_error(error, expr);
+
+            printf("Error: %02d  Line: %04d Col: %02d Type: [%14s] Msg: %s\n",
+                static_cast<unsigned int>(i),
+                static_cast<unsigned int>(error.line_no),
+                static_cast<unsigned int>(error.column_no),
+                exprtk::parser_error::to_str(error.mode).c_str(),
+                error.diagnostic.c_str());
+        }
+
+        *ierr = 1;
+        return;
+    }
 
     // Sanity checks - check that ranks are as expected
     assert (res->rank == 3);
@@ -81,10 +103,6 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     assert (ddx->rank == 1);
     assert (ddy->rank == 1);
     assert (ddz->rank == 1);
-
-    assert (xstag->rank == 1);
-    assert (ystag->rank == 1);
-    assert (zstag->rank == 1);
 
     // Set grid dimensions
     CFI_index_t ii = x->dim[0].extent;
@@ -104,10 +122,6 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     assert (ddy->dim[0].extent == jj);
     assert (ddz->dim[0].extent == kk);
 
-    assert (xstag->dim[0].extent == ii);
-    assert (ystag->dim[0].extent == jj);
-    assert (zstag->dim[0].extent == kk);
-
     assert (res->dim[0].lower_bound == 0);
     assert (res->dim[1].lower_bound == 0);
     assert (res->dim[2].lower_bound == 0);
@@ -118,7 +132,7 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
         {
             for (CFI_index_t k = 0; k < kk; k++)
             {
-                // The randdom value is updated for every cell and lies in the
+                // The random value is updated for every cell and lies in the
                 // interval [0, 1.0)
                 randval_p = dis(rng);
 
@@ -126,19 +140,16 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
                 x_p = *((T *) CFI_address(x, sub_x));
                 dx_p = *((T *) CFI_address(dx, sub_x));
                 ddx_p = *((T *) CFI_address(ddx, sub_x));
-                xstag_p = *((T *) CFI_address(xstag, sub_x));
 
                 CFI_index_t sub_y[1] = {j};
                 y_p = *((T *) CFI_address(y, sub_y));
                 dy_p = *((T *) CFI_address(dy, sub_y));
                 ddy_p = *((T *) CFI_address(ddy, sub_y));
-                ystag_p = *((T *) CFI_address(ystag, sub_y));
 
                 CFI_index_t sub_z[1] = {k};
                 z_p = *((T *) CFI_address(z, sub_z));
                 dz_p = *((T *) CFI_address(dz, sub_z));
                 ddz_p = *((T *) CFI_address(ddz, sub_z));
-                zstag_p = *((T *) CFI_address(zstag, sub_z));
 
                 CFI_index_t sub3[3] = {k, j, i};
                 res_v = *((T *) CFI_address(res, sub3));
@@ -159,12 +170,12 @@ extern "C" {
         CFI_cdesc_t* x, CFI_cdesc_t* y, CFI_cdesc_t* z,
         CFI_cdesc_t* dx, CFI_cdesc_t* dy, CFI_cdesc_t* dz,
         CFI_cdesc_t* ddx, CFI_cdesc_t* ddy, CFI_cdesc_t* ddz,
-        CFI_cdesc_t* xstag, CFI_cdesc_t* ystag, CFI_cdesc_t* zstag)
+        int* ierr)
     {
         // Should probably check x, y, z etc. as well...
         assert (res->type == CFI_type_mgletreal);
         eval_expr<mgletreal>(res, name, expr, rho, gmol, tu_level, timeph,
-            x, y, z, dx, dy, dz, ddx, ddy, ddz, xstag, ystag, zstag);
+            x, y, z, dx, dy, dz, ddx, ddy, ddz, ierr);
     }
 }
 
