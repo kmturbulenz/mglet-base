@@ -11,15 +11,17 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-2077c6a", "gnu-ompi-image:sha-2077c6a"]
+        image: ["intel-impi-image:sha-57f558e", "gnu-ompi-image:sha-57f558e"]
         build: ["Release", "Debug"]
       fail-fast: false
 
-    container: ghcr.io/kmturbulenz/${{ matrix.image }}
+    container:
+      image: ghcr.io/kmturbulenz/${{ matrix.image }}
+      options: "--cap-add=SYS_PTRACE --shm-size=4gb"
 
     steps:
     - uses: actions/checkout@v3
@@ -32,3 +34,25 @@ jobs:
         cmake -GNinja -DCMAKE_BUILD_TYPE="${{ matrix.build }}" ..
         ninja
         ls -R
+
+    - name: Install 'gdb' and 'pidof'
+      run: |
+        source /opt/bashrc || true
+        yum -y install gdb sysvinit-tools
+
+    - name: Run testcases
+      run: |
+        source /opt/bashrc || true
+        cd build
+        export OMPI_ALLOW_RUN_AS_ROOT=1
+        export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+        export I_MPI_FABRICS=shm
+        export I_MPI_PLATFORM=ivb
+        export I_MPI_DEBUG=5
+        export KMT_MGLET_SERIAL_IO=1
+        TIC=`date +%s`
+        ctest --timeout ${{ matrix.build == 'Debug' && '600' || '150' }} --output-on-failure --test-dir tests
+        TOC=`date +%s`
+        DURATION=$((TOC-TIC))
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Total test time: $DURATION sec" >> $GITHUB_STEP_SUMMARY

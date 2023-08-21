@@ -1,0 +1,112 @@
+{
+    "time": {
+        "mtstep": 200,
+        "dt": 0.05,
+        "itinfo": 10,
+        "tstat": 5.0,
+        "read": false,
+        "write": true,
+        "continue": true
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [-0.8, 0.0, 0.0],
+            [5.0, 0.0, 0.0]
+        ],
+        "nofluidpoints": [
+            [0.0, 0.0, 0.0],
+            [0.3, 0.0, 0.0],
+            [-0.3, 0.0, 0.0]
+        ],
+        "geometries": [
+            {
+                "file": "sphere.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            }
+        ]
+    },
+    "flow": {
+        "gmol": 0.001,
+        "rho": 1.0,
+        "tu_level": 0.01,
+        "uinf": [1.0, 0.0, 0.0],
+        "gradp": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.0002,
+            "nouter_min": 2,
+            "nouter": 9,
+            "ninner": 5,
+            "omega": 1.1,
+            "loglevel": 3
+        },
+        "lesmodel": {
+            "model": "smagorinsky"
+        }
+    },
+    "probes": {
+        "itsamp": 1,
+        "tstart": 2.5,
+        "arrays": [
+            {
+                "name": "line1",
+                "variables": ["U", "P"],
+                "positions": "line1.dat"
+            },
+            {
+                "name": "ring1",
+                "variables": ["U", "V", "W", "P"],
+                "positions": "ring1.dat"
+            },
+            {
+                "name": "ring2",
+                "variables": ["U", "V", "W", "P"],
+                "positions": "ring2.dat"
+            },
+            {
+                "name": "ring3",
+                "variables": ["U", "V", "W", "P"],
+                "positions": "ring3.dat"
+            },
+            {
+                "name": "inlet",
+                "variables": ["P"],
+                "positions": [
+                    [-1.99, 0.0, 0.0],
+                    [-1.99, 0.0, 0.5],
+                    [-1.99, 0.5, 0.5],
+                    [-1.99, 0.5, 0.0],
+                    [-1.99, 0.5, -0.5],
+                    [-1.99, 0.0, -0.5],
+                    [-1.99, -0.5, -0.5],
+                    [-1.99, -0.5, 0.0],
+                    [-1.99, -0.5, 0.5]
+                ]
+            }
+        ]
+    },
+
+    "uvwbulk": true,
+
+    "statistics": [
+        "U_AVG",
+        "UU_AVG",
+        "UV_AVG",
+        "laplaceP_AVG",
+        "laplaceP_SQR_AVG"
+    ],
+
+    "snapshots": {
+        "itsamp": 50,
+        "tstart": 8.0,
+        "fields": ["U", "V", "W", "P"]
+    }
+}

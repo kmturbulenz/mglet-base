@@ -1,0 +1,45 @@
+{
+    "time": {
+        "mtstep": 100,
+        "dt": 1e-5,
+        "itinfo": 1
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [0.5, 0.5, 0.0]
+        ],
+        "geometries": [
+        ]
+    },
+    "flow": {
+        "gmol": 0.1,
+        "rho": 1.0,
+        "uinf": [
+            "var a := 2.0*pi; var b := 2.0*pi; cos(a*x)*sin(b*y)",
+            "var a := 2.0*pi; var b := 2.0*pi; -sin(a*x)*cos(b*y)",
+            "0.0"
+        ],
+        "gradp": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sor",
+            //"epcorr": 0.0016,
+            "epcorr": 0.0,
+            "nouter_min": 0,
+            "nouter": 2,
+            "ninner": 5,
+            "omega": 1.1,
+            "loglevel": 3
+        },
+        "lesmodel": {
+            "model": "none"
+        }
+    }
+}
