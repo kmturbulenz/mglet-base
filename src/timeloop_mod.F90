@@ -95,7 +95,7 @@ CONTAINS
             END IF
             RETURN
         END IF
-        timeconf = fort7%get("/time")
+        CALL fort7%get(timeconf, "/time")
 
         ! Required values
         CALL timeconf%get_value("/mtstep", mtstep)

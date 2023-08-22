@@ -419,8 +419,6 @@ CONTAINS
 
 
     SUBROUTINE get_mgdims(kk, jj, ii, igrid)
-        USE simdfunctions_mod, ONLY: l_to_i
-
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 

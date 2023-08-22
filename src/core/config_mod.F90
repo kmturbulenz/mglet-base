@@ -11,6 +11,7 @@ MODULE config_mod
     TYPE :: config_t
         TYPE(c_ptr), PRIVATE :: handle = C_NULL_PTR
     CONTAINS
+        PROCEDURE :: read
         PROCEDURE :: get
 
         PROCEDURE, PRIVATE :: get_int32
@@ -47,10 +48,6 @@ MODULE config_mod
 
         FINAL :: destructor
     END TYPE config_t
-
-    INTERFACE config_t
-        MODULE PROCEDURE :: constructor
-    END INTERFACE config_t
 
     ! Interfaces to nlohmann's json library
     INTERFACE
@@ -222,10 +219,10 @@ MODULE config_mod
     PUBLIC :: config_t
 
 CONTAINS
-    FUNCTION constructor(filename) RESULT(confobj)
-        ! Function arguments
+    SUBROUTINE read(this, filename)
+        ! Subroutine arguments
+        CLASS(config_t), INTENT(inout) :: this
         CHARACTER(len=*), INTENT(in) :: filename
-        TYPE(config_t) :: confobj
 
         ! Local variables
         INTEGER(c_int) :: ierr
@@ -233,15 +230,16 @@ CONTAINS
         c_filename = TRANSFER(filename, c_filename)
         c_filename(LEN_TRIM(filename)+1) = C_NULL_CHAR
 
-        confobj%handle = C_NULL_PTR
-        confobj%handle = json_from_file(c_filename, ierr)
+        this%handle = C_NULL_PTR
+        this%handle = json_from_file(c_filename, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
-    END FUNCTION constructor
+    END SUBROUTINE read
 
 
-    TYPE(config_t) FUNCTION get(this, key)
+    SUBROUTINE get(this, new, key)
         ! Function arguments
         CLASS(config_t), INTENT(inout) :: this
+        CLASS(config_t), INTENT(out) :: new
         CHARACTER(len=*), INTENT(in) :: key
 
         ! Local variables
@@ -252,10 +250,10 @@ CONTAINS
         c_key = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
-        get%handle = C_NULL_PTR
-        get%handle = json_from_json(this%handle, c_key, ierr)
+        new%handle = C_NULL_PTR
+        new%handle = json_from_json(this%handle, c_key, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
-    END FUNCTION get
+    END SUBROUTINE get
 
 
     SUBROUTINE get_int32(this, key, val, found)
@@ -836,7 +834,6 @@ CONTAINS
     SUBROUTINE destructor(this)
         ! Subroutine arguments
         TYPE(config_t), INTENT(inout) :: this
-
         CALL this%finish()
     END SUBROUTINE destructor
 END MODULE config_mod

@@ -40,7 +40,7 @@ CONTAINS
         TYPE(config_t) :: lesconf
         TYPE(field_t), POINTER :: g
 
-        lesconf = fort7%get("/flow/lesmodel")
+        CALL fort7%get(lesconf, "/flow/lesmodel")
         CALL lesconf%get_value("/model", clesmodel, "Smagorinsky")
 
         SELECT CASE (lower(clesmodel))

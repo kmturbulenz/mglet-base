@@ -36,7 +36,7 @@ CONTAINS
         LOGICAL :: found_ib
 
         ! Required values
-        ibconf = fort7%get("/ib")
+        CALL fort7%get(ibconf, "/ib")
         CALL ibconf%get_value("/type", ctyp)
         CALL ibconf%get_value("/openaccur", openaccur, 0.125_realk)
 

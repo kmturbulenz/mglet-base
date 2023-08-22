@@ -50,7 +50,7 @@ CONTAINS
         has_flow = .TRUE.
 
         ! Required values
-        flowconf = fort7%get("/flow")
+        CALL fort7%get(flowconf, "/flow")
         CALL flowconf%get_value("/gmol", gmol)
 
         ! Either uinf is real or expression

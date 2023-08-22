@@ -73,7 +73,7 @@ CONTAINS
         CHARACTER(len=16) :: type
 
         ! Required values
-        psolveconf = fort7%get("/flow/pressuresolver")
+        CALL fort7%get(psolveconf, "/flow/pressuresolver")
 
         CALL psolveconf%get_value("/ninner", ninner, default_value=5)
         ! Allowing zero pressure iterations are useful for debugging purposes

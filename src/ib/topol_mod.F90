@@ -19,19 +19,15 @@ MODULE topol_mod
         TYPE(real_shmem_arr), PRIVATE :: shmtopol
         TYPE(int_shmem_arr), PRIVATE :: shmbodyid
     CONTAINS
+        PROCEDURE :: init
         PROCEDURE :: finish
-        FINAL :: destructor
     END TYPE topol_t
-
-    INTERFACE topol_t
-        MODULE PROCEDURE :: constructor
-    END INTERFACE topol_t
 
     PUBLIC :: topol_t, add_ids
 
 CONTAINS
 
-    TYPE(topol_t) FUNCTION constructor(blockconf, id)
+    SUBROUTINE init(this, blockconf, id)
         ! Reads the geometries specified in the blockconf. If the (optional)
         ! argument 'id' is present, then only geometries with that tag is read.
         !
@@ -39,8 +35,9 @@ CONTAINS
         ! increasing order.
 
         ! Subroutine arguments
-        TYPE(config_t) :: blockconf
-        INTEGER(intk), OPTIONAL :: id
+        CLASS(topol_t), INTENT(inout) :: this
+        TYPE(config_t), INTENT(inout) :: blockconf
+        INTEGER(intk), INTENT(in), OPTIONAL :: id
 
         ! Local variables
         TYPE(config_t) :: geometries, geometry
@@ -53,12 +50,15 @@ CONTAINS
 
         CHARACTER(len=64) :: jsonptr
 
+        ! Check
+        IF (this%shmem_is_allocated) CALL errr(__FILE__, __LINE__)
+
         ! Read which STL's to read
-        constructor%nbody = 0
+        this%nbody = 0
         CALL blockconf%get_size("/geometries", ngeom)
 
         ! Add ID's to all geometries
-        geometries = blockconf%get("/geometries")
+        CALL blockconf%get(geometries, "/geometries")
         CALL add_ids(geometries)
 
         only_id = 0
@@ -70,14 +70,14 @@ CONTAINS
         last_id = 0
         DO i = 1, ngeom
             WRITE(jsonptr, '("/geometries/", I0)') i-1
-            geometry = blockconf%get(jsonptr)
+            CALL blockconf%get(geometry, jsonptr)
 
             ! All geometries have either a user-specified id or have been
             ! assigned one
             CALL geometry%get_value("/id", this_id)
 
             IF (only_id == 0 .OR. this_id == only_id) THEN
-                constructor%nbody = constructor%nbody + 1
+                this%nbody = this%nbody + 1
             END IF
 
             ! Hmm. Check why this is neccesary. It shouln't be.. Maybe
@@ -86,15 +86,15 @@ CONTAINS
         END DO
 
         ! Read actual names to read
-        ALLOCATE(constructor%geometries(constructor%nbody))
-        ALLOCATE(constructor%ids(constructor%nbody))
-        constructor%ids = 0
+        ALLOCATE(this%geometries(this%nbody))
+        ALLOCATE(this%ids(this%nbody))
+        this%ids = 0
 
         j = 0
         last_id = 0
         DO i = 1, ngeom
             WRITE(jsonptr, '("/geometries/", I0)') i-1
-            geometry = blockconf%get(jsonptr)
+            CALL blockconf%get(geometry, jsonptr)
 
             ! All geometries have either a user-specified id or have been
             ! assigned one
@@ -102,10 +102,10 @@ CONTAINS
 
             IF (only_id == 0 .OR. this_id == only_id) THEN
                 j = j + 1
-                constructor%geometries(j) = &
-                    REPEAT(" ", LEN(constructor%geometries(j)))
-                CALL geometry%get_value("/file", constructor%geometries(j))
-                constructor%ids(j) = this_id
+                this%geometries(j) = &
+                    REPEAT(" ", LEN(this%geometries(j)))
+                CALL geometry%get_value("/file", this%geometries(j))
+                this%ids(j) = this_id
             END IF
 
             ! Hmm. Check why this is neccesary. It shouln't be.. Maybe
@@ -114,21 +114,21 @@ CONTAINS
         END DO
 
         ! Read STL's
-        ALLOCATE(ntri(constructor%nbody))
+        ALLOCATE(ntri(this%nbody))
         ntri = 0
-        ALLOCATE(is_binary(constructor%nbody))
+        ALLOCATE(is_binary(this%nbody))
         is_binary = .FALSE.
 
         IF (myid == 0) THEN
-            DO i = 1, constructor%nbody
-                CALL stl_info(constructor%geometries(i), is_binary(i), ntri(i))
+            DO i = 1, this%nbody
+                CALL stl_info(this%geometries(i), is_binary(i), ntri(i))
             END DO
         END IF
 
-        CALL MPI_Bcast(ntri, INT(constructor%nbody, int32), mglet_mpi_int, &
+        CALL MPI_Bcast(ntri, INT(this%nbody, int32), mglet_mpi_int, &
             0, MPI_COMM_WORLD)
 
-        CALL MPI_Bcast(is_binary, INT(constructor%nbody, int32), MPI_LOGICAL, &
+        CALL MPI_Bcast(is_binary, INT(this%nbody, int32), MPI_LOGICAL, &
             0, MPI_COMM_WORLD)
 
         ! Overall number of triangles to be read in
@@ -139,23 +139,23 @@ CONTAINS
         ! so always let each SHM master have at least space for 1 triangle
         ! allocated, otherwise "topol" is not correctly associated in
         ! blockbp/blockbpcc.
-        constructor%n = 0
-        IF (shmid == 0) constructor%n = MAX(SUM(ntri), 1)
+        this%n = 0
+        IF (shmid == 0) this%n = MAX(SUM(ntri), 1)
 
         ! Allocate storage - if shmid > 0 then ntopol == 0 and no space is
         ! allocated
         !
         ! Wrapper shmem_alloc want the number of elements to allocate,
         ! not bytes.
-        CALL shmem_alloc(constructor%shmtopol, &
-            3*3*INT(constructor%n, int64))
+        CALL shmem_alloc(this%shmtopol, &
+            3*3*INT(this%n, int64))
 
         ! Only one rank per compute node/SHM group do this to spare memory
         IF (shmid == 0) THEN
-            CALL C_F_POINTER(constructor%shmtopol%baseptr, &
-                topol3d, [3, 3, constructor%n])
+            CALL C_F_POINTER(this%shmtopol%baseptr, &
+                topol3d, [3, 3, this%n])
             offset = 1
-            DO i = 1, constructor%nbody
+            DO i = 1, this%nbody
                 ! If the topol have zero triangles, do nothing
                 IF (ntri(i) <= 0) CYCLE
 
@@ -163,7 +163,7 @@ CONTAINS
 
                 ! Global rank 0 read the STL
                 IF (myid == 0) THEN
-                    CALL stl_read(constructor%geometries(i), &
+                    CALL stl_read(this%geometries(i), &
                         is_binary(i), vertices)
                 END IF
 
@@ -173,7 +173,7 @@ CONTAINS
 
                 ! Now all ranks with shmid == 0 have the vertices data
                 DO j = 1, ntri(i)
-                    IF (offset > constructor%n) THEN
+                    IF (offset > this%n) THEN
                         CALL errr(__FILE__, __LINE__)
                     END IF
 
@@ -187,39 +187,40 @@ CONTAINS
             END DO
             NULLIFY(topol3d)
         END IF
-        CALL constructor%shmtopol%barrier()
+        CALL this%shmtopol%barrier()
 
         ! Allocate and set bodyid
-        CALL shmem_alloc(constructor%shmbodyid, INT(constructor%n, int64))
+        CALL shmem_alloc(this%shmbodyid, INT(this%n, int64))
         IF (shmid == 0) THEN
             offset = 1
-            DO i = 1, constructor%nbody
+            DO i = 1, this%nbody
                 IF (ntri(i) <= 0) CYCLE
-                constructor%shmbodyid%arr(offset:offset+ntri(i)-1) = &
-                    constructor%ids(i)
+                this%shmbodyid%arr(offset:offset+ntri(i)-1) = &
+                    this%ids(i)
                 offset = offset + ntri(i)
             END DO
         END IF
-        CALL constructor%shmbodyid%barrier()
+        CALL this%shmbodyid%barrier()
 
         ! In the end ntopol is set correct at all processes
         ! Also in the case of zero trinagles, ntopol is zero from now on..
-        constructor%n = SUM(ntri)
+        this%n = SUM(ntri)
 
         DEALLOCATE(is_binary, ntri)
 
         ! Set convenience pointers
-        CALL C_F_POINTER(constructor%shmtopol%baseptr, constructor%topol, &
-            [SIZE(constructor%shmtopol%arr)])
-        CALL C_F_POINTER(constructor%shmbodyid%baseptr, constructor%bodyid, &
-            [SIZE(constructor%shmbodyid%arr)])
+        CALL C_F_POINTER(this%shmtopol%baseptr, this%topol, &
+            [SIZE(this%shmtopol%arr)])
+        CALL C_F_POINTER(this%shmbodyid%baseptr, this%bodyid, &
+            [SIZE(this%shmbodyid%arr)])
 
-        constructor%shmem_is_allocated = .TRUE.
-    END FUNCTION constructor
+        this%shmem_is_allocated = .TRUE.
+    END SUBROUTINE init
 
 
     IMPURE ELEMENTAL SUBROUTINE finish(this)
         CLASS(topol_t), INTENT(inout) :: this
+
         this%nbody = 0
         this%n = 0
         IF (ALLOCATED(this%ids)) DEALLOCATE(this%ids)
@@ -234,12 +235,6 @@ CONTAINS
         END IF
         this%shmem_is_allocated = .FALSE.
     END SUBROUTINE finish
-
-
-    IMPURE ELEMENTAL SUBROUTINE destructor(this)
-        TYPE(topol_t), INTENT(inout) :: this
-        CALL this%finish()
-    END SUBROUTINE destructor
 
 
     SUBROUTINE add_ids(geometries)
@@ -265,7 +260,7 @@ CONTAINS
         ! assigned free ID's in the range above the predefined range
         DO i = 1, ngeom
             WRITE(jsonptr, '("/", I0)') i-1
-            geometry = geometries%get(jsonptr)
+            CALL geometries%get(geometry, jsonptr)
 
             has_id = geometry%exists("/id")
             IF (has_id) THEN
@@ -286,7 +281,7 @@ CONTAINS
         last_id = MAXVAL(ids)
         DO i = 1, ngeom
             WRITE(jsonptr, '("/", I0)') i-1
-            geometry = geometries%get(jsonptr)
+            CALL geometries%get(geometry, jsonptr)
 
             IF (ids(i) < 1) THEN
                 last_id = last_id + 1
