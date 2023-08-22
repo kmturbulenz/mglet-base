@@ -72,8 +72,19 @@ CONTAINS
         USE lesmodel_mod
         USE pressuresolver_mod
         USE itinfo_mod, ONLY: finish_itinfo
+        USE gc_flowstencils_mod
+        USE ib_mod
 
         IF (.NOT. has_flow) RETURN
+
+        ! Need to call this here - cannot be in flowcore because that
+        ! create a circular dependency
+        SELECT TYPE(ib)
+        TYPE IS (gc_t)
+            IF (solve_flow) THEN
+                CALL finish_flowstencils()
+            END IF
+        END SELECT
 
         CALL finish_itinfo
         CALL finish_pressuresolver()

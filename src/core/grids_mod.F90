@@ -128,6 +128,7 @@ CONTAINS
         DEALLOCATE(mygridslvl)
         DEALLOCATE(nboconds)
         DEALLOCATE(itypboconds)
+        DEALLOCATE(idprocofgrd)
 
         ngrid = 0
         nmygrids = 0

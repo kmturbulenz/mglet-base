@@ -74,6 +74,7 @@ CONTAINS
         CALL init_pointers()
         CALL init_commbuf()
         CALL init_fieldio()
+        CALL init_fields()
         CALL init_corefields()
         CALL init_connect2()
 
@@ -94,6 +95,7 @@ CONTAINS
 
         CALL finish_connect2()
         CALL finish_corefields()
+        CALL finish_fields()
         CALL finish_fieldio()
         CALL finish_commbuf()
         CALL finish_pointers()

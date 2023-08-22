@@ -38,11 +38,29 @@ MODULE fields_mod
         MODULE PROCEDURE :: get_field_B
     END INTERFACE get_field
 
-    PUBLIC :: set_field, get_field, get_fieldptr, &
+    PUBLIC :: init_fields, finish_fields, set_field, get_field, get_fieldptr, &
         fields_begin_read, fields_begin_write, fields_write, &
         fields_end_rw, get_fileh
 
 CONTAINS
+    SUBROUTINE init_fields()
+        CONTINUE
+    END SUBROUTINE init_fields
+
+
+    SUBROUTINE finish_fields()
+        ! Cleans up memory. Strictly speaking not neccesary, but it is ugly
+        ! and triggers lots of messages in valgrind when memory is not
+        ! explicitly deallocated in the end of executing a program.
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, nfields
+            CALL fields(i)%finish()
+        END DO
+    END SUBROUTINE finish_fields
+
 
     SUBROUTINE fields_begin_read()
         IF (.NOT. dread) RETURN
