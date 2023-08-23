@@ -8,6 +8,7 @@ MODULE timeintegration_mod
     USE lesmodel_mod
     USE pressuresolver_mod
     USE tstle4_mod
+    USE setboundarybuffers_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -27,7 +28,7 @@ CONTAINS
         ! Local variables
         LOGICAL :: lastrk
         INTEGER(intk) :: ilevel
-        REAL(realk) :: frhs, fu, dtrk, dtrki
+        REAL(realk) :: frhs, fu, dtrk, dtrki, timerk
         TYPE(field_t), POINTER :: u, v, w, ut, vt, wt, pwu, pwv, pww, p, g
         TYPE(field_t), POINTER :: du, dv, dw
         TYPE(field_t) :: uo, vo, wo
@@ -105,6 +106,13 @@ CONTAINS
 
             ! Equivalent to old boundmg with ityp 'R'
             CALL getibvalues(u, v, w)
+        END IF
+
+        IF (uinf_is_time) THEN
+            DO ilevel = minlevel, maxlevel
+                timerk = timeph + dt*dtrk
+                CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=timerk)
+            END DO
         END IF
 
         ! For divergence computation

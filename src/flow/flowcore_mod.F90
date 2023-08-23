@@ -18,11 +18,13 @@ MODULE flowcore_mod
     REAL(realk), PROTECTED :: gradp(3)
 
     ! TODO: Allocatable length - some expressions can be LONG!
-    CHARACTER(len=1024), PROTECTED :: uinf_expr(3) = ""
+    CHARACTER(len=10240), PROTECTED :: uinf_expr(3) = ""
     LOGICAL, PROTECTED :: uinf_is_expr = .FALSE.
+    LOGICAL, PROTECTED :: uinf_is_time = .FALSE.
 
     PUBLIC :: init_flowcore, finish_flowcore, has_flow, solve_flow, gmol, &
-        rho, uinf, uinf_expr, uinf_is_expr, tu_level, targetcflmax, gradp
+        rho, uinf, uinf_expr, uinf_is_expr, uinf_is_time, tu_level, &
+        targetcflmax, gradp
 
 CONTAINS
     SUBROUTINE init_flowcore()
@@ -48,7 +50,7 @@ CONTAINS
         has_flow = .TRUE.
 
         ! Required values
-        flowconf = fort7%get("/flow")
+        CALL fort7%get(flowconf, "/flow")
         CALL flowconf%get_value("/gmol", gmol)
 
         ! Either uinf is real or expression
@@ -61,6 +63,16 @@ CONTAINS
             CALL flowconf%get_value("/uinf/2", uinf_expr(3))
             uinf_is_expr = .TRUE.
 
+            ! If *any* expression contains 'timeph' or 'rand' the expression is
+            ! considered time-dependent
+            uinf_is_time = .FALSE.
+            IF (INDEX(lower(uinf_expr(1)), "timeph") > 0) uinf_is_time = .TRUE.
+            IF (INDEX(lower(uinf_expr(2)), "timeph") > 0) uinf_is_time = .TRUE.
+            IF (INDEX(lower(uinf_expr(3)), "timeph") > 0) uinf_is_time = .TRUE.
+            IF (INDEX(lower(uinf_expr(1)), "rand") > 0) uinf_is_time = .TRUE.
+            IF (INDEX(lower(uinf_expr(2)), "rand") > 0) uinf_is_time = .TRUE.
+            IF (INDEX(lower(uinf_expr(3)), "rand") > 0) uinf_is_time = .TRUE.
+
             IF (myid == 0) THEN
                 WRITE(*, '("INITIAL CONDITION:")')
                 WRITE(*, '(2X, "Using expression for U:")')
@@ -69,6 +81,7 @@ CONTAINS
                 WRITE(*, '(2X, A)') TRIM(uinf_expr(2))
                 WRITE(*, '("  Using expression for W:")')
                 WRITE(*, '(2X, A)') TRIM(uinf_expr(3))
+                WRITE(*, '("  Expression is time-dependent: ", L1)') uinf_is_time
                 WRITE(*, '()')
             END IF
         ELSE

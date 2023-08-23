@@ -1,0 +1,38 @@
+{
+    "time": {
+        "mtstep": 64,
+        "dt": 0.015625,
+        "tend": 1.0,
+        "itinfo": 1
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "noib"
+    },
+    "flow": {
+        "gmol": 0.01,
+        "rho": 1.0,
+        "uinf": [
+            "var a := 2.0*pi; var b := 2.0*pi; var c := 2.0*pi; var aa := 2.0/sqrt(3.0)*sin(2.0*pi/3.0);   aa*cos(a*x)*sin(b*y)*sin(c*z)",
+            "var a := 2.0*pi; var b := 2.0*pi; var c := 2.0*pi; var bb := 2.0/sqrt(3.0)*sin(-2.0*pi/3.0);  bb*sin(a*x)*cos(b*y)*sin(c*z)",
+            "var a := 2.0*pi; var b := 2.0*pi; var c := 2.0*pi; var cc := 0.0;                             cc*sin(a*x)*sin(b*y)*cos(c*z)"
+        ],
+        "gradp": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.000768,
+            "nouter_min": 2,
+            "nouter": 9,
+            "ninner": 5,
+            "omega": 1.1,
+            "loglevel": 3
+        },
+        "lesmodel": {
+            "model": "none"
+        }
+    }
+}

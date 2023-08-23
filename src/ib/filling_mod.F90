@@ -23,7 +23,6 @@ CONTAINS
         INTEGER(intk) :: iloop, ilevel, igrid, i, kk, jj, ii, ip3
         INTEGER(intk) :: nfluidpoints, nfound, nfilled
         INTEGER(int64) :: nfilled_tot
-        INTEGER(int32) :: ierr
         INTEGER(intk), ALLOCATABLE :: ifluidpoints(:, :)
         LOGICAL :: converged
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
@@ -80,7 +79,6 @@ CONTAINS
 
             CALL MPI_Allreduce(MPI_IN_PLACE, nfilled_tot, 1, MPI_INTEGER8, &
                 MPI_SUM, MPI_COMM_WORLD)
-            IF (ierr /= MPI_SUCCESS) CALL errr(__FILE__, __LINE__)
 
             IF (nfilled_tot < 1) THEN
                 converged = .TRUE.

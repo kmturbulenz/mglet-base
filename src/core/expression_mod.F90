@@ -1,15 +1,15 @@
 MODULE expression_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_char, c_null_char
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_char, c_null_char, c_int
     USE precision_mod, ONLY: realk, c_realk
+    USE err_mod, ONLY: errr
 
     IMPLICIT NONE(type, external)
     PRIVATE
 
     INTERFACE
         SUBROUTINE eval_real_expr(res, name, expr, rho, gmol, tu_level, &
-                timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz, &
-                xstag, ystag, zstag) BIND(C)
-            IMPORT :: c_realk, c_char
+                timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz, ierr) BIND(C)
+            IMPORT :: c_realk, c_char, c_int
             REAL(c_realk), INTENT(INOUT) :: res(:, :, :)
             CHARACTER(c_char), INTENT(IN) :: name(*)
             CHARACTER(c_char), INTENT(IN) :: expr(*)
@@ -26,9 +26,7 @@ MODULE expression_mod
             REAL(c_realk), INTENT(IN) :: ddx(:)
             REAL(c_realk), INTENT(IN) :: ddy(:)
             REAL(c_realk), INTENT(IN) :: ddz(:)
-            REAL(c_realk), INTENT(IN) :: xstag(:)
-            REAL(c_realk), INTENT(IN) :: ystag(:)
-            REAL(c_realk), INTENT(IN) :: zstag(:)
+            INTEGER(c_int), INTENT(out) :: ierr
         END SUBROUTINE
     END INTERFACE
 
@@ -37,7 +35,7 @@ MODULE expression_mod
 CONTAINS
 
     SUBROUTINE initial_condition(res, name, expr, rho, gmol, tu_level, &
-            timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz, xstag, ystag, zstag)
+            timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz)
         ! Subroutine arguments
         REAL(realk), INTENT(INOUT) :: res(:, :, :)
         CHARACTER(LEN=*), INTENT(IN) :: name
@@ -52,13 +50,11 @@ CONTAINS
         REAL(realk), INTENT(IN) :: ddx(:)
         REAL(realk), INTENT(IN) :: ddy(:)
         REAL(realk), INTENT(IN) :: ddz(:)
-        REAL(realk), INTENT(IN) :: xstag(:)
-        REAL(realk), INTENT(IN) :: ystag(:)
-        REAL(realk), INTENT(IN) :: zstag(:)
 
         ! Local variables
         CHARACTER(C_CHAR), DIMENSION(LEN(expr)+1) :: c_expr
-        CHARACTER(C_CHAR), DIMENSION(LEN(expr)+1) :: c_name
+        CHARACTER(C_CHAR), DIMENSION(LEN(name)+1) :: c_name
+        INTEGER(c_int) :: ierr
 
         ! Add trailing C_NULL_CHAR to expr and name
         c_expr = TRANSFER(expr, c_expr)
@@ -68,7 +64,9 @@ CONTAINS
         c_name(LEN_TRIM(name)+1) = C_NULL_CHAR
 
         CALL eval_real_expr(res, c_name, c_expr, rho, gmol, tu_level, &
-            timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz, xstag, ystag, zstag)
+            timeph, x, y, z, dx, dy, dz, ddx, ddy, ddz, ierr)
+
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE initial_condition
 
 END MODULE expression_mod

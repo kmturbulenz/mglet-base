@@ -450,7 +450,7 @@ CONTAINS
 
     SUBROUTINE read_attr(val, attr_id)
         ! Subroutine arguments
-        CLASS(*), INTENT(out) :: val
+        CLASS(*), INTENT(out), TARGET :: val
         INTEGER(hid_t), INTENT(in) :: attr_id
 
         ! Local variables

@@ -85,7 +85,7 @@ CONTAINS
         END IF
         has_probes = .TRUE.
 
-        probesconf = fort7%get("/probes")
+        CALL fort7%get(probesconf, "/probes")
 
         ! Arrays - if no, then there are no probes
         CALL probesconf%get_size("/arrays", narrays)
@@ -119,7 +119,7 @@ CONTAINS
 
         DO i = 1, narrays
             WRITE(jsonptr, '("/arrays/", I0)') i-1
-            array = probesconf%get(jsonptr)
+            CALL probesconf%get(array, jsonptr)
 
             ! Array name
             CALL array%get_value("/name", arr(i)%name)
@@ -284,6 +284,7 @@ CONTAINS
         arr%nmypnts = 0
         DO i = 1, arr%npts
             igrid = probesgrids(i)
+            IF (igrid < 1) CYCLE  ! For probes not assigned to any grid
             IF (myid == idprocofgrd(igrid)) arr%nmypnts = arr%nmypnts + 1
         END DO
 
@@ -295,6 +296,7 @@ CONTAINS
         ipoint = 0
         DO i = 1, arr%npts
             igrid = probesgrids(i)
+            IF (igrid < 1) CYCLE  ! For probes not assigned to any grid
             IF (myid == idprocofgrd(igrid)) THEN
                 ipoint = ipoint + 1
                 arr%coordinates(:, ipoint) = tmpcoords(:, i)

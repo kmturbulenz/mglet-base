@@ -6,6 +6,7 @@ MODULE flow_mod
     USE flowstat_mod
     USE timeintegration_mod
     USE wernerwengle_mod
+    USE setboundarybuffers_mod
 
     IMPLICIT NONE(type, external)
 
@@ -71,8 +72,19 @@ CONTAINS
         USE lesmodel_mod
         USE pressuresolver_mod
         USE itinfo_mod, ONLY: finish_itinfo
+        USE gc_flowstencils_mod
+        USE ib_mod
 
         IF (.NOT. has_flow) RETURN
+
+        ! Need to call this here - cannot be in flowcore because that
+        ! create a circular dependency
+        SELECT TYPE(ib)
+        TYPE IS (gc_t)
+            IF (solve_flow) THEN
+                CALL finish_flowstencils()
+            END IF
+        END SELECT
 
         CALL finish_itinfo
         CALL finish_pressuresolver()
@@ -102,6 +114,12 @@ CONTAINS
         w => w_f%arr
         p => p_f%arr
 
+        ! Set inflow buffers for FIX bc's
+        DO ilevel = minlevel, maxlevel
+            CALL setboundarybuffers%bound(ilevel, u_f, v_f, w_f, timeph=0.0)
+        END DO
+
+        ! Set initial condition
         IF (uinf_is_expr) THEN
             CALL init_uvw_expr(u_f, v_f, w_f)
         ELSE
@@ -197,14 +215,11 @@ CONTAINS
             CALL get_fieldptr(zstag, "ZSTAG", igrid)
 
             CALL initial_condition(u, "u", uinf_expr(1), rho, gmol, tu_level, &
-                0.0_realk, x, y, z, dx, dy, dz,  ddx, ddy, ddz, &
-                xstag, ystag, zstag)
+                0.0_realk, xstag, y, z, dx, dy, dz,  ddx, ddy, ddz)
             CALL initial_condition(v, "v", uinf_expr(2), rho, gmol, tu_level, &
-                0.0_realk, x, y, z, dx, dy, dz,  ddx, ddy, ddz, &
-                xstag, ystag, zstag)
+                0.0_realk, x, ystag, z, dx, dy, dz,  ddx, ddy, ddz)
             CALL initial_condition(w, "w", uinf_expr(3), rho, gmol, tu_level, &
-                0.0_realk, x, y, z, dx, dy, dz,  ddx, ddy, ddz, &
-                xstag, ystag, zstag)
+                0.0_realk, x, y, zstag, dx, dy, dz,  ddx, ddy, ddz)
         END DO
 
     END SUBROUTINE init_uvw_expr

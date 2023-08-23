@@ -43,7 +43,7 @@ CONTAINS
         has_sca = .TRUE.
 
         ! Required values
-        scaconf = fort7%get("/scalar")
+        CALL fort7%get(scaconf, "/scalar")
         CALL scaconf%get_value("/nsca", nsca)
         IF (nsca > nsca_max) THEN
             WRITE(*,*) "nsca: ", nsca

@@ -32,7 +32,7 @@ MODULE gc_flowstencils_mod
     TYPE(real_stencils_t), ALLOCATABLE, TARGET :: woldsol(:), woldsolvel(:)
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
-        setsdivfield
+        setsdivfield, finish_flowstencils
 
 CONTAINS
     SUBROUTINE create_flowstencils(gc)
@@ -115,6 +115,40 @@ CONTAINS
             END IF
         END BLOCK
     END SUBROUTINE create_flowstencils
+
+
+    SUBROUTINE finish_flowstencils()
+        DEALLOCATE(fxpoli)
+        DEALLOCATE(fxpolr)
+        DEALLOCATE(fnblg)
+
+        DEALLOCATE(uxpoli)
+        DEALLOCATE(uxpolr)
+        DEALLOCATE(uxpolrvel)
+        DEALLOCATE(unblg)
+        DEALLOCATE(upoldsol)
+        DEALLOCATE(uoldsol)
+        DEALLOCATE(upoldsolvel)
+        DEALLOCATE(uoldsolvel)
+
+        DEALLOCATE(vxpoli)
+        DEALLOCATE(vxpolr)
+        DEALLOCATE(vxpolrvel)
+        DEALLOCATE(vnblg)
+        DEALLOCATE(vpoldsol)
+        DEALLOCATE(voldsol)
+        DEALLOCATE(vpoldsolvel)
+        DEALLOCATE(voldsolvel)
+
+        DEALLOCATE(wxpoli)
+        DEALLOCATE(wxpolr)
+        DEALLOCATE(wxpolrvel)
+        DEALLOCATE(wnblg)
+        DEALLOCATE(wpoldsol)
+        DEALLOCATE(woldsol)
+        DEALLOCATE(wpoldsolvel)
+        DEALLOCATE(woldsolvel)
+    END SUBROUTINE
 
 
     SUBROUTINE createstencils_level(ilevel, bp, bu, bv, bw, au, av, aw, &

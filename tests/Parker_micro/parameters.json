@@ -1,0 +1,102 @@
+{
+    "time": {
+        "mtstep": 80,
+        "dt": 4e-5,
+        "itinfo": 10,
+        "tstat": 0.05,
+        "read": false,
+        "write": true,
+        "continue": true
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [ 0.1, 0.1, 0.1 ],
+            [ 0.2, 0.2, 0.2 ]
+        ],
+        "nofluidpoints": [
+            [ -0.3, 0.0, 0.0 ]
+        ],
+        "geometries": [
+            {
+                "file": "inlet.stl",
+                "velocity": [20.571425883746013, 0, 0]
+            },
+            {
+                "file": "kanal.stl",
+                "velocity": [0, 0, 0]
+            },
+            {
+                "file": "klappe.stl",
+                "velocity": [0, 0, 0]
+            }
+        ]
+    },
+    "flow": {
+        "gmol": 1.53e-05,
+        "rho": 1.0,
+        //"tu_level": 0.01,
+        "tu_level": 0.00,
+        "uinf": [0.0, 0.0, 0.0],
+        "gradp": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sor",
+            "epcorr": 0.30,
+            "nouter_min": 2,
+            "nouter": 9,
+            "ninner": 5,
+            "omega": 1.1,
+            "loglevel": 3
+        },
+        "lesmodel": {
+            "model": "smagorinsky"
+        }
+    },
+    "probes": {
+        "itsamp": 1,
+        "tstart": 0.05,
+        //"tstart": 0.0,
+        "arrays": [
+            {
+                "name": "klappe",
+                "variables": ["P"],
+                "positions": [
+                    [ 0.0, 0.0, -0.012 ],
+                    [ 0.0, 0.0, 0.012 ],
+                    [ -0.012, -0.012, -0.012 ],
+                    [ -0.012, 0.012, -0.012 ],
+                    [ 0.012, -0.012, -0.012 ],
+                    [ 0.012, 0.012, -0.012 ],
+                    [ -0.012, -0.012, 0.012 ],
+                    [ -0.012, 0.012, 0.012 ],
+                    [ 0.012, -0.012, 0.012 ],
+                    [ 0.012, 0.012, 0.012 ]
+                ]
+            },
+            {
+                "name": "ring",
+                "variables": ["P"],
+                "positions": "probes_ring.dat"
+            }
+        ]
+    },
+
+    "statistics": [
+        "U_AVG",
+        "UU_AVG",
+        "UV_AVG",
+        "laplaceP_AVG",
+        "laplaceP_SQR_AVG"
+    ],
+
+    "derivfields": [
+        "DIV"
+    ]
+}

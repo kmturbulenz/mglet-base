@@ -14,7 +14,7 @@ find_package(MPI COMPONENTS C Fortran REQUIRED)
 if ( MPI_Fortran_HAVE_F08_MODULE )
     message( STATUS "MPI Library supports MPI_f08" )
 else ( MPI_Fortran_HAVE_F08_MODULE )
-    message( ERROR "MPI Library does not support MPI_f08" )
+    message( FATAL_ERROR "MPI Library does not support MPI_f08" )
 endif ( MPI_Fortran_HAVE_F08_MODULE )
 
 set(HDF5_PREFER_PARALLEL TRUE)
@@ -71,13 +71,16 @@ elseif (CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
     set(MGLET_RELEASE_FLAGS -O3 -qopenmp-simd)
 
     # Debug flags for all languages
-    set(MGLET_DEBUG_FLAGS -O0 -g -D_MGLET_DEBUG_)
+    set(MGLET_DEBUG_FLAGS -O1 -g -D_MGLET_DEBUG_)
 
     # Common Fortran flags
-    set(MGLET_COMMON_FORTRAN_FLAGS -stand f18 -warn all,noexternals,nounused,errors,stderrors)
+    set(MGLET_COMMON_FORTRAN_FLAGS -stand f18 -auto -warn all,noexternals,nounused,errors,stderrors)
 
     # Fortran-specific debug flags
-    set(MGLET_DEBUG_FORTRAN_FLAGS -init=snan,huge -ftrapuv)
+    # TODO: add -init=snan,huge
+    # https://community.intel.com/t5/Intel-Fortran-Compiler/ICE-with-locals-declared-in-a-block-construct-IFX/m-p/1489269#M166473
+    # TODO: add -check shape
+    set(MGLET_DEBUG_FORTRAN_FLAGS -traceback -ftrapuv -check arg_temp_created,bounds,contiguous,pointers)
 endif()
 
 
@@ -116,7 +119,7 @@ FetchContent_Declare(exprtk
 FetchContent_MakeAvailable(exprtk)
 
 # Perform various compiler checks
-add_subdirectory(cmake)
+add_subdirectory("cmake")
 
 # Add code subdirectory
 add_subdirectory("src")
@@ -136,3 +139,5 @@ SUBDIRLIST(MGLET_EXTENSIONS ${CMAKE_CURRENT_SOURCE_DIR}/extensions)
 FOREACH(ext ${MGLET_EXTENSIONS})
   ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/extensions/${ext})
 ENDFOREACH()
+
+add_subdirectory("tests")

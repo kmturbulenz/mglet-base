@@ -251,16 +251,17 @@ CONTAINS
         ! Local variables
         TYPE(gridinfo_t), TARGET :: wdata
         INTEGER(HID_T) :: bboxtype, nbrtype
+        INTEGER(hsize_t) :: dims1(1)
         INTEGER(int32) :: ierr
 
         ! BBOX datatype
-        CALL h5tarray_create_f(mglet_hdf5_real, 1, INT((/6/), hsize_t), &
-            bboxtype, ierr)
+        dims1 = 6
+        CALL h5tarray_create_f(mglet_hdf5_real, 1, dims1, bboxtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Neighbour datatype
-        CALL h5tarray_create_f(mglet_hdf5_int, 1, INT((/26/), hsize_t), &
-            nbrtype, ierr)
+        dims1 = 26
+        CALL h5tarray_create_f(mglet_hdf5_int, 1, dims1, nbrtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Gridinfo-table as compound data type
@@ -409,19 +410,24 @@ CONTAINS
         TYPE(bcond_t), TARGET :: wdata
         INTEGER(HID_T) :: str_t, strarr_t, intarr_t
         INTEGER(int32) :: ierr
+        INTEGER(hsize_t) :: dims1(1), dims2(2)
 
         ! Create type for CHARACTER(C_CHAR) :: type(nchar, maxboconds)
         CALL h5tcopy_f(H5T_NATIVE_CHARACTER, str_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
         CALL h5tset_size_f(str_t, INT(nchar, size_t), ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
-        CALL h5tarray_create_f(str_t, 1, INT((/maxboconds/), hsize_t), strarr_t, ierr)
+
+        dims1 = maxboconds
+        CALL h5tarray_create_f(str_t, 1, dims1, strarr_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
         CALL h5tclose_f(str_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Create arrays for boundary condition parameters
-        CALL h5tarray_create_f(mglet_hdf5_int, 2, INT((/2, maxboconds/), hsize_t), intarr_t, ierr)
+        dims2(1) = 2
+        dims2(2) = maxboconds
+        CALL h5tarray_create_f(mglet_hdf5_int, 2, dims2, intarr_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Bcond-table as compound data type

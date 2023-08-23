@@ -27,7 +27,7 @@ CONTAINS
             WRITE(*,*) "File not found: ", filename
             CALL errr(__FILE__, __LINE__)
         END IF
-        fort7 = config_t(filename)
+        CALL fort7%read(filename)
 
         CALL fort7%get_value("/time/read", dread, .FALSE.)
         CALL fort7%get_value("/time/write", dwrite, .TRUE.)

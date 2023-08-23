@@ -20,12 +20,13 @@ MODULE bound_flow_mod
     PUBLIC :: bound_flow
 
 CONTAINS
-    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
@@ -90,9 +91,9 @@ CONTAINS
         CASE ("FIX")
             DO j = 1, jj
                 DO k = 1, kk
-                    u(k, j, istag2) = uinf(1)
-                    v(k, j, i2) = 2*uinf(2) - v(k, j, i3)
-                    w(k, j, i2) = 2*uinf(3) - w(k, j, i3)
+                    u(k, j, istag2) = ubuf(k, j, 1)
+                    v(k, j, i2) = 2*vbuf(k, j, 1) - v(k, j, i3)
+                    w(k, j, i2) = 2*wbuf(k, j, 1) - w(k, j, i3)
                 END DO
             END DO
         CASE ("OP1")
@@ -237,12 +238,13 @@ CONTAINS
     END SUBROUTINE bfront
 
 
-    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
@@ -307,9 +309,9 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO k = 1, kk
-                    u(k, j2, i) = 2*uinf(1) - u(k, j3, i)
-                    v(k, jstag2, i) = uinf(2)
-                    w(k, j2, i) = 2*uinf(3) - w(k, j3, i)
+                    u(k, j2, i) = 2*ubuf(k, i, 1) - u(k, j3, i)
+                    v(k, jstag2, i) = vbuf(k, i, 1)
+                    w(k, j2, i) = 2*wbuf(k, i, 1) - w(k, j3, i)
                 END DO
             END DO
         CASE ("OP1")
@@ -454,12 +456,13 @@ CONTAINS
     END SUBROUTINE bright
 
 
-    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4)
+    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
         TYPE(field_t), INTENT(inout) :: f1
         TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
+        REAL(realk), INTENT(in), OPTIONAL :: timeph
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
@@ -524,9 +527,9 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO j = 1, jj
-                    u(k2, j, i) = 2*uinf(1) - u(k3, j, i)
-                    v(k2, j, i) = 2*uinf(2) - v(k3, j, i)
-                    w(kstag2, j, i) = uinf(3)
+                    u(k2, j, i) = 2*ubuf(j, i, 1) - u(k3, j, i)
+                    v(k2, j, i) = 2*vbuf(j, i, 1) - v(k3, j, i)
+                    w(kstag2, j, i) = wbuf(j, i, 1)
                 END DO
             END DO
         CASE ("OP1")

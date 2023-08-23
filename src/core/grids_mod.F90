@@ -128,6 +128,7 @@ CONTAINS
         DEALLOCATE(mygridslvl)
         DEALLOCATE(nboconds)
         DEALLOCATE(itypboconds)
+        DEALLOCATE(idprocofgrd)
 
         ngrid = 0
         nmygrids = 0
@@ -419,8 +420,6 @@ CONTAINS
 
 
     SUBROUTINE get_mgdims(kk, jj, ii, igrid)
-        USE simdfunctions_mod, ONLY: l_to_i
-
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 

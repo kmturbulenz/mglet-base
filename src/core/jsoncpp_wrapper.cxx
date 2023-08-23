@@ -233,7 +233,7 @@ template<typename T>
 void json_get_number(jsoncppc_t* jsonc, const char* key, T* val, int* ierr) {
     *ierr = 0;
     if (jsonc == NULL || key == NULL || val == NULL || ierr == NULL) {
-        std::cerr << "FATAL JSON error - NULL given\n";
+        std::cerr << "FATAL JSON error - NULL given" << std::endl;
         *ierr = 1;
         return;
     }

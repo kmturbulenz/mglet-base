@@ -40,7 +40,7 @@ CONTAINS
         CHARACTER(len=64) :: jsonptr
 
         this%do_blocking = .FALSE.
-        this%blockconf = fort7%get("/ib")
+        CALL fort7%get(this%blockconf, "/ib")
 
         this%blocking_type = REPEAT(" ", LEN(this%blocking_type))
         CALL this%blockconf%get_value("/blocking", this%blocking_type)
@@ -85,7 +85,7 @@ CONTAINS
         END IF
 
         ! Read STL's
-        this%topol = topol_t(this%blockconf)
+        CALL this%topol%init(this%blockconf)
     END SUBROUTINE init
 
 
@@ -124,7 +124,7 @@ CONTAINS
         CALL this%blockconf%get_size("/geometries", ngeom)
         DO i = 1, ngeom
             WRITE(jsonptr, '("/geometries/", I0)') i-1
-            geometry = this%blockconf%get(jsonptr)
+            CALL this%blockconf%get(geometry, jsonptr)
             CALL geometry%get_value("/id", id)
 
             has_velocity = geometry%exists("/velocity")
