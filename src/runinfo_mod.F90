@@ -260,6 +260,7 @@ CONTAINS
         TYPE(runinfo_t), TARGET :: foo
         INTEGER(HID_T) :: strtype, timetype
         INTEGER(int32) :: hdferr
+        INTEGER(hsize_t) :: dims1(1)
 
         ! programname(10)
         CALL h5tcopy_f(H5T_NATIVE_CHARACTER, strtype, hdferr)
@@ -268,7 +269,8 @@ CONTAINS
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! starttime(8)
-        CALL h5tarray_create_f(mglet_hdf5_int, 1, INT([8], hsize_t), &
+        dims1 = 8
+        CALL h5tarray_create_f(mglet_hdf5_int, 1, dims1, &
             timetype, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
