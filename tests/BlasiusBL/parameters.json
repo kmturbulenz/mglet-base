@@ -23,15 +23,9 @@
             "0.0",
             "var eta[45] :=\n    {\n        0.0, 0.2, 0.4, 0.6, 0.8,\n        1.0, 1.2, 1.4, 1.6, 1.8,\n        2.0, 2.2, 2.4, 2.6, 2.8,\n        3.0, 3.2, 3.4, 3.6, 3.8,\n        4.0, 4.2, 4.4, 4.6, 4.8,\n        5.0, 5.2, 5.4, 5.6, 5.8,\n        6.0, 6.2, 6.4, 6.6, 6.8,\n        7.0, 7.2, 7.4, 7.6, 7.8,\n        8.0, 8.2, 8.4, 8.6, 8.8\n    };\n\nvar fprime[45] :=\n    {\n        0.0, 0.06641, 0.13277, 0.19894, 0.26471,\n        0.32979, 0.39378, 0.45627, 0.51676, 0.57477,\n        0.62977, 0.68132, 0.72899, 0.77246, 0.81152,\n        0.84605, 0.87609, 0.90177, 0.92333, 0.94112,\n        0.95552, 0.96696, 0.97587, 0.98269, 0.98779,\n        0.99155, 0.99452, 0.99616, 0.99748, 0.99838,\n        0.99898, 0.99937, 0.99961, 0.99977, 0.99987,\n        0.99992, 0.99996, 0.99998, 0.99999, 1.0,\n        1.0, 1.0, 1.0, 1.0, 1.0\n    };\n\nvar f[45] :=\n    {\n        0.0, 0.00664, 0.02656, 0.05974, 0.10611,\n        0.16557, 0.23795, 0.32298, 0.42032, 0.52952,\n        0.65003, 0.78120, 0.92230, 1.07252, 1.23099,\n        1.39682, 1.56911, 1.74696, 1.92954, 2.11605,\n        2.30576, 2.49806, 2.69238, 2.88826, 3.08534,\n        3.28329, 3.48189, 3.68094, 3.88031, 4.07990,\n        4.27964, 4.47948, 4.67938, 4.87931, 5.07928,\n        5.27926, 5.47925, 5.67924, 5.87924, 6.07923,\n        6.27923, 6.47923, 6.67923, 6.87923, 7.07023\n    };\n\nvar z0 := 0.0;\nvar Rex := 3.25e5;\n// gmol is already defined by MGLET\nvar ufrcon := 38.88;\n\nvar etap := (z-z0)*ufrcon/(gmol*sqrt(Rex));\n\nvar i := 0;\nfor (i := 0; i < 45; i += 1)\n{\n    // This will break and return 0 when etap == 0.0, i.e. at the wall\n    if (etap <= eta[i]) break;\n};\n\nvar uu;\nvar ww;\n\nif (i == 0)\n{\n    uu := 0.0;\n    ww := 0.0;\n}\nelse if (i > 44)\n{\n    uu := ufrcon;\n    ww := 0.5*ufrcon/sqrt(Rex) * (eta[44]*fprime[44]-f[44]);\n}\nelse\n{\n    var fprimep := (etap-eta[i-1])/(eta[i]-eta[i-1])*(fprime[i]-fprime[i-1])\n        + fprime[i];\n    var fp := (etap-eta[i-1])/(eta[i]-eta[i-1])*(f[i]-f[i-1]) + f[i];\n\n    uu := fprimep*ufrcon;\n    ww := 0.5*ufrcon/sqrt(Rex)*(etap*fprimep-fp);\n};\n// It is extremely important that the if-statement is terminated with a\n// semicolon here, otherwise strange things happens.\n// See [SECTION 12 - EXPRESSION STRUCTURES] 3b in ExprTk readme.txt\n\n// See add-expression.py for a last line here...\nww;\n"
         ],
-        "gradp": [
-            0.0,
-            0.0,
-            0.0
-        ],
         "pressuresolver": {
             "type": "sor",
             "epcorr": 3.9,
-            "nouter_min": 0,
             "nouter": 2,
             "ninner": 5,
             "omega": 1.1,

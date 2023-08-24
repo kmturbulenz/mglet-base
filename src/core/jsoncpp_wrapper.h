@@ -22,11 +22,16 @@ void json_dump(jsoncppc_t*, CFI_cdesc_t*, int*);
 void json_get_int(jsoncppc_t*, const char*, int*, int*);
 void json_set_int(jsoncppc_t*, const char*, const int*, int*);
 void json_get_int64(jsoncppc_t*, const char*, int64_t*, int*);
+void json_set_int64(jsoncppc_t*, const char*, const int64_t*, int*);
 void json_get_float(jsoncppc_t*, const char*, float*, int*);
-void json_get_real(jsoncppc_t*, const char*, double*, int*);
+void json_set_float(jsoncppc_t*, const char*, const float*, int*);
+void json_get_double(jsoncppc_t*, const char*, double*, int*);
+void json_set_double(jsoncppc_t*, const char*, const double*, int*);
 void json_get_bool(jsoncppc_t*, const char*, _Bool*, int*);
+void json_set_bool(jsoncppc_t*, const char*, const _Bool*, int*);
 void json_get_char(jsoncppc_t*, const char*, char*, const size_t,
     size_t*, int*);
+void json_set_char(jsoncppc_t*, const char*, const char*, int*);
 
 void json_get_int_arr(jsoncppc_t*, const char*, int*, const size_t, int*);
 void json_get_int64_arr(jsoncppc_t*, const char*, int64_t*, const size_t, int*);

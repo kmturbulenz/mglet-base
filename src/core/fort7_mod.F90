@@ -52,9 +52,16 @@ CONTAINS
         END IF
         CALL fort7%read(filename)
 
-        CALL fort7%get_value("/time/read", dread, .FALSE.)
-        CALL fort7%get_value("/time/write", dwrite, .TRUE.)
-        CALL fort7%get_value("/time/continue", dcont, .TRUE.)
+        ! TODO: Moce these to /io
+        IF (fort7%exists("/time")) THEN
+            CALL fort7%get_value("/time/read", dread, .FALSE.)
+            CALL fort7%get_value("/time/write", dwrite, .TRUE.)
+            CALL fort7%get_value("/time/continue", dcont, .TRUE.)
+        ELSE
+            dread = .FALSE.
+            dwrite = .TRUE.
+            dcont = .TRUE.
+        END IF
         IF (.NOT. dread) THEN
             dcont = .FALSE.
         END IF

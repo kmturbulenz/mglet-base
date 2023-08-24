@@ -8,11 +8,6 @@
         "write": true,
         "continue": true
     },
-    "io": {
-        "grids": "grids.h5",
-        "infile": "fields.h5",
-        "outfile": "fields.h5"
-    },
     "ib": {
         "type": "ghostcell",
         "stencilfile": "ib_stencils.h5",
@@ -23,11 +18,9 @@
         "rho": 1.0,
         "tu_level": 0.01,
         "uinf": [0.0, 0.0, 0.0],
-        "gradp": [0.0, 0.0, 0.0],
         "pressuresolver": {
             "type": "sor",
             "epcorr": 0.30,
-            "nouter_min": 2,
             "nouter": 9,
             "ninner": 5,
             "omega": 1.1,

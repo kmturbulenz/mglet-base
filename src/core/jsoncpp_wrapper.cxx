@@ -154,9 +154,19 @@ extern "C" {
         json_get_number(jsonc, key, val, ierr);
     }
 
+    void json_set_int64(jsoncppc_t* jsonc, const char* key,
+            const int64_t* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
+    }
+
     void json_get_float(jsoncppc_t* jsonc, const char* key,
             float* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
+    }
+
+    void json_set_float(jsoncppc_t* jsonc, const char* key,
+            const float* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
     }
 
     void json_get_double(jsoncppc_t* jsonc, const char* key,
@@ -164,9 +174,19 @@ extern "C" {
         json_get_number(jsonc, key, val, ierr);
     }
 
+    void json_set_double(jsoncppc_t* jsonc, const char* key,
+            const double* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
+    }
+
     void json_get_bool(jsoncppc_t* jsonc, const char* key,
             _Bool* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
+    }
+
+    void json_set_bool(jsoncppc_t* jsonc, const char* key,
+            const _Bool* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
     }
 
     void json_get_int_arr(jsoncppc_t* jsonc, const char* key,
@@ -205,6 +225,12 @@ extern "C" {
             }
             std::char_traits<char>::copy(cval, value.c_str(), *length);
         }
+    }
+
+    void json_set_char(jsoncppc_t* jsonc, const char* key, const char* cval,
+            int* ierr) {
+        std::string value(cval);
+        json_set_number(jsonc, key, &value, ierr);
     }
 
     void json_get_size(jsoncppc_t* jsonc, const char* key,

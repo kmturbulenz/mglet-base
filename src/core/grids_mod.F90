@@ -66,8 +66,7 @@ CONTAINS
         INTEGER(HID_T) :: file_id
         CHARACTER(len=mglet_filename_max) :: filename
 
-        filename = REPEAT(" ", mglet_filename_max)
-        CALL fort7%get_value("/io/grids", filename)
+        CALL fort7%get_value("/io/grids", filename, "grids.h5")
         CALL hdf5common_open(filename, "r", file_id)
 
         CALL read_gridinfo(file_id, gridinfo, realprms, intprms, ngrid)

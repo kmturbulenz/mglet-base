@@ -94,9 +94,18 @@ CONTAINS
         CALL flowconf%get_value("/tu_level", tu_level, 0.1)
         CALL flowconf%get_value("/solve", solve_flow, .TRUE.)
 
-        ! TODO: optional gradp not working!!! Fix!
         gradp = 0.0
-        CALL flowconf%get_array("/gradp", gradp, required=.FALSE.)
+        IF (flowconf%exists("/gradp")) THEN
+            IF (.NOT. flowconf%is_array("/gradp")) THEN
+                WRITE(*, *) "gradp must be array of three real's"
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            CALL flowconf%get_array("/gradp", gradp)
+        ELSE
+            CALL flowconf%set_value("/gradp/0", 0.0)
+            CALL flowconf%set_value("/gradp/1", 0.0)
+            CALL flowconf%set_value("/gradp/2", 0.0)
+        END IF
 
         CALL set_field("U", istag=1, units=units_v, dread=dread, &
             required=dread, dwrite=dwrite, buffers=.TRUE.)
