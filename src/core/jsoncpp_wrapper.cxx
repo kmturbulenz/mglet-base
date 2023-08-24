@@ -7,6 +7,8 @@
 #include <iostream>
 #include <type_traits>
 
+#include <ISO_Fortran_binding.h>
+
 using json = nlohmann::json;
 
 struct jsoncppc {
@@ -100,6 +102,41 @@ extern "C" {
         }
 
         free(jsonc);
+    }
+
+    void json_dump(jsoncppc_t* jsonc, CFI_cdesc_t* res, int* ierr) {
+        *ierr = 0;
+        if (jsonc == NULL || res == NULL) {
+            std::cerr << "FATAL JSON error - NULL given\n";
+            *ierr = 1;
+            return;
+        }
+        json* obj = static_cast<json *>(jsonc->obj);
+
+        // Dump JSON to C++ string, check length
+        std::string jsondump = obj->dump(4, ' ', true);
+        const CFI_index_t strlen = jsondump.length();  // This is w.o NULL
+
+        // Sanity checks of passed Fortran structure
+        assert (res->rank == 1);
+        assert (res->type == CFI_type_char);
+        assert (res->elem_len == 1);
+        assert (res->attribute == CFI_attribute_allocatable);
+
+        // If already allocated - free
+        if (res->base_addr) CFI_deallocate(res);
+
+        // Allocate to length of string
+        const CFI_index_t lower_bounds[1] = {1};  // Remember this is Fortran
+        const CFI_index_t upper_bounds[1] = {strlen};
+        *ierr = CFI_allocate(res, lower_bounds, upper_bounds, 1);
+        if (*ierr) {
+            std::cerr << "Error allocating string: " << strlen << std::endl;
+            return;
+        }
+
+        // Copy string into allocated memory
+        strncpy((char*)res->base_addr, jsondump.c_str(), strlen);
     }
 
     void json_get_int(jsoncppc_t* jsonc, const char* key,

@@ -5,6 +5,8 @@
 #include <cstdbool>
 #include <cstdint>
 
+#include <ISO_Fortran_binding.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,6 +17,7 @@ typedef struct jsoncppc jsoncppc_t;
 jsoncppc_t* json_from_file(const char*, int*);
 jsoncppc_t* json_from_json(jsoncppc_t*, const char*, int*);
 void json_free(jsoncppc_t*, int*);
+void json_dump(jsoncppc_t*, CFI_cdesc_t*, int*);
 
 void json_get_int(jsoncppc_t*, const char*, int*, int*);
 void json_set_int(jsoncppc_t*, const char*, const int*, int*);

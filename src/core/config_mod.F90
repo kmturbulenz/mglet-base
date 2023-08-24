@@ -13,6 +13,7 @@ MODULE config_mod
     CONTAINS
         PROCEDURE :: read
         PROCEDURE :: get
+        PROCEDURE :: dump
 
         PROCEDURE, PRIVATE :: get_int32
         PROCEDURE, PRIVATE :: get_int64
@@ -72,6 +73,14 @@ MODULE config_mod
             TYPE(C_PTR), VALUE :: handle
             INTEGER(C_INT), INTENT(OUT) :: ierr
         END SUBROUTINE json_free
+
+        ! void json_dump(jsoncppc_t* jsonc, CFI_cdesc_t* res, int* ierr)
+        SUBROUTINE json_dump(handle, res, ierr) BIND(C)
+            USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_int, c_char
+            TYPE(C_PTR), VALUE :: handle
+            CHARACTER(len=1, kind=c_char), ALLOCATABLE :: res(:)
+            INTEGER(C_INT), INTENT(OUT) :: ierr
+        END SUBROUTINE json_dump
 
         ! void json_get_int(jsoncppc_t* jsonc, const char* key, int* val, int* ierr)
         SUBROUTINE json_get_int(handle, key, val, ierr) BIND(C)
@@ -254,6 +263,25 @@ CONTAINS
         new%handle = json_from_json(this%handle, c_key, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE get
+
+
+    SUBROUTINE dump(this, result)
+        ! Function arguments
+        CLASS(config_t), INTENT(inout) :: this
+        CHARACTER(kind=C_CHAR, len=1), ALLOCATABLE, INTENT(out) :: result(:)
+
+        ! Local variables
+        INTEGER(c_int) :: ierr
+
+        ! Get JSON dump
+        CALL json_dump(this%handle, result, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Sanity check that json_dump did noty add a NULL char at end
+        IF (result(SIZE(result)) == C_NULL_CHAR) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE dump
 
 
     SUBROUTINE get_int32(this, key, val, found)
