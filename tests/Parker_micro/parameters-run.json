@@ -16,34 +16,12 @@
     "ib": {
         "type": "ghostcell",
         "stencilfile": "ib_stencils.h5",
-        "blocking": "newblock",
-        "fluidpoints": [
-            [ 0.1, 0.1, 0.1 ],
-            [ 0.2, 0.2, 0.2 ]
-        ],
-        "nofluidpoints": [
-            [ -0.3, 0.0, 0.0 ]
-        ],
-        "geometries": [
-            {
-                "file": "inlet.stl",
-                "velocity": [20.571425883746013, 0, 0]
-            },
-            {
-                "file": "kanal.stl",
-                "velocity": [0, 0, 0]
-            },
-            {
-                "file": "klappe.stl",
-                "velocity": [0, 0, 0]
-            }
-        ]
+        "blocking": "useblock"
     },
     "flow": {
         "gmol": 1.53e-05,
         "rho": 1.0,
-        //"tu_level": 0.01,
-        "tu_level": 0.00,
+        "tu_level": 0.01,
         "uinf": [0.0, 0.0, 0.0],
         "gradp": [0.0, 0.0, 0.0],
         "pressuresolver": {
@@ -61,8 +39,8 @@
     },
     "probes": {
         "itsamp": 1,
-        "tstart": 0.05,
-        //"tstart": 0.0,
+        //"tstart": 0.05,
+        "tstart": 0.0,
         "arrays": [
             {
                 "name": "klappe",

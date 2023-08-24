@@ -1,5 +1,7 @@
 MODULE fort7_mod
     USE config_mod, ONLY: config_t
+    USE precision_mod, ONLY: mglet_filename_max
+    USE comms_mod, ONLY: myid
     USE err_mod
 
     IMPLICIT NONE(type, external)
@@ -13,7 +15,7 @@ MODULE fort7_mod
     LOGICAL, PROTECTED :: dwrite
     LOGICAL, PROTECTED :: dcont
 
-    CHARACTER(len=*), PARAMETER :: filename = 'parameters.json'
+    CHARACTER(len=mglet_filename_max) :: filename = 'parameters.json'
 
     PUBLIC :: fort7, dread, dwrite, dcont, init_fort7, finish_fort7
 
@@ -21,6 +23,27 @@ CONTAINS
     SUBROUTINE init_fort7()
         ! Local variables
         LOGICAL :: exists
+        INTEGER :: nargs, status
+
+        ! Name of parameter file can optionally be passed on the CLI as the
+        ! first argument.
+        nargs = COMMAND_ARGUMENT_COUNT()
+        SELECT CASE(nargs)
+        CASE (0)
+            CONTINUE
+        CASE (1)
+            CALL GET_COMMAND_ARGUMENT(1, value=filename, status=status)
+            IF (status /= 0) THEN
+                WRITE(*,*) "filename, status: ", filename, status
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            IF (myid == 0) THEN
+                WRITE(*, '("Reading parameter file: ", A)') TRIM(filename)
+                WRITE(*, '()')
+            END IF
+        CASE DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
 
         INQUIRE(FILE=filename, EXIST=exists)
         IF (.NOT. exists) THEN

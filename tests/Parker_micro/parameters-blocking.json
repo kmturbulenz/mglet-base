@@ -1,0 +1,33 @@
+{
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [ 0.1, 0.1, 0.1 ],
+            [ 0.2, 0.2, 0.2 ]
+        ],
+        "nofluidpoints": [
+            [ -0.3, 0.0, 0.0 ]
+        ],
+        "geometries": [
+            {
+                "file": "inlet.stl",
+                "velocity": [20.571425883746013, 0, 0]
+            },
+            {
+                "file": "kanal.stl",
+                "velocity": [0, 0, 0]
+            },
+            {
+                "file": "klappe.stl",
+                "velocity": [0, 0, 0]
+            }
+        ]
+    }
+}
