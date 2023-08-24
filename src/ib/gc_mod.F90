@@ -88,6 +88,9 @@ CONTAINS
 
         SELECT TYPE(ib)
         TYPE IS (gc_t)
+            CALL fort7%get_value("/ib/stencilfile", ib%stencils%file, &
+                "ib_stencils.h5")
+
             ALLOCATE(ib%icells(ngrid))
             ALLOCATE(ib%icellspointer(ngrid))
             ib%icells = 0
@@ -112,7 +115,6 @@ CONTAINS
 
         SELECT TYPE(blockbp_op => this%blockbp_op)
         TYPE IS (gc_blockbp_t)
-            CALL fort7%get_value("/ib/stencilfile", this%stencils%file)
             CALL blockbp_op%blockbp(this%icells, this%icellspointer, &
                 this%stencils)
         CLASS DEFAULT

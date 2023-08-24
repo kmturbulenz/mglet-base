@@ -96,7 +96,7 @@ CONTAINS
         REAL(real64) :: tic, toc
         CHARACTER(len=mglet_filename_max) :: filename
 
-        filename = REPEAT(" ", mglet_filename_max)
+        ! grids_mod.F90 sets default value for this
         CALL fort7%get_value("/io/grids", filename)
 
         tic = MPI_Wtime()

@@ -247,8 +247,14 @@ CONTAINS
         CALL h5sclose_f(filespace, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
+        CALL h5sclose_f(memspace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
         CALL h5tclose_f(dtype, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Dump parameters.json to the result file
+        CALL write_jsondump()
     END SUBROUTINE write_runinfo
 
 
@@ -348,5 +354,86 @@ CONTAINS
         CALL h5tclose_f(timetype, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE create_runinfo_h5type
+
+
+    SUBROUTINE write_jsondump()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        CHARACTER(kind=c_char), ALLOCATABLE, TARGET :: jsondump(:)
+        INTEGER(size_t) :: strlen
+        INTEGER(hid_t) :: parent_id, dset_id, strtype, filespace, memspace
+        TYPE(c_ptr) :: f_ptr
+        INTEGER(int32) :: hdferr
+        LOGICAL :: link_exists
+
+        IF (.NOT. ioproc) RETURN
+
+        ! Get JSON dump
+        CALL fort7%dump(jsondump)
+        strlen = SIZE(jsondump)
+
+        ! Create HDF5 datatype
+        CALL h5tcopy_f(H5T_NATIVE_CHARACTER, strtype, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        CALL h5tset_size_f(strtype, strlen, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Write to file
+        CALL get_fileh(parent_id)
+        CALL h5lexists_f(parent_id, "PARAMETERS", link_exists, hdferr)
+        IF (hdferr < 0) CALL errr(__FILE__, __LINE__)
+
+        IF (link_exists) THEN
+            ! TODO: Implement!
+            RETURN
+        ELSE
+            CALL h5screate_f(H5S_SCALAR_F, filespace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+            CALL h5dcreate_f(parent_id, "PARAMETERS", strtype, filespace, &
+                dset_id, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Memspace
+        CALL h5screate_f(H5S_SCALAR_F, memspace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Only rank 0 write data
+        IF (ioid == 0) THEN
+            CALL h5sselect_all_f(filespace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+            CALL h5sselect_all_f(memspace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        ELSE
+            CALL h5sselect_none_f(filespace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+            CALL h5sselect_none_f(memspace, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        f_ptr = C_LOC(jsondump)
+        CALL h5dwrite_f(dset_id, strtype, f_ptr, hdferr, &
+            file_space_id=filespace, mem_space_id=memspace)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5dclose_f(dset_id, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5sclose_f(filespace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5sclose_f(memspace, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5tclose_f(strtype, hdferr)
+        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+        DEALLOCATE(jsondump)
+    END SUBROUTINE write_jsondump
 
 END MODULE runinfo_mod

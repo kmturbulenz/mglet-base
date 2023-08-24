@@ -230,8 +230,6 @@ CONTAINS
 
 
     SUBROUTINE hdf5common_close(file_id)
-
-
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: file_id
 

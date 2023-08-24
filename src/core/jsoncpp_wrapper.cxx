@@ -7,6 +7,8 @@
 #include <iostream>
 #include <type_traits>
 
+#include <ISO_Fortran_binding.h>
+
 using json = nlohmann::json;
 
 struct jsoncppc {
@@ -102,6 +104,41 @@ extern "C" {
         free(jsonc);
     }
 
+    void json_dump(jsoncppc_t* jsonc, CFI_cdesc_t* res, int* ierr) {
+        *ierr = 0;
+        if (jsonc == NULL || res == NULL) {
+            std::cerr << "FATAL JSON error - NULL given\n";
+            *ierr = 1;
+            return;
+        }
+        json* obj = static_cast<json *>(jsonc->obj);
+
+        // Dump JSON to C++ string, check length
+        std::string jsondump = obj->dump(4, ' ', true);
+        const CFI_index_t strlen = jsondump.length();  // This is w.o NULL
+
+        // Sanity checks of passed Fortran structure
+        assert (res->rank == 1);
+        assert (res->type == CFI_type_char);
+        assert (res->elem_len == 1);
+        assert (res->attribute == CFI_attribute_allocatable);
+
+        // If already allocated - free
+        if (res->base_addr) CFI_deallocate(res);
+
+        // Allocate to length of string
+        const CFI_index_t lower_bounds[1] = {1};  // Remember this is Fortran
+        const CFI_index_t upper_bounds[1] = {strlen};
+        *ierr = CFI_allocate(res, lower_bounds, upper_bounds, 1);
+        if (*ierr) {
+            std::cerr << "Error allocating string: " << strlen << std::endl;
+            return;
+        }
+
+        // Copy string into allocated memory
+        strncpy((char*)res->base_addr, jsondump.c_str(), strlen);
+    }
+
     void json_get_int(jsoncppc_t* jsonc, const char* key,
             int* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
@@ -117,9 +154,19 @@ extern "C" {
         json_get_number(jsonc, key, val, ierr);
     }
 
+    void json_set_int64(jsoncppc_t* jsonc, const char* key,
+            const int64_t* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
+    }
+
     void json_get_float(jsoncppc_t* jsonc, const char* key,
             float* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
+    }
+
+    void json_set_float(jsoncppc_t* jsonc, const char* key,
+            const float* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
     }
 
     void json_get_double(jsoncppc_t* jsonc, const char* key,
@@ -127,9 +174,19 @@ extern "C" {
         json_get_number(jsonc, key, val, ierr);
     }
 
+    void json_set_double(jsoncppc_t* jsonc, const char* key,
+            const double* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
+    }
+
     void json_get_bool(jsoncppc_t* jsonc, const char* key,
             _Bool* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
+    }
+
+    void json_set_bool(jsoncppc_t* jsonc, const char* key,
+            const _Bool* val, int* ierr) {
+        json_set_number(jsonc, key, val, ierr);
     }
 
     void json_get_int_arr(jsoncppc_t* jsonc, const char* key,
@@ -168,6 +225,12 @@ extern "C" {
             }
             std::char_traits<char>::copy(cval, value.c_str(), *length);
         }
+    }
+
+    void json_set_char(jsoncppc_t* jsonc, const char* key, const char* cval,
+            int* ierr) {
+        std::string value(cval);
+        json_set_number(jsonc, key, &value, ierr);
     }
 
     void json_get_size(jsoncppc_t* jsonc, const char* key,
