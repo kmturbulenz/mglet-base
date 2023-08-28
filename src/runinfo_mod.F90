@@ -132,6 +132,7 @@ CONTAINS
             "mglet"
 
         IF (.NOT. ioproc) RETURN
+        IF (.NOT. dwrite) RETURN
 
         ! Fill runinfo with data for current run
         CALL get_starttime(starttime)

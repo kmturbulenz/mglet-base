@@ -2,7 +2,8 @@
     "time": {
         "mtstep": 100,
         "dt": 1e-5,
-        "itinfo": 1
+        "itinfo": 1,
+        "write": false
     },
     "io": {
         "grids": "grids.h5",

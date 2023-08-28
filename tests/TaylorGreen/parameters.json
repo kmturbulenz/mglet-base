@@ -3,7 +3,8 @@
         "mtstep": 64,
         "dt": 0.015625,
         "tend": 1.0,
-        "itinfo": 1
+        "itinfo": 1,
+        "itcheck": 10
     },
     "io": {
         "grids": "grids.h5",
@@ -34,5 +35,18 @@
         "lesmodel": {
             "model": "none"
         }
+    },
+    "probes": {
+        "itsamp": 8,
+        "tstart": 0.0,
+        "arrays": [
+            {
+                "name": "the_probe",
+                "variables": ["P"],
+                "positions": [
+                    [ 0.5, 0.5, 0.5 ]
+                ]
+            }
+        ]
     }
 }

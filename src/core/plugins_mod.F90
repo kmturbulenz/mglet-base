@@ -15,7 +15,7 @@ MODULE plugins_mod
         END SUBROUTINE finish_plugin_i
 
         SUBROUTINE init_late_plugin_i(ittot, mtstep, itint, timeph, dt, tend)
-            USE precision_mod, ONLY: intk, realk
+            IMPORT :: intk, realk
             INTEGER(intk), INTENT(in) :: ittot
             INTEGER(intk), INTENT(in) :: mtstep
             INTEGER(intk), INTENT(in) :: itint
@@ -25,12 +25,20 @@ MODULE plugins_mod
         END SUBROUTINE init_late_plugin_i
 
         SUBROUTINE timeintegrate_plugin_i(itstep, ittot, timeph, dt)
-            USE precision_mod, ONLY: intk, realk
+            IMPORT :: intk, realk
             INTEGER(intk), INTENT(in) :: itstep
             INTEGER(intk), INTENT(in) :: ittot
             REAL(realk), INTENT(in) :: timeph
             REAL(realk), INTENT(in) :: dt
         END SUBROUTINE timeintegrate_plugin_i
+
+        SUBROUTINE can_checkpoint_plugin_i(can_checkpoint)
+            LOGICAL, INTENT(out) :: can_checkpoint
+        END SUBROUTINE can_checkpoint_plugin_i
+
+        SUBROUTINE checkpoint_plugin_i()
+            ! No arguments
+        END SUBROUTINE checkpoint_plugin_i
     END INTERFACE
 
     ! For storing general run-time plugins
@@ -44,13 +52,17 @@ MODULE plugins_mod
             itinfo => NULL()
         PROCEDURE(timeintegrate_plugin_i), POINTER, NOPASS :: &
             postprocess => NULL()
+        PROCEDURE(can_checkpoint_plugin_i), POINTER, NOPASS :: &
+            can_checkpoint => NULL()
+        PROCEDURE(checkpoint_plugin_i), POINTER, NOPASS :: checkpoint => NULL()
         PROCEDURE(finish_plugin_i), POINTER, NOPASS :: finish => NULL()
     END TYPE plugin_t
     TYPE(plugin_t) :: plugins(32)
     INTEGER(intk) :: n_plugins = 0
 
     PUBLIC :: init_plugins, init_late_plugins, timeintegrate_plugins, &
-        itinfo_plugins, postprocess_plugins, finish_plugins, register_plugin
+        itinfo_plugins, postprocess_plugins, can_checkpoint_plugins, &
+        checkpoint_plugins, finish_plugins, register_plugin
 
 CONTAINS
     SUBROUTINE init_plugins()
@@ -140,6 +152,36 @@ CONTAINS
     END SUBROUTINE postprocess_plugins
 
 
+    SUBROUTINE can_checkpoint_plugins(can_checkpoint)
+        ! Subroutine arguments
+        LOGICAL, INTENT(out) :: can_checkpoint
+
+        ! Local variables
+        INTEGER(intk) :: i
+        LOGICAL :: can_checkpoint_this
+
+        can_checkpoint = .TRUE.
+        DO i = 1, n_plugins
+            IF (ASSOCIATED(plugins(i)%checkpoint)) THEN
+                CALL plugins(i)%can_checkpoint(can_checkpoint_this)
+                IF (.NOT. can_checkpoint_this) can_checkpoint = .FALSE.
+            END IF
+        END DO
+    END SUBROUTINE can_checkpoint_plugins
+
+
+    SUBROUTINE checkpoint_plugins()
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, n_plugins
+            IF (ASSOCIATED(plugins(i)%checkpoint)) THEN
+                CALL plugins(i)%checkpoint()
+            END IF
+        END DO
+    END SUBROUTINE checkpoint_plugins
+
+
     SUBROUTINE finish_plugins()
         ! Local variables
         INTEGER(intk) :: i
@@ -153,7 +195,7 @@ CONTAINS
 
 
     SUBROUTINE register_plugin(name, init, init_late, timeintegrate, &
-            itinfo, postprocess, finish)
+            itinfo, postprocess, can_checkpoint, checkpoint, finish)
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(in) :: name
         PROCEDURE(init_plugin_i), OPTIONAL :: init
@@ -161,6 +203,8 @@ CONTAINS
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: timeintegrate
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: itinfo
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: postprocess
+        PROCEDURE(can_checkpoint_plugin_i), OPTIONAL :: can_checkpoint
+        PROCEDURE(checkpoint_plugin_i), OPTIONAL :: checkpoint
         PROCEDURE(finish_plugin_i), OPTIONAL :: finish
 
         IF (n_plugins >= SIZE(plugins)) ERROR STOP
@@ -190,6 +234,14 @@ CONTAINS
 
         IF (PRESENT(postprocess)) THEN
             plugins(n_plugins)%postprocess => postprocess
+        END IF
+
+        IF (PRESENT(can_checkpoint)) THEN
+            plugins(n_plugins)%can_checkpoint => can_checkpoint
+        END IF
+
+        IF (PRESENT(checkpoint)) THEN
+            plugins(n_plugins)%checkpoint => checkpoint
         END IF
     END SUBROUTINE register_plugin
 END MODULE plugins_mod

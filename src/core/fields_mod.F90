@@ -27,6 +27,13 @@ MODULE fields_mod
     INTEGER(hid_t) :: file_id = 0
     INTEGER(hid_t) :: group_id = 0
 
+    ! Mode for writing result files
+    ! Flipepd to "a" if:
+    !  - Any time when dcont = .T.
+    !  - _After_ 1st write operation otherwise
+    ! this allows for checkpoints to function properly...
+    CHARACTER(len=1) :: writemode = "w"
+
     INTERFACE get_fieldptr
         MODULE PROCEDURE :: get_fieldptr_grid1
         MODULE PROCEDURE :: get_fieldptr_grid3
@@ -79,25 +86,27 @@ CONTAINS
 
     SUBROUTINE fields_begin_write()
         ! Local variables
-        CHARACTER(len=1) :: mode
+        ! none...
 
         IF (.NOT. dwrite) RETURN
 
         CALL fort7%get_value("/io/outfile", filename, "fields.h5")
 
         IF (dcont) THEN
-            mode = "a"
-        ELSE
-            mode = "w"
+            writemode = "a"
         END IF
 
         IF (myid == 0) THEN
-            WRITE(*, '("Opening file ", A, " for writing")') TRIM(filename)
+            WRITE(*, '("Opening file ", A, " with mode ", A)') &
+                TRIM(filename), writemode
         END IF
 
-        CALL hdf5common_open(filename, mode, file_id)
+        CALL hdf5common_open(filename, writemode, file_id)
         CALL hdf5common_group_open("VOLUMEFIELDS", file_id, group_id, &
             track_index=.TRUE.)
+
+        ! Next time opened for writing the mode is "a"
+        writemode = "a"
     END SUBROUTINE fields_begin_write
 
 
