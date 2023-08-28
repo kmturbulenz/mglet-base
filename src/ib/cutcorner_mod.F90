@@ -151,9 +151,9 @@ CONTAINS
             b = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1)
             c = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
 
-            ! If triangle has zer area, skip triangle
+            ! If triangle has zero area, skip triangle
             betrag = sqrt(a**2 + b**2 + c**2)
-            IF (betrag == 0.0) CYCLE
+            IF (betrag < TINY(1.0_realk)) CYCLE
             a = a/betrag
             b = b/betrag
             c = c/betrag
@@ -258,14 +258,14 @@ CONTAINS
         DO i = 1, ii
             DO j = 1, jj
                 DO k = 1, kk
-                    IF (kanteu(k, j, i) == 0.0) THEN
-                        kanteu(k, j, i) = 1.0
+                    IF (ABS(kanteu(k, j, i)) < TINY(1.0_realk)) THEN
+                        kanteu(k, j, i) = 1.0_realk
                     END IF
-                    IF (kantev(k, j, i) == 0.0) THEN
-                        kantev(k, j, i) = 1.0
+                    IF (ABS(kantev(k, j, i)) < TINY(1.0_realk)) THEN
+                        kantev(k, j, i) = 1.0_realk
                     END IF
-                    IF (kantew(k, j, i) == 0.0) THEN
-                        kantew(k, j, i) = 1.0
+                    IF (ABS(kantew(k, j, i)) < TINY(1.0_realk)) THEN
+                        kantew(k, j, i) = 1.0_realk
                     END IF
                 END DO
             END DO
@@ -295,7 +295,7 @@ CONTAINS
 
         ! ntrimax=2 in usual blocking, =1 in srep and calcvolumesexact
         IF (-kanteu(k,j,i) < ntrimax) THEN
-            kanteu(k, j, i) = kanteu(k, j, i)-1
+            kanteu(k, j, i) = kanteu(k, j, i) - 1.0_realk
             triau(-INT(kanteu(k, j, i)),k, j, i) = itrineu
         ELSE IF (ntrimax == 2) THEN
             ! In case of ntrimax=2, maximal two intersection points per corner
@@ -465,7 +465,7 @@ CONTAINS
             epsedge = eps
         END IF
 
-        IF (a /= 0.0) THEN
+        IF (ABS(a) > TINY(1.0_realk)) THEN
             ! x-Kante
             xx = (-c*(zp-z1)-b*(yp-y1))/a + x1
             yy = yp
@@ -546,7 +546,7 @@ CONTAINS
             END IF
         END IF
 
-        IF (b /= 0.0) THEN
+        IF (ABS(b) > TINY(1.0_realk)) THEN
             xx = xp
             yy = (-c*(zp-z1)-a*(xp-x1))/b + y1
             zz = zp
@@ -612,7 +612,7 @@ CONTAINS
             END IF
         END IF
 
-        IF (c /= 0.0) THEN
+        IF (ABS(c) > TINY(1.0_realk)) THEN
             xx = xp
             yy = yp
             zz = (-b*(yp-y1)-a*(xp-x1))/c + z1

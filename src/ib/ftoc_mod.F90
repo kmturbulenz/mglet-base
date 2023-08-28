@@ -415,7 +415,8 @@ CONTAINS
                     kc = kpos + (k-2)/2 - 1
 
                     icount = icount + 1
-                    IF (fc(kc, jc, ic) == 0 .AND. buffer(icount) >= 1.0) THEN
+                    IF (ABS(fc(kc, jc, ic)) < TINY(1.0_realk) .AND. &
+                            buffer(icount) >= 1.0_realk) THEN
                         fc(kc, jc, ic) = buffer(icount)
                     END IF
                 END DO

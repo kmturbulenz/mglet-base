@@ -116,7 +116,8 @@ CONTAINS
 
         ! Set inflow buffers for FIX bc's
         DO ilevel = minlevel, maxlevel
-            CALL setboundarybuffers%bound(ilevel, u_f, v_f, w_f, timeph=0.0)
+            CALL setboundarybuffers%bound(ilevel, u_f, v_f, w_f, &
+                timeph=0.0_realk)
         END DO
 
         ! Set initial condition
