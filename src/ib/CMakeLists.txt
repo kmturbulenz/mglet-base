@@ -55,11 +55,3 @@ target_link_libraries(ib
 set_source_files_properties(checkzelle_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-compare-reals>
 )
-
-set_source_files_properties(cutcorner_mod.F90 PROPERTIES COMPILE_FLAGS
-    $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-compare-reals>
-)
-
-set_source_files_properties(ftoc_mod.F90 PROPERTIES COMPILE_FLAGS
-    $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-compare-reals>
-)

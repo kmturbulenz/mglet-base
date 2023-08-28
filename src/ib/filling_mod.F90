@@ -187,8 +187,8 @@ CONTAINS
             j = i0(2, idx)
             k = i0(3, idx)
 
-            IF (knoten(k, j, i) >= -0.5) THEN
-                knoten(k, j, i) = 1.0
+            IF (knoten(k, j, i) >= -0.5_realk) THEN
+                knoten(k, j, i) = 1.0_realk
             END IF
         END DO
 
@@ -224,9 +224,9 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = MAX(2, 1+ksta), kk-ksto
-                        IF (knoten(k-1, j, i) >= 0.5) THEN
+                        IF (knoten(k-1, j, i) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k-1, j, i)
+                                knoten(k, j, i) = 1.0_realk + knoten(k-1, j, i)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -237,9 +237,9 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = MIN(kk-1, kk-ksto), 1+ksta, -1
-                        IF (knoten(k+1, j, i) >= 0.5) THEN
+                        IF (knoten(k+1, j, i) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k+1, j, i)
+                                knoten(k, j, i) = 1.0_realk + knoten(k+1, j, i)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -250,9 +250,9 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = MAX(2, 1+jsta), jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (knoten(k, j-1, i) >= 0.5) THEN
+                        IF (knoten(k, j-1, i) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k, j-1, i)
+                                knoten(k, j, i) = 1.0_realk + knoten(k, j-1, i)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -263,9 +263,9 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = MIN(jj-1, jj-jsto), 1+jsta, -1
                     DO k = 1+ksta, kk-ksto
-                        IF (knoten(k, j+1, i) >= 0.5) THEN
+                        IF (knoten(k, j+1, i) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k, j+1, i)
+                                knoten(k, j, i) = 1.0_realk + knoten(k, j+1, i)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -276,9 +276,9 @@ CONTAINS
             DO i = MAX(1+ista, 2), ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (knoten(k, j, i-1) >= 0.5) THEN
+                        IF (knoten(k, j, i-1) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k, j, i-1)
+                                knoten(k, j, i) = 1.0_realk + knoten(k, j, i-1)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -289,9 +289,9 @@ CONTAINS
             DO i = MIN(ii-1, ii-isto), 1+ista, -1
                 DO j = 1+jsta, jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (knoten(k, j, i+1) >= 0.5) THEN
+                        IF (knoten(k, j, i+1) >= 0.5_realk) THEN
                             IF (NINT(knoten(k, j, i)) == 0) THEN
-                                knoten(k, j, i) = 1.0 + knoten(k, j, i+1)
+                                knoten(k, j, i) = 1.0_realk + knoten(k, j, i+1)
                                 ncount = ncount + 1
                             END IF
                         END IF
@@ -336,7 +336,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 1)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
-                    IF (ABS(parbuf(k, j, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(k, j, 1)) > 0.5_realk) THEN
                         knoten(k, j, 2) = parbuf(k, j, 1)
                     END IF
                 END DO
@@ -347,7 +347,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 2)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
-                    IF (ABS(parbuf(k, j, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(k, j, 1)) > 0.5_realk) THEN
                         knoten(k, j, ii-2) = parbuf(k, j, 1)
                     END IF
                 END DO
@@ -358,7 +358,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 3)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(k, i, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(k, i, 1)) > 0.5_realk) THEN
                         knoten(k, 2, i) = parbuf(k, i, 1)
                     END IF
                 END DO
@@ -369,7 +369,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 4)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(k, i, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(k, i, 1)) > 0.5_realk) THEN
                         knoten(k, jj-2, i) = parbuf(k, i, 1)
                     END IF
                 END DO
@@ -380,7 +380,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 5)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(j, i, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(j, i, 1)) > 0.5_realk) THEN
                         knoten(2, j, i) = parbuf(j, i, 1)
                     END IF
                 END DO
@@ -391,7 +391,7 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 6)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(j, i, 1)) > 0.5) THEN
+                    IF (ABS(parbuf(j, i, 1)) > 0.5_realk) THEN
                         knoten(kk-2, j, i) = parbuf(j, i, 1)
                     END IF
                 END DO

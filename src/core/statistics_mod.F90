@@ -69,7 +69,7 @@ CONTAINS
             idx = active_fields(i)
 
             ! Initialize statfield by creating a field and copy the parameters
-            CALL statfields(idx)%func(field, statfields(idx)%name, 1.0)
+            CALL statfields(idx)%func(field, statfields(idx)%name, 1.0_realk)
             CALL set_field(statfields(idx)%name, istag=field%istag, &
                 jstag=field%jstag, kstag=field%kstag, units=field%units, &
                 dread=dcont, dwrite=dwrite, active_level=field%active_level)
