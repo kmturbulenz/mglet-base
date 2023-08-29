@@ -47,6 +47,10 @@ MODULE timeloop_mod
     INTEGER(intk), PROTECTED :: itstop = 0
     TYPE(timekeeper_t) :: timekeeper
 
+    ! For checkpointing
+    INTEGER(intk), PROTECTED :: itcheck = 0   ! Min. checkpointing frequency
+    INTEGER(intk), PROTECTED :: istepchk = 0  ! Steps since last checkpoint
+
     ! Time log file
     CHARACTER(len=*), PARAMETER :: timefile = logdir//"/time.log"
 
@@ -111,6 +115,7 @@ CONTAINS
         CALL timeconf%get_value("/itint", itint, 0, has_itint)
         CALL timeconf%get_value("/tend", tend, 0.0, has_tend)
         CALL timeconf%get_value("/tstat", tstat, 0.0)
+        CALL timeconf%get_value("/itcheck", itcheck, 0)
         CALL timeconf%get_value("/targetcflmax", targetcflmax, 0.0)
         CALL timeconf%get_value("/rkmethod", rkmethod, "williamson")
         CALL rkscheme%init(rkmethod)
@@ -199,7 +204,7 @@ CONTAINS
 
     SUBROUTINE timeloop()
         ! Local variables
-        LOGICAL :: stop_now
+        LOGICAL :: stop_now, allow_checkpoint
         INTEGER(intk) :: irk, exploded
         REAL(realk) :: cflmax
 
@@ -261,15 +266,6 @@ CONTAINS
             ! Postprocess, _after_ time is globally incremented
             CALL postprocess_plugins(itstep, ittot, timeph, dt)
 
-            ! Adjust timestep at end of all postprocessing. Some tools (probes,
-            ! statistics (computing PtPt_AVG)) need the DT, and then we must
-            ! wait until here to adjust DT
-            IF (MOD(ittot, itinfo) == 0) THEN
-                IF (targetcflmax > 0.0 .AND. timeph < tstat) THEN
-                    CALL adjust_timestep(cflmax)
-                END IF
-            END IF
-
             ! Explosions trigger immediate stop
             IF (exploded > 0) THEN
                 IF (myid == 0) THEN
@@ -283,6 +279,30 @@ CONTAINS
             IF (MOD(ittot, itstop) == 0) THEN
                 stop_now = check_stop(itstep, ittot, timeph)
                 IF (stop_now) EXIT timeintegration
+            END IF
+
+            ! Checkpointing after all plugins have processed, and after all stop
+            ! criterions have been checked (to avoid writing a checkpoint just
+            ! before stopping the simulation), but before the new DT for the
+            ! next timestep is set.
+            istepchk = istepchk + 1
+            IF (istepchk >= itcheck .AND. itcheck > 0) THEN
+                CALL can_checkpoint_plugins(allow_checkpoint)
+                IF (allow_checkpoint) THEN
+                    IF (myid == 0) WRITE(*, '("Writing checkpoint...")')
+                    CALL checkpoint_fields()
+                    CALL checkpoint_plugins()
+                    istepchk = 0
+                END IF
+            END IF
+
+            ! Adjust timestep at end of all postprocessing. Some tools (probes,
+            ! statistics (computing PtPt_AVG)) need the DT, and then we must
+            ! wait until here to adjust DT
+            IF (MOD(ittot, itinfo) == 0) THEN
+                IF (targetcflmax > 0.0 .AND. timeph < tstat) THEN
+                    CALL adjust_timestep(cflmax)
+                END IF
             END IF
         END DO timeintegration
 
@@ -438,4 +458,30 @@ CONTAINS
         received_signal = sig
         sighandler = 0
     END FUNCTION sighandler
+
+
+    SUBROUTINE checkpoint_fields()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        REAL(real64) :: wtime, deltawt
+
+        ! Open output file for writing
+        CALL fields_begin_write()
+
+        ! Write runinfo-table
+        ! TODO: discuss the values written here. Maybe better to use the
+        ! walltime since last checkpoint? But then, what to write in the end?
+        wtime = MPI_Wtime()
+        deltawt = wtime - wtime0
+        CALL write_runinfo(itstep, ittot, timeph, dt, targetcflmax, deltawt, &
+            ncellstot)
+
+        ! Write field data
+        CALL fields_write()
+
+        ! Close file
+        CALL fields_end_rw()
+    END SUBROUTINE checkpoint_fields
 END MODULE timeloop_mod

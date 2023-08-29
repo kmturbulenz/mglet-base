@@ -16,7 +16,8 @@ CONTAINS
         CALL register_plugin("DERIVFIELDS", init_late=init_derivfields, &
             postprocess=calc_derivfields, finish=finish_derivfields)
         CALL register_plugin("PROBES", init_late=init_probes, &
-            postprocess=sample_probes, finish=finish_probes)
+            postprocess=sample_probes, can_checkpoint=can_checkpoint_probes, &
+            checkpoint=checkpoint_probes, finish=finish_probes)
         CALL register_plugin("SNAPSHOTS", init_late=init_snapshots, &
             postprocess=sample_snapshots, finish=finish_snapshots)
         CALL register_plugin("UVWBULK", init_late=init_uvwbulk, &

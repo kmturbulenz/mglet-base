@@ -61,7 +61,8 @@ MODULE probes_mod
     ! Max. buffered size per IO group = 1 GB
     INTEGER(int64), PARAMETER :: maxbytes = 1073741824
 
-    PUBLIC :: init_probes, sample_probes, finish_probes
+    PUBLIC :: init_probes, sample_probes, finish_probes, &
+        can_checkpoint_probes, checkpoint_probes
 
 CONTAINS
     SUBROUTINE init_probes(ittot, mtstep, itint, timeph, dt, tend)
@@ -199,6 +200,40 @@ CONTAINS
 
         IF (ALLOCATED(timeinfo)) DEALLOCATE(timeinfo)
     END SUBROUTINE finish_probes
+
+
+    SUBROUTINE can_checkpoint_probes(can_checkpoint)
+        ! Subroutine arguments
+        LOGICAL, INTENT(out) :: can_checkpoint
+
+        ! Local variables
+        ! none...
+
+        ! This is the default assumption
+        can_checkpoint = .TRUE.
+
+        ! When no probes are present or when nothing is initialized yet
+        IF (.NOT. has_probes) RETURN
+        IF (.NOT. isinit_buffers) RETURN
+
+        ! Only when a sample is not finished a checkpoint cannot be made
+        IF (navg > 0) THEN
+            can_checkpoint = .FALSE.
+        END IF
+    END SUBROUTINE can_checkpoint_probes
+
+
+    SUBROUTINE checkpoint_probes()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. has_probes) RETURN
+        IF (.NOT. isinit_buffers) RETURN
+        CALL write_probes()
+    END SUBROUTINE checkpoint_probes
 
 
     SUBROUTINE read_positions(arr, arrayconf)
