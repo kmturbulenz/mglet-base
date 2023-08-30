@@ -188,8 +188,8 @@ CONTAINS
 
             iovec(i)%ipc = MAX(iovec(i)%ipc, ivec(i)%ipc)
 
-            iovec(i)%exploded = MAX(iovec(i)%exploded, ivec(i)%exploded)
-            iovec(i)%message = MAX(iovec(i)%message, ivec(i)%message)
+            iovec(i)%exploded = IOR(iovec(i)%exploded, ivec(i)%exploded)
+            iovec(i)%message = IOR(iovec(i)%message, ivec(i)%message)
 
             IF (ABS(iovec(i)%divmax) < ABS(ivec(i)%divmax)) THEN
                 iovec(i)%divmax = ivec(i)%divmax

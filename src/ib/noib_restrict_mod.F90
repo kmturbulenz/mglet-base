@@ -34,7 +34,7 @@ CONTAINS
             CALL this%restrict_v(kk, jj, ii, ff, sendbuf, ctyp, igrid)
         CASE ("W")
             CALL this%restrict_w(kk, jj, ii, ff, sendbuf, ctyp, igrid)
-        CASE ("P", "R", "S")
+        CASE ("P", "R", "S", "T")
             CALL this%restrict_s(kk, jj, ii, ff, sendbuf, ctyp, igrid)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
@@ -79,7 +79,7 @@ CONTAINS
             jend = 3
             kstart = 2
             kend = 2
-        CASE ("E", "F", "P", "R", "S", 'I')
+        CASE ("E", "F", "P", "R", "S", 'I', 'T')
             istart = 3
             iend = 3
             jstart = 3

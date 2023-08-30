@@ -9,6 +9,7 @@ MODULE timeintegration_mod
     USE pressuresolver_mod
     USE tstle4_mod
     USE setboundarybuffers_mod
+    USE boussinesqterm_mod, ONLY: boussinesqterm
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -86,6 +87,7 @@ CONTAINS
 
         ! TSTLE4 zeroize uo, vo, wo before use internally
         CALL tstle4(uo, vo, wo, pwu, pwv, pww, ut, vt, wt, p, g)
+        CALL boussinesqterm(uo, vo, wo)
 
         ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
         ! the du, dv, dw fields before each step

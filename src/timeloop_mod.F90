@@ -2,7 +2,7 @@ MODULE timeloop_mod
     USE MPI_f08
     USE core_mod
     USE flow_mod, ONLY: timeintegrate_flow, itinfo_flow
-    USE scalar_mod, ONLY: timeintegrate_scalar
+    USE scalar_mod, ONLY: timeintegrate_scalar, itinfo_scalar
     USE runinfo_mod
 
     IMPLICIT NONE(type, external)
@@ -251,7 +251,7 @@ CONTAINS
             exploded = 0
             IF (MOD(ittot, itinfo) == 0) THEN
                 CALL itinfo_time(itstep, ittot, timeph, dt)
-                ! CALL itinfo_scalar(itstep, ittot, timeph, dt, exploded)
+                CALL itinfo_scalar(itstep, ittot, timeph, dt, exploded)
                 CALL itinfo_flow(itstep, ittot, timeph, dt, cflmax, exploded)
                 IF (myid == 0) WRITE(*, '()')
 

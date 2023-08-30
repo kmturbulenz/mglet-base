@@ -9,7 +9,7 @@ MODULE wernerwengle_mod
     real(realk), PROTECTED :: cpo1, cpo2, cpo3, cpo4, cpo5, cpo6, &
         cpo7, cpo8, cpo9, cpo10, cpo11, cpo12
 
-    PUBLIC :: init_wernerwengle, finish_wernerwengle, gradp2, tauwin
+    PUBLIC :: init_wernerwengle, finish_wernerwengle, gradp2, tauwin, qwallfix
 CONTAINS
     SUBROUTINE init_wernerwengle()
         cwa = 8.3_realk
@@ -71,7 +71,7 @@ CONTAINS
         REAL(realk) :: ddsb
 
         vz = SIGN(1.0_realk, uquer)
-        UQUERN = ABS(uquer)
+        uquern = ABS(uquer)
 
         IF (uquern >= cpo6/dds) THEN
             ! Fully turbulent regime
@@ -82,4 +82,36 @@ CONTAINS
             tauwin  = vz*2.0*gmol*uquern/dds
         END IF
     END FUNCTION tauwin
+
+
+    ! Experimental and untested. Should be tested and verified before actual
+    ! usage!
+    PURE ELEMENTAL REAL(realk) FUNCTION qwallfix(tbound, tfluid, uquer, dds, &
+            prmol)
+        !$omp declare simd(qwallfix)
+
+        ! Function arguments
+        REAL(realk), INTENT(IN) :: tbound, tfluid, uquer, dds, prmol
+
+        ! Local variables
+        REAL(realk) :: uquern, ddsb, tauwin, sm, fsm
+
+        uquern = ABS(uquer)
+        IF (uquern >= cpo6/dds) THEN
+            ! Fully turbulent regime
+            ddsb = dds**(-cwb)
+            tauwin = rho*(ddsb*(cpo4*uquern + cpo5/dds))**cpo8
+            ! cwa**(1.0/(1.0-cwb)) = 11.8 => intersection between linear and
+            ! exponential in plus-units sm is the "real" wall distance [m]
+            ! of the switching point
+            sm = gmol / tauwin**0.5 * cwa**(1.0/(1.0-cwb))
+            fsm = 1/dds**2 *( 0.5*sm**2.0*prmol + (tauwin/gmol)**(-cpo1) &
+                * cwa/cpo2 * (dds**cpo2 - sm**cpo2) )
+
+            qwallfix = gmol / rho * (tbound - tfluid) / dds / fsm
+        ELSE
+            ! Laminar sublayer
+            qwallfix = gmol/rho/prmol*(tbound - tfluid)*2.0/dds
+        END IF
+    END FUNCTION qwallfix
 END MODULE wernerwengle_mod
