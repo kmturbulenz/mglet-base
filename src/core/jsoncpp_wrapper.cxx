@@ -120,7 +120,6 @@ extern "C" {
         // Sanity checks of passed Fortran structure
         assert (res->rank == 1);
         assert (res->type == CFI_type_char);
-        assert (res->elem_len == 1);
         assert (res->attribute == CFI_attribute_allocatable);
 
         // If already allocated - free
@@ -132,6 +131,7 @@ extern "C" {
         *ierr = CFI_allocate(res, lower_bounds, upper_bounds, 1);
         if (*ierr) {
             std::cerr << "Error allocating string: " << strlen << std::endl;
+            std::cerr << "Got error: " << *ierr << std::endl;
             return;
         }
 

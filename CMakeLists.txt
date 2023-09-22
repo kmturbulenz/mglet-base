@@ -62,7 +62,25 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(MGLET_DEBUG_FLAGS -Og -g -D_MGLET_DEBUG_)
 
     # Common Fortran flags
-    set(MGLET_COMMON_FORTRAN_FLAGS -std=f2018 -fimplicit-none -ffpe-trap=invalid,zero,overflow  -Wno-unused-dummy-argument)
+    #
+    # Regarding: -Wno-uninitialized
+    # GFortran have several problems with the detection of uninitialized
+    # variables, ref:
+    # https://fortran-lang.discourse.group/t/gfortran-uninitialized-warnings/3838
+    # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56670
+    # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106089
+    # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106108
+    # therefore setting this flag to turn off this feature.
+    #
+    # Regarding: -ffree-line-length-none
+    # The preprocessor macro __FILE__ is often used in MGLET. This can be a
+    # long path. Up until Fortran 2018 there was a max line length of
+    # 132 characters. A filename can easily overflow this length.
+    # GCC allows to increase this length to infinity with this flag.
+    # Fortran 2023 will have the maximum line length increased to 10000
+    # (ten thousand) characters, so this is a problem that will disappear
+    # as soon as a Fortran 2023 compiler is available.
+    set(MGLET_COMMON_FORTRAN_FLAGS -std=f2018 -fimplicit-none -ffpe-trap=invalid,zero,overflow -Wno-unused-dummy-argument -Wno-uninitialized -ffree-line-length-none)
 
     # Fortran-specific debug flags
     set(MGLET_DEBUG_FORTRAN_FLAGS -fcheck=all)

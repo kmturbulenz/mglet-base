@@ -362,7 +362,11 @@ CONTAINS
         ! none...
 
         ! Local variables
-        CHARACTER(kind=c_char), ALLOCATABLE, TARGET :: jsondump(:)
+#if __GNUC__ < 12
+        CHARACTER(kind=c_char, len=1), ALLOCATABLE, TARGET :: jsondump(:)
+#else
+        CHARACTER(kind=c_char, len=:), ALLOCATABLE, TARGET :: jsondump(:)
+#endif
         INTEGER(size_t) :: strlen
         INTEGER(hid_t) :: parent_id, dset_id, strtype, filespace, memspace
         TYPE(c_ptr) :: f_ptr
