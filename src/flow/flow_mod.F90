@@ -6,7 +6,6 @@ MODULE flow_mod
     USE flowstat_mod
     USE timeintegration_mod
     USE wernerwengle_mod
-    USE setboundarybuffers_mod
 
     IMPLICIT NONE(type, external)
 
@@ -35,16 +34,19 @@ CONTAINS
 
         CALL init_flowstat()
 
+        ! Wall- and LES models are needed for pure scalar simulation
         CALL init_wernerwengle()
         CALL init_lesmodel()
-        CALL init_pressuresolver()
-        CALL init_itinfo(dcont)
 
-        ! Need to call this here - cannot be in flowcore because that
-        ! create a circular dependency
-        SELECT TYPE(ib)
-        TYPE IS (gc_t)
-            IF (solve_flow) THEN
+        ! These sould only be needed when flow is actually solved
+        IF (solve_flow) THEN
+            CALL init_pressuresolver()
+            CALL init_itinfo(dcont)
+
+            ! Need to call this here - cannot be in flowcore because that
+            ! create a circular dependency
+            SELECT TYPE(ib)
+            TYPE IS (gc_t)
                 CALL create_flowstencils(ib)
 
                 CALL set_field("PWU", istag=1, buffers=.TRUE.)
@@ -62,8 +64,8 @@ CONTAINS
 
                 CALL get_field(sdiv, "SDIV")
                 CALL setsdivfield(sdiv)
-            END IF
-        END SELECT
+            END SELECT
+        END IF
     END SUBROUTINE init_flow
 
 
@@ -77,17 +79,18 @@ CONTAINS
 
         IF (.NOT. has_flow) RETURN
 
-        ! Need to call this here - cannot be in flowcore because that
-        ! create a circular dependency
-        SELECT TYPE(ib)
-        TYPE IS (gc_t)
-            IF (solve_flow) THEN
-                CALL finish_flowstencils()
-            END IF
-        END SELECT
+        IF (solve_flow) THEN
+            SELECT TYPE(ib)
+            TYPE IS (gc_t)
+                IF (solve_flow) THEN
+                    CALL finish_flowstencils()
+                END IF
+            END SELECT
 
-        CALL finish_itinfo
-        CALL finish_pressuresolver()
+            CALL finish_itinfo
+            CALL finish_pressuresolver()
+        END IF
+
         CALL finish_lesmodel()
         CALL finish_wernerwengle()
         CALL finish_flowcore()
@@ -98,6 +101,7 @@ CONTAINS
         USE bound_flow_mod
         USE core_mod
         USE ib_mod
+        USE setboundarybuffers_mod, ONLY: setboundarybuffers
 
         TYPE(field_t), POINTER :: u_f, v_f, w_f, p_f
         REAL(realk), POINTER, CONTIGUOUS :: u(:), v(:), w(:), p(:)

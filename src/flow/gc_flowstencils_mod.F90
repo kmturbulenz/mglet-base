@@ -154,8 +154,6 @@ CONTAINS
     SUBROUTINE createstencils_level(ilevel, bp, bu, bv, bw, au, av, aw, &
             bzelltyp, icells, icellspointer, bodyid, nvecs, ucell)
 
-        USE gc_blockbp_mod, ONLY: list_to_field
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         REAL(realk), INTENT(in) :: bp(*), bu(*), bv(*), bw(*), &
@@ -173,7 +171,6 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
         REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-        REAL(realk), ALLOCATABLE :: bodyidf(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -197,11 +194,6 @@ CONTAINS
 
             CALL get_mgbasb(bconds, igrid)
 
-            ! Create 3-D bodyid field
-            ALLOCATE(bodyidf(kk, jj, ii))
-            CALL list_to_field(kk, jj, ii, bzelltyp(ip3), &
-                bodyid(ipp:ipp+ncells-1), bodyidf)
-
             CALL fluxcorrection(igrid, kk, jj, ii, ddx, ddy, ddz, &
                 bp(ip3), bu(ip3), bv(ip3), bw(ip3), au(ip3), av(ip3), &
                 aw(ip3), bzelltyp(ip3), icells(igrid), &
@@ -216,8 +208,6 @@ CONTAINS
             CALL fluxstencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, &
                 zstag, bw(ip3), bzelltyp(ip3), bconds, icells(igrid), &
                 nvecs(:, ipp:ipp+ncells-1), ucell(:, ipp:ipp+ncells-1), 3)
-
-            DEALLOCATE(bodyidf)
         END DO
     END SUBROUTINE createstencils_level
 
@@ -872,6 +862,9 @@ CONTAINS
             xstag, ystag, zstag, bp, bzelltyp, bconds, nnlst, inlst, jnlst, &
             knlst, velpts, nvecs, ucell, ldofa, pntxpoli, xpoli, pntxpolr, &
             xpolr, xpolrvel, found, foundone)
+
+        ! NOTE: This subroutine is very close to tscastencilcoeff from
+        ! gc_scastencils_mod.F90
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: compon

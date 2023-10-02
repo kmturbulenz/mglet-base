@@ -17,11 +17,13 @@ MODULE gc_mod
         INTEGER(intk), ALLOCATABLE :: icellspointer(:)
 
         REAL(realk), ALLOCATABLE :: xpsw(:, :), nvecs(:, :), ucell(:, :)
+        REAL(realk), ALLOCATABLE :: arealist(:)
         INTEGER(intk), ALLOCATABLE :: bodyid(:)
         INTEGER(intk), ALLOCATABLE :: bzelltyp(:)
 
         TYPE(gc_stencils_t) :: stencils
         CHARACTER(len=mglet_filename_max) :: stencilfile
+        CHARACTER(len=mglet_filename_max), ALLOCATABLE :: stlnames(:)
     CONTAINS
         PROCEDURE :: blockbp
         PROCEDURE :: read_stencils
@@ -153,20 +155,24 @@ CONTAINS
         ALLOCATE(this%xpsw(3, this%ncells))
         ALLOCATE(this%ucell(3, this%ncells))
         ALLOCATE(this%bodyid(this%ncells))
+        ALLOCATE(this%arealist(this%ncells))
         ALLOCATE(this%bzelltyp(idim3d))
         CALL this%stencils%get_intersected(this%icells, this%icellspointer, &
             this%bodyid, this%xpsw, this%ucell, this%bzelltyp)
 
         ALLOCATE(this%nvecs(4, this%ncells))
         CALL this%calc_nvecs(this%bzelltyp, au, av, aw, this%icells, &
-            this%icellspointer, this%ncells, this%xpsw, this%nvecs)
+            this%icellspointer, this%ncells, this%xpsw, this%nvecs, &
+            this%arealist)
+
+        ALLOCATE(this%stlnames, SOURCE=this%stencils%stlnames)
 
         CALL this%stencils%finish()
     END SUBROUTINE read_stencils
 
 
     SUBROUTINE calc_nvecs(this, bzelltyp, au, av, aw, icells, icellspointer, &
-            ncellstot, xpsw, nvecs)
+            ncellstot, xpsw, nvecs, arealist)
         ! Subroutine arguments
         CLASS(gc_t), INTENT(inout) :: this
         INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
@@ -178,6 +184,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ncellstot
         REAL(realk), INTENT(in) :: xpsw(3, ncellstot)
         REAL(realk), INTENT(out) :: nvecs(4, ncellstot)
+        REAL(realk), INTENT(out) :: arealist(ncellstot)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipp, ncells
@@ -196,13 +203,14 @@ CONTAINS
 
             CALL this%calc_nvecs_grid(kk, jj, ii, ddx, ddy, ddz, &
                 bzelltyp(ip3), au(ip3), av(ip3), aw(ip3), icells(igrid), &
-                xpsw(:, ipp:ipp+ncells-1), nvecs(:, ipp:ipp+ncells-1))
+                xpsw(:, ipp:ipp+ncells-1), nvecs(:, ipp:ipp+ncells-1), &
+                arealist(ipp:ipp+ncells-1))
         END DO
     END SUBROUTINE calc_nvecs
 
 
     SUBROUTINE calc_nvecs_grid(kk, jj, ii, ddx, ddy, ddz, bzelltyp, &
-            au, av, aw, ncells, xpsw, nvecs)
+            au, av, aw, ncells, xpsw, nvecs, arealist)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
@@ -213,6 +221,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ncells
         REAL(realk), INTENT(in) :: xpsw(:, :)
         REAL(realk), INTENT(out) :: nvecs(:, :)
+        REAL(realk), INTENT(out) :: arealist(:)
 
         ! Local variables
         INTEGER(intk) :: k, j, i, icell
@@ -249,6 +258,7 @@ CONTAINS
                         nz = (aw(k, j, i)-aw(k-1, j, i))*ddx(i)*ddy(j)/area
                     END IF
 
+                    arealist(icell) = area
                     nvecs(1, icell) = nx
                     nvecs(2, icell) = ny
                     nvecs(3, icell) = nz

@@ -248,6 +248,7 @@ CONTAINS
             !
             ! Comes _before_ general plugin postprocessing, to have the
             ! terminal output _after_ the general itinfo information
+            exploded = 0
             IF (MOD(ittot, itinfo) == 0) THEN
                 CALL itinfo_time(itstep, ittot, timeph, dt)
                 ! CALL itinfo_scalar(itstep, ittot, timeph, dt, exploded)

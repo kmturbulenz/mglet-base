@@ -210,6 +210,8 @@ CONTAINS
         DEALLOCATE(triav)
         DEALLOCATE(triaw)
         CALL knoten%finish()
+
+        CALL stencils%set_stlnames(this%topol%geometries)
         CALL this%topol%finish()
 
         CALL update_bodyid(icells, icellspointer, bzelltyp, bodyid)

@@ -134,10 +134,9 @@ CONTAINS
                 velocity(:, id) = 0.0
             END IF
 
-            ! TODO: Set velocities that are read bac into the structure again
+            ! TODO: Set velocities that are read back into the JSON
+            ! structure again
 
-            ! Hmm. Check why this is neccesary. It shouln't be.. Maybe
-            ! compiler bug? If this is not present, a memory leak appear
             CALL geometry%finish()
         END DO
     END SUBROUTINE read_velocity

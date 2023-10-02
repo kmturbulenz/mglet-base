@@ -194,7 +194,7 @@ CONTAINS
         ! Read if neccesary
         IF (fields(nfields)%dread) THEN
             IF (group_id /= 0) THEN
-                CALL fieldio_read(group_id, fields(nfields))
+                CALL fieldio_read(group_id, fields(nfields), required)
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF

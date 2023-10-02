@@ -420,13 +420,18 @@ CONTAINS
 
     PURE SUBROUTINE wmindexlistn(inlst, jnlst, knlst, nnlst)
         ! Subroutine arguments
-        INTEGER(intk), CONTIGUOUS, INTENT(inout) :: inlst(:), jnlst(:), knlst(:)
+        INTEGER(intk), CONTIGUOUS, INTENT(out) :: inlst(:), jnlst(:), knlst(:)
         INTEGER(intk), INTENT(out) :: nnlst
 
         ! Local variables
         INTEGER(intk) :: k, j, i, kk, jj, ii, n
         INTEGER(intk), PARAMETER :: boxsize = 7
         INTEGER(intk), PARAMETER :: radius = (boxsize-1)/2
+
+        ! Initialize INTENT(out)
+        inlst = 0
+        jnlst = 0
+        knlst = 0
 
         n = 0
         DO i = 1, boxsize

@@ -1,5 +1,6 @@
 MODULE stencils_mod
     USE HDF5
+    USE MPI_f08
     USE core_mod
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -7,6 +8,7 @@ MODULE stencils_mod
     ! Common stencils: geometry, IB
     TYPE, ABSTRACT :: stencils_t
         CHARACTER(len=mglet_filename_max) :: file
+        CHARACTER(len=mglet_filename_max), ALLOCATABLE :: stlnames(:)
 
         TYPE(real_stencils_t), ALLOCATABLE :: points(:)
         TYPE(int_stencils_t), ALLOCATABLE :: cells(:)
@@ -33,11 +35,14 @@ MODULE stencils_mod
         PROCEDURE :: set_geometry
         PROCEDURE :: set_bodyid
         PROCEDURE :: set_intersected
+        PROCEDURE :: set_stlnames
         PROCEDURE :: get_bp
         PROCEDURE :: get_icells
         PROCEDURE :: get_intersected
         PROCEDURE :: read_stencils
         PROCEDURE :: write_stencils
+        PROCEDURE, PRIVATE :: write_stlnames
+        PROCEDURE, PRIVATE :: read_stlnames
         PROCEDURE(write_i), DEFERRED :: read
         PROCEDURE(write_i), DEFERRED :: write
     END TYPE stencils_t
@@ -256,6 +261,25 @@ CONTAINS
     END SUBROUTINE set_intersected
 
 
+    SUBROUTINE set_stlnames(this, stlnames)
+        ! Subroutine arguments
+        CLASS(stencils_t), INTENT(inout) :: this
+        CHARACTER(len=mglet_filename_max), INTENT(in) :: stlnames(:)
+
+        INTEGER(intk) :: i, nstl, idx
+
+        nstl = SIZE(stlnames)
+        IF (.NOT. ALLOCATED(this%stlnames)) ALLOCATE(this%stlnames(nstl))
+
+        DO i = 1, nstl
+            ! Gets the last occurrence of "/" when present in filename -
+            ! this is to strip off paths in the stored stlnames
+            idx = INDEX(stlnames(i), "/", .TRUE., intk)
+            this%stlnames(i) = stlnames(i)(idx+1:)
+        END DO
+    END SUBROUTINE set_stlnames
+
+
     SUBROUTINE get_bp(this, bp_p)
         ! Subroutine arguments
         CLASS(stencils_t), INTENT(inout) :: this
@@ -368,6 +392,9 @@ CONTAINS
 
         ALLOCATE(this%bpind(nmygrids))
 
+        ! Read stlnames
+        CALL this%read_stlnames(file_id)
+
         CALL stencilio_read(file_id, 'icellind', this%icellind)
         CALL stencilio_read(file_id, 'bodyid', this%bodyid)
         CALL stencilio_read(file_id, 'sxsysz', this%sxsysz)
@@ -405,6 +432,9 @@ CONTAINS
 
         CALL stencilio_write(file_id, 'bpind', this%bpind)
 
+        ! Write out STL names
+        CALL this%write_stlnames(file_id)
+
         IF (ALLOCATED(this%points)) THEN
             CALL stencilio_write(file_id, 'points', this%points)
             CALL stencilio_write(file_id, 'cells', this%cells)
@@ -413,4 +443,87 @@ CONTAINS
             CALL stencilio_write(file_id, 'area', this%area)
         END IF
     END SUBROUTINE write_stencils
+
+
+    SUBROUTINE write_stlnames(this, file_id)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC
+
+        ! Subroutine arguments
+        CLASS(stencils_t), INTENT(inout), TARGET :: this
+        INTEGER(hid_t), INTENT(in) :: file_id
+
+        ! Local variables
+        INTEGER(hid_t) :: str_t
+        INTEGER(hsize_t) :: shape(1)
+        TYPE(C_PTR) :: cptr
+        INTEGER(int32) :: ierr
+
+        shape(1) = SIZE(this%stlnames, dim=1, kind=hsize_t)
+        IF (ioproc) THEN
+            ! Create type for character array
+            CALL h5tcopy_f(H5T_NATIVE_CHARACTER, str_t, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+            CALL h5tset_size_f(str_t, LEN(this%stlnames, kind=size_t), ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+            cptr = C_LOC(this%stlnames)
+            CALL stencilio_write_master_cptr(file_id, 'stlnames', &
+                                             cptr, shape, str_t)
+
+            CALL h5tclose_f(str_t, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE write_stlnames
+
+
+    SUBROUTINE read_stlnames(this, file_id)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC
+
+        ! Subroutine arguments
+        CLASS(stencils_t), INTENT(inout), TARGET :: this
+        INTEGER(hid_t), INTENT(in) :: file_id
+
+        ! Local variables
+        INTEGER(hid_t) :: str_t, dset_id, filespace
+        INTEGER(hsize_t) :: shape(1)
+        TYPE(C_PTR) :: cptr
+        INTEGER(int32) :: nchar, ierr
+
+        ! Open dataset to get number of STL's to read
+        CALL hdf5common_dataset_open('stlnames', shape, file_id, &
+            dset_id, filespace)
+        CALL hdf5common_dataset_close(dset_id, filespace)
+
+        ! Broadcast number of STL's and allocate memory on all ranks
+        CALL MPI_Bcast(shape, 1, mglet_mpi_hsize_t, 0, MPI_COMM_WORLD)
+
+        IF (ALLOCATED(this%stlnames)) THEN
+            IF (SIZE(this%stlnames) /= shape(1)) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        ELSE
+            ALLOCATE(this%stlnames(shape(1)))
+        END IF
+
+        ! Read actual data
+        IF (ioproc .AND. shape(1) > 0) THEN
+            ! Create type for character array
+            CALL h5tcopy_f(H5T_NATIVE_CHARACTER, str_t, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+            CALL h5tset_size_f(str_t, LEN(this%stlnames, kind=size_t), ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+            cptr = C_LOC(this%stlnames)
+            CALL stencilio_read_master_cptr(file_id, 'stlnames', &
+                                            cptr, shape, str_t)
+
+            CALL h5tclose_f(str_t, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Broadcast STL names to all processes
+        nchar = INT(shape(1), int32)*LEN(this%stlnames)
+        CALL MPI_Bcast(this%stlnames, nchar, MPI_CHARACTER, 0, &
+            MPI_COMM_WORLD)
+    END SUBROUTINE read_stlnames
 END MODULE stencils_mod

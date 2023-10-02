@@ -320,13 +320,29 @@ CONTAINS
     END SUBROUTINE fieldio_write
 
 
-    SUBROUTINE fieldio_read(parent_id, field)
+    SUBROUTINE fieldio_read(parent_id, field, required)
         ! Subroutine arguments
         INTEGER(hid_t), INTENT(in) :: parent_id
         TYPE(field_t), INTENT(inout) :: field
+        LOGICAL, INTENT(in), OPTIONAL :: required
 
         ! Local variables
         INTEGER(hid_t) :: group_id
+        INTEGER(int32) :: ierr
+        LOGICAL :: link_exists
+
+        ! Check if field is present
+        IF (PRESENT(required)) THEN
+            IF (ioproc) THEN
+                CALL h5lexists_f(parent_id, field%name, link_exists, ierr)
+                IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+            END IF
+            CALL MPI_Bcast(link_exists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
+
+            IF ((.NOT. required) .AND. (.NOT. link_exists)) THEN
+                RETURN
+            END IF
+        END IF
 
         CALL start_timer(100)
         CALL hdf5common_group_open(field%name, parent_id, group_id)

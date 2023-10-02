@@ -11,9 +11,9 @@ MODULE topol_mod
         REAL(realk), POINTER, CONTIGUOUS :: topol(:)
         INTEGER(intk), POINTER, CONTIGUOUS :: bodyid(:)
 
-        INTEGER(intk), PRIVATE :: nbody
-        INTEGER(intk), PRIVATE, ALLOCATABLE :: ids(:)
-        CHARACTER(len=mglet_filename_max), ALLOCATABLE, PRIVATE :: geometries(:)
+        INTEGER(intk) :: nbody
+        INTEGER(intk), ALLOCATABLE :: ids(:)
+        CHARACTER(len=mglet_filename_max), ALLOCATABLE :: geometries(:)
 
         LOGICAL :: shmem_is_allocated = .FALSE.
         TYPE(real_shmem_arr), PRIVATE :: shmtopol
