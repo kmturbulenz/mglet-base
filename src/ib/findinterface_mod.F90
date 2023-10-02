@@ -11,8 +11,8 @@ MODULE findinterface_mod
     PUBLIC :: findinterface2, findinterface3
 
 CONTAINS
-    PURE SUBROUTINE findinterface2_a(k, j, i, kk, jj, ii, blocked, found, foundx1, &
-            foundx2, foundy1, foundy2, foundz1, foundz2, foundnr)
+    PURE SUBROUTINE findinterface2_a(k, j, i, kk, jj, ii, blocked, found, &
+            foundx1, foundx2, foundy1, foundy2, foundz1, foundz2, foundnr)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: k, j, i
         INTEGER(intk), INTENT(in) :: kk, jj, ii

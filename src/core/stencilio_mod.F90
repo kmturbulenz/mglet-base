@@ -1628,12 +1628,6 @@ CONTAINS
             WRITE(*,*) "rank, maxrank", rank, maxrank
             CALL errr(__FILE__, __LINE__)
         END IF
-        DO i = 1, rank
-            IF (shape(i) < 1 .AND. ioid == 0) THEN
-                WRITE(*,*) "i, shape(i)", i, shape(i)
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END DO
 
         ! Open dataset and filespace
         CALL hdf5common_dataset_open(name, dsetshape(1:rank), group_id, &
@@ -1749,7 +1743,7 @@ CONTAINS
         INTEGER(HID_T), INTENT(IN) :: dtype
 
         ! Local variables
-        INTEGER(intk) :: i, rank
+        INTEGER(intk) :: rank
         INTEGER(HSIZE_T) :: count(maxrank), offset(maxrank)
         INTEGER(HID_T) :: dset_id, filespace, memspace, plist_id
         INTEGER(int32) :: ierr
@@ -1764,12 +1758,6 @@ CONTAINS
             WRITE(*,*) "rank, maxrank", rank, maxrank
             CALL errr(__FILE__, __LINE__)
         END IF
-        DO i = 1, rank
-            IF (shape(i) < 1) THEN
-                WRITE(*,*) "i, shape(i)", i, shape(i)
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END DO
 
         ! Bacst shape into count array such that all IO processes have the
         ! same dataset size

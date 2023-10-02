@@ -328,7 +328,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ittot
         REAL(realk), INTENT(in) :: timeph
         REAL(realk), INTENT(out) :: globalcflmax
-        INTEGER(intk), INTENT(out) :: exploded
+        INTEGER(intk), INTENT(inout) :: exploded
 
         ! Local variables
         INTEGER(intk) :: i, igrid, nlevels
@@ -338,7 +338,6 @@ CONTAINS
 
         ! Initialize INTENT(out)
         globalcflmax = 0.0
-        exploded = 0
 
         ALLOCATE(itinfo_level_tmp(minlevel:maxlevel))
         CALL zero_itinfo(itinfo_level_tmp)

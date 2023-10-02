@@ -380,7 +380,7 @@ CONTAINS
     SUBROUTINE set_rattr(this, val, key)
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
-        REAL(realk), INTENT(inout) :: val
+        REAL(realk), INTENT(in) :: val
         CHARACTER(len=*), INTENT(in) :: key
 
         ! Local variables
@@ -412,7 +412,7 @@ CONTAINS
     SUBROUTINE set_iattr(this, val, key)
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
-        INTEGER(intk), INTENT(inout) :: val
+        INTEGER(intk), INTENT(in) :: val
         CHARACTER(len=*), INTENT(in) :: key
 
         ! Local variables

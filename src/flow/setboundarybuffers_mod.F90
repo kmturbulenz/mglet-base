@@ -36,7 +36,7 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: xbuf(2), dxbuf(2)
 
-        ! Only works on PAR boundaries, should do nothing otherwise
+        ! Only works on FIX boundaries, should do nothing otherwise
         IF (ctyp /= 'FIX') RETURN
 
         ! Assure that required fields are present
@@ -105,7 +105,7 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: ybuf(2), dybuf(2)
 
-        ! Only works on PAR boundaries, should do nothing otherwise
+        ! Only works on FIX boundaries, should do nothing otherwise
         IF (ctyp /= 'FIX') RETURN
 
         ! Assure that required fields are present
@@ -174,7 +174,7 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: zbuf(2), dzbuf(2)
 
-        ! Only works on PAR boundaries, should do nothing otherwise
+        ! Only works on FIX boundaries, should do nothing otherwise
         IF (ctyp /= 'FIX') RETURN
 
         ! Assure that required fields are present

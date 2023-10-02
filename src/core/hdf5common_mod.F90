@@ -284,7 +284,10 @@ CONTAINS
             END IF
 
             CALL h5gcreate_f(parent_id, name, group_id, ierr, gcpl_id=gcpl_id)
-            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+            IF (ierr /= 0) THEN
+                WRITE(*, *) "Group creation failed: ", name
+                CALL errr(__FILE__, __LINE__)
+            END IF
 
             CALL h5pclose_f(gcpl_id, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)

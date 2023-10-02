@@ -143,7 +143,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: timeph
         REAL(realk), INTENT(in) :: dt
         REAL(realk), INTENT(out) :: globalcflmax
-        INTEGER(intk), INTENT(out) :: exploded
+        INTEGER(intk), INTENT(inout) :: exploded
 
         ! Local variables
         INTEGER(intk) :: i, igrid
@@ -164,6 +164,8 @@ CONTAINS
         REAL(realk) :: cflmax, cflmax_pos(3)
         REAL(realk) :: divmax, divmax_pos(3)
         REAL(realk) :: esumg, esums
+
+        IF (.NOT. solve_flow) RETURN
 
         ! Get fields
         CALL get_field(u_f, "U")

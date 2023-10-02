@@ -6,8 +6,8 @@ MODULE flowcore_mod
     PRIVATE
 
     ! Control parameters
-    LOGICAL, PROTECTED :: has_flow = .FALSE.
-    LOGICAL, PROTECTED :: solve_flow = .FALSE.
+    LOGICAL, PROTECTED :: has_flow
+    LOGICAL, PROTECTED :: solve_flow
 
     ! Fluid/physical paramters
     REAL(realk), PROTECTED :: gmol

@@ -252,9 +252,7 @@ CONTAINS
         ELSEIF (CTYP .EQ. 'NIX') THEN
             itypboconds(ibocond, idir, igrid) = 99
         ELSE
-            WRITE(*,*) "SETCOBONE ibocond, idir, igrid: ", ibocond, idir, igrid
-            WRITE(*,*) "SETCOBONE Invalid type: ", ctyp
-            CALL errr(__FILE__, __LINE__)
+            itypboconds(ibocond, idir, igrid) = -HUGE(1_intk)
         END IF
     END SUBROUTINE setcobone
 
