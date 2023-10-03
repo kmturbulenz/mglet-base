@@ -1349,6 +1349,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: ilevel
 
+        CALL start_timer(342)
+
         ! Copy the velocity field u, v, w into the point value
         ! velocity field pwu, pwv, pww
         pwu%arr = u%arr
@@ -1381,6 +1383,8 @@ CONTAINS
             ! Save the immersed boundary ghost cell values into a buffer
             CALL setpointvalues_all('Z', pwu, pwv, pww)
         END IF
+
+        CALL stop_timer(342)
     END SUBROUTINE setpointvalues
 
 
@@ -1413,6 +1417,8 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: ilevel, irepeat
+
+        CALL start_timer(340)
 
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, u, v, w)
@@ -1467,6 +1473,8 @@ CONTAINS
             ! The computed fluxes are saved
             CALL setibvalues_level(ilevel, 'S', u, v, w)
         END DO
+
+        CALL stop_timer(340)
     END SUBROUTINE setibvalues
 
 
@@ -1477,9 +1485,11 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: ilevel
 
+        CALL start_timer(341)
         DO ilevel = minlevel, maxlevel
             CALL setibvalues_level(ilevel, 'R', u, v, w)
         END DO
+        CALL stop_timer(341)
     END SUBROUTINE getibvalues
 
 

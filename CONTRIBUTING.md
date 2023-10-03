@@ -94,3 +94,19 @@ Always declare the `INTENT` of an argument whenever possible.
 ### When in doubt
 Look at existing code and use your own judgment.
 
+
+Timers numbering scheme
+-----------------------
+
+MGLET has a simple internal performance monitoring system using timers. To
+avoid collisions and conflict of interest between various regions in the
+code using the same indexes for the timers, this is the rule of assigning
+numbers:
+
+* 1-199: Used from main program (`mglet.F90`) and main time integration
+(`timeloop_mod.F90`) and core functionality in core_mod
+* 200-299: IB methods and blocking
+* 300-399: Flow solver
+* 400-499: Scalar solver
+* 500-799: Reserved for future use
+* 800-999: Plugins

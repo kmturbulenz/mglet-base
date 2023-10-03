@@ -56,7 +56,7 @@ if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(MGLET_COMMON_FLAGS -Wall -Wextra -Wpedantic -Werror -Wno-maybe-uninitialized)
 
     # Flags for Release (=optimized builds), all languages
-    set(MGLET_RELEASE_FLAGS -O3 -march=sandybridge -fopenmp-simd)
+    set(MGLET_RELEASE_FLAGS -O3 -fopenmp-simd)
 
     # Debug flags for all languages
     set(MGLET_DEBUG_FLAGS -Og -g -D_MGLET_DEBUG_)
