@@ -452,11 +452,11 @@ CONTAINS
         ! Set attributes (phew!)
         DO i = 1, n_iattrs
             attrname = TRANSFER(iattrs(i)%name, attrname)
-            CALL field%set_attr(iattrs(i)%value, attrname)
+            CALL field%set_attr(INT(iattrs(i)%value, intk), attrname)
         END DO
         DO i = 1, n_rattrs
             attrname = TRANSFER(rattrs(i)%name, attrname)
-            CALL field%set_attr(rattrs(i)%value, attrname)
+            CALL field%set_attr(REAL(rattrs(i)%value, realk), attrname)
         END DO
 
         DEALLOCATE(iattrs)

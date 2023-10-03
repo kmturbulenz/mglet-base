@@ -307,7 +307,7 @@ CONTAINS
         REAL(realk) :: prefak, maxrhs, maxrhsall
         REAL(realk), ALLOCATABLE :: maxrhslvl(:)
 
-        CALL start_timer(6)
+        CALL start_timer(320)
 
         ALLOCATE(maxrhslvl(minlevel:maxlevel))
 
@@ -474,7 +474,7 @@ CONTAINS
         CALL dp%finish()
 
         DEALLOCATE(maxrhslvl)
-        CALL stop_timer(6)
+        CALL stop_timer(320)
     END SUBROUTINE mgpoisl
 
 
@@ -494,8 +494,7 @@ CONTAINS
         TYPE(field_t), POINTER :: siplw, sipls, siplb, sipue, sipun, siput, &
             siplpr
 
-        CALL start_timer(900)
-        CALL start_timer(910 + ilevel)
+        CALL start_timer(321)
 
         CALL get_field(gsaw, "GSAW")
         CALL get_field(gsae, "GSAE")
@@ -536,8 +535,7 @@ CONTAINS
 
         CALL bound_pressure%bound(ilevel, dp, bp)
 
-        CALL stop_timer(910 + ilevel)
-        CALL stop_timer(900)
+        CALL stop_timer(321)
     END SUBROUTINE mgpoisit
 
 

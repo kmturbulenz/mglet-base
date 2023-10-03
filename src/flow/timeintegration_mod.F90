@@ -35,6 +35,7 @@ CONTAINS
 
         ! Just return if no flow is to be solved
         IF (.NOT. solve_flow) RETURN
+        CALL start_timer(300)
 
         CALL get_field(u, "U")
         CALL get_field(v, "V")
@@ -133,6 +134,8 @@ CONTAINS
         END IF
 
         ! TODO: mgplevel
+
+        CALL stop_timer(300)
     END SUBROUTINE timeintegrate_flow
 
 
@@ -166,6 +169,8 @@ CONTAINS
         REAL(realk) :: esumg, esums
 
         IF (.NOT. solve_flow) RETURN
+        CALL start_timer(300)
+        CALL start_timer(350)
 
         ! Get fields
         CALL get_field(u_f, "U")
@@ -232,6 +237,9 @@ CONTAINS
         END DO
 
         CALL itinfo_print(itstep, ittot, timeph, globalcflmax, exploded)
+
+        CALL stop_timer(350)
+        CALL stop_timer(300)
     END SUBROUTINE itinfo_flow
 
 

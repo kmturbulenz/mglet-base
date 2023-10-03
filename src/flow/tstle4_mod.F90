@@ -40,6 +40,8 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
+        CALL start_timer(310)
+
         ! Set all the output to zero everywhere before we start!
         uo_f = 0.0_realk
         vo_f = 0.0_realk
@@ -113,6 +115,8 @@ CONTAINS
                 dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
                 nfro, nbac, nrgt, nlft, nbot, ntop)
         END DO
+
+        CALL stop_timer(310)
     END SUBROUTINE tstle4
 
 

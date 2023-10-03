@@ -40,6 +40,16 @@ CONTAINS
 
         ! These sould only be needed when flow is actually solved
         IF (solve_flow) THEN
+            CALL set_timer(300, "FLOW")
+            CALL set_timer(310, "FLOW_TSTLE4")
+            CALL set_timer(320, "FLOW_MGPOISL")
+            CALL set_timer(321, "FLOW_MGPOISIT")
+            CALL set_timer(330, "FLOW_LESMODEL")
+            CALL set_timer(340, "FLOW_SETIBVALUES")
+            CALL set_timer(341, "FLOW_GETIBVALUES")
+            CALL set_timer(342, "FLOW_SETPOINTVALUES")
+            CALL set_timer(350, "FLOW_ITINFO")
+
             CALL init_pressuresolver()
             CALL init_itinfo(dcont)
 
