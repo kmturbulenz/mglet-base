@@ -47,20 +47,19 @@ add_library(core STATIC
 )
 
 target_include_directories(core
-    PRIVATE ${nlohmann_json_SOURCE_DIR}/include
+    PRIVATE ${nlohmann_json_SOURCE_DIR}/single_include
     PRIVATE ${exprtk_SOURCE_DIR}
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 
 target_link_libraries(core
-    PRIVATE nlohmann_json::nlohmann_json
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
 )
 
-set_property(TARGET core PROPERTY CXX_STANDARD 11)
+set_property(TARGET core PROPERTY CXX_STANDARD 17)
 
 set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>

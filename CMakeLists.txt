@@ -121,20 +121,15 @@ if(POLICY CMP0126)
     cmake_policy(SET CMP0126 NEW)
 endif()
 
-# nlohman JSON parser library
+# For fetching JSON and ExprTk
 include(FetchContent)
+
+# nlohman JSON parser library
 FetchContent_Declare(json
     GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
-    GIT_TAG v3.10.4
+    GIT_TAG v3.11.2
 )
-
-set(JSON_ImplicitConversions OFF)
-FetchContent_GetProperties(json)
-if(NOT json_POPULATED)
-  FetchContent_Populate(json)
-  set(JSON_BuildTests OFF CACHE INTERNAL "")
-  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
+FetchContent_MakeAvailable(json)
 
 # Exprtk expression parser
 FetchContent_Declare(exprtk
