@@ -49,7 +49,6 @@ jobs:
         export I_MPI_FABRICS=shm
         export I_MPI_PLATFORM=ivb
         export I_MPI_DEBUG=5
-        export KMT_MGLET_SERIAL_IO=1
         TIC=`date +%s`
         ctest --timeout ${{ matrix.build == 'Debug' && '600' || '150' }} --output-on-failure --test-dir tests
         TOC=`date +%s`

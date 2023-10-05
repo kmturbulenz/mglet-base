@@ -82,6 +82,9 @@ CONTAINS
         END IF
 
         ! Check if serial IO should be used
+        ! TODO: re-work such that we can use getenv_bool_coll here - that
+        ! is currently not possible because we create a circular dependency
+        ! between comms_mod and envvars_mod
         iogrcomm_is_world = .FALSE.
         CALL get_environment_variable("KMT_MGLET_SERIAL_IO", serial, length, &
             status)

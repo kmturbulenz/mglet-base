@@ -4,6 +4,7 @@ MODULE envvars_mod
     USE precision_mod
     USE err_mod
     USE charfunc_mod
+    USE comms_mod, ONLY: myid
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -11,7 +12,7 @@ MODULE envvars_mod
 #ifdef _MGLET_ENVPREFIX_
     CHARACTER(len=*), PARAMETER :: envprefix = _MGLET_ENVPREFIX_
 #else
-    CHARACTER(len=*), PARAMETER :: envprefix = "MGLET"
+    CHARACTER(len=*), PARAMETER :: envprefix = ""
 #endif
 
     INTEGER(intk), PARAMETER :: maxlength = 64
@@ -21,21 +22,21 @@ MODULE envvars_mod
         getenv_bool, getenv_bool_coll
 
 CONTAINS
-    SUBROUTINE getenv_char(varname, envvalue, defaultval)
+    SUBROUTINE getenv_char(envvalue, varname, defaultval)
         ! Subroutine arguments
-        CHARACTER(len=*), INTENT(IN) :: varname
         CHARACTER(len=*), INTENT(OUT) :: envvalue
+        CHARACTER(len=*), INTENT(IN) :: varname
         CHARACTER(len=*), INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
         CHARACTER(len=maxlength) :: prefixname
         INTEGER :: length, status
 
-        IF (LEN(envprefix) + LEN("_") + LEN(varname) > maxlength) THEN
-            CALL err_abort(255, "Too long variable name: "//varname, &
-                __FILE__, __LINE__)
+        IF (LEN(envprefix) + LEN(varname) > maxlength) THEN
+            WRITE(*,*) "Too long variable name: ", varname
+            CALL errr(__FILE__, __LINE__)
         END IF
-        prefixname = envprefix//"_"//varname
+        prefixname = envprefix//varname
 
         CALL get_environment_variable(prefixname, envvalue, length, status)
         IF (status == 0) THEN
@@ -44,35 +45,44 @@ CONTAINS
         ELSE IF (status == 1 .AND. PRESENT(defaultval)) THEN
             ! Variable not present - but we use default
             envvalue = defaultval
+        ELSE IF (status == -1) THEN
+            ! Variable contents did not fit into "envvalue"
+            WRITE(*,*) "Error reading: ", varname
+            WRITE(*,*) "Has length: ", length
+            CALL errr(__FILE__, __LINE__)
         ELSE
-            CALL err_abort(255, "Unknown error, got status: "//CHAR(status), &
-                __FILE__, __LINE__)
+            WRITE(*,*) "Unknown error, got status: ", status
+            CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE getenv_char
 
 
-    SUBROUTINE getenv_char_coll(varname, value, defaultval)
+    SUBROUTINE getenv_char_coll(envvalue, varname, defaultval)
         ! Gets a character environment variable and broadcast it from rank 0
         ! to all other ranks
 
         ! Subroutine arguments
+        CHARACTER(len=*), INTENT(OUT) :: envvalue
         CHARACTER(len=*), INTENT(IN) :: varname
-        CHARACTER(len=*), INTENT(OUT) :: value
         CHARACTER(len=*), INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
         INTEGER(int32) :: nchars
 
-        CALL getenv_char(varname, value, defaultval)
-        nchars = LEN(value)
-        CALL MPI_Bcast(value, nchars, MPI_CHARACTER, 0, MPI_COMM_WORLD)
+        IF (myid == 0) THEN
+            CALL getenv_char(envvalue, varname, defaultval)
+            nchars = LEN(envvalue)
+        END IF
+
+        CALL MPI_Bcast(nchars, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+        CALL MPI_Bcast(envvalue, nchars, MPI_CHARACTER, 0, MPI_COMM_WORLD)
     END SUBROUTINE getenv_char_coll
 
 
-    SUBROUTINE getenv_int(varname, value, defaultval)
+    SUBROUTINE getenv_int(envvalue, varname, defaultval)
         ! Subroutine arguments
+        INTEGER(intk), INTENT(OUT) :: envvalue
         CHARACTER(len=*), INTENT(IN) :: varname
-        INTEGER(intk), INTENT(OUT) :: value
         INTEGER(intk), INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
@@ -81,33 +91,35 @@ CONTAINS
 
         IF (PRESENT(defaultval)) THEN
             WRITE(defaultchar, '(I0)') defaultval
-            CALL getenv_char(varname, charval, defaultchar)
+            CALL getenv_char(charval, varname, defaultchar)
         ELSE
-            CALL getenv_char(varname, charval)
+            CALL getenv_char(charval, varname)
         END IF
 
-        READ(charval, '(I11)') value
+        READ(charval, '(I11)') envvalue
     END SUBROUTINE getenv_int
 
 
-    SUBROUTINE getenv_int_coll(varname, value, defaultval)
+    SUBROUTINE getenv_int_coll(envvalue, varname, defaultval)
         ! Subroutine arguments
+        INTEGER(intk), INTENT(OUT) :: envvalue
         CHARACTER(len=*), INTENT(IN) :: varname
-        INTEGER(intk), INTENT(OUT) :: value
         INTEGER(intk), INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
         ! none...
 
-        CALL getenv_int(varname, value, defaultval)
-        CALL MPI_Bcast(value, 1, mglet_mpi_int, 0, MPI_COMM_WORLD)
+        IF (myid == 0) THEN
+            CALL getenv_int(envvalue, varname, defaultval)
+        END IF
+        CALL MPI_Bcast(envvalue, 1, mglet_mpi_int, 0, MPI_COMM_WORLD)
     END SUBROUTINE getenv_int_coll
 
 
-    SUBROUTINE getenv_bool(varname, value, defaultval)
+    SUBROUTINE getenv_bool(envvalue, varname, defaultval)
         ! Subroutine arguments
+        LOGICAL, INTENT(OUT) :: envvalue
         CHARACTER(len=*), INTENT(IN) :: varname
-        LOGICAL, INTENT(OUT) :: value
         LOGICAL, INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
@@ -121,35 +133,35 @@ CONTAINS
             ELSE
                 defaultchar = "FALSE"
             END IF
-            CALL getenv_char(varname, charval, defaultchar)
+            CALL getenv_char(charval, varname, defaultchar)
         ELSE
-            CALL getenv_char(varname, charval)
+            CALL getenv_char(charval, varname)
         END IF
 
         upperval = UPPER(charval)
-        IF (upperval(1:5) == "TRUE " .OR. upperval(1:5) == "YES  " .OR. &
-                upperval(1:5) == "1    ") THEN
-            value = .TRUE.
-        ELSE IF (upperval(1:5) == "FALSE" .OR. upperval(1:5) == "NO   " .OR. &
-                upperval(1:5) == "0    ") THEN
-            value = .FALSE.
+        IF (TRIM(upperval) == "TRUE" .OR. TRIM(upperval) == "YES" .OR. &
+                TRIM(upperval) == "1" .OR. TRIM(upperval) == "T") THEN
+            envvalue = .TRUE.
+        ELSE IF (TRIM(upperval) == "FALSE" .OR. TRIM(upperval) == "NO" .OR. &
+                TRIM(upperval) == "0" .OR. TRIM(upperval) == "F") THEN
+            envvalue = .FALSE.
         ELSE
-            CALL err_abort(255, "Unknown bool, got: "//charval, &
-                __FILE__, __LINE__)
+            WRITE(*,*) "Unknown bool, got: ", charval
+            CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE getenv_bool
 
 
-    SUBROUTINE getenv_bool_coll(varname, value, defaultval)
+    SUBROUTINE getenv_bool_coll(envvalue, varname, defaultval)
         ! Subroutine arguments
+        LOGICAL, INTENT(OUT) :: envvalue
         CHARACTER(len=*), INTENT(IN) :: varname
-        LOGICAL, INTENT(OUT) :: value
         LOGICAL, INTENT(IN), OPTIONAL :: defaultval
 
         ! Local variables
         ! none...
 
-        CALL getenv_bool(varname, value, defaultval)
-        CALL MPI_Bcast(value, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
+        CALL getenv_bool(envvalue, varname, defaultval)
+        CALL MPI_Bcast(envvalue, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
     END SUBROUTINE getenv_bool_coll
 END MODULE envvars_mod
