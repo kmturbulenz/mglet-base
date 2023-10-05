@@ -45,6 +45,13 @@ else ( INT64 )
     message( STATUS "Compiling MGLET with 32 bit integers" )
 endif ( INT64 )
 
+# CMake build options
+set(ENVPREFIX "" CACHE STRING "Prefix for all MGLET environment variables")
+if (NOT ENVPREFIX STREQUAL "")
+    add_compile_definitions(_MGLET_ENVPREFIX_="${ENVPREFIX}")
+endif ()
+
+
 # All fortran modules are placed here
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 

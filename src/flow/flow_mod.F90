@@ -230,11 +230,11 @@ CONTAINS
             CALL get_fieldptr(zstag, "ZSTAG", igrid)
 
             CALL initial_condition(u, "u", uinf_expr(1), rho, gmol, tu_level, &
-                0.0_realk, xstag, y, z, dx, dy, dz,  ddx, ddy, ddz)
+                0.0_realk, xstag, y, z, dx, dy, dz, ddx, ddy, ddz)
             CALL initial_condition(v, "v", uinf_expr(2), rho, gmol, tu_level, &
-                0.0_realk, x, ystag, z, dx, dy, dz,  ddx, ddy, ddz)
+                0.0_realk, x, ystag, z, dx, dy, dz, ddx, ddy, ddz)
             CALL initial_condition(w, "w", uinf_expr(3), rho, gmol, tu_level, &
-                0.0_realk, x, y, zstag, dx, dy, dz,  ddx, ddy, ddz)
+                0.0_realk, x, y, zstag, dx, dy, dz, ddx, ddy, ddz)
         END DO
 
     END SUBROUTINE init_uvw_expr

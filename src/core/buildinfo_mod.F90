@@ -1,13 +1,15 @@
 MODULE buildinfo_mod
     USE comms_mod, ONLY: myid
     USE precision_mod, ONLY: real_bytes, int_bytes, intk
+    USE envvars_mod, ONLY: getenv_char_coll
 
     IMPLICIT NONE(type, external)
     PRIVATE
 
     INTEGER(intk) :: year, month, day, hour, minute, second
+    CHARACTER(len=1024) :: mglet_dbg_envvar  ! Exported and globally available
 
-    PUBLIC :: init_buildinfo, finish_buildinfo, get_starttime
+    PUBLIC :: init_buildinfo, finish_buildinfo, get_starttime, mglet_dbg_envvar
 
 CONTAINS
     SUBROUTINE init_buildinfo()
@@ -25,6 +27,10 @@ CONTAINS
         minute = values(6)
         second = values(7)
 
+        ! Needs to be called by all processes
+        CALL getenv_char_coll(mglet_dbg_envvar, "MGLET_DBG", "")
+
+        ! Non-root proceeses can return here
         IF (myid /= 0) RETURN
 
         WRITE(*, '("BUILD INFORMATION:")')
@@ -59,6 +65,10 @@ CONTAINS
         CALL get_environment_variable("SLURM_JOBID", jobid, length, status)
         IF (status < 1) THEN
             WRITE(*, '("    SLURM_JOBID:   ", A)') TRIM(jobid)
+        END IF
+
+        IF (LEN_TRIM(mglet_dbg_envvar) > 0) THEN
+            WRITE(*, '("    MGLET_DBG:     ", A)') TRIM(mglet_dbg_envvar)
         END IF
 
         WRITE(*, '()')

@@ -282,10 +282,10 @@ CONTAINS
                 IF (stop_now) EXIT timeintegration
             END IF
 
-            ! Checkpointing after all plugins have processed, and after all stop
-            ! criterions have been checked (to avoid writing a checkpoint just
-            ! before stopping the simulation), but before the new DT for the
-            ! next timestep is set.
+            ! Checkpointing after all plugins have processed, and after all
+            ! stop criterions have been checked (to avoid writing a checkpoint
+            ! just before stopping the simulation), but before the new DT for
+            ! the next timestep is set.
             istepchk = istepchk + 1
             IF (istepchk >= itcheck .AND. itcheck > 0) THEN
                 CALL can_checkpoint_plugins(allow_checkpoint)

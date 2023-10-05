@@ -92,28 +92,10 @@ CONTAINS
                 gc%nvecs, gc%ucell)
         END DO
 
-        BLOCK
-            CHARACTER(len=mglet_filename_max) :: kmt_mglet_dbg
-            INTEGER :: length, status
-
-            ! TODO: possibility of deadlocks if some processes does not see
-            ! the same environment variable
-
-            ! TODO: Change environment variable name
-
-            ! TODO: Read this variale once in core_mod, distribute it with
-            ! MPI to all ranks and store it as a character string there
-            ! that routines can access!
-
-            CALL get_environment_variable("KMT_MGLET_DBG", kmt_mglet_dbg, &
-                length, status)
-
-            IF (status < 1) THEN
-                IF (INDEX(kmt_mglet_dbg, "stencilvtk") > 0) THEN
-                    CALL writestencils()
-                END IF
-            END IF
-        END BLOCK
+        ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
+        IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
+            CALL writestencils()
+        END IF
     END SUBROUTINE create_flowstencils
 
 
@@ -1613,6 +1595,14 @@ CONTAINS
                 CALL writestencils_grid(comp, igrid)
             END DO
         END DO
+        CALL MPI_Barrier(MPI_COMM_WORLD)
+
+        IF (myid == 0) THEN
+            CALL pvtk_directory("STENCILS", "stecil-u")
+            CALL pvtk_directory("STENCILS", "stecil-v")
+            CALL pvtk_directory("STENCILS", "stecil-w")
+            CALL pvtk_directory("STENCILS", "stecil-f")
+        END IF
     END SUBROUTINE writestencils
 
 

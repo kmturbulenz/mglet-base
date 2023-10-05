@@ -26,6 +26,7 @@ MODULE core_mod
     USE plugins_mod
     USE pointers_mod
     USE precision_mod
+    USE pvtk_mod
     USE qsort_mod
     USE readstl_mod
     USE rungekutta_mod

@@ -42,21 +42,19 @@ MODULE hdf5common_mod
 CONTAINS
     SUBROUTINE init_hdf5common()
         USE charfunc_mod, ONLY: upper
+        USE envvars_mod, ONLY: getenv_char
 
         ! Local variables
         CHARACTER(len=32) :: iomodestr
-        INTEGER :: length, istatus
         LOGICAL :: is_collective
 
         ! Default value if no environment variable is set
         is_collective = .FALSE.
 
-        CALL get_environment_variable("KMT_MGLET_IO_MODE", iomodestr, &
-            length, istatus)
-        IF (istatus < 1) THEN
-            IF (upper(TRIM(iomodestr)) == "COLLECTIVE") THEN
-                is_collective = .TRUE.
-            END IF
+        ! There is a Bcast on this later so I don't use _coll here...
+        CALL getenv_char(iomodestr, "MGLET_IO_MODE", "")
+        IF (upper(TRIM(iomodestr)) == "COLLECTIVE") THEN
+            is_collective = .TRUE.
         END IF
 
         ! In case there is only a single process doing IO, always use
