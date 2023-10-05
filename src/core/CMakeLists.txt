@@ -59,7 +59,7 @@ target_link_libraries(core
     PRIVATE ZLIB::ZLIB
 )
 
-set_property(TARGET core PROPERTY CXX_STANDARD 17)
+set_property(TARGET core PROPERTY CXX_STANDARD 14)
 
 set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>
