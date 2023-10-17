@@ -54,7 +54,7 @@ MODULE ibmodel_mod
         SUBROUTINE giteig_i()
         END SUBROUTINE giteig_i
 
-        SUBROUTINE divcal_i(this, div, u, v, w, fak)
+        SUBROUTINE divcal_i(this, div, u, v, w, fak, ctyp)
             IMPORT :: field_t, ibmodel_t, realk
             CLASS(ibmodel_t), INTENT(inout) :: this
             TYPE(field_t), INTENT(inout) :: div
@@ -62,6 +62,7 @@ MODULE ibmodel_mod
             TYPE(field_t), INTENT(in) :: v
             TYPE(field_t), INTENT(in) :: w
             REAL(realk), INTENT(in) :: fak
+            CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
         END SUBROUTINE divcal_i
     END INTERFACE
 
