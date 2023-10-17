@@ -232,7 +232,7 @@ CONTAINS
     END SUBROUTINE giteig
 
 
-    SUBROUTINE divcal(this, div, u, v, w, fak)
+    SUBROUTINE divcal(this, div, u, v, w, fak, ctyp)
         ! Subroutine arguments
         CLASS(noib_t), INTENT(inout) :: this
         TYPE(field_t), INTENT(inout) :: div
@@ -240,6 +240,7 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: v
         TYPE(field_t), INTENT(in) :: w
         REAL(realk), INTENT(in) :: fak
+        CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
 
         ! Local variables
         INTEGER(intk) :: i, igrid, ip3

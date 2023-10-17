@@ -271,7 +271,7 @@ CONTAINS
     END SUBROUTINE calc_nvecs_grid
 
 
-    SUBROUTINE divcal(this, div, u, v, w, fak)
+    SUBROUTINE divcal(this, div, u, v, w, fak, ctyp)
         ! Subroutine arguments
         CLASS(gc_t), INTENT(inout) :: this
         TYPE(field_t), INTENT(inout) :: div
@@ -279,10 +279,12 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: v
         TYPE(field_t), INTENT(in) :: w
         REAL(realk), INTENT(in) :: fak
+        CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
 
         ! Local variables
         INTEGER(intk) :: i, igrid, ip3
         INTEGER(intk) :: kk, jj, ii
+        LOGICAL :: use_sdiv
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
         TYPE(field_t), POINTER :: sdiv_f, bp_f
         REAL(realk), CONTIGUOUS, POINTER :: rddx(:), rddy(:), rddz(:)
@@ -291,13 +293,23 @@ CONTAINS
         ! For safety
         NULLIFY(bp_f)
         NULLIFY(sdiv_f)
+        NULLIFY(sdiv)
 
         CALL get_field(rddx_f, "RDDX")
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
-
-        CALL get_field(sdiv_f, "SDIV")
         CALL get_field(bp_f, "BP")
+
+        use_sdiv = .TRUE.
+        IF (PRESENT(ctyp)) THEN
+            IF (ctyp == "W") THEN
+                use_sdiv = .FALSE.
+            END IF
+        END IF
+
+        IF (use_sdiv) THEN
+            CALL get_field(sdiv_f, "SDIV")
+        END IF
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -306,8 +318,9 @@ CONTAINS
             CALL rddx_f%get_ptr(rddx, igrid)
             CALL rddy_f%get_ptr(rddy, igrid)
             CALL rddz_f%get_ptr(rddz, igrid)
-            CALL sdiv_f%get_ptr(sdiv, igrid)
             CALL bp_f%get_ptr(bp, igrid)
+
+            IF (use_sdiv) CALL sdiv_f%get_ptr(sdiv, igrid)
 
             CALL this%divcal_grid(kk, jj, ii, fak, div%arr(ip3), u%arr(ip3), &
                 v%arr(ip3), w%arr(ip3), rddx, rddy, rddz, bp, sdiv)
