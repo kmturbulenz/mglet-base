@@ -11,12 +11,10 @@ MODULE precision_mod
 #ifdef _MGLET_DOUBLE_PRECISION_
     INTEGER(int32), PARAMETER :: realk = real64
     INTEGER(int32), PARAMETER :: c_realk = c_double
-    TYPE(MPI_Datatype), PARAMETER :: mglet_mpi_real = MPI_DOUBLE_PRECISION
     INTEGER(int32), PARAMETER :: real_bytes = 8
 #else
     INTEGER(int32), PARAMETER :: realk = real32
     INTEGER(int32), PARAMETER :: c_realk = c_float
-    TYPE(MPI_Datatype), PARAMETER :: mglet_mpi_real = MPI_REAL
     INTEGER(int32), PARAMETER :: real_bytes = 4
 #endif
 
@@ -24,14 +22,16 @@ MODULE precision_mod
 #ifdef _MGLET_INT64_
     INTEGER(int32), PARAMETER :: intk = int64
     INTEGER(int32), PARAMETER :: c_intk = c_long_long
-    TYPE(MPI_Datatype), PARAMETER :: mglet_mpi_int = MPI_INTEGER8
     INTEGER(int32), PARAMETER :: int_bytes = 8
 #else
     INTEGER(int32), PARAMETER :: intk = int32
     INTEGER(int32), PARAMETER :: c_intk = c_int
-    TYPE(MPI_Datatype), PARAMETER :: mglet_mpi_int = MPI_INTEGER
     INTEGER(int32), PARAMETER :: int_bytes = 4
 #endif
+
+    ! MPI data types for REAL and INTEGER
+    TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_real
+    TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_int
 
     ! HDF5 type for REAL and INTEGER
     INTEGER(HID_T), PROTECTED :: mglet_hdf5_real
@@ -83,6 +83,20 @@ CONTAINS
             WRITE(error_unit, '("precision_mod, unknown size: ", I0)') size
             STOP 255
         END IF
+
+        ! Set MPI data types
+#ifdef _MGLET_DOUBLE_PRECISION_
+        mglet_mpi_real = MPI_DOUBLE_PRECISION
+#else
+        mglet_mpi_real = MPI_REAL
+#endif
+
+#ifdef _MGLET_INT64_
+        mglet_mpi_int = MPI_INTEGER8
+#else
+        mglet_mpi_int = MPI_INTEGER
+#endif
+
     END SUBROUTINE init_precision
 
 
