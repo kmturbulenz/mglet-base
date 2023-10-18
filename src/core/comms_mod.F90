@@ -19,16 +19,16 @@ MODULE comms_mod
     PRIVATE
 
     ! Communicator over shared memory space, i.e. one compute node
-    TYPE(MPI_Comm), PROTECTED :: shmcomm = MPI_COMM_NULL
+    TYPE(MPI_Comm), PROTECTED :: shmcomm
 
     ! Communicator with lowest ranks at each SHM segment (SHM masters)
-    TYPE(MPI_Comm), PROTECTED :: shm_masters_comm = MPI_COMM_NULL
+    TYPE(MPI_Comm), PROTECTED :: shm_masters_comm
 
     ! Communicator gropuping toghether processes associated with an IO process
-    TYPE(MPI_Comm), PROTECTED :: iogrcomm = MPI_COMM_NULL
+    TYPE(MPI_Comm), PROTECTED :: iogrcomm
 
     ! Communicator for processes participating in IO operations
-    TYPE(MPI_Comm), PROTECTED :: iocomm = MPI_COMM_NULL
+    TYPE(MPI_Comm), PROTECTED :: iocomm
 
     ! Rank and number of processes in node-local SHM communicator (shmcomm)
     INTEGER(int32), PROTECTED :: shmid = -1, shmprocs = -1
@@ -71,6 +71,12 @@ CONTAINS
         CHARACTER(len=32) :: serial
         INTEGER :: length, status
         CHARACTER(LEN=MPI_MAX_LIBRARY_VERSION_STRING) :: version
+
+        ! Initialization for deterministic behaviour
+        shmcomm = MPI_COMM_NULL
+        shm_masters_comm = MPI_COMM_NULL
+        iogrcomm = MPI_COMM_NULL
+        iocomm = MPI_COMM_NULL
 
         CALL MPI_Comm_rank(MPI_COMM_WORLD, myid)
         CALL MPI_Comm_size(MPI_COMM_WORLD, numprocs)
