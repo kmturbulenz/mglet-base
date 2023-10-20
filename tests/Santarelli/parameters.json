@@ -1,0 +1,76 @@
+{
+    "time": {
+        "dt": 0.10,
+        "mtstep": 10000,
+        "tstat": 240.0,
+        "tend": 260.0
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields-scalar.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [0.4, 0.4, 0.4]
+        ],
+        "geometries": [
+            {
+                "file": "sphere.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            }
+        ]
+    },
+    "flow": {
+        "gmol": 0.0001718,
+        "rho": 1.0,
+        "uinf": [0.00715833, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 260.0,
+            "nouter": 9,
+            "ninner": 5
+        },
+        "lesmodel": {
+            "model": "none"
+        }
+    },
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "TEMP",
+                "prmol": 0.71,
+                "geometries": {
+                    "sphere.stl": {
+                        "type": "value",
+                        "value": -1.0
+                    }
+                }
+            }
+        ]
+    },
+    "probes": {
+        "itsamp": 1,
+        "tstart": 0.0,
+        "arrays": [
+            {
+                "name": "z_profile",
+                "variables": ["TEMP"],
+                "positions": [
+                    [0.2, 0.0, -0.2],
+                    [0.2, 0.0, -0.1],
+                    [0.2, 0.0, 0],
+                    [0.2, 0.0, 0.1],
+                    [0.2, 0.0, 0.2]
+                ]
+            }
+        ]
+    },
+    "statistics": [
+        "TEMP_AVG"
+    ]
+}

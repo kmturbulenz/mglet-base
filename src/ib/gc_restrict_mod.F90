@@ -35,7 +35,7 @@ CONTAINS
             CALL this%restrict_v(kk, jj, ii, ff, sendbuf, ctyp, igrid)
         CASE ("W")
             CALL this%restrict_w(kk, jj, ii, ff, sendbuf, ctyp, igrid)
-        CASE ("P")
+        CASE ("P", "T")
             CALL this%restrict_p(kk, jj, ii, ff, sendbuf, ctyp, igrid)
         CASE ("R")
             CALL this%restrict_r(kk, jj, ii, ff, sendbuf, ctyp, igrid)
@@ -78,7 +78,12 @@ CONTAINS
         CALL get_fieldptr(ddx, "DDX", igrid)
         CALL get_fieldptr(ddy, "DDY", igrid)
         CALL get_fieldptr(ddz, "DDZ", igrid)
-        CALL get_fieldptr(bp, "BP", igrid)
+
+        IF (ctyp == 'T') THEN
+            CALL get_fieldptr(bp, "BT", igrid)
+        ELSE
+            CALL get_fieldptr(bp, "BP", igrid)
+        END IF
 
         icount = 0
         DO i = istart, istop, 2

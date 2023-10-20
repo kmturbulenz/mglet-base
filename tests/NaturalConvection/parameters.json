@@ -1,0 +1,52 @@
+{
+    "time": {
+        "dt": 0.05,
+        "mtstep": 4000,
+        "tstat": 150.0
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "noib"
+    },
+    "flow": {
+        "gmol": 0.001,
+        "rho": 1.0,
+        "uinf": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.00002,
+            "nouter": 9,
+            "ninner": 5
+        },
+        "lesmodel": {
+            "model": "none"
+        },
+        "buoyancy": {
+            "gravity": [0.0, 0.0, -9.81],
+            "expansioncoefficient": 0.003411223,
+            "scalar": "TEMP"
+        }
+    },
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "TEMP",
+                "prmol": 0.71
+            },
+            {
+                "name": "SCA2",
+                "prmol": 1.0
+            }
+        ]
+    },
+    "statistics": [
+        "U_AVG",
+        "TEMP_AVG",
+        "SCA2_AVG"
+    ]
+}

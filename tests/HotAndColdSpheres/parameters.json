@@ -1,0 +1,61 @@
+{
+    "time": {
+        "dt": 0.20,
+        "mtstep": 10000,
+        "tstat": 450.0,
+        "tend": 500.0
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "newblock",
+        "fluidpoints": [
+            [0.4, 0.0, 0.4]
+        ],
+        "geometries": [
+            {
+                "file": "cold.stl"
+            },
+            {
+                "file": "hot.stl"
+            }
+        ]
+    },
+    "flow": {
+        "gmol": 0.0001718,
+        "rho": 1.0,
+        "uinf": [0.0, 0.0, 0.0],
+        "tu_level": 0.0,
+        "solve": false,
+        "lesmodel": {
+            "model": "none"
+        }
+    },
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "TEMP",
+                "prmol": 0.71,
+                "geometries": {
+                    "cold.stl": {
+                        "type": "flux",
+                        "value": -1.0
+                    },
+                    "hot.stl": {
+                        "type": "flux",
+                        "value": 1.0
+                    }
+                }
+            }
+        ]
+    },
+    "statistics": [
+        "TEMP_AVG"
+    ]
+}
