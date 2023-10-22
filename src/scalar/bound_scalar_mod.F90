@@ -140,8 +140,8 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
-                    DO j = 1, jj
-                        DO k = 1, kk
+                    DO j = 2, jj
+                        DO k = 2, kk
                             ! Setting the scalar flux with a wall model
                             ! Wall buffer tbuf contains set scalar value
                             area = ddy(j)*ddz(k)
@@ -330,8 +330,8 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
-                    DO i = 1, ii
-                        DO k = 1, kk
+                    DO i = 2, ii
+                        DO k = 2, kk
                             ! Setting the scalar flux with a wall model
                             ! Wall buffer tbuf contains set scalar value
                             area = ddx(i)*ddz(k)
@@ -520,8 +520,8 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
-                    DO i = 1, ii
-                        DO j = 1, jj
+                    DO i = 2, ii
+                        DO j = 2, jj
                             ! Setting the scalar flux with a wall model
                             ! Wall buffer tbuf contains set scalar value
                             area = ddx(i)*ddy(j)
