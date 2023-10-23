@@ -96,7 +96,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
             wo(kk, jj, ii)
-        REAL, INTENT(in) :: t(kk, jj, ii)
+        REAL(realk), INTENT(in) :: t(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! Local variables
