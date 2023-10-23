@@ -41,27 +41,26 @@ CONTAINS
 
 
     SUBROUTINE set_finecell()
-        USE core_mod, ONLY: set_field, get_fieldptr, maxlevel, minlevel, &
-            connect, idim3d
+        USE core_mod
 
         ! Local variables
         INTEGER :: ilevel
         REAL(realk), ALLOCATABLE :: hilf(:)
-        REAL(realk), POINTER, CONTIGUOUS :: finecell(:)
+        TYPE(field_t), POINTER :: finecell
 
         CALL set_field("FINECELL")
-        ALLOCATE(hilf(idim3d))
+        CALL get_field(finecell, "FINECELL")
+        finecell%arr = 1.0
+
+        ALLOCATE(hilf(SIZE(finecell%arr)))
         hilf = 0.0
 
-        CALL get_fieldptr(finecell, "FINECELL")
-        finecell = 1.0
-
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, hilf, finecell, 'P')
+            CALL ftoc(ilevel, hilf, finecell%arr, 'P')
         END DO
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL connect(ilevel, 2, s1=finecell, corners=.TRUE.)
+            CALL connect(ilevel, 2, s1=finecell%arr, corners=.TRUE.)
         END DO
 
         DEALLOCATE(hilf)

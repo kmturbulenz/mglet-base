@@ -38,7 +38,7 @@ jobs:
     - name: Install 'gdb' and 'pidof'
       run: |
         source /opt/bashrc || true
-        yum ${{ contains(matrix.image, 'intel') && '--disablerepo=oneAPI' || '' }} -y install gdb sysvinit-tools
+        yum ${{ contains(matrix.image, 'intel') && '--disablerepo=oneAPI' || '' }} --disablerepo=ius -y install gdb sysvinit-tools
 
     - name: Run testcases
       run: |

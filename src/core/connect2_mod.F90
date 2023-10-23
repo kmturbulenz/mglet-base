@@ -1,13 +1,14 @@
 MODULE connect2_mod
     USE precision_mod
     USE MPI_f08
-    USE commbuf_mod, ONLY: sendbuf, recvbuf, idim_mg_bufs
+    USE commbuf_mod, ONLY: sendbuf, recvbuf, idim_mg_bufs, isendbuf, irecvbuf
     USE err_mod, ONLY: errr
     USE timer_mod, ONLY: start_timer, set_timer, stop_timer
     USE pointers_mod, ONLY: get_ip3
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
+    USE field_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -83,9 +84,16 @@ MODULE connect2_mod
     ! been created.
     LOGICAL :: isInit = .FALSE.
 
+    ! A connect can be either of either REAL or INTEGER, never both in the
+    ! same call. When connect_integer is .TRUE. we use isendbuf, irecvbuf
+    ! instead of sendbuf and recvbuf
+    LOGICAL :: connect_integer = .FALSE.
+
     ! Fields
     REAL(realk), POINTER, CONTIGUOUS :: u(:), v(:), w(:), &
         p1(:), p2(:), p3(:)
+    INTEGER(ifk), POINTER, CONTIGUOUS :: ui(:), vi(:), wi(:), &
+        pi1(:), pi2(:), pi3(:)
 
     INTEGER(intk), PARAMETER :: facelist(4,26) = RESHAPE((/ &
         1, 1, 0, 0, &
@@ -210,27 +218,130 @@ MODULE connect2_mod
         20, 19, 22, 24, 21, 23, 26, &
         19, 20, 21, 23, 22, 24, 25 /), SHAPE(rescue_nbr))
 
-    PUBLIC :: connect, init_connect2, finish_connect2
+    PUBLIC :: connect, connect_field, init_connect2, finish_connect2
 
 CONTAINS
 
-    ! Main connect function
+    ! Main connect functions
+    SUBROUTINE connect_field(ilevel, layers, v1, v2, v3, &
+            s1, s2, s3, geom, corners, normal, forward, ityp)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
+        CLASS(basefield_t), TARGET, OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
+        INTEGER(intk), OPTIONAL, INTENT(in) :: forward
+        CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+
+        ! Local variables
+        ! none...
+
+        IF (PRESENT(v1)) THEN
+            SELECT TYPE (v1)
+            TYPE IS (field_t)
+                u => v1%arr
+            TYPE IS (intfield_t)
+                ui => v1%arr
+            END SELECT
+        END IF
+
+        IF (PRESENT(v2)) THEN
+            SELECT TYPE (v2)
+            TYPE IS (field_t)
+                v => v2%arr
+            TYPE IS (intfield_t)
+                vi => v2%arr
+            END SELECT
+        END IF
+
+        IF (PRESENT(v3)) THEN
+            SELECT TYPE (v3)
+            TYPE IS (field_t)
+                w => v3%arr
+            TYPE IS (intfield_t)
+                wi => v3%arr
+            END SELECT
+        END IF
+
+        IF (PRESENT(s1)) THEN
+            SELECT TYPE (s1)
+            TYPE IS (field_t)
+                p1 => s1%arr
+            TYPE IS (intfield_t)
+                pi1 => s1%arr
+            END SELECT
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            SELECT TYPE (s2)
+            TYPE IS (field_t)
+                p2 => s2%arr
+            TYPE IS (intfield_t)
+                pi2 => s2%arr
+            END SELECT
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            SELECT TYPE (s3)
+            TYPE IS (field_t)
+                p3 => s3%arr
+            TYPE IS (intfield_t)
+                pi3 => s3%arr
+            END SELECT
+        END IF
+
+        CALL connect_impl(ilevel, layers, v1, v2, v3, &
+            s1, s2, s3, geom, corners, normal, forward, ityp)
+    END SUBROUTINE connect_field
+
+
+    ! Main connect functions
     SUBROUTINE connect(ilevel, layers, v1, v2, v3, &
         s1, s2, s3, geom, corners, normal, forward, ityp)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
+        REAL(realk), TARGET, OPTIONAL, CONTIGUOUS, INTENT(inout) :: &
+            v1(:), v2(:), v3(:), s1(:), s2(:), s3(:)
+        LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
+        INTEGER(intk), OPTIONAL, INTENT(in) :: forward
+        CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+
+        ! Local variables
+        ! none...
+
+        IF (PRESENT(v1)) u => v1
+        IF (PRESENT(v2)) v => v2
+        IF (PRESENT(v3)) w => v3
+        IF (PRESENT(s1)) p1 => s1
+        IF (PRESENT(s2)) p2 => s2
+        IF (PRESENT(s3)) p3 => s3
+
+        CALL connect_impl(ilevel, layers, v1, v2, v3, &
+            s1, s2, s3, geom, corners, normal, forward, ityp)
+    END SUBROUTINE connect
+
+
+    ! Main connect function
+    SUBROUTINE connect_impl(ilevel, layers, v1, v2, v3, s1, s2, s3, &
+            geom, corners, normal, forward, ityp)
 
         ! The ilevel and nplane parameters are the only required
         ! parameters
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
 
-        ! Optional fields
-        REAL(realk), TARGET, OPTIONAL, CONTIGUOUS, INTENT(inout) :: &
-            v1(:), v2(:), v3(:), &
-            s1(:), s2(:), s3(:)
+        CLASS(*), OPTIONAL, INTENT(inout) :: &
+            v1(..), v2(..), v3(..), s1(..), s2(..), s3(..)
 
         ! Optional parameters to control special behaviour
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+
+        ! Local variables
+        LOGICAL :: has_real_arg
+        LOGICAL :: has_int_arg
 
         CALL start_timer(850)
 
@@ -264,9 +375,6 @@ CONTAINS
                 WRITE(*,*) "If one vector arg is present, all three must be present."
                 CALL errr(__FILE__, __LINE__)
             END IF
-            u => v1
-            v => v2
-            w => v3
             nVars = nVars + 3
         ELSE IF (PRESENT(v2) .OR. PRESENT(v3)) THEN
             WRITE(*,*) "If one vector arg is present, all three must be present."
@@ -275,15 +383,12 @@ CONTAINS
 
         ! Set pointers to scalars
         IF (PRESENT(s1)) THEN
-            p1 => s1
             nVars = nVars + 1
         END IF
         IF (PRESENT(s2)) THEN
-            p2 => s2
             nVars = nVars + 1
         END IF
         IF (PRESENT(s3)) THEN
-            p3 => s3
             nVars = nVars + 1
         END IF
 
@@ -368,6 +473,26 @@ CONTAINS
             maxConLvl = maxlevel
         END IF
 
+        ! Sanity check if integers/realk
+        ! can only connect either INTEGER _or_ REAL
+        has_real_arg = .FALSE.
+        has_int_arg = .FALSE.
+        IF (ASSOCIATED(u) .OR. ASSOCIATED(v) .OR. ASSOCIATED(w) .OR. &
+                ASSOCIATED(p1) .OR. ASSOCIATED(p2) .OR. ASSOCIATED(p3)) THEN
+            has_real_arg = .TRUE.
+        END IF
+        IF (ASSOCIATED(ui) .OR. ASSOCIATED(vi) .OR. ASSOCIATED(wi) .OR. &
+                ASSOCIATED(pi1) .OR. ASSOCIATED(pi2) .OR. ASSOCIATED(pi3)) THEN
+            has_int_arg = .TRUE.
+        END IF
+
+        IF (has_real_arg .EQV. has_int_arg) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        connect_integer = .FALSE.
+        IF (has_int_arg) connect_integer = .TRUE.
+
         ! Exchnage data
         CALL recv_all()
         CALL send_all()
@@ -393,8 +518,15 @@ CONTAINS
         NULLIFY(p2)
         NULLIFY(p3)
 
+        NULLIFY(ui)
+        NULLIFY(vi)
+        NULLIFY(wi)
+        NULLIFY(pi1)
+        NULLIFY(pi2)
+        NULLIFY(pi3)
+
         CALL stop_timer(850)
-    END SUBROUTINE connect
+    END SUBROUTINE connect_impl
 
 
     FUNCTION decide(i, list) RESULT(exchange)
@@ -475,10 +607,6 @@ CONTAINS
                 recvIdxList(2, i) = nVars*faceArea
                 recvIdxList(3, i) = recvCounter + messageLength
                 messageLength = messageLength + nVars*faceArea
-
-                IF (recvCounter + messageLength > idim_mg_bufs) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
             END IF
 
             IF (messageLength > 0) THEN
@@ -501,11 +629,24 @@ CONTAINS
         nRecv = nRecv + 1
         recvList(nRecv) = iprocnbr
 
-        CALL MPI_Irecv(recvBuf(recvCounter+1) , messageLength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvReqs(nRecv))
+        IF (connect_integer) THEN
+            IF (recvcounter + messagelength > SIZE(irecvbuf)) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
 
-        recvCounter = recvCounter + messageLength
-        messageLength = 0
+            CALL MPI_Irecv(irecvbuf(recvcounter+1) , messagelength, &
+                mglet_mpi_ifk, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
+        ELSE
+            IF (recvcounter + messagelength > SIZE(recvbuf)) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+
+            CALL MPI_Irecv(recvbuf(recvcounter+1) , messagelength, &
+                mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
+        END IF
+
+        recvcounter = recvcounter + messagelength
+        messagelength = 0
     END SUBROUTINE post_recv
 
 
@@ -535,9 +676,6 @@ CONTAINS
                 ifacerecv     = sendConns(5, i)
                 faceArea      = face_area(igrid, ifacerecv)
 
-                IF (sendCounter + messageLength + nVars*faceArea > idim_mg_bufs) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
                 CALL write_buffer(i)
 
                 messageLength = messageLength + nVars*faceArea
@@ -565,8 +703,13 @@ CONTAINS
         nSend = nSend + 1
         sendList(nSend) = iprocnbr
 
-        CALL MPI_Isend(sendBuf(sendCounter + 1), messageLength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendReqs(nSend))
+        IF (connect_integer) THEN
+            CALL MPI_Isend(isendbuf(sendCounter + 1), messageLength, &
+                mglet_mpi_ifk, iprocnbr, 1, MPI_COMM_WORLD, sendReqs(nSend))
+        ELSE
+            CALL MPI_Isend(sendbuf(sendCounter + 1), messageLength, &
+                mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendReqs(nSend))
+        END IF
 
         sendCounter = sendCounter + messageLength
         messageLength = 0
@@ -622,7 +765,7 @@ CONTAINS
         thisMessageLength = nVars*faceArea
 
         ! Check that buffer does not overflow
-        IF (sendCounter + messageLength + thisMessageLength > idim_mg_bufs) THEN
+        IF (sendcounter + messagelength + thismessagelength > SIZE(sendbuf)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -631,74 +774,148 @@ CONTAINS
         iCount = 0
 
         ! Fill buffers
-        exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
-        IF (ASSOCIATED(u) .AND. exU) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = u(ip3 + pos)
+        IF (connect_integer) THEN
+            ! INTEGER
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(ui) .AND. exU) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = ui(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
-        IF (ASSOCIATED(v) .AND. exV) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = v(ip3 + pos)
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(vi) .AND. exV) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = vi(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
-        IF (ASSOCIATED(w) .AND. exW) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = w(ip3 + pos)
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(wi) .AND. exW) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = wi(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p1)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = p1(ip3 + pos)
+            END IF
+            IF (ASSOCIATED(pi1)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = pi1(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p2)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = p2(ip3 + pos)
+            END IF
+            IF (ASSOCIATED(pi2)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = pi2(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p3)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendBuf(offset + iCount) = p3(ip3 + pos)
+            END IF
+            IF (ASSOCIATED(pi3)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            isendbuf(offset + iCount) = pi3(ip3 + pos)
+                        END DO
                     END DO
                 END DO
-            END DO
+            END IF
+        ELSE
+            ! REAL
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(u) .AND. exU) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = u(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(v) .AND. exV) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = v(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(w) .AND. exW) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = w(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p1)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = p1(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p2)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = p2(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p3)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            sendbuf(offset + iCount) = p3(ip3 + pos)
+                        END DO
+                    END DO
+                END DO
+            END IF
         END IF
 
         ! Check that message length was calculated correctly
@@ -782,74 +999,146 @@ CONTAINS
         offset = recvIdxList(3, recvId)
 
         ! Fill velicity field from buffer
-        exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
-        IF (ASSOCIATED(u) .AND. exU) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        u(ip3 + pos) = recvBuf(offset + iCount)
+        IF (connect_integer) THEN
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(ui) .AND. exU) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            ui(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
-        IF (ASSOCIATED(v) .AND. exV) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        v(ip3 + pos) = recvBuf(offset + iCount)
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(vi) .AND. exV) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            vi(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
-        IF (ASSOCIATED(w) .AND. exW) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        w(ip3 + pos) = recvBuf(offset + iCount)
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(wi) .AND. exW) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            wi(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p1)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        p1(ip3 + pos) = recvBuf(offset + iCount)
+            END IF
+            IF (ASSOCIATED(pi1)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            pi1(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p2)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        p2(ip3 + pos) = recvBuf(offset + iCount)
+            END IF
+            IF (ASSOCIATED(pi2)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            pi2(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
-        END IF
-        IF (ASSOCIATED(p3)) THEN
-            DO i=istart,istop
-                DO j=jstart,jstop
-                    DO k=kstart,kstop
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        p3(ip3 + pos) = recvBuf(offset + iCount)
+            END IF
+            IF (ASSOCIATED(pi3)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            pi3(ip3 + pos) = irecvbuf(offset + iCount)
+                        END DO
                     END DO
                 END DO
-            END DO
+            END IF
+        ELSE
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(u) .AND. exU) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            u(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(v) .AND. exV) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            v(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(w) .AND. exW) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            w(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p1)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            p1(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p2)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            p2(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
+            IF (ASSOCIATED(p3)) THEN
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            iCount = iCount + 1
+                            pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
+                            p3(ip3 + pos) = recvbuf(offset + iCount)
+                        END DO
+                    END DO
+                END DO
+            END IF
         END IF
 
         ! Check that message length is calculated correctly
@@ -880,9 +1169,9 @@ CONTAINS
         ! Source face
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
 
-       ! Indices of start- and stop of iteration over boundary face
-       ! Destination face
-       INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        ! Indices of start- and stop of iteration over boundary face
+        ! Destination face
+        INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
 
         ! Grid to send from
         ! Must be intk because it intreface with MGLET
@@ -898,6 +1187,8 @@ CONTAINS
         ! Pointers to fields
         REAL(realk), POINTER, CONTIGUOUS :: &
             src_field(:, :, :), dst_field(:, :, :)
+        INTEGER(ifk), POINTER, CONTIGUOUS :: &
+            src_ifield(:, :, :), dst_ifield(:, :, :)
 
         ! Set variables from send table
         igrid_d       = sendConns(3, sendId)
@@ -929,57 +1220,110 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        ! Fill buffers
-        exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
-        IF (ASSOCIATED(u) .AND. exU) THEN
-            src_field(1:kk, 1:jj, 1:ii) => u(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => u(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
-        END IF
-        exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
-        IF (ASSOCIATED(v) .AND. exV) THEN
-            src_field(1:kk, 1:jj, 1:ii) => v(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => v(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
-        END IF
-        exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
-        IF (ASSOCIATED(w) .AND. exW) THEN
-            src_field(1:kk, 1:jj, 1:ii) => w(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => w(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
-        END IF
-        IF (ASSOCIATED(p1)) THEN
-            src_field(1:kk, 1:jj, 1:ii) => p1(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p1(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
-        END IF
-        IF (ASSOCIATED(p2)) THEN
-            src_field(1:kk, 1:jj, 1:ii) => p2(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p2(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
-        END IF
-        IF (ASSOCIATED(p3)) THEN
-            src_field(1:kk, 1:jj, 1:ii) => p3(ip3:ip3+kk*jj*ii-1)
-            dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p3(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
-            dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_field(kstart:kstop, jstart:jstop, istart:istop)
-            NULLIFY(dst_field)
-            NULLIFY(src_field)
+        IF (connect_integer) THEN
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(ui) .AND. exU) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => ui(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => ui(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(vi) .AND. exV) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => vi(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => vi(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(wi) .AND. exW) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => wi(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => wi(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+            IF (ASSOCIATED(pi1)) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => pi1(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => pi1(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+            IF (ASSOCIATED(pi2)) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => pi2(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => pi2(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+            IF (ASSOCIATED(pi3)) THEN
+                src_ifield(1:kk, 1:jj, 1:ii) => pi3(ip3:ip3+kk*jj*ii-1)
+                dst_ifield(1:kk_d, 1:jj_d, 1:ii_d) => pi3(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_ifield(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_ifield(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_ifield)
+                NULLIFY(src_ifield)
+            END IF
+        ELSE
+            exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+            IF (ASSOCIATED(u) .AND. exU) THEN
+                src_field(1:kk, 1:jj, 1:ii) => u(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => u(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
+            exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. (.NOT. sn)
+            IF (ASSOCIATED(v) .AND. exV) THEN
+                src_field(1:kk, 1:jj, 1:ii) => v(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => v(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
+            exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+            IF (ASSOCIATED(w) .AND. exW) THEN
+                src_field(1:kk, 1:jj, 1:ii) => w(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => w(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
+            IF (ASSOCIATED(p1)) THEN
+                src_field(1:kk, 1:jj, 1:ii) => p1(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p1(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
+            IF (ASSOCIATED(p2)) THEN
+                src_field(1:kk, 1:jj, 1:ii) => p2(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p2(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
+            IF (ASSOCIATED(p3)) THEN
+                src_field(1:kk, 1:jj, 1:ii) => p3(ip3:ip3+kk*jj*ii-1)
+                dst_field(1:kk_d, 1:jj_d, 1:ii_d) => p3(ip3_d:ip3_d+kk_d*jj_d*ii_d-1)
+                dst_field(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
+                    src_field(kstart:kstop, jstart:jstop, istart:istop)
+                NULLIFY(dst_field)
+                NULLIFY(src_field)
+            END IF
         END IF
     END SUBROUTINE connect_self
 

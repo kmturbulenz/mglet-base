@@ -29,13 +29,19 @@ MODULE precision_mod
     INTEGER(int32), PARAMETER :: int_bytes = 4
 #endif
 
+    ! Special kind for integer fields
+    INTEGER(int32), PARAMETER :: ifk = int64
+    INTEGER(int32), PARAMETER :: ifk_bytes = 8
+
     ! MPI data types for REAL and INTEGER
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_real
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_int
+    TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_ifk
 
     ! HDF5 type for REAL and INTEGER
     INTEGER(HID_T), PROTECTED :: mglet_hdf5_real
     INTEGER(HID_T), PROTECTED :: mglet_hdf5_int
+    INTEGER(HID_T), PROTECTED :: mglet_hdf5_ifk
 
     ! MPI datatype to communicate INTEGER(hsize_t)
     TYPE(MPI_Datatype) :: mglet_mpi_hsize_t
@@ -57,7 +63,8 @@ MODULE precision_mod
     PUBLIC :: init_precision, finish_precision, realk, intk, c_intk, &
         c_realk, mglet_hdf5_real, mglet_hdf5_int, pi, eps, int8, int16, &
         int32, int64, real32, real64, real_bytes, int_bytes, &
-        mglet_filename_max, neps
+        mglet_filename_max, neps, ifk, ifk_bytes, mglet_mpi_ifk, &
+        mglet_hdf5_ifk
 
     PUBLIC :: mglet_mpi_real, mglet_mpi_int, mglet_mpi_hsize_t
 
@@ -72,6 +79,7 @@ CONTAINS
         ! Create HDF5 types
         mglet_hdf5_real = h5kind_to_type(realk, H5_REAL_KIND)
         mglet_hdf5_int = h5kind_to_type(intk, H5_INTEGER_KIND)
+        mglet_hdf5_ifk = h5kind_to_type(ifk, H5_INTEGER_KIND)
 
         ! Set mglet_mpi_hsize_t
         size = STORAGE_SIZE(dummy_hsize_t)/8
@@ -96,6 +104,8 @@ CONTAINS
 #else
         mglet_mpi_int = MPI_INTEGER
 #endif
+
+        mglet_mpi_ifk = MPI_INTEGER8
 
     END SUBROUTINE init_precision
 

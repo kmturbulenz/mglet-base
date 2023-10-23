@@ -379,7 +379,7 @@ CONTAINS
             ! anything on the finest level, no need to connect finest level
             ! either.
             DO ilevel = minlevel, maxlevel-1
-                CALL connect(ilevel, 1, s1=hilf%arr)
+                CALL connect_field(ilevel, 1, s1=hilf)
             END DO
 
             ! res <- laplace(hilf)
@@ -464,7 +464,7 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
-            CALL connect(ilevel, 2, v1=u%arr, v2=v%arr, v3=w%arr, s1=p%arr, &
+            CALL connect_field(ilevel, 2, v1=u, v2=v, v3=w, s1=p, &
                 corners=.TRUE.)
         END DO
 

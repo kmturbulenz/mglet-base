@@ -270,7 +270,7 @@ CONTAINS
     SUBROUTINE fieldio_write(parent_id, field)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        TYPE(field_t), INTENT(inout) :: field
+        CLASS(basefield_t), INTENT(inout) :: field
 
         ! Local variables
         INTEGER(HID_T) :: group_id
@@ -291,7 +291,7 @@ CONTAINS
             ! 3D fields are "connected" to ensure that all ghost cell locations
             ! are updated before writing data to file to ease postprocessing
             IF (field%ndim == 3) THEN
-                CALL connect(ilevel, 2, s1=field%arr, corners=.TRUE.)
+                CALL connect_field(ilevel, 2, s1=field, corners=.TRUE.)
             END IF
         END DO
 
@@ -323,7 +323,7 @@ CONTAINS
     SUBROUTINE fieldio_read(parent_id, field, required)
         ! Subroutine arguments
         INTEGER(hid_t), INTENT(in) :: parent_id
-        TYPE(field_t), INTENT(inout) :: field
+        CLASS(basefield_t), INTENT(inout) :: field
         LOGICAL, INTENT(in), OPTIONAL :: required
 
         ! Local variables
@@ -361,7 +361,7 @@ CONTAINS
     SUBROUTINE read_attrs(parent_id, field)
         ! Subroutine arguments
         INTEGER(hid_t), INTENT(in) :: parent_id
-        TYPE(field_t), INTENT(inout) :: field
+        CLASS(basefield_t), INTENT(inout) :: field
 
         ! Local variables
         INTEGER(hid_t) :: attr_id, type_id
@@ -508,7 +508,7 @@ CONTAINS
     SUBROUTINE write_data(parent_id, field)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        TYPE(field_t), INTENT(inout) :: field
+        CLASS(basefield_t), INTENT(inout) :: field
 
         ! Local variables
         INTEGER(int64) :: my_dim, ioproc_dim
@@ -516,7 +516,7 @@ CONTAINS
 
         ! Determine the number of elements the IO process will need to
         ! receive
-        my_dim = SIZE(field%arr, kind=int64)
+        my_dim = INT(field%idim, kind=int64)
         ioproc_dim = 0
         CALL MPI_Reduce(my_dim, ioproc_dim, 1, MPI_INTEGER8, MPI_SUM, 0, &
             iogrcomm)
@@ -524,13 +524,23 @@ CONTAINS
         ! In case bigbuf is not big enough - if it is already big enough
         ! nothing happens. Only IO processes has ioproc_dim /= 0 so OK
         ! to call this collectively
+        ! TODO: ifk
         CALL increase_bigbuf(ioproc_dim)
 
         ! Gather the data in the IO processes' bigbuf
         CALL create_iogridinfo(iogridinfo, field)
-        CALL gather_grids(bigbuf, iogridinfo, field)
-        CALL write_grids(parent_id, bigbuf, iogridinfo)
-        CALL write_levels_vds(parent_id, iogridinfo)
+
+        SELECT TYPE(field)
+        TYPE IS (field_t)
+            CALL gather_grids(bigbuf, iogridinfo, field)
+            CALL write_grids(parent_id, bigbuf, iogridinfo)
+            CALL write_levels_vds(parent_id, iogridinfo)
+        TYPE IS (intfield_t)
+            CALL gather_grids(ifkbuf, iogridinfo, field)
+            CALL write_grids(parent_id, ifkbuf, iogridinfo)
+            ! No levels_vds for integer fields!
+        END SELECT
+
         DEALLOCATE(iogridinfo)
     END SUBROUTINE write_data
 
@@ -543,16 +553,16 @@ CONTAINS
     ! need to participate in this operation.
     SUBROUTINE gather_grids(buffer, iogridinfo, field)
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: buffer(:)
+        CLASS(*), INTENT(out) :: buffer(:)
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
-        TYPE(field_t), INTENT(in), TARGET :: field
+        CLASS(basefield_t), INTENT(in), TARGET :: field
 
         ! Local variables
         INTEGER(int64) :: bufptr
         INTEGER(intk) :: i, igrid, iproc, nelems, ptr, nsend, nrecv
         INTEGER(intk) :: kk, jj, ii
         TYPE(MPI_Request), ALLOCATABLE :: sendreq(:), recvreq(:)
-        REAL(realk), POINTER :: transposed(:)
+        CLASS(*), POINTER :: transposed(:)
 
         CALL start_timer(101)
 
@@ -571,9 +581,21 @@ CONTAINS
                 IF (nelems == 0) CYCLE
 
                 nrecv = nrecv + 1
-                CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
-                    mglet_mpi_real, iproc, igrid, iogrcomm, &
-                    recvreq(nrecv))
+                ! The SELECT TYPE here is really not neccesary, but exist as
+                ! a workaround for an Intel Fortran compiler bug:
+                ! https://community.intel.com/t5/Intel-Fortran-Compiler/Calling-a-function-with-TYPE-with-a-CLASS-argument/m-p/1497024
+                ! When this is resolved, all that is needed is to pass
+                ! the correct MPI type along
+                SELECT TYPE (buffer)
+                TYPE IS (REAL(realk))
+                    CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
+                        mglet_mpi_real, iproc, igrid, iogrcomm, &
+                        recvreq(nrecv))
+                TYPE IS (INTEGER(ifk))
+                    CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
+                        mglet_mpi_ifk, iproc, igrid, iogrcomm, &
+                        recvreq(nrecv))
+                END SELECT
                 bufptr = bufptr + nelems
             END DO
         END IF
@@ -586,18 +608,34 @@ CONTAINS
         ! are perfectly right. Feel free to come up with a more elegant
         ! solution!
         IF (field%ndim == 3) THEN
-            ALLOCATE(transposed, mold=field%arr)
+            SELECT TYPE (field)
+            TYPE IS (field_t)
+                ALLOCATE(transposed, mold=field%arr)
+            TYPE IS (intfield_t)
+                ALLOCATE(transposed, mold=field%arr)
+            END SELECT
             DO i = 1, nmygrids
                 igrid = mygrids(i)
                 IF (.NOT. field%active_level(level(igrid))) CYCLE
 
                 CALL get_mgdims(kk, jj, ii, igrid)
-                CALL field%get_ptr(ptr, igrid)
-                CALL fieldio_transpose(transposed(ptr:ptr+kk*jj*ii-1), &
-                    field%arr(ptr:ptr+kk*jj*ii-1), kk, jj, ii)
+                CALL field%get_ip(ptr, igrid)
+                SELECT TYPE (field)
+                TYPE IS (field_t)
+                    CALL fieldio_transpose(transposed(ptr:ptr+kk*jj*ii-1), &
+                        field%arr(ptr:ptr+kk*jj*ii-1), kk, jj, ii)
+                TYPE IS (intfield_t)
+                    CALL fieldio_transpose(transposed(ptr:ptr+kk*jj*ii-1), &
+                        field%arr(ptr:ptr+kk*jj*ii-1), kk, jj, ii)
+                END SELECT
             END DO
         ELSE
-            transposed => field%arr
+            SELECT TYPE (field)
+            TYPE IS (field_t)
+                transposed => field%arr
+            TYPE IS (intfield_t)
+                transposed => field%arr
+            END SELECT
         END IF
 
         ALLOCATE(sendreq(nmygrids))
@@ -607,10 +645,22 @@ CONTAINS
             IF (.NOT. field%active_level(level(igrid))) CYCLE
             nsend = nsend + 1
 
-            CALL field%get_ptr(ptr, igrid)
+            CALL field%get_ip(ptr, igrid)
             CALL field%get_len(nelems, igrid)
-            CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
-                mglet_mpi_real, 0, igrid, iogrcomm, sendreq(nsend))
+
+            ! The SELECT TYPE here is really not neccesary, but exist as
+            ! a workaround for an Intel Fortran compiler bug:
+            ! https://community.intel.com/t5/Intel-Fortran-Compiler/Calling-a-function-with-TYPE-with-a-CLASS-argument/m-p/1497024
+            ! When this is resolved, all that is needed is to pass
+            ! the correct MPI type along
+            SELECT TYPE (transposed)
+            TYPE IS (REAL(realk))
+                CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
+                    mglet_mpi_real, 0, igrid, iogrcomm, sendreq(nsend))
+            TYPE IS (INTEGER(ifk))
+                CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
+                    mglet_mpi_ifk, 0, igrid, iogrcomm, sendreq(nsend))
+            END SELECT
         END DO
         CALL MPI_Waitall(nsend, sendreq, MPI_STATUSES_IGNORE)
         DEALLOCATE(sendreq)
@@ -634,14 +684,14 @@ CONTAINS
     SUBROUTINE write_grids(parent_id, buffer, iogridinfo)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        REAL(realk), INTENT(in), TARGET :: buffer(:)
+        CLASS(*), INTENT(in), TARGET :: buffer(:)
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
 
         ! Local variables
         INTEGER(intk) :: i
         INTEGER(intk), ALLOCATABLE :: iogridinfo_all(:, :)
         INTEGER(int32) :: ierr
-        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id
+        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id, memtype
         INTEGER(hsize_t) :: shape1(1)
         INTEGER(hssize_t) :: npoints
         TYPE(offset_t), ALLOCATABLE, TARGET :: offset(:)
@@ -649,6 +699,17 @@ CONTAINS
 
         IF (.NOT. ioproc) RETURN
         CALL start_timer(102)
+
+        SELECT TYPE (buffer)
+        TYPE IS (REAL(realk))
+            cptr = C_LOC(buffer)
+            memtype = mglet_hdf5_real
+        TYPE IS (INTEGER(ifk))
+            cptr = C_LOC(buffer)
+            memtype = mglet_hdf5_ifk
+        CLASS DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
 
         CALL create_iogridinfo_all(iogridinfo_all, iogridinfo)
 
@@ -664,7 +725,7 @@ CONTAINS
 
         ! Create/open dataset
         shape1(1) = offset(ngrid)%offset + offset(ngrid)%length - 1
-        CALL hdf5common_dataset_create("DATA", shape1, mglet_hdf5_real, &
+        CALL hdf5common_dataset_create("DATA", shape1, memtype, &
             parent_id, dset_id, filespace)
 
         ! This makes the filespace hyperslab selection, returns the number
@@ -685,8 +746,7 @@ CONTAINS
         CALL h5pset_dxpl_mpio_f(plist_id, hdf5_io_mode, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
-        cptr = C_LOC(buffer)
-        CALL h5dwrite_f(dset_id, mglet_hdf5_real, cptr, ierr, &
+        CALL h5dwrite_f(dset_id, memtype, cptr, ierr, &
             file_space_id=filespace, mem_space_id=memspace, &
             xfer_prp=plist_id)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
@@ -839,7 +899,7 @@ CONTAINS
     SUBROUTINE read_data(parent_id, field)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        TYPE(field_t), INTENT(inout) :: field
+        CLASS(basefield_t), INTENT(inout) :: field
 
         ! Local variables
         LOGICAL :: link_exists
@@ -848,7 +908,7 @@ CONTAINS
 
         ! Determine the number of elements the IO process will need to
         ! receive
-        my_dim = SIZE(field%arr, kind=int64)
+        my_dim = INT(field%idim, kind=int64)
         ioproc_dim = 0
         CALL MPI_Reduce(my_dim, ioproc_dim, 1, MPI_INTEGER8, MPI_SUM, 0, &
             iogrcomm)
@@ -856,9 +916,9 @@ CONTAINS
         ! In case bigbuf is not big enough - if it is already big enough
         ! nothing happens. Only IO processes has ioproc_dim /= 0 so OK
         ! to call this collectively
+        ! TODO: ifk!!!
         CALL increase_bigbuf(ioproc_dim)
 
-        ! Gather the data in the IO processes' bigbuf
         CALL create_iogridinfo(iogridinfo, field)
 
         ! Variant A: read "DATA", which is the 1-D conracted way of writing
@@ -867,13 +927,24 @@ CONTAINS
         ! Variant B: read "LEVEL0" etc. - legacy file structure - will be
         ! deprecated in the future
         CALL hdf5common_dataset_exists("DATA", parent_id, link_exists)
-        IF (link_exists) THEN
-            CALL read_grids_data(parent_id, bigbuf, iogridinfo)
-        ELSE
-            CALL read_grids_levels(parent_id, bigbuf, iogridinfo)
-        END IF
 
-        CALL scatter_grids(bigbuf, iogridinfo, field)
+        SELECT TYPE(field)
+        TYPE IS (field_t)
+            IF (link_exists) THEN
+                CALL read_grids_data(parent_id, bigbuf, iogridinfo)
+            ELSE
+                CALL read_grids_levels(parent_id, bigbuf, iogridinfo)
+            END IF
+            CALL scatter_grids(bigbuf, iogridinfo, field)
+        TYPE IS (intfield_t)
+            IF (link_exists) THEN
+                CALL read_grids_data(parent_id, ifkbuf, iogridinfo)
+            ELSE
+                CALL read_grids_levels(parent_id, ifkbuf, iogridinfo)
+            END IF
+            CALL scatter_grids(ifkbuf, iogridinfo, field)
+        END SELECT
+
         DEALLOCATE(iogridinfo)
     END SUBROUTINE read_data
 
@@ -883,7 +954,7 @@ CONTAINS
     SUBROUTINE read_grids_levels(parent_id, buffer, iogridinfo)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        REAL(realk), INTENT(in), TARGET :: buffer(:)
+        CLASS(*), INTENT(inout), TARGET :: buffer(:)
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
 
         ! Local variables
@@ -892,7 +963,7 @@ CONTAINS
         INTEGER(intk) :: this_minlevel, this_maxlevel
         INTEGER(intk), ALLOCATABLE :: igridlvl(:), nofthislevel(:)
         INTEGER(int32) :: ierr
-        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id
+        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id, memtype
         INTEGER(hsize_t) :: count1(1), shape2(2), count2(2), offset2(2)
         INTEGER(hssize_t) :: npoints, count_m, bufptr
         TYPE(c_ptr) :: cptr
@@ -1023,8 +1094,17 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
 
-            cptr = C_LOC(buffer(bufptr))
-            CALL h5dread_f(dset_id, mglet_hdf5_real, cptr, ierr, &
+            SELECT TYPE (buffer)
+            TYPE IS (REAL(realk))
+                cptr = C_LOC(buffer(bufptr))
+                memtype = mglet_hdf5_real
+            TYPE IS (INTEGER(ifk))
+                cptr = C_LOC(buffer(bufptr))
+                memtype = mglet_hdf5_ifk
+            CLASS DEFAULT
+                CALL errr(__FILE__, __LINE__)
+            END SELECT
+            CALL h5dread_f(dset_id, memtype, cptr, ierr, &
                  file_space_id=filespace, mem_space_id=memspace, &
                  xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
@@ -1048,12 +1128,12 @@ CONTAINS
     SUBROUTINE read_grids_data(parent_id, buffer, iogridinfo)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
-        REAL(realk), INTENT(in), TARGET :: buffer(:)
+        CLASS(*), INTENT(inout), TARGET :: buffer(:)
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
 
         ! Local variables
         INTEGER(int32) :: ierr
-        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id
+        INTEGER(hid_t) :: dset_id, filespace, memspace, plist_id, memtype
         INTEGER(hsize_t) :: shape1(1)
         INTEGER(hssize_t) :: npoints
         TYPE(offset_t), ALLOCATABLE, TARGET :: offset(:)
@@ -1092,8 +1172,17 @@ CONTAINS
         CALL h5pset_dxpl_mpio_f(plist_id, hdf5_io_mode, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
-        cptr = C_LOC(buffer)
-        CALL h5dread_f(dset_id, mglet_hdf5_real, cptr, ierr, &
+        SELECT TYPE (buffer)
+        TYPE IS (REAL(realk))
+            cptr = C_LOC(buffer)
+            memtype = mglet_hdf5_real
+        TYPE IS (INTEGER(ifk))
+            cptr = C_LOC(buffer)
+            memtype = mglet_hdf5_ifk
+        CLASS DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
+        CALL h5dread_f(dset_id, memtype, cptr, ierr, &
             file_space_id=filespace, mem_space_id=memspace, &
             xfer_prp=plist_id)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
@@ -1113,9 +1202,9 @@ CONTAINS
     ! Scatter data from buffer to individual processes
     SUBROUTINE scatter_grids(buffer, iogridinfo, field)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: buffer(:)
+        CLASS(*), INTENT(in) :: buffer(:)
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
-        TYPE(field_t), INTENT(inout), TARGET :: field
+        CLASS(basefield_t), INTENT(inout), TARGET :: field
 
         ! Local variables
         INTEGER(int64) :: bufptr
@@ -1133,10 +1222,16 @@ CONTAINS
             IF (.NOT. field%active_level(level(igrid))) CYCLE
             nrecv = nrecv + 1
 
-            CALL field%get_ptr(ptr, igrid)
+            CALL field%get_ip(ptr, igrid)
             CALL field%get_len(nelems, igrid)
-            CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
-                mglet_mpi_real, 0, igrid, iogrcomm, recvreq(nrecv))
+            SELECT TYPE (field)
+            TYPE IS (field_t)
+                CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
+                    mglet_mpi_real, 0, igrid, iogrcomm, recvreq(nrecv))
+            TYPE IS (intfield_t)
+                CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
+                    mglet_mpi_ifk, 0, igrid, iogrcomm, recvreq(nrecv))
+            END SELECT
         END DO
 
         ! IO processes send data
@@ -1154,9 +1249,16 @@ CONTAINS
                 IF (nelems == 0) CYCLE
 
                 nsend = nsend + 1
-                CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
-                    mglet_mpi_real, iproc, igrid, iogrcomm, &
-                    sendreq(nsend))
+                SELECT TYPE (buffer)
+                TYPE IS (REAL(realk))
+                    CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
+                        mglet_mpi_real, iproc, igrid, iogrcomm, &
+                        sendreq(nsend))
+                TYPE IS (INTEGER(ifk))
+                    CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
+                        mglet_mpi_ifk, iproc, igrid, iogrcomm, &
+                        sendreq(nsend))
+                END SELECT
                 bufptr = bufptr + nelems
             END DO
         END IF
@@ -1179,9 +1281,16 @@ CONTAINS
                 IF (.NOT. field%active_level(level(igrid))) CYCLE
 
                 CALL get_mgdims(kk, jj, ii, igrid)
-                CALL field%get_ptr(ptr, igrid)
-                CALL fieldio_transpose_inplace(field%arr(ptr:ptr+kk*jj*ii-1), &
-                    ii, jj, kk)
+                CALL field%get_ip(ptr, igrid)
+
+                SELECT TYPE (field)
+                TYPE IS (field_t)
+                    CALL fieldio_transpose_inplace( &
+                        field%arr(ptr:ptr+kk*jj*ii-1), ii, jj, kk)
+                TYPE IS (intfield_t)
+                    CALL fieldio_transpose_inplace( &
+                        field%arr(ptr:ptr+kk*jj*ii-1), ii, jj, kk)
+                END SELECT
             END DO
         END IF
 
@@ -1192,7 +1301,7 @@ CONTAINS
     SUBROUTINE create_iogridinfo(iogridinfo, field)
         ! Subroutine arguments
         INTEGER(intk), ALLOCATABLE, INTENT(out) :: iogridinfo(:, :)
-        TYPE(field_t), INTENT(in), TARGET :: field
+        CLASS(basefield_t), INTENT(in), TARGET :: field
 
         ! Local variables
         INTEGER(intk) :: i, igrid
@@ -1376,9 +1485,9 @@ CONTAINS
                     END DO
                 END DO
             END SELECT
-        TYPE IS (INTEGER(intk))
+        TYPE IS (INTEGER(ifk))
             SELECT TYPE (outfield)
-            TYPE IS (INTEGER(intk))
+            TYPE IS (INTEGER(ifk))
                 DO i = 1, ii
                     DO j = 1, jj
                         DO k = 1, kk
@@ -1430,10 +1539,10 @@ CONTAINS
                 field = transposed
             END SELECT
             DEALLOCATE(transposed)
-        TYPE IS (INTEGER(intk))
-            ALLOCATE(INTEGER(intk) :: transposed(kk*jj*ii))
+        TYPE IS (INTEGER(ifk))
+            ALLOCATE(INTEGER(ifk) :: transposed(kk*jj*ii))
             SELECT TYPE (transposed)
-            TYPE IS (INTEGER(intk))
+            TYPE IS (INTEGER(ifk))
                 DO i = 1, ii
                     DO j = 1, jj
                         DO k = 1, kk

@@ -16,7 +16,10 @@ add_library(core STATIC
     expression_mod.F90
     exprtk_wrapper.cxx
     fieldio2_mod.F90
-    field_mod.F90
+    field_t/basefield_mod.F90
+    field_t/field_mod.F90
+    field_t/intfield_mod.F90
+    field_t/realfield_mod.F90
     fields_mod.F90
     fort7_mod.F90
     gridio_mod.F90

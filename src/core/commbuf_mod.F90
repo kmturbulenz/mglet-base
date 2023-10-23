@@ -3,7 +3,8 @@ MODULE commbuf_mod
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC
     USE MPI_f08
 
-    USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes
+    USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes, &
+        ifk, ifk_bytes
     USE pointers_mod, ONLY: idim2d, idim3d
 
     IMPLICIT NONE (type, external)
@@ -25,9 +26,14 @@ MODULE commbuf_mod
     REAL(realk), POINTER, CONTIGUOUS :: bigbuf(:)
     INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:)
 
+    INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:)
+    INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:)
+    INTEGER(ifk), POINTER, CONTIGUOUS :: irecvbuf(:)
+
     PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &
-        increase_bigbuf, increase_intbuf, init_commbuf, finish_commbuf
+        increase_bigbuf, increase_intbuf, init_commbuf, finish_commbuf, &
+        ifkbuf, isendbuf, irecvbuf
 
 CONTAINS
     SUBROUTINE init_commbuf()
@@ -98,6 +104,7 @@ CONTAINS
         ! Local variables
         INTEGER(int64) :: corrlength
         TYPE(C_PTR) :: cptr
+        INTEGER(int64) :: ifklength
 
         ! We correct the length to be a multiple of 32, to have a size that is
         ! dividable by two of quad prec reals
@@ -109,6 +116,9 @@ CONTAINS
         IF (ASSOCIATED(recvbuf)) NULLIFY(recvbuf)
         IF (ASSOCIATED(bigbuf)) NULLIFY(bigbuf)
         IF (ASSOCIATED(intbuf)) NULLIFY(intbuf)
+        IF (ASSOCIATED(ifkbuf)) NULLIFY(ifkbuf)
+        IF (ASSOCIATED(isendbuf)) NULLIFY(isendbuf)
+        IF (ASSOCIATED(irecvbuf)) NULLIFY(irecvbuf)
 
         IF (ALLOCATED(buffer)) THEN
             DEALLOCATE(buffer)
@@ -125,6 +135,11 @@ CONTAINS
         recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
 
         CALL C_F_POINTER(cptr, intbuf, [idim_mg_intbuf])
+
+        ifklength = corrlength/ifk_bytes
+        CALL C_F_POINTER(cptr, ifkbuf, [ifklength])
+        isendbuf => ifkbuf(1:ifklength/2)
+        irecvbuf => ifkbuf(ifklength/2+1:2*(ifklength/2))
     END SUBROUTINE allocate_buffer
 
 END MODULE commbuf_mod
