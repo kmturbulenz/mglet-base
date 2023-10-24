@@ -235,9 +235,17 @@ CONTAINS
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
 
         ! Local variables
-        ! none...
+        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
+
+        has_v1 = .FALSE.
+        has_v2 = .FALSE.
+        has_v3 = .FALSE.
+        has_s1 = .FALSE.
+        has_s2 = .FALSE.
+        has_s3 = .FALSE.
 
         IF (PRESENT(v1)) THEN
+            has_v1 = .TRUE.
             SELECT TYPE (v1)
             TYPE IS (field_t)
                 u => v1%arr
@@ -247,6 +255,7 @@ CONTAINS
         END IF
 
         IF (PRESENT(v2)) THEN
+            has_v2 = .TRUE.
             SELECT TYPE (v2)
             TYPE IS (field_t)
                 v => v2%arr
@@ -256,6 +265,7 @@ CONTAINS
         END IF
 
         IF (PRESENT(v3)) THEN
+            has_v3 = .TRUE.
             SELECT TYPE (v3)
             TYPE IS (field_t)
                 w => v3%arr
@@ -265,6 +275,7 @@ CONTAINS
         END IF
 
         IF (PRESENT(s1)) THEN
+            has_s1 = .TRUE.
             SELECT TYPE (s1)
             TYPE IS (field_t)
                 p1 => s1%arr
@@ -274,6 +285,7 @@ CONTAINS
         END IF
 
         IF (PRESENT(s2)) THEN
+            has_s2 = .TRUE.
             SELECT TYPE (s2)
             TYPE IS (field_t)
                 p2 => s2%arr
@@ -283,6 +295,7 @@ CONTAINS
         END IF
 
         IF (PRESENT(s3)) THEN
+            has_s3 = .TRUE.
             SELECT TYPE (s3)
             TYPE IS (field_t)
                 p3 => s3%arr
@@ -291,8 +304,8 @@ CONTAINS
             END SELECT
         END IF
 
-        CALL connect_impl(ilevel, layers, v1, v2, v3, &
-            s1, s2, s3, geom, corners, normal, forward, ityp)
+        CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
     END SUBROUTINE connect_field
 
 
@@ -309,30 +322,55 @@ CONTAINS
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
 
         ! Local variables
-        ! none...
+        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
 
-        IF (PRESENT(v1)) u => v1
-        IF (PRESENT(v2)) v => v2
-        IF (PRESENT(v3)) w => v3
-        IF (PRESENT(s1)) p1 => s1
-        IF (PRESENT(s2)) p2 => s2
-        IF (PRESENT(s3)) p3 => s3
+        has_v1 = .FALSE.
+        has_v2 = .FALSE.
+        has_v3 = .FALSE.
+        has_s1 = .FALSE.
+        has_s2 = .FALSE.
+        has_s3 = .FALSE.
 
-        CALL connect_impl(ilevel, layers, v1, v2, v3, &
-            s1, s2, s3, geom, corners, normal, forward, ityp)
+        IF (PRESENT(v1)) THEN
+            has_v1 = .TRUE.
+            u => v1
+        END IF
+        IF (PRESENT(v2)) THEN
+            has_v2 = .TRUE.
+            v => v2
+        END IF
+        IF (PRESENT(v3)) THEN
+            has_v3 = .TRUE.
+            w => v3
+        END IF
+        IF (PRESENT(s1)) THEN
+            has_s1 = .TRUE.
+            p1 => s1
+        END IF
+        IF (PRESENT(s2)) THEN
+            has_s2 = .TRUE.
+            p2 => s2
+        END IF
+        IF (PRESENT(s3)) THEN
+            has_s3 = .TRUE.
+            p3 => s3
+        END IF
+
+        CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
     END SUBROUTINE connect
 
 
     ! Main connect function
-    SUBROUTINE connect_impl(ilevel, layers, v1, v2, v3, s1, s2, s3, &
-            geom, corners, normal, forward, ityp)
+    SUBROUTINE connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
 
         ! The ilevel and nplane parameters are the only required
         ! parameters
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
 
-        CLASS(*), OPTIONAL, INTENT(inout) :: &
-            v1(..), v2(..), v3(..), s1(..), s2(..), s3(..)
+        ! I am surprised this is allowed as these are not optional...
+        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
 
         ! Optional parameters to control special behaviour
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
@@ -370,25 +408,25 @@ CONTAINS
 
         ! If one vector argument is given, check that all three is present.
         nVars = 0
-        IF (PRESENT(v1)) THEN
-            IF (.NOT. (PRESENT(v2) .AND. PRESENT(v3))) THEN
+        IF (has_v1) THEN
+            IF (.NOT. (has_v2 .AND. has_v3)) THEN
                 WRITE(*,*) "If one vector arg is present, all three must be present."
                 CALL errr(__FILE__, __LINE__)
             END IF
             nVars = nVars + 3
-        ELSE IF (PRESENT(v2) .OR. PRESENT(v3)) THEN
+        ELSE IF (has_v2 .OR. has_v3) THEN
             WRITE(*,*) "If one vector arg is present, all three must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Set pointers to scalars
-        IF (PRESENT(s1)) THEN
+        IF (has_s1) THEN
             nVars = nVars + 1
         END IF
-        IF (PRESENT(s2)) THEN
+        IF (has_s2) THEN
             nVars = nVars + 1
         END IF
-        IF (PRESENT(s3)) THEN
+        IF (has_s3) THEN
             nVars = nVars + 1
         END IF
 
@@ -426,7 +464,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
             IF (normal .eqv. .true.) THEN
-                IF (PRESENT(v1)) THEN
+                IF (has_v1) THEN
                     nVars = nVars - 2
                     sn = .TRUE.
                 ELSE
