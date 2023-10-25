@@ -1,5 +1,5 @@
 MODULE err_mod
-    USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: output_unit, error_unit
+    USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: error_unit
 
     USE MPI_f08
 

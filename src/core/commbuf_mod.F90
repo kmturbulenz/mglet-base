@@ -3,7 +3,7 @@ MODULE commbuf_mod
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC
     USE MPI_f08
 
-    USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes, int32
+    USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes
     USE pointers_mod, ONLY: idim2d, idim3d
 
     IMPLICIT NONE (type, external)

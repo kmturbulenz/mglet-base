@@ -3,7 +3,7 @@ MODULE checksum_mod
     USE grids_mod, ONLY: mygridslvl, nmygridslvl, get_mgdims, &
         minlevel, maxlevel
     USE pointers_mod, ONLY: get_ip3, idim3d
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_LOC, C_LONG, C_SIZEOF
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_LOC, C_LONG
 
     IMPLICIT NONE(type, external)
     PRIVATE

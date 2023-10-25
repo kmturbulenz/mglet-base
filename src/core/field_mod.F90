@@ -1,12 +1,8 @@
 MODULE field_mod
     USE HDF5
-    USE charfunc_mod, ONLY: lower
-    USE comms_mod, ONLY: myid
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, minlevel, maxlevel, get_mgdims, &
         get_imygrid, level
-    USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
-        hdf5common_group_open, hdf5common_group_close, hdf5common_attr_write
     USE pointers_mod, ONLY: get_len3, idim2d, get_ibb
     USE precision_mod, ONLY: intk, realk
     USE utils_mod, ONLY: get_stag_shift

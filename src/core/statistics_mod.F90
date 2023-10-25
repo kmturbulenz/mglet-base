@@ -2,7 +2,6 @@ MODULE statistics_mod
     USE err_mod
     USE field_mod
     USE fields_mod
-    USE grids_mod, ONLY: minlevel, maxlevel
     USE fort7_mod
     USE precision_mod
 
