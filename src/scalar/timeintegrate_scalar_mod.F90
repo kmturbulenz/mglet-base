@@ -14,6 +14,9 @@ MODULE timeintegrate_scalar_mod
 
 CONTAINS
     SUBROUTINE timeintegrate_scalar(itstep, ittot, timeph, dt, irk, rkscheme)
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: itstep
         INTEGER(intk), INTENT(in) :: ittot
@@ -87,7 +90,7 @@ CONTAINS
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
                 DO ilevel = minlevel, maxlevel
-                    CALL connect(ilevel, 2, s1=t%arr, corners=.TRUE.)
+                    CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
                 END DO
                 CALL set_scastencils("P", scalar(l), t=t)
             END IF
@@ -96,7 +99,7 @@ CONTAINS
                 CALL ftoc(ilevel, t%arr, t%arr, 'T')
             END DO
             DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=t%arr, corners=.TRUE.)
+                CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
             END DO
 
             ! TODO: Fill ghost layers of T (maybe only at last IRK?)

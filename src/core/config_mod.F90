@@ -671,7 +671,7 @@ CONTAINS
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         length = SIZE(arr)
-        CALL json_get_int_arr(this%handle, c_key, C_LOC(arr), length, ierr)
+        CALL json_get_int64_arr(this%handle, c_key, C_LOC(arr), length, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! TODO: handle required

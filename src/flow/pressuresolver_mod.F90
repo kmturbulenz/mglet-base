@@ -290,6 +290,8 @@ CONTAINS
 
     SUBROUTINE mgpoisl(u, v, w, p, dt, ittot, irk)
         USE MPI_f08
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: u
@@ -379,7 +381,7 @@ CONTAINS
             ! anything on the finest level, no need to connect finest level
             ! either.
             DO ilevel = minlevel, maxlevel-1
-                CALL connect(ilevel, 1, s1=hilf%arr)
+                CALL connect(ilevel, 1, s1=hilf)
             END DO
 
             ! res <- laplace(hilf)
@@ -464,8 +466,7 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
-            CALL connect(ilevel, 2, v1=u%arr, v2=v%arr, v3=w%arr, s1=p%arr, &
-                corners=.TRUE.)
+            CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         CALL res%finish()
@@ -480,6 +481,9 @@ CONTAINS
 
     ! 'res' is a temporary storage for the SIP algorithm,
     SUBROUTINE mgpoisit(ilevel, dp, rhs, res, bp)
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(inout) :: dp
@@ -530,7 +534,7 @@ CONTAINS
                     sipue, sipun, siput, siplpr, bp)
             END IF
 
-            CALL connect(ilevel, 1, s1=dp%arr)
+            CALL connect(ilevel, 1, s1=dp)
         END DO
 
         CALL bound_pressure%bound(ilevel, dp, bp)
@@ -541,6 +545,9 @@ CONTAINS
 
     SUBROUTINE sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
             sipue, sipun, siput, siplpr, bp)
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         INTEGER(intk), INTENT(in) :: iloop
@@ -583,9 +590,9 @@ CONTAINS
         END DO
 
         IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res%arr)
+            CALL connect(ilevel, 1, s1=res)
         ELSE
-            CALL connect(ilevel, 1, s1=res%arr, forward=-1)
+            CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
         DO i = 1, nmygridslvl(ilevel)

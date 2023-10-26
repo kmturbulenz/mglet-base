@@ -342,7 +342,7 @@ CONTAINS
         ! Pack BU, BV, BW if requested
         IF (exU .AND. pack_buvw) THEN
             CALL get_field(bu, "BU")
-            CALL bu%get_ptr(ip3, igridc)
+            CALL bu%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -368,7 +368,7 @@ CONTAINS
 
         IF (exV .AND. pack_buvw) THEN
             CALL get_field(bu, "BV")
-            CALL bu%get_ptr(ip3, igridc)
+            CALL bu%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -394,7 +394,7 @@ CONTAINS
 
         IF (exW .AND. pack_buvw) THEN
             CALL get_field(bu, "BW")
-            CALL bu%get_ptr(ip3, igridc)
+            CALL bu%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -420,7 +420,7 @@ CONTAINS
 
         ! Fill buffers
         IF (ASSOCIATED(u) .AND. exU) THEN
-            CALL u%get_ptr(ip3, igridc)
+            CALL u%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -445,7 +445,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(v) .AND. exV) THEN
-            CALL v%get_ptr(ip3, igridc)
+            CALL v%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -470,7 +470,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(w) .AND. exW) THEN
-            CALL w%get_ptr(ip3, igridc)
+            CALL w%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -495,7 +495,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p1)) THEN
-            CALL p1%get_ptr(ip3, igridc)
+            CALL p1%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -520,7 +520,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p2)) THEN
-            CALL p2%get_ptr(ip3, igridc)
+            CALL p2%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)
@@ -545,7 +545,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p3)) THEN
-            CALL p3%get_ptr(ip3, igridc)
+            CALL p3%get_ip(ip3, igridc)
             icomp = 0
             SELECT CASE(iface)
                 CASE (1, 2)

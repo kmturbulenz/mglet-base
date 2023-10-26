@@ -1,5 +1,4 @@
 MODULE plugins_mod
-    USE err_mod, ONLY: errr
     USE precision_mod, ONLY: intk, realk
 
     IMPLICIT NONE(type, external)

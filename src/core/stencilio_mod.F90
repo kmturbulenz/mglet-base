@@ -133,7 +133,7 @@ CONTAINS
                     END IF
                 END IF
             END DO
-            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mglet_mpi_int%MPI_val, &
+            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
                 MPI_MAX, MPI_COMM_WORLD, ierr)
             IF (maxarr <= HUGE(1_int16)) THEN
                 IF (PRESENT(same_kind)) THEN
@@ -174,7 +174,7 @@ CONTAINS
                         MAXVAL(ABS(stencils(ptr:ptr+len-1))))
                 END IF
             END DO
-            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mglet_mpi_int%MPI_val, &
+            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
                 MPI_MAX, MPI_COMM_WORLD, ierr)
             IF (maxarr <= HUGE(1_int16)) THEN
                 IF (PRESENT(same_kind)) THEN
@@ -723,7 +723,7 @@ CONTAINS
 
 
     SUBROUTINE stencilio_read(group_id, name, stencils, get_ptr, get_len)
-        USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_dataset_open, &
+        USE hdf5common_mod, ONLY: hdf5common_dataset_open, &
             hdf5common_dataset_close
         USE grids_mod, ONLY: mygrids, nmygrids
         USE commbuf_mod, ONLY: bigbuf, intbuf, increase_bigbuf, increase_intbuf

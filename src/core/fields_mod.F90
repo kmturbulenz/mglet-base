@@ -1,17 +1,13 @@
 MODULE fields_mod
     USE HDF5
-    USE charfunc_mod, ONLY: lower
     USE comms_mod, ONLY: myid
     USE err_mod, ONLY: errr
     USE fieldio2_mod, ONLY: fieldio_read, fieldio_write
     USE fort7_mod
-    USE grids_mod, ONLY: mygrids, nmygrids, minlevel, maxlevel, get_mgdims, &
-        get_imygrid, level
     USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
-        hdf5common_group_open, hdf5common_group_close, hdf5common_attr_write
-    USE pointers_mod, ONLY: get_len3, idim2d, get_ibb
+        hdf5common_group_open, hdf5common_group_close
     USE precision_mod
-    USE field_mod, ONLY: field_t, buffer_t, get_len_i, nchar_name
+    USE field_mod, ONLY: field_t, get_len_i, nchar_name
 
     IMPLICIT NONE(type, external)
     PRIVATE

@@ -19,7 +19,7 @@ MODULE dlopen_mod
     INTERFACE
         ! void * dlopen(const char *filename, int flag);
         FUNCTION dlopen(filename, mode) RESULT(handle) BIND(C, NAME='dlopen')
-            USE ISO_C_BINDING
+            IMPORT :: c_char, c_int, c_ptr
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: filename
             INTEGER(C_INT), VALUE :: mode
             TYPE(C_PTR) :: handle
@@ -27,7 +27,7 @@ MODULE dlopen_mod
 
         ! void *dlsym(void *handle, char *symbol);
         FUNCTION dlsym(handle, symbol) RESULT(funptr) BIND(C, NAME='dlsym')
-            USE ISO_C_BINDING
+            IMPORT :: c_char, c_funptr, c_ptr
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: symbol
             TYPE(C_FUNPTR) :: funptr
@@ -36,7 +36,7 @@ MODULE dlopen_mod
         ! void *dlsym(void *handle, char *symbol);
         FUNCTION dlsym_ptr(handle, symbol) RESULT(ptr) BIND(C, NAME='dlsym')
             ! Returns a C_PTR instead of a C_FUNPTR
-            USE ISO_C_BINDING
+            IMPORT :: c_char, c_ptr
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: symbol
             TYPE(C_PTR) :: ptr
@@ -44,21 +44,20 @@ MODULE dlopen_mod
 
         ! int dlclose(void *handle);
         FUNCTION dlclose(handle) RESULT(ierror) BIND(C, NAME='dlclose')
-            USE ISO_C_BINDING
+            IMPORT :: c_int, c_ptr
             TYPE(C_PTR), VALUE :: handle
             INTEGER(C_INT) :: ierror
         END FUNCTION
 
         ! char *dlerror(void);
         FUNCTION dlerror() RESULT(error) BIND(C, NAME='dlerror')
-            USE ISO_C_BINDING
+            IMPORT :: c_ptr
             TYPE(C_PTR) :: error
         END FUNCTION
     END INTERFACE
 
     PUBLIC :: shlib_load, finish_dlopen, shlib_get_fun, shlib_get_ptr, &
         init_dlopen
-
 
 CONTAINS
     SUBROUTINE init_dlopen()

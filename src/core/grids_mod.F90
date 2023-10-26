@@ -1,6 +1,5 @@
 MODULE grids_mod
-    USE, INTRINSIC :: iso_c_binding, ONLY: C_CHAR
-    USE precision_mod, ONLY: intk, realk, int32, mglet_filename_max
+    USE precision_mod, ONLY: intk, realk, mglet_filename_max
     USE err_mod, ONLY: errr
     USE gridio_mod, ONLY: gridinfo_t, bcond_t, maxboconds
 
@@ -657,8 +656,6 @@ CONTAINS
 
 
     SUBROUTINE get_level(level, igrid)
-        USE simdfunctions_mod, ONLY: l_to_i
-
         INTEGER(intk), INTENT(OUT) :: level
         INTEGER(intk), INTENT(IN) :: igrid
 

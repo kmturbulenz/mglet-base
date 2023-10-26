@@ -55,7 +55,8 @@ CONTAINS
 
 
     SUBROUTINE init_tfield()
-        USE core_mod
+        USE core_mod, ONLY: connect => connect_field, get_field, field_t, &
+            minlevel, maxlevel, zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_scalar_mod, ONLY: setboundarybuffers_scalar
 
@@ -75,7 +76,7 @@ CONTAINS
             CALL zero_ghostlayers(t)
 
             DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=t%arr, corners=.TRUE.)
+                CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
