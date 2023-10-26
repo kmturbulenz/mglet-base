@@ -32,6 +32,9 @@ MODULE lesmodel_mod
 CONTAINS
 
     SUBROUTINE init_lesmodel()
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
+
         ! Subroutine arguments
         ! none...
 
@@ -71,7 +74,7 @@ CONTAINS
             CALL zero_ghostlayers(g)
 
             DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=g%arr, corners=.TRUE.)
+                CALL connect(ilevel, 2, s1=g, corners=.TRUE.)
             END DO
 
             DO ilevel = minlevel+1, maxlevel

@@ -115,57 +115,50 @@ CONTAINS
 
     SUBROUTINE init_uvwp()
         USE bound_flow_mod
-        USE core_mod
+        USE core_mod, ONLY: get_field, field_t, intk, minlevel, maxlevel, &
+            connect => connect_field, zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_mod, ONLY: setboundarybuffers
 
-        TYPE(field_t), POINTER :: u_f, v_f, w_f, p_f
-        REAL(realk), POINTER, CONTIGUOUS :: u(:), v(:), w(:), p(:)
+        TYPE(field_t), POINTER :: u, v, w, p
         INTEGER(intk) :: ilevel
 
-        CALL get_field(u_f, "U")
-        CALL get_field(v_f, "V")
-        CALL get_field(w_f, "W")
-        CALL get_field(p_f, "P")
-
-        ! Associate pinters
-        u => u_f%arr
-        v => v_f%arr
-        w => w_f%arr
-        p => p_f%arr
+        CALL get_field(u, "U")
+        CALL get_field(v, "V")
+        CALL get_field(w, "W")
+        CALL get_field(p, "P")
 
         ! Set inflow buffers for FIX bc's
         DO ilevel = minlevel, maxlevel
-            CALL setboundarybuffers%bound(ilevel, u_f, v_f, w_f, &
-                timeph=0.0_realk)
+            CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=0.0_realk)
         END DO
 
         ! Set initial condition
         IF (uinf_is_expr) THEN
-            CALL init_uvw_expr(u_f, v_f, w_f)
+            CALL init_uvw_expr(u, v, w)
         ELSE
-            CALL init_uvw_uinf(u_f, v_f, w_f)
+            CALL init_uvw_uinf(u, v, w)
         END IF
         p = 0.0
 
-        CALL zero_ghostlayers(u_f)
-        CALL zero_ghostlayers(v_f)
-        CALL zero_ghostlayers(w_f)
+        CALL zero_ghostlayers(u)
+        CALL zero_ghostlayers(v)
+        CALL zero_ghostlayers(w)
 
         DO ilevel = minlevel, maxlevel
             CALL connect(ilevel, 2, u, v, w, p, corners=.TRUE.)
         END DO
 
         DO ilevel = minlevel+1, maxlevel
-            CALL parent(ilevel, u_f, v_f, w_f, p_f)
-            CALL bound_flow%bound(ilevel, u_f, v_f, w_f, p_f)
+            CALL parent(ilevel, u, v, w, p)
+            CALL bound_flow%bound(ilevel, u, v, w, p)
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u, u, 'U')
-            CALL ftoc(ilevel, v, v, 'V')
-            CALL ftoc(ilevel, w, w, 'W')
-            CALL ftoc(ilevel, p, p, 'P')
+            CALL ftoc(ilevel, u%arr, u%arr, 'U')
+            CALL ftoc(ilevel, v%arr, v%arr, 'V')
+            CALL ftoc(ilevel, w%arr, w%arr, 'W')
+            CALL ftoc(ilevel, p%arr, p%arr, 'P')
         END DO
     END SUBROUTINE init_uvwp
 

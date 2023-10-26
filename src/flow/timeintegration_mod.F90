@@ -18,6 +18,9 @@ MODULE timeintegration_mod
 
 CONTAINS
     SUBROUTINE timeintegrate_flow(itstep, ittot, timeph, dt, irk, rkscheme)
+        ! This override the module declaration
+        USE core_mod, ONLY: connect => connect_field
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: itstep
         INTEGER(intk), INTENT(in) :: ittot
@@ -120,7 +123,7 @@ CONTAINS
 
         ! For divergence computation
         DO ilevel = minlevel, maxlevel
-            CALL connect_field(ilevel, 1, v1=u, v2=v, v3=w, &
+            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, &
                 normal=.true., forward=1)
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
