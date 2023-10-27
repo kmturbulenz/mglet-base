@@ -32,9 +32,6 @@ MODULE lesmodel_mod
 CONTAINS
 
     SUBROUTINE init_lesmodel()
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         ! none...
 
@@ -180,7 +177,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL connect(ilevel, 1, s1=g_f%arr)
+            CALL connect(ilevel, 1, s1=g_f)
             CALL parent(ilevel, s1=g_f)
             CALL bound%bound(ilevel, g_f)
         END DO
@@ -198,7 +195,7 @@ CONTAINS
         CALL stop_timer(502)
 
         DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 1, s1=g_f%arr)
+            CALL connect(ilevel, 1, s1=g_f)
         END DO
 
         CALL stop_timer(500)

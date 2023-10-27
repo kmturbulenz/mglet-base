@@ -2,7 +2,7 @@ MODULE calcnormals_mod
     USE core_mod, ONLY: realk, intk, errr, get_fieldptr, ngrid, minlevel, &
         maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3, &
         get_ip3n, sub2ind, most_frequent_nonzero, field_t, &
-        connect => connect_field
+        connect
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE punktekoordinaten_mod, ONLY: punktekoordinaten
     USE knotenundkanten_mod, ONLY: knotenundkanten

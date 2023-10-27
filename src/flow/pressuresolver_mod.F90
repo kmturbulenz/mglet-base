@@ -290,8 +290,6 @@ CONTAINS
 
     SUBROUTINE mgpoisl(u, v, w, p, dt, ittot, irk)
         USE MPI_f08
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: u
@@ -481,9 +479,6 @@ CONTAINS
 
     ! 'res' is a temporary storage for the SIP algorithm,
     SUBROUTINE mgpoisit(ilevel, dp, rhs, res, bp)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(inout) :: dp
@@ -545,9 +540,6 @@ CONTAINS
 
     SUBROUTINE sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
             sipue, sipun, siput, siplpr, bp)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         INTEGER(intk), INTENT(in) :: iloop

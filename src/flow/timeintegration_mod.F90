@@ -18,9 +18,6 @@ MODULE timeintegration_mod
 
 CONTAINS
     SUBROUTINE timeintegrate_flow(itstep, ittot, timeph, dt, irk, rkscheme)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: itstep
         INTEGER(intk), INTENT(in) :: ittot

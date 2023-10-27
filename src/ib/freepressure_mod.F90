@@ -1,7 +1,7 @@
 MODULE freepressure_mod
     USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
         mygridslvl, nmygridslvl, minlevel, maxlevel, errr, &
-        field_t, get_mgdims, get_ip3, connect => connect_field
+        field_t, get_mgdims, get_ip3, connect
 
     IMPLICIT NONE(type, external)
     PRIVATE

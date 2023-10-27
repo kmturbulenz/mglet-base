@@ -116,7 +116,7 @@ CONTAINS
     SUBROUTINE init_uvwp()
         USE bound_flow_mod
         USE core_mod, ONLY: get_field, field_t, intk, minlevel, maxlevel, &
-            connect => connect_field, zero_ghostlayers
+            connect, zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_mod, ONLY: setboundarybuffers
 

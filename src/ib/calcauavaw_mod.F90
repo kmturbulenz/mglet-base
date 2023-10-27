@@ -1,7 +1,7 @@
 MODULE calcauavaw_mod
     USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, nmygrids, &
         mygrids, nmygridslvl, mygridslvl, get_mgdims, get_ip3, get_ip3n, &
-        get_fieldptr, field_t, connect => connect_field
+        get_fieldptr, field_t, connect
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE calcfacearea_mod, ONLY: calcfacedata, calcwallfacecenter, &
         calcwallfacecenterrescue

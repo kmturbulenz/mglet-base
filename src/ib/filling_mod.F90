@@ -74,7 +74,7 @@ CONTAINS
                     nfilled_tot = nfilled_tot + INT(nfilled, int64)
                 END DO
 
-                CALL connect(ilevel, 2, s1=knoten%arr, corners=.TRUE.)
+                CALL connect(ilevel, 2, s1=knoten, corners=.TRUE.)
             END DO
 
             CALL MPI_Allreduce(MPI_IN_PLACE, nfilled_tot, 1, MPI_INTEGER8, &

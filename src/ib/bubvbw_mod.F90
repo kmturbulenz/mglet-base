@@ -22,8 +22,6 @@ CONTAINS
 
 
     SUBROUTINE bubvbw_level(ilevel, bp, bu, bv, bw)
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(in) :: bp

@@ -242,7 +242,7 @@ CONTAINS
         ! TODO: change - variable loop iterations and check for convergence
         DO iloop = 1, 3
             DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=bp%arr)
+                CALL connect(ilevel, 2, s1=bp)
                 CALL parent(ilevel, s1=bp)
 
                 DO i = 1, nmygridslvl(ilevel)
@@ -324,7 +324,7 @@ CONTAINS
 
         ! Connect
         DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 2, s1=bodyid_3d_f%arr, corners=.TRUE.)
+            CALL connect(ilevel, 2, s1=bodyid_3d_f, corners=.TRUE.)
         END DO
 
         ! Copy back to list

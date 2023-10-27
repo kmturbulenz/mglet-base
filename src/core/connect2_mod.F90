@@ -1,7 +1,7 @@
 MODULE connect2_mod
     USE precision_mod
     USE MPI_f08
-    USE commbuf_mod, ONLY: sendbuf, recvbuf, idim_mg_bufs, isendbuf, irecvbuf
+    USE commbuf_mod, ONLY: sendbuf, recvbuf, isendbuf, irecvbuf
     USE err_mod, ONLY: errr
     USE timer_mod, ONLY: start_timer, set_timer, stop_timer
     USE pointers_mod, ONLY: get_ip3
@@ -218,12 +218,12 @@ MODULE connect2_mod
         20, 19, 22, 24, 21, 23, 26, &
         19, 20, 21, 23, 22, 24, 25 /), SHAPE(rescue_nbr))
 
-    PUBLIC :: connect, connect_field, init_connect2, finish_connect2
+    PUBLIC :: connect, connect_real, init_connect2, finish_connect2
 
 CONTAINS
 
     ! Main connect functions
-    SUBROUTINE connect_field(ilevel, layers, v1, v2, v3, &
+    SUBROUTINE connect(ilevel, layers, v1, v2, v3, &
             s1, s2, s3, geom, corners, normal, forward, ityp)
 
         ! Subroutine arguments
@@ -306,11 +306,11 @@ CONTAINS
 
         CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
             has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
-    END SUBROUTINE connect_field
+    END SUBROUTINE connect
 
 
     ! Main connect functions
-    SUBROUTINE connect(ilevel, layers, v1, v2, v3, &
+    SUBROUTINE connect_real(ilevel, layers, v1, v2, v3, &
         s1, s2, s3, geom, corners, normal, forward, ityp)
 
         ! Subroutine arguments
@@ -358,7 +358,7 @@ CONTAINS
 
         CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
             has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
-    END SUBROUTINE connect
+    END SUBROUTINE connect_real
 
 
     ! Main connect function

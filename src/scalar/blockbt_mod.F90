@@ -9,9 +9,6 @@ MODULE blockbt_mod
 
 CONTAINS
     SUBROUTINE blockbt(bt_f)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! This routine derives a blocking field BT for the scalar
         ! from the the blocking field BP for the pressure.
         !

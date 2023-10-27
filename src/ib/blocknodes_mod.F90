@@ -1,7 +1,7 @@
 MODULE blocknodes_mod
     USE core_mod, ONLY: realk, intk, idim3d, mygridslvl, nmygridslvl, &
         minlevel, maxlevel, get_fieldptr, get_mgdims, get_ip3, &
-        field_t, connect => connect_field
+        field_t, connect
     USE topol_mod, ONLY: topol_t
 
     IMPLICIT NONE (type, external)

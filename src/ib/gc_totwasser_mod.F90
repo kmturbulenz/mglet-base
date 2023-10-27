@@ -15,8 +15,6 @@ MODULE gc_totwasser_mod
 
 CONTAINS
     SUBROUTINE totwasser(fluidpoints, bp)
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         REAL(realk), INTENT(in) :: fluidpoints(:, :)
         TYPE(field_t), INTENT(inout) :: bp
