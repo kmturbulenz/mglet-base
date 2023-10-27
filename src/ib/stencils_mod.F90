@@ -280,10 +280,10 @@ CONTAINS
     END SUBROUTINE set_stlnames
 
 
-    SUBROUTINE get_bp(this, bp_p)
+    SUBROUTINE get_bp(this, bp_f)
         ! Subroutine arguments
         CLASS(stencils_t), INTENT(inout) :: this
-        REAL(realk), TARGET, INTENT(out) :: bp_p(idim3d)
+        TYPE(field_t), INTENT(inout) :: bp_f
 
         ! Local variables
         INTEGER(intk) :: imygrid, idx, igrid, ind, bpcells, ip3
@@ -291,7 +291,7 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
         ! Set BP to 1.0 initially
-        bp_p = 1.0
+        bp_f%arr = 1.0
 
         ! Set all marked cells in the body to 0.0
         all_grids: DO imygrid = 1, nmygrids
@@ -299,8 +299,7 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
-            bp(1:kk, 1:jj, 1:ii) => bp_p(ip3:ip3+kk*jj*ii-1)
-
+            CALL bp_f%get_ptr(bp, igrid)
             bpcells = SIZE(this%bpind(imygrid)%arr)
             DO idx = 1, bpcells
                 ind = this%bpind(imygrid)%arr(idx)

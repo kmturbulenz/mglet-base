@@ -1,7 +1,7 @@
 MODULE freekante_mod
     USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
         mygridslvl, nmygridslvl, minlevel, maxlevel, errr, &
-        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, idim3d
+        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr
     USE topol_mod, ONLY: topol_t
     USE punktekoordinaten_mod, ONLY: punkteeinekante2
 
@@ -17,13 +17,13 @@ CONTAINS
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -41,13 +41,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n
@@ -71,7 +71,8 @@ CONTAINS
             CALL freekante_grid(kk, jj, ii, xstag, ystag, zstag, &
                 ddx, ddy, ddz, topol%n, topol%topol, &
                 ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
-                kanteu(ip3), kantev(ip3), kantew(ip3), knoten(ip3))
+                kanteu%arr(ip3), kantev%arr(ip3), kantew%arr(ip3), &
+                knoten%arr(ip3))
         END DO
     END SUBROUTINE freekante_level
 

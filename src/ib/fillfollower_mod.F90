@@ -13,7 +13,7 @@ MODULE fillfollower_mod
 CONTAINS
     SUBROUTINE fillfollower(knoten, nofluidpoints)
         ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
         REAL(realk), INTENT(in) :: nofluidpoints(:, :)
 
         ! Local variables
@@ -58,7 +58,7 @@ CONTAINS
 
             ! ninfluid is the number of points in fluid
             ! nfound is the number of found seeding points in this grid
-            CALL checknopoint(kk, jj, ii, knoten(ip3), nfound, &
+            CALL checknopoint(kk, jj, ii, knoten%arr(ip3), nfound, &
                 inofluidpoints, ninfluid, idxinfluid)
 
             ! Each point can be found in different grids and by different

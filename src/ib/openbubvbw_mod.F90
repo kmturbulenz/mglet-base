@@ -1,6 +1,6 @@
 MODULE openbubvbw_mod
     USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, nmygridslvl, &
-        mygridslvl, get_ip3, get_mgdims, idim3d
+        mygridslvl, get_ip3, get_mgdims, field_t
     USE ibcore_mod, ONLY: openaccur
 
     IMPLICIT NONE(type, external)
@@ -11,10 +11,8 @@ MODULE openbubvbw_mod
 CONTAINS
     SUBROUTINE openbubvbw(au, av, aw, bu, bv, bw)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: au(idim3d), av(idim3d), &
-            aw(idim3d)
-        REAL(realk), INTENT(inout) :: bu(idim3d), bv(idim3d), &
-            bw(idim3d)
+        TYPE(field_t), INTENT(in) :: au, av, aw
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -28,10 +26,8 @@ CONTAINS
     SUBROUTINE openbubvbw_level(ilevel, au, av, aw, bu, bv, bw)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: au(idim3d), av(idim3d), &
-            aw(idim3d)
-        REAL(realk), INTENT(inout) :: bu(idim3d), bv(idim3d), &
-            bw(idim3d)
+        TYPE(field_t), INTENT(in) :: au, av, aw
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
@@ -41,8 +37,8 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL openbubvbw_grid(kk, jj, ii, au(ip3), av(ip3), aw(ip3), &
-                bu(ip3), bv(ip3), bw(ip3))
+            CALL openbubvbw_grid(kk, jj, ii, au%arr(ip3), av%arr(ip3), &
+                aw%arr(ip3), bu%arr(ip3), bv%arr(ip3), bw%arr(ip3))
         END DO
     END SUBROUTINE openbubvbw_level
 

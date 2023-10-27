@@ -1,6 +1,6 @@
 MODULE gc_zelltyp_mod
     USE core_mod, ONLY: intk, realk, errr, get_fieldptr, ngrid, minlevel, &
-        maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3
+        maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3, field_t
     IMPLICIT NONE(type, external)
     PRIVATE
 
@@ -8,8 +8,8 @@ MODULE gc_zelltyp_mod
 CONTAINS
     SUBROUTINE zelltyp(knoten, bzelltyp, icells)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: knoten(idim3d)
-        INTEGER(intk), INTENT(out) :: bzelltyp(idim3d)
+        TYPE(field_t), INTENT(in) :: knoten
+        INTEGER(intk), INTENT(out) :: bzelltyp(*)
         INTEGER(intk), INTENT(out) :: icells(:)
 
         ! Local variables
@@ -28,8 +28,8 @@ CONTAINS
     SUBROUTINE zelltyp_level(ilevel, knoten, bzelltyp, icells)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: knoten(idim3d)
-        INTEGER(intk), INTENT(out) :: bzelltyp(idim3d)
+        TYPE(field_t), INTENT(in) :: knoten
+        INTEGER(intk), INTENT(out) :: bzelltyp(*)
         INTEGER(intk), INTENT(out) :: icells(:)
 
         ! Local variables
@@ -40,7 +40,7 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL zelltyp_grid(kk, jj, ii, knoten(ip3), &
+            CALL zelltyp_grid(kk, jj, ii, knoten%arr(ip3), &
                 bzelltyp(ip3), icells(igrid))
         END DO
     END SUBROUTINE zelltyp_level

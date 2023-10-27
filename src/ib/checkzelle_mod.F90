@@ -1,7 +1,7 @@
 MODULE checkzelle_mod
     USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
         mygridslvl, nmygridslvl, minlevel, maxlevel, errr, connect, &
-        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, idim3d, &
+        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
         ind2sub
     USE cutcorner_mod, ONLY: calcint
     USE blockcheck_mod, ONLY: blockcheck_grid
@@ -20,13 +20,13 @@ CONTAINS
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -44,13 +44,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n, iloop, suminfo
@@ -73,10 +73,11 @@ CONTAINS
             CALL get_ip3n(ip3n, ntrimax, igrid)
 
             DO iloop = 1, 20
-                CALL checkzelle_grid(kk, jj, ii, kanteu(ip3), kantev(ip3), &
-                    kantew(ip3), knoten(ip3), ntrimax, triau(ip3n), &
-                    triav(ip3n), triaw(ip3n), xstag, ystag, zstag, &
-                    ddx, ddy, ddz, topol%n, topol%topol, suminfo)
+                CALL checkzelle_grid(kk, jj, ii, kanteu%arr(ip3), &
+                    kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3), &
+                    ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
+                    xstag, ystag, zstag, ddx, ddy, ddz, topol%n, &
+                    topol%topol, suminfo)
                 IF (suminfo == 0) EXIT
             END DO
 

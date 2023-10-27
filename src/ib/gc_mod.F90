@@ -130,22 +130,22 @@ CONTAINS
         CLASS(gc_t), INTENT(inout) :: this
 
         ! Local variables
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:), bu(:), bv(:), bw(:)
-        REAL(realk), POINTER, CONTIGUOUS :: au(:), av(:), aw(:)
+        TYPE(field_t), POINTER :: bp, bu, bv, bw
+        TYPE(field_t), POINTER :: au, av, aw
 
         CALL this%stencils%read()
 
-        CALL get_fieldptr(bp, "BP")
+        CALL get_field(bp, "BP")
         CALL this%stencils%get_bp(bp)
 
-        CALL get_fieldptr(bu, "BU")
-        CALL get_fieldptr(bv, "BV")
-        CALL get_fieldptr(bw, "BW")
+        CALL get_field(bu, "BU")
+        CALL get_field(bv, "BV")
+        CALL get_field(bw, "BW")
         CALL bubvbw(bp, bu, bv, bw)
 
-        CALL get_fieldptr(au, "AU")
-        CALL get_fieldptr(av, "AV")
-        CALL get_fieldptr(aw, "AW")
+        CALL get_field(au, "AU")
+        CALL get_field(av, "AV")
+        CALL get_field(aw, "AW")
         CALL this%stencils%get_auavaw(bu, bv, bw, au, av, aw)
 
         CALL this%stencils%get_icells(this%icells)
@@ -175,10 +175,10 @@ CONTAINS
             ncellstot, xpsw, nvecs, arealist)
         ! Subroutine arguments
         CLASS(gc_t), INTENT(inout) :: this
-        INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
-        REAL(realk), INTENT(in) :: au(idim3d)
-        REAL(realk), INTENT(in) :: av(idim3d)
-        REAL(realk), INTENT(in) :: aw(idim3d)
+        INTEGER(intk), INTENT(in) :: bzelltyp(*)
+        TYPE(field_t), INTENT(in) :: au
+        TYPE(field_t), INTENT(in) :: av
+        TYPE(field_t), INTENT(in) :: aw
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
         INTEGER(intk), INTENT(in) :: ncellstot
@@ -202,9 +202,9 @@ CONTAINS
             CALL get_fieldptr(ddz, "DDZ", igrid)
 
             CALL this%calc_nvecs_grid(kk, jj, ii, ddx, ddy, ddz, &
-                bzelltyp(ip3), au(ip3), av(ip3), aw(ip3), icells(igrid), &
-                xpsw(:, ipp:ipp+ncells-1), nvecs(:, ipp:ipp+ncells-1), &
-                arealist(ipp:ipp+ncells-1))
+                bzelltyp(ip3), au%arr(ip3), av%arr(ip3), aw%arr(ip3), &
+                icells(igrid), xpsw(:, ipp:ipp+ncells-1), &
+                nvecs(:, ipp:ipp+ncells-1), arealist(ipp:ipp+ncells-1))
         END DO
     END SUBROUTINE calc_nvecs
 

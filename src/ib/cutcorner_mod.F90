@@ -1,5 +1,5 @@
 MODULE cutcorner_mod
-    USE core_mod, ONLY: realk, intk, sortrx, idim3d, mygridslvl, nmygridslvl, &
+    USE core_mod, ONLY: realk, intk, sortrx, field_t, mygridslvl, nmygridslvl, &
         minlevel, maxlevel, get_fieldptr, get_mgdims, get_ip3, get_ip3n
     USE ibconst_mod, ONLY: maccur
     USE topol_mod, ONLY: topol_t
@@ -16,12 +16,12 @@ CONTAINS
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(out) :: kanteu(idim3d)
-        REAL(realk), INTENT(out) :: kantev(idim3d)
-        REAL(realk), INTENT(out) :: kantew(idim3d)
-        INTEGER(intk), INTENT(out) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(out) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(out) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(out) :: triau(*)
+        INTEGER(intk), INTENT(out) :: triav(*)
+        INTEGER(intk), INTENT(out) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -41,12 +41,12 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        REAL(realk), INTENT(out) :: kanteu(idim3d)
-        REAL(realk), INTENT(out) :: kantev(idim3d)
-        REAL(realk), INTENT(out) :: kantew(idim3d)
-        INTEGER(intk), INTENT(out) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(out) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(out) :: triaw(ntrimax*idim3d)
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
+        INTEGER(intk), INTENT(out) :: triau(*)
+        INTEGER(intk), INTENT(out) :: triav(*)
+        INTEGER(intk), INTENT(out) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n
@@ -69,8 +69,8 @@ CONTAINS
             CALL get_ip3n(ip3n, ntrimax, igrid)
 
             CALL cutcorner_grid(kk, jj, ii, topol%n, ntrimax, xstag, &
-                ystag, zstag, ddx, ddy, ddz, topol%topol, kanteu(ip3), &
-                kantev(ip3), kantew(ip3), triau(ip3n), triav(ip3n), &
+                ystag, zstag, ddx, ddy, ddz, topol%topol, kanteu%arr(ip3), &
+                kantev%arr(ip3), kantew%arr(ip3), triau(ip3n), triav(ip3n), &
                 triaw(ip3n))
         END DO
     END SUBROUTINE cutcorner_level
