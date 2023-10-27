@@ -291,7 +291,7 @@ CONTAINS
             ! 3D fields are "connected" to ensure that all ghost cell locations
             ! are updated before writing data to file to ease postprocessing
             IF (field%ndim == 3) THEN
-                CALL connect_field(ilevel, 2, s1=field, corners=.TRUE.)
+                CALL connect(ilevel, 2, s1=field, corners=.TRUE.)
             END IF
         END DO
 

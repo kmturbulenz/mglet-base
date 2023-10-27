@@ -11,9 +11,8 @@ MODULE blockcheck_mod
 CONTAINS
     SUBROUTINE blockcheck(kanteu, kantev, kantew, knoten, flag)
         ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        REAL(realk), INTENT(in) :: knoten(idim3d)
+        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
+        TYPE(field_t), INTENT(in) :: knoten
         INTEGER(intk), INTENT(in) :: flag
 
         ! Local variables
@@ -28,9 +27,8 @@ CONTAINS
     SUBROUTINE blockcheck_level(ilevel, kanteu, kantev, kantew, knoten, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(inout) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        REAL(realk), INTENT(in) :: knoten(idim3d)
+        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
+        TYPE(field_t), INTENT(in) :: knoten
         INTEGER(intk), INTENT(in) :: flag
 
         ! Local variables
@@ -41,8 +39,8 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL blockcheck_grid(kk, jj, ii, kanteu(ip3), &
-                kantev(ip3), kantew(ip3), knoten(ip3), flag)
+            CALL blockcheck_grid(kk, jj, ii, kanteu%arr(ip3), &
+                kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3), flag)
         END DO
     END SUBROUTINE blockcheck_level
 

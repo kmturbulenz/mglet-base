@@ -55,7 +55,7 @@ CONTAINS
 
 
     SUBROUTINE init_tfield()
-        USE core_mod, ONLY: connect => connect_field, get_field, field_t, &
+        USE core_mod, ONLY: connect, get_field, field_t, &
             minlevel, maxlevel, zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_scalar_mod, ONLY: setboundarybuffers_scalar

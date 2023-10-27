@@ -31,7 +31,7 @@ CONTAINS
     SUBROUTINE set_bp(this, bp_f)
         ! Subroutine arguments
         CLASS(gc_stencils_t), INTENT(inout) :: this
-        TYPE(field_t) :: bp_f
+        TYPE(field_t), INTENT(in) :: bp_f
 
         ! Local variables
         INTEGER(intk) :: imygrid, igrid, ind, bpcells
@@ -74,15 +74,15 @@ CONTAINS
     END SUBROUTINE set_bp
 
 
-    SUBROUTINE set_auavaw(this, bu_p, bv_p, bw_p, au_p, av_p, aw_p)
+    SUBROUTINE set_auavaw(this, bu_f, bv_f, bw_f, au_f, av_f, aw_f)
         ! Subroutine arguments
         CLASS(gc_stencils_t), INTENT(inout) :: this
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: bu_p(:)
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: bv_p(:)
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: bw_p(:)
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: au_p(:)
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: av_p(:)
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(in) :: aw_p(:)
+        TYPE(field_t), INTENT(in) :: bu_f
+        TYPE(field_t), INTENT(in) :: bv_f
+        TYPE(field_t), INTENT(in) :: bw_f
+        TYPE(field_t), INTENT(in) :: au_f
+        TYPE(field_t), INTENT(in) :: av_f
+        TYPE(field_t), INTENT(in) :: aw_f
 
         ! Local variables
         INTEGER(intk) :: imygrid, igrid, ind, ip3
@@ -104,8 +104,8 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
 
             ! Count blocked cells aucells
-            bu(1:kk, 1:jj, 1:ii) => bu_p(ip3:ip3+kk*jj*ii-1)
-            au(1:kk, 1:jj, 1:ii) => au_p(ip3:ip3+kk*jj*ii-1)
+            CALL bu_f%get_ptr(bu, igrid)
+            CALL au_f%get_ptr(au, igrid)
             aucells = 0
             DO i = 1, ii
                 DO j = 1, jj
@@ -136,8 +136,8 @@ CONTAINS
             END DO
 
             ! Notice re-using pointer
-            bu(1:kk, 1:jj, 1:ii) => bv_p(ip3:ip3+kk*jj*ii-1)
-            au(1:kk, 1:jj, 1:ii) => av_p(ip3:ip3+kk*jj*ii-1)
+            CALL bv_f%get_ptr(bu, igrid)
+            CALL av_f%get_ptr(au, igrid)
             aucells = 0
             DO i = 1, ii
                 DO j = 1, jj
@@ -166,8 +166,8 @@ CONTAINS
                 END DO
             END DO
 
-            bu(1:kk, 1:jj, 1:ii) => bw_p(ip3:ip3+kk*jj*ii-1)
-            au(1:kk, 1:jj, 1:ii) => aw_p(ip3:ip3+kk*jj*ii-1)
+            CALL bw_f%get_ptr(bu, igrid)
+            CALL aw_f%get_ptr(au, igrid)
             aucells = 0
             DO i = 1, ii
                 DO j = 1, jj
@@ -200,15 +200,15 @@ CONTAINS
     END SUBROUTINE set_auavaw
 
 
-    SUBROUTINE get_auavaw(this, bu, bv, bw, au_p, av_p, aw_p)
+    SUBROUTINE get_auavaw(this, bu, bv, bw, au_f, av_f, aw_f)
         ! Subroutine arguments
         CLASS(gc_stencils_t), INTENT(inout) :: this
-        REAL(realk), INTENT(in), CONTIGUOUS :: bu(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: bv(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: bw(:)
-        REAL(realk), TARGET, INTENT(out), CONTIGUOUS :: au_p(:)
-        REAL(realk), TARGET, INTENT(out), CONTIGUOUS :: av_p(:)
-        REAL(realk), TARGET, INTENT(out), CONTIGUOUS :: aw_p(:)
+        TYPE(field_t), INTENT(in) :: bu
+        TYPE(field_t), INTENT(in) :: bv
+        TYPE(field_t), INTENT(in) :: bw
+        TYPE(field_t), INTENT(inout) :: au_f
+        TYPE(field_t), INTENT(inout) :: av_f
+        TYPE(field_t), INTENT(inout) :: aw_f
 
         ! Local variables
         INTEGER(intk) :: imygrid, idx, igrid, ind, ip3
@@ -217,9 +217,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: au(:, :, :)
 
         ! First set AU to value of BU
-        au_p = bu
-        av_p = bv
-        aw_p = bw
+        au_f%arr = bu%arr
+        av_f%arr = bv%arr
+        aw_f%arr = bw%arr
 
         ! Now set AU, AV, AW
         all_grids: DO imygrid = 1, nmygrids
@@ -227,7 +227,7 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
-            au(1:kk, 1:jj, 1:ii) => au_p(ip3:ip3+kk*jj*ii-1)
+            CALL au_f%get_ptr(au, igrid)
             aucells = SIZE(this%auind(imygrid)%arr)
             DO idx = 1, aucells
                 ind = this%auind(imygrid)%arr(idx)
@@ -235,7 +235,7 @@ CONTAINS
                 au(k, j, i) = this%auvalue(imygrid)%arr(idx)
             END DO
 
-            au(1:kk, 1:jj, 1:ii) => av_p(ip3:ip3+kk*jj*ii-1)
+            CALL av_f%get_ptr(au, igrid)
             aucells = SIZE(this%avind(imygrid)%arr)
             DO idx = 1, aucells
                 ind = this%avind(imygrid)%arr(idx)
@@ -243,7 +243,7 @@ CONTAINS
                 au(k, j, i) = this%avvalue(imygrid)%arr(idx)
             END DO
 
-            au(1:kk, 1:jj, 1:ii) => aw_p(ip3:ip3+kk*jj*ii-1)
+            CALL aw_f%get_ptr(au, igrid)
             aucells = SIZE(this%awind(imygrid)%arr)
             DO idx = 1, aucells
                 ind = this%awind(imygrid)%arr(idx)

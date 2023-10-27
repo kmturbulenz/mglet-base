@@ -9,8 +9,8 @@ MODULE bubvbw_mod
 CONTAINS
     SUBROUTINE bubvbw(bp, bu, bv, bw)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: bp(*)
-        REAL(realk), INTENT(out) :: bu(*), bv(*), bw(*)
+        TYPE(field_t), INTENT(in) :: bp
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -24,8 +24,8 @@ CONTAINS
     SUBROUTINE bubvbw_level(ilevel, bp, bu, bv, bw)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: bp(*)
-        REAL(realk), INTENT(out) :: bu(*), bv(*), bw(*)
+        TYPE(field_t), INTENT(in) :: bp
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
@@ -35,8 +35,13 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL bubvbw_grid(kk, jj, ii, bp(ip3), bu(ip3), bv(ip3), bw(ip3))
+            CALL bubvbw_grid(kk, jj, ii, bp%arr(ip3), bu%arr(ip3), &
+                bv%arr(ip3), bw%arr(ip3))
         END DO
+
+        ! Previously directly in blockbp - this is last place where these
+        ! fields are touched
+        CALL connect(ilevel, 2, v1=bu, v2=bv, v3=bw, corners=.TRUE.)
     END SUBROUTINE bubvbw_level
 
 

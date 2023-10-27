@@ -1323,9 +1323,6 @@ CONTAINS
 
 
     SUBROUTINE setpointvalues(pwu, pwv, pww, u, v, w, comp_new)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: pwu, pwv, pww
         TYPE(field_t), INTENT(in) :: u, v, w
@@ -1396,9 +1393,6 @@ CONTAINS
 
 
     SUBROUTINE setibvalues(u, v, w)
-        ! This override the module declaration
-        USE core_mod, ONLY: connect => connect_field
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: u, v, w
 

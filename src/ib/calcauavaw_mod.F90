@@ -1,7 +1,7 @@
 MODULE calcauavaw_mod
     USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, nmygrids, &
         mygrids, nmygridslvl, mygridslvl, get_mgdims, get_ip3, get_ip3n, &
-        get_fieldptr, idim3d
+        get_fieldptr, field_t, connect
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE calcfacearea_mod, ONLY: calcfacedata, calcwallfacecenter, &
         calcwallfacecenterrescue
@@ -24,21 +24,17 @@ CONTAINS
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d), &
-            triav(ntrimax*idim3d), triaw(ntrimax*idim3d)
-        REAL(realk), INTENT(in) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
-        REAL(realk), INTENT(out) :: au(idim3d), av(idim3d), &
-            aw(idim3d)
+        INTEGER(intk), INTENT(in) :: triau(*), triav(*), triaw(*)
+        TYPE(field_t), INTENT(in) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
+        INTEGER(intk), INTENT(in) :: bzelltyp(*)
+        TYPE(field_t), INTENT(inout) :: au, av, aw
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
         INTEGER(intk), INTENT(in) :: ncellstot
         REAL(realk), INTENT(out) :: xpsw(3, ncellstot)
-        REAL(realk), INTENT(out), OPTIONAL :: yus(idim3d), &
-            zus(idim3d), xvs(idim3d), zvs(idim3d), &
-            xws(idim3d), yws(idim3d)
+        REAL(realk), INTENT(out), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
+            xws(*), yws(*)
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -60,21 +56,17 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d), &
-            triav(ntrimax*idim3d), triaw(ntrimax*idim3d)
-        REAL(realk), INTENT(in) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
-        REAL(realk), INTENT(out) :: au(idim3d), av(idim3d), &
-            aw(idim3d)
+        INTEGER(intk), INTENT(in) :: triau(*), triav(*), triaw(*)
+        TYPE(field_t), INTENT(in) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
+        INTEGER(intk), INTENT(in) :: bzelltyp(*)
+        TYPE(field_t), INTENT(inout) :: au, av, aw
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
         INTEGER(intk), INTENT(in) :: ncellstot
         REAL(realk), INTENT(out) :: xpsw(:, :)
-        REAL(realk), INTENT(out), OPTIONAL :: yus(idim3d), &
-            zus(idim3d), xvs(idim3d), zvs(idim3d), &
-            xws(idim3d), yws(idim3d)
+        REAL(realk), INTENT(out), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
+            xws(*), yws(*)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n, ipp, ncells
@@ -119,19 +111,24 @@ CONTAINS
                 CALL calcauavaw_grid(kk, jj, ii, xstag, ystag, zstag, &
                     ddx, ddy, ddz, topol%n, topol%topol, topol%bodyid, &
                     ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
-                    knoten(ip3), kanteu(ip3), kantev(ip3), kantew(ip3), &
-                    bzelltyp(ip3), au(ip3), av(ip3), aw(ip3), &
+                    knoten%arr(ip3), kanteu%arr(ip3), kantev%arr(ip3), &
+                    kantew%arr(ip3), bzelltyp(ip3), au%arr(ip3), &
+                    av%arr(ip3), aw%arr(ip3), &
                     ncells, xpsw(:, ipp:ipp+ncells-1), &
                     yus(ip3), zus(ip3), xvs(ip3), zvs(ip3), xws(ip3), yws(ip3))
             ELSE
                 CALL calcauavaw_grid(kk, jj, ii, xstag, ystag, zstag, &
                     ddx, ddy, ddz, topol%n, topol%topol, topol%bodyid, &
                     ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
-                    knoten(ip3), kanteu(ip3), kantev(ip3), kantew(ip3), &
-                    bzelltyp(ip3), au(ip3), av(ip3), aw(ip3), &
-                    ncells, xpsw(:, ipp:ipp+ncells-1))
+                    knoten%arr(ip3), kanteu%arr(ip3), kantev%arr(ip3), &
+                    kantew%arr(ip3), bzelltyp(ip3), au%arr(ip3), av%arr(ip3), &
+                    aw%arr(ip3), ncells, xpsw(:, ipp:ipp+ncells-1))
             END IF
         END DO
+
+        ! Originally found on blockbp directly - now moved here becuase this is
+        ! the last spot where AU, AV, AW are touched
+        CALL connect(ilevel, 2, v1=au, v2=av, v3=aw, corners=.TRUE.)
     END SUBROUTINE calcauavaw_level
 
 

@@ -1,6 +1,6 @@
 MODULE gc_blockface_mod
-    USE core_mod, ONLY: intk, realk, errr, minlevel, &
-        maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3
+    USE core_mod, ONLY: intk, realk, errr, minlevel, field_t, &
+        maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3
     IMPLICIT NONE(type, external)
     PRIVATE
 
@@ -8,8 +8,8 @@ MODULE gc_blockface_mod
 CONTAINS
     SUBROUTINE blockface(knoten, bu, bv, bw)
         ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(out) :: bu(idim3d), bv(idim3d), bw(idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: ilevel
@@ -23,8 +23,8 @@ CONTAINS
     SUBROUTINE blockface_level(ilevel, knoten, bu, bv, bw)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(out) :: bu(idim3d), bv(idim3d), bw(idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
@@ -34,8 +34,8 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL blockface_grid(kk, jj, ii, knoten(ip3), &
-                bu(ip3), bv(ip3), bw(ip3))
+            CALL blockface_grid(kk, jj, ii, knoten%arr(ip3), &
+                bu%arr(ip3), bv%arr(ip3), bw%arr(ip3))
         END DO
     END SUBROUTINE blockface_level
 

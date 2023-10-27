@@ -60,7 +60,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL connect(ilevel, 2, s1=finecell%arr, corners=.TRUE.)
+            CALL connect(ilevel, 2, s1=finecell, corners=.TRUE.)
         END DO
 
         DEALLOCATE(hilf)

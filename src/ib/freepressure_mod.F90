@@ -1,7 +1,7 @@
 MODULE freepressure_mod
     USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
-        mygridslvl, nmygridslvl, minlevel, maxlevel, errr, connect, &
-        field_t, get_mgdims, get_ip3, idim3d
+        mygridslvl, nmygridslvl, minlevel, maxlevel, errr, &
+        field_t, get_mgdims, get_ip3, connect
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -11,9 +11,8 @@ MODULE freepressure_mod
 CONTAINS
     SUBROUTINE freepressure(kanteu, kantev, kantew, knoten)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
+        TYPE(field_t), INTENT(in) :: kanteu, kantev, kantew
+        TYPE(field_t), INTENT(inout) :: knoten
 
         ! Local variables
         INTEGER(intk) :: ilevel, iloop
@@ -38,9 +37,8 @@ CONTAINS
     SUBROUTINE freepressure_level(ilevel, kanteu, kantev, kantew, knoten)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: kanteu(idim3d), kantev(idim3d), &
-            kantew(idim3d)
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
+        TYPE(field_t), INTENT(in) :: kanteu, kantev, kantew
+        TYPE(field_t), INTENT(inout) :: knoten
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
@@ -50,8 +48,8 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL freepressure_grid(kk, jj, ii, kanteu(ip3), kantev(ip3), &
-                kantew(ip3), knoten(ip3))
+            CALL freepressure_grid(kk, jj, ii, kanteu%arr(ip3), &
+                kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3))
         END DO
     END SUBROUTINE freepressure_level
 
@@ -124,7 +122,7 @@ CONTAINS
     SUBROUTINE correct_knoten_level(ilevel, knoten)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
+        TYPE(field_t), INTENT(inout) :: knoten
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
@@ -134,7 +132,7 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL correct_knoten_grid(kk, jj, ii, knoten(ip3))
+            CALL correct_knoten_grid(kk, jj, ii, knoten%arr(ip3))
         END DO
     END SUBROUTINE correct_knoten_level
 

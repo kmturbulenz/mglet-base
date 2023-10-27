@@ -1,7 +1,7 @@
 MODULE gc_finishknotenbezelltyp_mod
     USE core_mod, ONLY: realk, intk, errr, get_fieldptr, ngrid, minlevel, &
         maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3, &
-        get_ip3n
+        get_ip3n, field_t
     USE checkzelle_mod, ONLY: checkzelle_grid
     USE gc_zelltyp_mod, ONLY: zelltyp_grid
     USE blockcheck_mod, ONLY: blockcheck_grid
@@ -20,15 +20,15 @@ CONTAINS
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
-        REAL(realk), INTENT(in) :: bp(idim3d)
-        INTEGER(intk), INTENT(inout) :: bzelltyp(idim3d)
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
+        TYPE(field_t), INTENT(in) :: bp
+        INTEGER(intk), INTENT(inout) :: bzelltyp(*)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
         INTEGER(intk), INTENT(out) :: icells(:)
 
         ! Local variables
@@ -52,15 +52,15 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triav(ntrimax*idim3d)
-        INTEGER(intk), INTENT(in) :: triaw(ntrimax*idim3d)
-        REAL(realk), INTENT(in) :: bp(idim3d)
-        INTEGER(intk), INTENT(inout) :: bzelltyp(idim3d)
-        REAL(realk), INTENT(inout) :: knoten(idim3d)
-        REAL(realk), INTENT(inout) :: kanteu(idim3d)
-        REAL(realk), INTENT(inout) :: kantev(idim3d)
-        REAL(realk), INTENT(inout) :: kantew(idim3d)
+        INTEGER(intk), INTENT(in) :: triau(*)
+        INTEGER(intk), INTENT(in) :: triav(*)
+        INTEGER(intk), INTENT(in) :: triaw(*)
+        TYPE(field_t), INTENT(in) :: bp
+        INTEGER(intk), INTENT(inout) :: bzelltyp(*)
+        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu
+        TYPE(field_t), INTENT(inout) :: kantev
+        TYPE(field_t), INTENT(inout) :: kantew
         INTEGER(intk), INTENT(out) :: icells(:)
 
         ! Local variables
@@ -85,9 +85,9 @@ CONTAINS
 
             CALL finishknotenbezelltyp_grid(kk, jj, ii, xstag, ystag, zstag, &
                 ddx, ddy, ddz, topol%n, topol%topol, ntrimax, triau(ip3n), &
-                triav(ip3n), triaw(ip3n), bp(ip3), bzelltyp(ip3), &
-                knoten(ip3), kanteu(ip3), kantev(ip3), kantew(ip3), &
-                icells(igrid))
+                triav(ip3n), triaw(ip3n), bp%arr(ip3), bzelltyp(ip3), &
+                knoten%arr(ip3), kanteu%arr(ip3), kantev%arr(ip3), &
+                kantew%arr(ip3), icells(igrid))
         END DO
     END SUBROUTINE finishknotenbezelltyp_level
 
