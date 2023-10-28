@@ -50,7 +50,7 @@ CONTAINS
             CALL get_field(dt_f, "D"//TRIM(scalar(l)%name))
             CALL get_field(told, TRIM(scalar(l)%name)//"_OLD")
 
-            ! Copy to "T_OLD"
+            ! Copy to "T_OLD"  (TO DO: Is this step needed?)
             told%arr = t%arr
 
             ! TSTSCA4 zeroize qtu, qtv, qtw before use internally
@@ -63,13 +63,14 @@ CONTAINS
                 CALL bound_scaflux%bound(ilevel, qtu, qtv, qtw, t)
             END DO
 
-            ! fluxbalance zeroize qtt before use internally
-            CALL fluxbalance(qtt, qtu, qtv, qtw)
-
             ! Ghost cell "flux" boundary condition applied to qtt field
+            qtt%arr = 0.0
             IF (ib%type == "GHOSTCELL") THEN
                 CALL set_scastencils("P", scalar(l), qtt=qtt)
             END IF
+
+            ! fluxbalance zeroize qtt before use internally
+            CALL fluxbalance(qtt, qtu, qtv, qtw)
 
             ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
             ! the dt field before each step
@@ -525,7 +526,7 @@ CONTAINS
             rddx, rddy, rddz)
         ! Subroutine arguments
         INTEGER(intk), INTENT(IN) :: kk, jj, ii
-        REAL(realk), INTENT(OUT), DIMENSION(kk, jj, ii) :: qtt
+        REAL(realk), INTENT(INOUT), DIMENSION(kk, jj, ii) :: qtt
         REAL(realk), INTENT(IN), DIMENSION(kk, jj, ii) :: qtu, qtv, qtw
         REAL(realk), INTENT(IN) :: rddx(ii), rddy(jj), rddz(kk)
 
@@ -539,10 +540,10 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
-                    ! Computing netflux resulting from exchange with neighbors
+                    ! Computing netflux resulting from exchange with neighbors + immersed boundary
                     netflux = qtu(k, j, i-1) - qtu(k, j, i) + qtv(k, j-1, i) &
-                        - qtv(k, j, i) + qtw(k-1, j, i) - qtw(k, j, i)
-
+                        - qtv(k, j, i) + qtw(k-1, j, i) - qtw(k, j, i) + qtt(k, j, i)
+                    ! Deviding by the cell volume
                     qtt(k, j, i) = rddz(k)*rddy(j)*rddx(i)*netflux
                 END DO
             END DO
