@@ -534,12 +534,11 @@ CONTAINS
         TYPE IS (field_t)
             CALL gather_grids(bigbuf, iogridinfo, field)
             CALL write_grids(parent_id, bigbuf, iogridinfo)
-            CALL write_levels_vds(parent_id, mglet_hdf5_real, iogridinfo)
         TYPE IS (intfield_t)
             CALL gather_grids(ifkbuf, iogridinfo, field)
             CALL write_grids(parent_id, ifkbuf, iogridinfo)
-            CALL write_levels_vds(parent_id, mglet_hdf5_ifk, iogridinfo)
         END SELECT
+        CALL write_levels_vds(parent_id, field%hdf5_dtype, iogridinfo)
 
         DEALLOCATE(iogridinfo)
     END SUBROUTINE write_data
@@ -589,11 +588,11 @@ CONTAINS
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
                     CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
-                        mglet_mpi_real, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, iogrcomm, &
                         recvreq(nrecv))
                 TYPE IS (INTEGER(ifk))
                     CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
-                        mglet_mpi_ifk, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, iogrcomm, &
                         recvreq(nrecv))
                 END SELECT
                 bufptr = bufptr + nelems
@@ -656,10 +655,10 @@ CONTAINS
             SELECT TYPE (transposed)
             TYPE IS (REAL(realk))
                 CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
-                    mglet_mpi_real, 0, igrid, iogrcomm, sendreq(nsend))
+                    field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
             TYPE IS (INTEGER(ifk))
                 CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
-                    mglet_mpi_ifk, 0, igrid, iogrcomm, sendreq(nsend))
+                    field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
             END SELECT
         END DO
         CALL MPI_Waitall(nsend, sendreq, MPI_STATUSES_IGNORE)
@@ -1228,10 +1227,10 @@ CONTAINS
             SELECT TYPE (field)
             TYPE IS (field_t)
                 CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
-                    mglet_mpi_real, 0, igrid, iogrcomm, recvreq(nrecv))
+                    field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
             TYPE IS (intfield_t)
                 CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
-                    mglet_mpi_ifk, 0, igrid, iogrcomm, recvreq(nrecv))
+                    field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
             END SELECT
         END DO
 
@@ -1253,11 +1252,11 @@ CONTAINS
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
                     CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
-                        mglet_mpi_real, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, iogrcomm, &
                         sendreq(nsend))
                 TYPE IS (INTEGER(ifk))
                     CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
-                        mglet_mpi_ifk, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, iogrcomm, &
                         sendreq(nsend))
                 END SELECT
                 bufptr = bufptr + nelems
