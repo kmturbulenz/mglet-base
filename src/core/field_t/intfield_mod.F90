@@ -1,7 +1,7 @@
 MODULE intfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims
-    USE precision_mod, ONLY: intk, realk, ifk
+    USE precision_mod, ONLY: intk, realk, ifk, mglet_hdf5_ifk, mglet_mpi_ifk
     USE basefield_mod
 
     IMPLICIT NONE(type, external)
@@ -44,6 +44,9 @@ CONTAINS
 
         CALL this%init_corefield(name, description, ndim, istag, jstag, kstag, &
             units, dread, required, dwrite, active_level, get_len)
+
+        this%hdf5_dtype = mglet_hdf5_ifk
+        this%mpi_dtype = mglet_mpi_ifk
 
         ALLOCATE(this%arr(this%idim))
         this%arr = 0.0

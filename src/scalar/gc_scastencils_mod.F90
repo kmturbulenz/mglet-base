@@ -829,14 +829,14 @@ CONTAINS
         ! 1st real: setting area of the interface within the cell
         ! (additional in comparison to the velocity stencil)
         pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr)    = area
+        xpolr(pntxpolr) = area
         xpolrvel(pntxpolr) = area
 
         ! -- no iteration over velpoints --
 
         ! 3rd real: setting the additive constant (here: equal to the final cell value)
         pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr)    = 1.0
+        xpolr(pntxpolr) = 1.0
         xpolrvel(pntxpolr) =  1.0
     END SUBROUTINE tscastencilcoeffrescue
 

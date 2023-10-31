@@ -23,7 +23,7 @@ MODULE dlopen_mod
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: filename
             INTEGER(C_INT), VALUE :: mode
             TYPE(C_PTR) :: handle
-        END FUNCTION
+        END FUNCTION dlopen
 
         ! void *dlsym(void *handle, char *symbol);
         FUNCTION dlsym(handle, symbol) RESULT(funptr) BIND(C, NAME='dlsym')
@@ -31,7 +31,7 @@ MODULE dlopen_mod
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: symbol
             TYPE(C_FUNPTR) :: funptr
-        END FUNCTION
+        END FUNCTION dlsym
 
         ! void *dlsym(void *handle, char *symbol);
         FUNCTION dlsym_ptr(handle, symbol) RESULT(ptr) BIND(C, NAME='dlsym')
@@ -40,20 +40,20 @@ MODULE dlopen_mod
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: symbol
             TYPE(C_PTR) :: ptr
-        END FUNCTION
+        END FUNCTION dlsym_ptr
 
         ! int dlclose(void *handle);
         FUNCTION dlclose(handle) RESULT(ierror) BIND(C, NAME='dlclose')
             IMPORT :: c_int, c_ptr
             TYPE(C_PTR), VALUE :: handle
             INTEGER(C_INT) :: ierror
-        END FUNCTION
+        END FUNCTION dlclose
 
         ! char *dlerror(void);
         FUNCTION dlerror() RESULT(error) BIND(C, NAME='dlerror')
             IMPORT :: c_ptr
             TYPE(C_PTR) :: error
-        END FUNCTION
+        END FUNCTION dlerror
     END INTERFACE
 
     PUBLIC :: shlib_load, finish_dlopen, shlib_get_fun, shlib_get_ptr, &

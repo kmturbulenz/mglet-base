@@ -1,4 +1,6 @@
 MODULE basefield_mod
+    USE HDF5
+    USE MPI_f08
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, minlevel, maxlevel, get_imygrid, &
         level
@@ -44,6 +46,12 @@ MODULE basefield_mod
 
         ! Length and actual data array can be allocated to anything
         INTEGER(intk) :: idim = 0
+
+        ! HDF5 datatype for IO operations
+        INTEGER(hid_t) :: hdf5_dtype
+
+        ! MPI datatype for communication
+        TYPE(MPI_Datatype) :: mpi_dtype
 
         ! Attributes
         INTEGER(intk) :: n_iattr = 0

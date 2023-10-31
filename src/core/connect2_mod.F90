@@ -1372,25 +1372,30 @@ CONTAINS
 
         INTEGER(int32) :: idx, i
         TYPE(MPI_Status) :: recvstatus
-        INTEGER(int32) :: recvMessageLen
-        INTEGER(int32) :: unpackLen
+        INTEGER(int32) :: recvmessagelen
+        INTEGER(int32) :: unpacklen
 
         DO WHILE (.TRUE.)
             CALL MPI_Waitany(nRecv, recvReqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN
-                CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
-                    recvMessageLen)
+                IF (connect_integer) THEN
+                    CALL MPI_Get_count(recvstatus, mglet_mpi_ifk, &
+                        recvmessagelen)
+                ELSE
+                    CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
+                        recvmessagelen)
+                END IF
 
                 unpackLen = 0
                 DO i = 1, iRecv
                     IF (recvIdxList(1, i) == recvList(idx) .AND. recvIdxList(2, i) > 0) THEN
                         CALL read_buffer(i)
-                        unpackLen = unpackLen + recvIdxList(2, i)
+                        unpacklen = unpacklen + recvIdxList(2, i)
                     END IF
                 END DO
 
-                IF (recvMessageLen /= unpackLen) THEN
+                IF (recvmessagelen /= unpacklen) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
             ELSE

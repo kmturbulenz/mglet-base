@@ -2,7 +2,7 @@ MODULE realfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
     USE pointers_mod, ONLY: idim2d, get_ibb
-    USE precision_mod, ONLY: intk, realk
+    USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
     USE basefield_mod
     USE commbuf_mod, ONLY: bigbuf
@@ -75,6 +75,9 @@ CONTAINS
 
         CALL this%init_corefield(name, description, ndim, istag, jstag, kstag, &
             units, dread, required, dwrite, active_level, get_len)
+
+        this%hdf5_dtype = mglet_hdf5_real
+        this%mpi_dtype = mglet_mpi_real
 
         ALLOCATE(this%arr(this%idim))
         this%arr = 0.0
