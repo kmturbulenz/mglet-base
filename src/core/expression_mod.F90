@@ -27,7 +27,7 @@ MODULE expression_mod
             REAL(c_realk), INTENT(IN) :: ddy(:)
             REAL(c_realk), INTENT(IN) :: ddz(:)
             INTEGER(c_int), INTENT(out) :: ierr
-        END SUBROUTINE
+        END SUBROUTINE eval_real_expr
     END INTERFACE
 
     PUBLIC :: initial_condition

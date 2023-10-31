@@ -130,7 +130,7 @@ CONTAINS
         DEALLOCATE(woldsol)
         DEALLOCATE(wpoldsolvel)
         DEALLOCATE(woldsolvel)
-    END SUBROUTINE
+    END SUBROUTINE finish_flowstencils
 
 
     SUBROUTINE createstencils_level(ilevel, bp, bu, bv, bw, au, av, aw, &

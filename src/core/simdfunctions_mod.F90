@@ -98,7 +98,7 @@ CONTAINS
                 USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_FLOAT
                 REAL(C_FLOAT), INTENT(IN), VALUE :: arg
                 REAL(C_FLOAT) :: res
-            END FUNCTION
+            END FUNCTION cbrtf
         END INTERFACE
 
         cube_root_sp = cbrtf(a)
@@ -115,7 +115,7 @@ CONTAINS
                 USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_DOUBLE
                 REAL(C_DOUBLE), INTENT(IN), VALUE :: arg
                 REAL(C_DOUBLE) :: res
-            END FUNCTION
+            END FUNCTION cbrt
         END INTERFACE
 
         cube_root_dp = cbrt(a)

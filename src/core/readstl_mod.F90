@@ -11,7 +11,7 @@ MODULE readstl_mod
             USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_CHAR, C_INT
             CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: filename
             INTEGER(C_INT) :: ntri
-        END FUNCTION
+        END FUNCTION stl_is_binary
     END INTERFACE
 
     INTERFACE stl_read
