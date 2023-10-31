@@ -1,12 +1,24 @@
 MODULE ib_mod
+    USE blockcheck_mod, ONLY: blockcheck
     USE blocknodes_mod
+    USE calcauavaw_mod, ONLY: calcauavaw
+    USE checkzelle_mod, ONLY: checkzelle
     USE ctof_mod
     USE cutcorner_mod
+    USE filling_mod, ONLY: fillfluid
     USE flzelle_mod
+    USE freekante_mod, ONLY: freekante
+    USE freepressure_mod, ONLY: freepressure
     USE ftoc_mod
+    USE gc_blockbpfeld_mod, ONLY: blockbpfeld
+    USE gc_blockbp_mod, ONLY: blockluecken_closetoboundary
+    USE gc_blockface_mod, ONLY: blockface
+    USE gc_totwasser_mod, ONLY: totwasser
+    USE gc_zelltyp_mod, ONLY: zelltyp
     USE ibconst_mod
     USE ibcore_mod
     USE knotenundkanten_mod
+    USE openbubvbw_mod, ONLY: openbubvbw
     USE parent_mod
     USE punktekoordinaten_mod
     USE topol_mod

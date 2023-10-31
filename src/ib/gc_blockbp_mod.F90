@@ -35,7 +35,7 @@ MODULE gc_blockbp_mod
         PROCEDURE :: blockbp
     END TYPE gc_blockbp_t
 
-    PUBLIC :: gc_blockbp_t, list_to_field
+    PUBLIC :: gc_blockbp_t, list_to_field, blockluecken_closetoboundary
 
 CONTAINS
     SUBROUTINE blockbp(this, icells, icellspointer, stencils)
@@ -45,6 +45,7 @@ CONTAINS
         INTEGER(intk), INTENT(inout) :: icellspointer(:)
         TYPE(gc_stencils_t), INTENT(inout) :: stencils
 
+        ! Local variables
         INTEGER(intk), PARAMETER :: ntrimax = 2
         INTEGER(intk) :: ncells
 
@@ -73,13 +74,13 @@ CONTAINS
         ALLOCATE(triaw(ntrimax*idim3d))
         ALLOCATE(bzelltyp(idim3d))
 
-        CALL kanteu%init("KANTEU")
-        CALL kantev%init("KANTEV")
-        CALL kantew%init("KANTEW")
+        CALL kanteu%init("KANTEU", jstag=1, kstag=1)
+        CALL kantev%init("KANTEV", istag=1, kstag=1)
+        CALL kantew%init("KANTEW", istag=1, jstag=1)
 
-        CALL au%init("AU")
-        CALL av%init("AV")
-        CALL aw%init("AW")
+        CALL au%init("AU", istag=1)
+        CALL av%init("AV", jstag=1)
+        CALL aw%init("AW", kstag=1)
 
         ! Important with proper staggering for parent to work
         CALL knoten%init("KNOTEN", istag=1, jstag=1, kstag=1)
@@ -135,7 +136,7 @@ CONTAINS
         ALLOCATE(xpsw(3, ncells))
         CALL calcauavaw(this%topol, ntrimax, triau, triav, triaw, &
             knoten, kanteu, kantev, kantew, bzelltyp, au, av, aw, &
-            icells, icellspointer, ncells, xpsw)
+            icells, icellspointer, xpsw)
 
         CALL openbubvbw(au, av, aw, bu, bv, bw)
 
@@ -169,7 +170,7 @@ CONTAINS
 
         CALL calcauavaw(this%topol, ntrimax, triau, triav, triaw, &
             knoten, kanteu, kantev, kantew, bzelltyp, au, av, aw, &
-            icells, icellspointer, ncells, xpsw)
+            icells, icellspointer, xpsw)
 
         CALL this%read_velocity(velocity)
         ALLOCATE(ucell(3, ncells))
@@ -345,7 +346,7 @@ CONTAINS
         END DO
 
         CALL bodyid_3d_f%finish()
-    END SUBROUTINE
+    END SUBROUTINE update_bodyid
 
 
     SUBROUTINE list_to_field(kk, jj, ii, bzelltyp, list, field)

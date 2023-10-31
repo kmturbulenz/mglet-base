@@ -10,14 +10,16 @@ CONTAINS
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: knoten
         INTEGER(intk), INTENT(out) :: bzelltyp(*)
-        INTEGER(intk), INTENT(out) :: icells(:)
+        INTEGER(intk), INTENT(out), OPTIONAL :: icells(:)
 
         ! Local variables
         INTEGER(intk) :: ilevel
 
         ! Sanity check
-        IF (SIZE(icells) /= ngrid) CALL errr(__FILE__, __LINE__)
-        icells = 0
+        IF (PRESENT(icells)) THEN
+            IF (SIZE(icells) /= ngrid) CALL errr(__FILE__, __LINE__)
+            icells = 0
+        END IF
 
         DO ilevel = minlevel, maxlevel
             CALL zelltyp_level(ilevel, knoten, bzelltyp, icells)
@@ -30,10 +32,10 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(in) :: knoten
         INTEGER(intk), INTENT(out) :: bzelltyp(*)
-        INTEGER(intk), INTENT(out) :: icells(:)
+        INTEGER(intk), INTENT(out), OPTIONAL :: icells(:)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, icells2
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -41,7 +43,9 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             CALL zelltyp_grid(kk, jj, ii, knoten%arr(ip3), &
-                bzelltyp(ip3), icells(igrid))
+                bzelltyp(ip3), icells2)
+
+            IF (PRESENT(icells)) icells(igrid) = icells2
         END DO
     END SUBROUTINE zelltyp_level
 

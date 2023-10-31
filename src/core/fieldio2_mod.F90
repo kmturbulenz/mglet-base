@@ -534,11 +534,11 @@ CONTAINS
         TYPE IS (field_t)
             CALL gather_grids(bigbuf, iogridinfo, field)
             CALL write_grids(parent_id, bigbuf, iogridinfo)
-            CALL write_levels_vds(parent_id, iogridinfo)
+            CALL write_levels_vds(parent_id, mglet_hdf5_real, iogridinfo)
         TYPE IS (intfield_t)
             CALL gather_grids(ifkbuf, iogridinfo, field)
             CALL write_grids(parent_id, ifkbuf, iogridinfo)
-            ! No levels_vds for integer fields!
+            CALL write_levels_vds(parent_id, mglet_hdf5_ifk, iogridinfo)
         END SELECT
 
         DEALLOCATE(iogridinfo)
@@ -772,9 +772,10 @@ CONTAINS
 
     ! Write virtraul datasets "LEVEL" that point into the "DATA" array
     ! TODO: legacy - remove this feature
-    SUBROUTINE write_levels_vds(parent_id, iogridinfo)
+    SUBROUTINE write_levels_vds(parent_id, hdf5_dtype, iogridinfo)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(in) :: parent_id
+        INTEGER(HID_T), INTENT(in) :: hdf5_dtype
         INTEGER(intk), ALLOCATABLE, INTENT(in) :: iogridinfo(:, :)
 
         ! Local variables
@@ -872,7 +873,7 @@ CONTAINS
 
             ! Create dataset
             WRITE(dsetname, '("LEVEL", i0)') ilevel
-            CALL h5dcreate_f(parent_id, dsetname, mglet_hdf5_real, vspace, &
+            CALL h5dcreate_f(parent_id, dsetname, hdf5_dtype, vspace, &
                 dset_id, ierr, dcpl_id=dcpl)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
