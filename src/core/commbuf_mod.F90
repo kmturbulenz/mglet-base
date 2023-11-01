@@ -32,8 +32,8 @@ MODULE commbuf_mod
 
     PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &
-        increase_bigbuf, increase_intbuf, init_commbuf, finish_commbuf, &
-        ifkbuf, isendbuf, irecvbuf
+        increase_bigbuf, increase_intbuf, increase_ifkbuf, &
+        init_commbuf, finish_commbuf, ifkbuf, isendbuf, irecvbuf
 
 CONTAINS
     SUBROUTINE init_commbuf()
@@ -95,6 +95,16 @@ CONTAINS
             CALL allocate_buffer(length*int_bytes)
         END IF
     END SUBROUTINE increase_intbuf
+
+
+    SUBROUTINE increase_ifkbuf(length)
+        ! Length of bigbuf in number of elements
+        INTEGER(kind=int64), INTENT(in) :: length
+
+        IF (length > SIZE(ifkbuf)) THEN
+            CALL allocate_buffer(length*ifk_bytes)
+        END IF
+    END SUBROUTINE increase_ifkbuf
 
 
     SUBROUTINE allocate_buffer(length)
