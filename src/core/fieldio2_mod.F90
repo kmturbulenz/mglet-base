@@ -524,8 +524,12 @@ CONTAINS
         ! In case bigbuf is not big enough - if it is already big enough
         ! nothing happens. Only IO processes has ioproc_dim /= 0 so OK
         ! to call this collectively
-        ! TODO: ifk
-        CALL increase_bigbuf(ioproc_dim)
+        SELECT TYPE(field)
+        TYPE IS (field_t)
+            CALL increase_bigbuf(ioproc_dim)
+        TYPE IS (intfield_t)
+            CALL increase_ifkbuf(ioproc_dim)
+        END SELECT
 
         ! Gather the data in the IO processes' bigbuf
         CALL create_iogridinfo(iogridinfo, field)
@@ -916,8 +920,12 @@ CONTAINS
         ! In case bigbuf is not big enough - if it is already big enough
         ! nothing happens. Only IO processes has ioproc_dim /= 0 so OK
         ! to call this collectively
-        ! TODO: ifk!!!
-        CALL increase_bigbuf(ioproc_dim)
+        SELECT TYPE(field)
+        TYPE IS (field_t)
+            CALL increase_bigbuf(ioproc_dim)
+        TYPE IS (intfield_t)
+            CALL increase_ifkbuf(ioproc_dim)
+        END SELECT
 
         CALL create_iogridinfo(iogridinfo, field)
 
