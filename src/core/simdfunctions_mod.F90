@@ -122,23 +122,23 @@ CONTAINS
     END FUNCTION cube_root_dp
 
 
-    PURE SUBROUTINE cross_sp(a, b, c)
-        REAL(real32), INTENT(IN) :: a(3), b(3)
-        REAL(real32), INTENT(OUT) :: c(3)
+    PURE SUBROUTINE cross_sp(c, a, b)
+        REAL(real32), INTENT(out) :: c(3)
+        REAL(real32), INTENT(in) :: a(3), b(3)
 
-        c(1) = a(2) * b(3) - a(3) * b(2)
-        c(2) = a(3) * b(1) - a(1) * b(3)
-        c(3) = a(1) * b(2) - a(2) * b(1)
+        c(1) = a(2)*b(3) - a(3)*b(2)
+        c(2) = a(3)*b(1) - a(1)*b(3)
+        c(3) = a(1)*b(2) - a(2)*b(1)
     END SUBROUTINE cross_sp
 
 
-    PURE SUBROUTINE cross_dp(a, b, c)
-        REAL(real64), INTENT(IN) :: a(3), b(3)
-        REAL(real64), INTENT(OUT) :: c(3)
+    PURE SUBROUTINE cross_dp(c, a, b)
+        REAL(real64), INTENT(out) :: c(3)
+        REAL(real64), INTENT(in) :: a(3), b(3)
 
-        c(1) = a(2) * b(3) - a(3) * b(2)
-        c(2) = a(3) * b(1) - a(1) * b(3)
-        c(3) = a(1) * b(2) - a(2) * b(1)
+        c(1) = a(2)*b(3) - a(3)*b(2)
+        c(2) = a(3)*b(1) - a(1)*b(3)
+        c(3) = a(1)*b(2) - a(2)*b(1)
     END SUBROUTINE cross_dp
 
 END MODULE simdfunctions_mod
