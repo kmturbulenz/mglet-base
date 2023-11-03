@@ -16,7 +16,7 @@ MODULE utils_mod
     END INTERFACE
 
     PUBLIC :: unique, ind2sub, sub2ind, create_directory, &
-        most_frequent_nonzero, read_datfile, get_stag_shift
+        most_frequent_nonzero, read_datfile, get_stag_shift, get_idx
 
 CONTAINS
     SUBROUTINE unique(result, input)
@@ -305,4 +305,30 @@ CONTAINS
         IF (i1 == -1) istart = 2
         IF (i1 == 1) istop = ii - 1
     END SUBROUTINE get_stag_shift
+
+
+    PURE SUBROUTINE get_idx(ip, coord, x)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(out) :: ip
+        REAL(realk), INTENT(in) :: coord
+        REAL(realk), INTENT(in), CONTIGUOUS :: x(:)
+
+        ! Local variables
+        INTEGER(intk) :: ii, i
+
+        ii = SIZE(x)
+
+        ip = 0
+        DO i = 3, ii-1
+            IF (x(i) >= coord) THEN
+                ip = i-1
+                EXIT
+            END IF
+        END DO
+
+        ! solintxyzgrad0 access indices from ip-1 to ip+2
+        IF (ip < 2 .OR. ip > ii-2) THEN
+            ERROR STOP
+        END IF
+    END SUBROUTINE get_idx
 END MODULE utils_mod

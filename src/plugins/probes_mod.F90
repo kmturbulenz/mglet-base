@@ -464,7 +464,7 @@ CONTAINS
             IF (arr(iarr)%grid(iprobe) /= igrid) CYCLE
 
             IF (field%istag == 0 .AND. field%jstag == 0 .AND. &
-                    field%Kstag == 0) THEN
+                    field%kstag == 0) THEN
                 CALL solintxyzgrad0(samplevar, &
                     arr(iarr)%coordinates(:, iprobe), field3d, x, y, z, bp)
             ELSE
@@ -618,32 +618,6 @@ CONTAINS
             END DO
         END IF
     END SUBROUTINE solintxyzgrad0
-
-
-    PURE SUBROUTINE get_idx(ip, coord, x)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(out) :: ip
-        REAL(realk), INTENT(in) :: coord
-        REAL(realk), INTENT(in), CONTIGUOUS :: x(:)
-
-        ! Local variables
-        INTEGER(intk) :: ii, i
-
-        ii = SIZE(x)
-
-        ip = 0
-        DO i = 3, ii-1
-            IF (x(i) >= coord) THEN
-                ip = i-1
-                EXIT
-            END IF
-        END DO
-
-        ! solintxyzgrad0 access indices from ip-1 to ip+2
-        IF (ip < 2 .OR. ip > ii-2) THEN
-            ERROR STOP
-        END IF
-    END SUBROUTINE get_idx
 
 
     SUBROUTINE init_file_and_buffers(ittot, mtstep, itint, timeph, dt, tend)
