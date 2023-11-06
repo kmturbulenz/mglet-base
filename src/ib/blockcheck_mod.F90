@@ -87,7 +87,7 @@ CONTAINS
         END DO
 
         DO i = 1, ii
-            DO j = 2, kk
+            DO j = 2, jj
                 DO k = 1, kk
                     IF (flag == 0 .AND. NINT(kantev(k, j, i)) == 0) THEN
                         WRITE(*, *) 'blockcheck, kantev=0', k, j, i
