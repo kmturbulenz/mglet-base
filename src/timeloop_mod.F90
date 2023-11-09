@@ -449,7 +449,9 @@ CONTAINS
         ks = cflmax/dt
         ki = 1.0/ks/ndtrelax*itinfo
         ra = targetcflmax - cflmax
-        dt = dt + ki*ra
+
+        ! Do not allow DT to increase more than a factor of two
+        dt = MIN(dt + ki*ra, 2.0*dt)
     END SUBROUTINE adjust_timestep
 
 
