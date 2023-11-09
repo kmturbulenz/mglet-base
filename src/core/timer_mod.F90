@@ -2,6 +2,7 @@ MODULE timer_mod
     USE comms_mod
     USE err_mod
     USE precision_mod
+    USE buildinfo_mod, ONLY: mglet_dbg_envvar
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_double, c_int, c_long_long, &
         c_f_pointer
     USE MPI_f08
@@ -120,7 +121,6 @@ CONTAINS
     END SUBROUTINE start_timer
 
 
-
     ! Stop timer and update running average
     SUBROUTINE stop_timer(idx)
         ! Subroutine arguments
@@ -192,7 +192,7 @@ CONTAINS
         CALL create_reduction()
 
         IF (myid == 0) THEN
-            open(newunit=wu, file=filename)
+            OPEN(newunit=wu, file=filename)
             WRITE(wu, *) "TIMING RESULTS:"
             WRITE(wu, *) "  Average time per instance."
             WRITE(wu, *) "  Minimum and maximum average instance time per process."
@@ -265,7 +265,51 @@ CONTAINS
 
         CALL MPI_Op_free(mpiop)
         CALL MPI_Type_free(mpitype)
+
+        IF (INDEX(mglet_dbg_envvar, "individual_timers") > 0) THEN
+            CALL print_individual_timers()
+        END IF
     END SUBROUTINE finish_timer
+
+
+    SUBROUTINE print_individual_timers()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        INTEGER(intk) :: i
+        CHARACTER(len=256) :: filename
+        INTEGER :: unit
+
+        WRITE(filename, '("mglet-perf-rank-", I0, ".txt")') myid
+        OPEN(newunit=unit, file=filename)
+
+        WRITE(unit, '("TIMING RESULT FOR RANK: ", I0)') myid
+        WRITE(unit, '()')
+        WRITE(unit, '("INCLUSIVE TIME:")')
+        WRITE(unit, '(A6, 1X, A32, 1X, A12, A12, A12, A12, A12)') "idx", &
+            "region", "average", "instances", "total"
+        DO i = 1, maxtimers
+            IF (timers(i)%n > 0) THEN
+                WRITE(unit, '(I6, 1X, A32, 1X, ES12.3, I12, ES12.3)') &
+                    i, TRIM(timers(i)%desc), timers(i)%meanTime, &
+                    timers(i)%n, timers(i)%meanTime*timers(i)%n
+            END IF
+        END DO
+        WRITE(unit, '()')
+        WRITE(unit, '("EXCLUSIVE TIME:")')
+        WRITE(unit, '(A6, 1X, A32, 1X, A12, A12, A12, A12, A12)') "idx", &
+            "region", "average", "instances", "total"
+        DO i = 1, maxtimers
+            IF (timers(i)%n > 0) THEN
+                WRITE(unit, '(I6, 1X, A32, 1X, ES12.3, I12, ES12.3)') &
+                    i, TRIM(timers(i)%desc), timers(i)%exMeanTime, &
+                    timers(i)%n, timers(i)%exMeanTime*timers(i)%n
+            END IF
+        END DO
+
+        CLOSE(unit)
+    END SUBROUTINE print_individual_timers
 
 
     SUBROUTINE create_reduction()
