@@ -33,6 +33,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i2, i3, i4, istag1, istag2, dir, nop1
         REAL(realk) :: umagsqr, sbu, sbv, sbw, pinf(1)
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, ubfine
+        REAL(realk) :: flag, vi, wi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
@@ -92,16 +93,27 @@ CONTAINS
             DO j = 1, jj
                 DO k = 1, kk
                     u(k, j, istag2) = ubuf(k, j, 1)
-                    v(k, j, i2) = 2*vbuf(k, j, 1) - v(k, j, i3)
-                    w(k, j, i2) = 2*wbuf(k, j, 1) - w(k, j, i3)
+                    v(k, j, i2) = 2.0*vbuf(k, j, 1) - v(k, j, i3)
+                    w(k, j, i2) = 2.0*wbuf(k, j, 1) - w(k, j, i3)
                 END DO
             END DO
         CASE ("OP1")
-            DO j = 1, jj
-                DO k = 1, kk
+            DO j = 1, jj-1
+                DO k = 1, kk-1
+                    ! Interface-normal velocity is always zero-gradient for OP1
                     u(k, j, istag1) = u(k, j, istag2)
-                    v(k, j, i2) = v(k, j, i3)
-                    w(k, j, i2) = w(k, j, i3)
+
+                    ! Tangential velocities are zero-gradient for outflow,
+                    ! and prescribed values in case of inflow
+                    flag = SIGN(1.0, dir*(u(k, j, istag2) + u(k, j+1, istag2)))
+                    flag = 0.5*(flag + 1.0)
+                    v(k, j, i2) = flag*v(k, j, i3) &
+                        + (1.0-flag)*(2.0*vbuf(k, j, 1) - v(k, j, i3))
+
+                    flag = SIGN(1.0, dir*(u(k, j, istag2) + u(k+1, j, istag2)))
+                    flag = 0.5*(flag + 1.0)
+                    w(k, j, i2) = flag*w(k, j, i3) &
+                        + (1.0-flag)*(2.0*wbuf(k, j, 1) - w(k, j, i3))
                 END DO
             END DO
         CASE ("NOS")
@@ -217,12 +229,14 @@ CONTAINS
                     CALL errr(__FILE__, __LINE__)
                 END IF
 
-                DO j = 1, jj
-                    DO k = 1, kk
-                        ! TODO: interpolate this quantity properly, right
-                        ! now it is not symmetric!
-                        umagsqr = u(k, j, istag2)**2 + v(k, j, i3)**2 &
-                            + w(k, j, i3)**2
+                DO j = 2, jj
+                    DO k = 2, kk
+                        vi = 0.25*(v(k, j-1, i2) + v(k, j, i2) &
+                            + v(k, j-1, i3) + v(k, j, i3))
+                        wi = 0.25*(w(k-1, j, i2) + w(k, j, i2) &
+                            + w(k-1, j, i3) + w(k, j, i3))
+                        umagsqr = u(k, j, istag2)**2 + vi**2 + wi**2
+
                         p(k, j, i2) = pinf(1) + MIN(0.0_realk, &
                             0.5*rho*SIGN(umagsqr, dir*u(k, j, istag2)))
                     END DO
@@ -251,6 +265,7 @@ CONTAINS
         INTEGER(intk) :: k, i, j2, j3, j4, jstag1, jstag2, dir, nop1
         REAL(realk) :: umagsqr, sbu, sbv, sbw, pinf(1)
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, vbfine
+        REAL(realk) :: flag, ui, wi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
@@ -309,17 +324,30 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO k = 1, kk
-                    u(k, j2, i) = 2*ubuf(k, i, 1) - u(k, j3, i)
+                    u(k, j2, i) = 2.0*ubuf(k, i, 1) - u(k, j3, i)
                     v(k, jstag2, i) = vbuf(k, i, 1)
-                    w(k, j2, i) = 2*wbuf(k, i, 1) - w(k, j3, i)
+                    w(k, j2, i) = 2.0*wbuf(k, i, 1) - w(k, j3, i)
                 END DO
             END DO
         CASE ("OP1")
-            DO i = 1, ii
-                DO k = 1, kk
-                    u(k, j2, i) = u(k, j3, i)
+            DO i = 1, ii-1
+                DO k = 1, kk-1
+                    ! Tangential velocities are zero-gradient for outflow,
+                    ! and prescribed values in case of inflow
+                    flag = SIGN(1.0, dir*(v(k, jstag2, i) + v(k, jstag2, i+1)))
+                    flag = 0.5*(flag + 1.0)
+                    u(k, j2, i) = flag*u(k, j3, i) &
+                        + (1.0-flag)*(2.0*ubuf(k, i, 1) - u(k, j3, i))
+
+                    ! Interface-normal velocity is always zero-gradient for OP1
                     v(k, jstag1, i) = v(k, jstag2, i)
-                    w(k, j2, i) = w(k, j3, i)
+
+                    ! Tangential velocities are zero-gradient for outflow,
+                    ! and prescribed values in case of inflow
+                    flag = SIGN(1.0, dir*(v(k, jstag2, i) + v(k+1, jstag2, i)))
+                    flag = 0.5*(flag + 1.0)
+                    w(k, j2, i) = flag*w(k, j3, i) &
+                        + (1.0-flag)*(2.0*wbuf(k, i, 1) - w(k, j3, i))
                 END DO
             END DO
         CASE ("NOS")
@@ -435,12 +463,14 @@ CONTAINS
                     CALL errr(__FILE__, __LINE__)
                 END IF
 
-                DO i = 1, ii
-                    DO k = 1, kk
-                        ! TODO: interpolate this quantity properly, right
-                        ! now it is not symmetric!
-                        umagsqr = u(k, j3, i)**2 + v(k, jstag2, i)**2 &
-                            + w(k, j3, i)**2
+                DO i = 2, ii
+                    DO k = 2, kk
+                        ui = 0.25*(u(k, j2, i-1) + u(k, j2, i) &
+                            + u(k, j3, i-1) + u(k, j3, i))
+                        wi = 0.25*(w(k-1, j2, i) + w(k, j2, i) &
+                            + w(k-1, j3, i) + w(k, j3, i))
+                        umagsqr = ui**2 + v(k, jstag2, i)**2 + wi**2
+
                         p(k, j2, i) = pinf(1) + MIN(0.0_realk, &
                             0.5*rho*SIGN(umagsqr, dir*v(k, jstag2, i)))
                     END DO
@@ -469,6 +499,7 @@ CONTAINS
         INTEGER(intk) :: j, i, k2, k3, k4, kstag1, kstag2, dir, nop1
         REAL(realk) :: umagsqr, sbu, sbv, sbw, pinf(1)
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, wbfine
+        REAL(realk) :: flag, ui, vi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
@@ -527,16 +558,27 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO j = 1, jj
-                    u(k2, j, i) = 2*ubuf(j, i, 1) - u(k3, j, i)
-                    v(k2, j, i) = 2*vbuf(j, i, 1) - v(k3, j, i)
+                    u(k2, j, i) = 2.0*ubuf(j, i, 1) - u(k3, j, i)
+                    v(k2, j, i) = 2.0*vbuf(j, i, 1) - v(k3, j, i)
                     w(kstag2, j, i) = wbuf(j, i, 1)
                 END DO
             END DO
         CASE ("OP1")
-            DO i = 1, ii
-                DO j = 1, jj
-                    u(k2, j, i) = u(k3, j, i)
-                    v(k2, j, i) = v(k3, j, i)
+            DO i = 1, ii-1
+                DO j = 1, jj-1
+                    ! Tangential velocities are zero-gradient for outflow,
+                    ! and prescribed values in case of inflow
+                    flag = SIGN(1.0, dir*(w(kstag2, j, i) + w(kstag2, j, i+1)))
+                    flag = 0.5*(flag + 1.0)
+                    u(k2, j, i) = flag*u(k3, j, i) &
+                        + (1.0-flag)*(2*ubuf(j, i, 1) - u(k3, j, i))
+
+                    flag = SIGN(1.0, dir*(w(kstag2, j, i) + w(kstag2, j+1, i)))
+                    flag = 0.5*(flag + 1.0)
+                    v(k2, j, i) = flag*v(k3, j, i) &
+                        + (1.0-flag)*(2.0*vbuf(j, i, 1) - v(k3, j, i))
+
+                    ! Interface-normal velocity is always zero-gradient for OP1
                     w(kstag1, j, i) = w(kstag2, j, i)
                 END DO
             END DO
@@ -653,12 +695,14 @@ CONTAINS
                     CALL errr(__FILE__, __LINE__)
                 END IF
 
-                DO i = 1, ii
-                    DO j = 1, jj
-                        ! TODO: interpolate this quantity properly, right
-                        ! now it is not symmetric!
-                        umagsqr = u(k3, j, i)**2 + v(kstag2, j, i)**2 &
-                            + w(k3, j, i)**2
+                DO i = 2, ii
+                    DO j = 2, jj
+                        ui = 0.25*(u(k2, j, i-1) + u(k2, j, i) &
+                            + u(k3, j, i-1) + u(k3, j, i))
+                        vi = 0.25*(v(k2, j-1, i) + v(k2, j, i) &
+                            + v(k3, j-1, i) + v(k3, j, i))
+
+                        umagsqr = ui**2 + vi**2 + w(kstag2, j, i)**2
                         p(k2, j, i) = pinf(1) + MIN(0.0_realk, &
                             0.5*rho*SIGN(umagsqr, dir*w(kstag2, j, i)))
                     END DO

@@ -36,8 +36,15 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: xbuf(2), dxbuf(2)
 
-        ! Only works on FIX boundaries, should do nothing otherwise
-        IF (ctyp /= 'FIX') RETURN
+        ! Only works on FIX and OP1 boundaries, should do nothing otherwise
+        ! For OP1 the velocity set is the velocity that is prescribed when
+        ! there are backflow/inflow through the boundary.
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1")
+            CONTINUE
+        CASE DEFAULT
+            RETURN
+        END SELECT
 
         ! Assure that required fields are present
         IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3)) THEN
@@ -105,8 +112,15 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: ybuf(2), dybuf(2)
 
-        ! Only works on FIX boundaries, should do nothing otherwise
-        IF (ctyp /= 'FIX') RETURN
+        ! Only works on FIX and OP1 boundaries, should do nothing otherwise
+        ! For OP1 the velocity set is the velocity that is prescribed when
+        ! there are backflow/inflow through the boundary.
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1")
+            CONTINUE
+        CASE DEFAULT
+            RETURN
+        END SELECT
 
         ! Assure that required fields are present
         IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3)) THEN
@@ -174,8 +188,15 @@ CONTAINS
             wbuf(:, :, :)
         REAL(realk) :: zbuf(2), dzbuf(2)
 
-        ! Only works on FIX boundaries, should do nothing otherwise
-        IF (ctyp /= 'FIX') RETURN
+        ! Only works on FIX and OP1 boundaries, should do nothing otherwise
+        ! For OP1 the velocity set is the velocity that is prescribed when
+        ! there are backflow/inflow through the boundary.
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1")
+            CONTINUE
+        CASE DEFAULT
+            RETURN
+        END SELECT
 
         ! Assure that required fields are present
         IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3)) THEN
