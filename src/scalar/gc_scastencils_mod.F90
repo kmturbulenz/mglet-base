@@ -71,6 +71,7 @@ CONTAINS
         INTEGER(intk) :: bconds(6)
         REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
         REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:)
+        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -85,13 +86,17 @@ CONTAINS
             CALL get_fieldptr(ystag, "YSTAG", igrid)
             CALL get_fieldptr(zstag, "ZSTAG", igrid)
 
+            CALL get_fieldptr(ddx, "DDX", igrid)
+            CALL get_fieldptr(ddy, "DDY", igrid)
+            CALL get_fieldptr(ddz, "DDZ", igrid)
+
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
             CALL get_mgbasb(bconds, igrid)
 
             CALL tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
-                bp(ip3), bzelltyp(ip3), bconds, ncells, &
+                ddx, ddy, ddz, bp(ip3), bzelltyp(ip3), bconds, ncells, &
                 nvecs(:, ipp:ipp+ncells-1), arealist(ipp:ipp+ncells-1), &
                 bodyid(ipp:ipp+ncells-1))
         END DO
@@ -99,7 +104,8 @@ CONTAINS
 
 
     SUBROUTINE tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
-            bp, bzelltyp, bconds, icells, nvecs, arealist, bodyid)
+            ddx, ddy, ddz, bp, bzelltyp, bconds, icells, nvecs, arealist, &
+            bodyid)
 
         USE findinterface_mod, ONLY: findinterface2
 
@@ -108,6 +114,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
         REAL(realk), INTENT(in) :: xstag(ii), ystag(jj), zstag(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: bzelltyp(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: bconds(6)
@@ -128,7 +135,7 @@ CONTAINS
         INTEGER(intk) :: xpolisize, xpolrsize, imygrid
         INTEGER(intk) :: inlst(lsize), jnlst(lsize), knlst(lsize), nnlst
         INTEGER(intk) :: body
-        REAL(realk) :: area
+        REAL(realk) :: area, areabyvol
         INTEGER(intk), ALLOCATABLE :: xpoli(:)
         REAL(realk), ALLOCATABLE :: xpolr(:), xpolrvel(:)
 
@@ -165,12 +172,13 @@ CONTAINS
 
                             ! Retrieving the values for surface-intersected cell
                             area = arealist(-bzelltyp(k, j, i))
+                            areabyvol = area/(ddx(i)*ddy(j)*ddz(k))
                             body = bodyid(-bzelltyp(k, j, i))
 
                             ! Creating a stencil that only stores area for flux
                             CALL tscastencilcoeffarea(k, j, i, kk, jj, ii, &
                                 pntxpoli, xpoli, pntxpolr, xpolr, xpolrvel, &
-                                area, body)
+                                areabyvol, body)
                         END IF
                     ELSE
                         counter = counter + 1
@@ -263,33 +271,35 @@ CONTAINS
                             ! Check if area comes from this cell
                             IF (k == kt .AND. j == jt .AND. i == it) THEN
                                 area = arealist(-bzelltyp(kt, jt, it))
+                                areabyvol = area/(ddx(i)*ddy(j)*ddz(k))
                             ELSE
-                                area = 0.0
+                                areabyvol = 0.0
                             END IF
                             body = bodyid(-bzelltyp(kt, jt, it))
 
                             ! Computation of the "proper" stencil for scalar
                             CALL tscastencilcoeff(k, j, i, kt, jt, it, kk, jj, &
-                                ii, x, y, z, xstag, ystag, zstag, bp, &
-                                bzelltyp, bconds, nnlst, inlst, jnlst, knlst, &
-                                velpts, nvecs, ldofa, area, body, pntxpoli, &
-                                xpoli, pntxpolr, xpolr, xpolrvel, found3)
+                                ii, x, y, z, xstag, ystag, zstag, ddx, ddy, &
+                                ddz, bp, bzelltyp, bconds, nnlst, inlst, &
+                                jnlst, knlst, velpts, nvecs, ldofa, areabyvol, &
+                                body, pntxpoli, xpoli, pntxpolr, xpolr, &
+                                xpolrvel, found3)
 
                             ! Check successful generation of a stencil by
                             ! tscastencilcoeff
                             IF (found3 <= 0) THEN
                                 CALL tscastencilcoeffrescue(k, j, i, kk, jj, &
                                     ii, pntxpoli, xpoli, pntxpolr, xpolr, &
-                                    xpolrvel, area, body)
+                                    xpolrvel, areabyvol, body)
                             END IF
                         ELSE
                            ! rescuestencil, because no triangle was found
                             ! (emergency solution)
-                           area = 0.0
-                           body = 0
-                           CALL tscastencilcoeffrescue(k, j, i, kk, jj, &
+                            areabyvol = 0.0
+                            body = 0
+                            CALL tscastencilcoeffrescue(k, j, i, kk, jj, &
                                 ii, pntxpoli, xpoli, pntxpolr, xpolr, &
-                                xpolrvel, area, body)
+                                xpolrvel, areabyvol, body)
                         END IF
                     END IF
 
@@ -314,10 +324,11 @@ CONTAINS
 
 
     SUBROUTINE tscastencilcoeffarea(k, j, i, kk, jj, ii, pntxpoli, xpoli, &
-            pntxpolr, xpolr, xpolrvel, area, body)
+            pntxpolr, xpolr, xpolrvel, areabyvol, body)
 
         ! Creation of special stencil, that only considers fluxes.
-        ! The intersected area is stored.
+        ! The intersected area divided by the open cell volume
+        ! ddx(i)*ddy(j)*ddz(k) is stored.
         ! All coefficients of Dirichlet parameters are set such that value
         ! is not changed.
 
@@ -327,7 +338,7 @@ CONTAINS
         REAL(realk), INTENT(inout) :: xpolr(:)
         REAL(realk), INTENT(inout) :: xpolrvel(:)
         INTEGER(intk), INTENT(inout) :: pntxpoli, pntxpolr
-        REAL(realk), intent(in) :: area
+        REAL(realk), intent(in) :: areabyvol
         INTEGER(intk), INTENT(in) :: body
 
         ! Local variables
@@ -360,11 +371,11 @@ CONTAINS
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = velpts  ! = 1
 
-        ! 1st real: setting area of the interface within the cell
+        ! 1st real: setting area/volume of the interface within the cell
         ! (additional in comparison to the velocity stencil)
         pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr) = area
-        xpolrvel(pntxpolr) = area
+        xpolr(pntxpolr) = areabyvol
+        xpolrvel(pntxpolr) = areabyvol
 
         ! -- replaces iteration over velpoints --
         pntxpoli = pntxpoli + 1
@@ -382,9 +393,9 @@ CONTAINS
 
 
     SUBROUTINE tscastencilcoeff(k, j, i, kt, jt, it, kk, jj, ii, x, y, z, &
-        xstag, ystag, zstag, bp, bzelltyp, bconds, nnlst, inlst, jnlst, &
-        knlst, velpts, nvecs, ldofa, area, body, pntxpoli, xpoli, &
-        pntxpolr, xpolr, xpolrvel, found)
+        xstag, ystag, zstag, ddx, ddy, ddz, bp, bzelltyp, bconds, nnlst, &
+        inlst, jnlst, knlst, velpts, nvecs, ldofa, areabyvol, body, pntxpoli, &
+        xpoli, pntxpolr, xpolr, xpolrvel, found)
 
         ! NOTE: This subroutine is very close to calcflux from
         ! gc_flowstencils_mod.F90
@@ -395,6 +406,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
         REAL(realk), INTENT(in) :: xstag(ii), ystag(jj), zstag(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: bzelltyp(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: bconds(6)
@@ -403,7 +415,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: velpts
         REAL(realk), CONTIGUOUS, INTENT(in) :: nvecs(:, :)
         INTEGER(intk), INTENT(in) :: ldofa
-        REAL(realk), INTENT(in) :: area
+        REAL(realk), INTENT(in) :: areabyvol
         INTEGER(intk), INTENT(in) :: body
         INTEGER(intk), INTENT(inout) :: pntxpoli
         INTEGER(intk), CONTIGUOUS, INTENT(inout) :: xpoli(:)
@@ -437,9 +449,9 @@ CONTAINS
         END IF
 
         CALL calcfluxtsca(k, j, i, kt, jt, it, kk, jj, ii, &
-            x, y, z, xstag, ystag, zstag, bzelltyp, istc, jstc, kstc, &
-            chosenvelpts, nvecs, coeffstc, acoeffstc, coeffstcvel, &
-            acoeffstcvel, found)
+            x, y, z, xstag, ystag, zstag, ddx, ddy, ddz, bzelltyp, &
+            istc, jstc, kstc, chosenvelpts, nvecs, coeffstc, acoeffstc, &
+            coeffstcvel, acoeffstcvel, found)
 
         ! catching bad values, rescue-Stencil (similar to velocity stencil)
         DO mm = 1, chosenvelpts
@@ -453,14 +465,15 @@ CONTAINS
         IF (found == 1) THEN
             CALL tscastencilcoefffull(k, j, i, kk, jj, ii, pntxpoli, xpoli, &
                 pntxpolr, xpolr, xpolrvel, chosenvelpts, istc, jstc, kstc, &
-                coeffstc, acoeffstc, coeffstcvel, acoeffstcvel, area, body)
+                coeffstc, acoeffstc, coeffstcvel, acoeffstcvel, areabyvol, body)
         END IF
     END SUBROUTINE tscastencilcoeff
 
 
     SUBROUTINE calcfluxtsca(k, j, i, kt, jt, it, kk, jj, ii, x, y, z, &
-            xstag, ystag, zstag, bzelltyp, istc, jstc, kstc, velpts, nvecs, &
-            coeffstc, acoeffstc, coeffstctsca, acoeffstctsca, found)
+            xstag, ystag, zstag, ddx, ddy, ddz, bzelltyp, istc, jstc, kstc, &
+            velpts, nvecs, coeffstc, acoeffstc, coeffstctsca, &
+            acoeffstctsca, found)
 
         !  Function computes the interpolation coefficients for the stencils:
         !  - coeffstc = required for scalar cell value (these coefficients are
@@ -483,6 +496,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
         REAL(realk), INTENT(in) :: xstag(ii), ystag(jj), zstag(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         INTEGER(intk), INTENT(in) :: bzelltyp(kk, jj, ii)
         INTEGER(intk), CONTIGUOUS, INTENT(in) :: istc(:), jstc(:), kstc(:)
         INTEGER(intk), INTENT(in) :: velpts
@@ -500,8 +514,8 @@ CONTAINS
         INTEGER(intk) :: idx
         INTEGER(intk) :: cvol1, cvol2     ! counters (1=fluid, 2=solid)
         REAL(realk) :: a, b, c, dpl
-        REAL(realk) :: dx, dy, dz, xs, ys, zs
-        REAL(realk) :: ddx, ddy, ddz, xm, ym, zm, dvol, dir, sum
+        REAL(realk) :: xs, ys, zs
+        REAL(realk) :: ddi, ddj, ddk, xm, ym, zm, dvol, dir, sum
         REAL(realk) :: dist(velpts), ce(velpts), cesum, dall, dpoint
 
         ! Same as in the beginning of wmmultimatrix
@@ -565,32 +579,29 @@ CONTAINS
             cesum = cesum + ce(n)
         END DO
 
-        ! TODO: ddx?
-        dx = xstag(i)-xstag(i-1)
-        dy = ystag(j)-ystag(j-1)
-        dz = zstag(k)-zstag(k-1)
+        ! TODO: replace the volume integration here with something better,
+        ! preferably from the blocking/stencils.
+        ddi = ddx(i)/parts
+        ddj = ddy(j)/parts
+        ddk = ddz(k)/parts
 
-        ddx = dx/parts
-        ddy = dy/parts
-        ddz = dz/parts
-
-        xs = xstag(i-1) - ddx/2.0
-        ys = ystag(j-1) - ddy/2.0
-        zs = zstag(k-1) - ddz/2.0
+        xs = xstag(i-1) - ddi/2.0
+        ys = ystag(j-1) - ddj/2.0
+        zs = zstag(k-1) - ddk/2.0
 
         cvol1 = 0
         cvol2 = 0
 
         ! Volume of one single small part of the cell
-        dvol = ddx*ddy*ddz
+        dvol = ddi*ddj*ddk
 
         ! iteration over all small dV = dx*dy*dz (volume integration)
         DO it2 = 1, parts
-            xm = xs + ddx*REAL(it2, realk)
+            xm = xs + ddi*REAL(it2, realk)
             DO jt2 = 1, parts
-                ym = ys + ddy*REAL(jt2, realk)
+                ym = ys + ddj*REAL(jt2, realk)
                 DO kt2 = 1, parts
-                    zm = zs + ddz*REAL(kt2, realk)
+                    zm = zs + ddk*REAL(kt2, realk)
                     ! (xm,ym,zm) = center of a small volume part dx * dy * dz
 
                     dir = (a*xm + b*ym + c*zm) - dpl
@@ -719,7 +730,7 @@ CONTAINS
 
     SUBROUTINE tscastencilcoefffull(k, j, i, kk, jj, ii, pntxpoli, xpoli, &
             pntxpolr, xpolr, xpolrvel, velpts, istc, jstc, kstc, coeffstc, &
-            acoeffstc, coeffstcvel, acoeffstcvel, area, body)
+            acoeffstc, coeffstcvel, acoeffstcvel, areabyvol, body)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: k, j, i
@@ -732,7 +743,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istc(:), jstc(:), kstc(:)
         REAL(realk), INTENT(in) :: coeffstc(:), acoeffstc
         REAL(realk), INTENT(in) :: coeffstcvel(:), acoeffstcvel
-        REAL(realk), INTENT(in) :: area
+        REAL(realk), INTENT(in) :: areabyvol
         INTEGER(intk), INTENT(in) :: body
 
         ! Local variables
@@ -761,11 +772,11 @@ CONTAINS
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = velpts
 
-        ! 1st real: setting area of the interface within the cell
+        ! 1st real: setting area/volume of the interface within the cell
         ! (additional in comparison to the velocity stencil)
         pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr) = area
-        xpolrvel(pntxpolr) = area
+        xpolr(pntxpolr) = areabyvol
+        xpolrvel(pntxpolr) = areabyvol
 
         ! here with iteration over all N peripheral stencil points
         ! (velpts here carries the value of "chosenvelpts")
@@ -786,7 +797,7 @@ CONTAINS
 
 
     SUBROUTINE tscastencilcoeffrescue(k, j, i, kk, jj, ii, pntxpoli, xpoli, &
-            pntxpolr, xpolr, xpolrvel, area, body)
+            pntxpolr, xpolr, xpolrvel, areabyvol, body)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: k, j, i, kk, jj, ii
@@ -794,7 +805,7 @@ CONTAINS
         REAL(realk), INTENT(inout) :: xpolr(:)
         REAL(realk), INTENT(inout) :: xpolrvel(:)
         INTEGER(intk), INTENT(inout) :: pntxpoli, pntxpolr
-        REAL(realk), intent(in) :: area
+        REAL(realk), intent(in) :: areabyvol
         INTEGER(intk), INTENT(in) :: body
 
         ! Local variables
@@ -826,11 +837,11 @@ CONTAINS
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = velpts
 
-        ! 1st real: setting area of the interface within the cell
+        ! 1st real: setting area/volume of the interface within the cell
         ! (additional in comparison to the velocity stencil)
         pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr) = area
-        xpolrvel(pntxpolr) = area
+        xpolr(pntxpolr) = areabyvol
+        xpolrvel(pntxpolr) = areabyvol
 
         ! -- no iteration over velpoints --
 
@@ -953,8 +964,8 @@ CONTAINS
         stencils = xpoli(pntxpoli)
         pntxpoli = pntxpoli + 1
 
-        ! 1st real: area required for the flux
-        ! area = xpolr(pntxpolr)
+        ! 1st real: areabyvol required for the flux
+        ! areabyvol = xpolr(pntxpolr)
         pntxpolr = pntxpolr + 1
 
         ! Computing the fixed value
@@ -994,7 +1005,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: intcell, body, bctype, stencils
-        REAL(realk) :: area, bcval
+        REAL(realk) :: areabyvol, bcval
 
         ! 1st integer: identifier of the interface cell
         intcell = xpoli(pntxpoli)
@@ -1019,8 +1030,8 @@ CONTAINS
         stencils = xpoli(pntxpoli)
         pntxpoli = pntxpoli + 1
 
-        ! 1st real: area required for the flux
-        area = xpolr(pntxpolr)
+        ! 1st real: areabyvol required for the flux
+        areabyvol = xpolr(pntxpolr)
         pntxpolr = pntxpolr + 1
 
         ! Increment counter for unused variables
@@ -1030,7 +1041,7 @@ CONTAINS
 
         ! Add flux to list of fluxes
         IF (bctype == 1) THEN
-            var(intcell) = var(intcell) + area*bcval
+            var(intcell) = var(intcell) + areabyvol*bcval
         END IF
     END SUBROUTINE wmxpoltsca_qtt
 
