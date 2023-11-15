@@ -175,6 +175,8 @@ CONTAINS
             CALL MPI_Comm_free(shm_masters_comm)
         END IF
 
+        CALL MPI_Errhandler_free(errh)
+
         IF (myid == 0) THEN
             WRITE(*, '("MGLET FINISHED SUCCESSFULLY!")')
             WRITE(*, '()')

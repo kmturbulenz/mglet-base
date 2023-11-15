@@ -186,7 +186,7 @@ CONTAINS
         DO iarr = 1, narrays
             IF (ALLOCATED(arr(iarr)%mpitype)) THEN
                 lb = LBOUND(arr(iarr)%mpitype, dim=1)
-                ub = LBOUND(arr(iarr)%mpitype, dim=1)
+                ub = UBOUND(arr(iarr)%mpitype, dim=1)
                 DO i = lb, ub
                     CALL MPI_Type_free(arr(iarr)%mpitype(i))
                 END DO
