@@ -252,6 +252,9 @@ CONTAINS
             END IF
             inStat%avgN = inStat%n/numprocs
 
+            ! Explicitly initialize stat%n to avoid valgrind errors in the
+            ! IF below (otherwise it is uninitialized for ranks /= 0)
+            stat%n = 0
             CALL MPI_Reduce(inStat, stat, 1, mpitype, mpiop, 0, &
                 MPI_COMM_WORLD)
 

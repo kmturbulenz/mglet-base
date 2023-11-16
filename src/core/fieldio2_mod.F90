@@ -801,7 +801,8 @@ CONTAINS
 
         ! If array "IGRIDLVL" exists already we can skip this function
         ! because it would not write any new data only virtual datasets
-        CALL hdf5common_dataset_exists("IGRIDLVL", parent_id, link_exists)
+        CALL h5lexists_f(parent_id, "IGRIDLVL", link_exists, ierr)
+        IF (ierr < 0) CALL errr(__FILE__, __LINE__)
         IF (link_exists) RETURN
 
         CALL create_iogridinfo_all(iogridinfo_all, iogridinfo)
