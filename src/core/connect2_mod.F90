@@ -381,7 +381,7 @@ CONTAINS
         LOGICAL :: has_real_arg
         LOGICAL :: has_int_arg
 
-        CALL start_timer(850)
+        CALL start_timer(150)
 
         ! Check if the connection information has been created
         IF (isInit .EQV. .FALSE.) THEN
@@ -563,7 +563,7 @@ CONTAINS
         NULLIFY(pi2)
         NULLIFY(pi3)
 
-        CALL stop_timer(850)
+        CALL stop_timer(150)
     END SUBROUTINE connect_impl
 
 
@@ -1435,7 +1435,7 @@ CONTAINS
         nCornerTot = 0
         nCornerGeom = 0
 
-        CALL set_timer(850, "CONNECT2")
+        CALL set_timer(150, "CONNECT2")
 
         ! Maximum number of connections for "simple" cases is number
         ! of grids*26. However, due to the possible prescence of

@@ -69,9 +69,11 @@ CONTAINS
         ! flag to specify the mode
         CHARACTER(len=1), INTENT(in) :: flag_p
 
+        CALL start_timer(220)
         CALL ftoc_begin(ff_p, fc_p, flag_p, noflevel(ilevel), &
             igrdoflevel(1, ilevel))
         CALL ftoc_end()
+        CALL stop_timer(220)
     END SUBROUTINE ftoc
 
 
@@ -99,7 +101,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, iprocc, iprocf
 
-        CALL start_timer(17)
+        CALL start_timer(221)
 
         IF (.NOT. is_init) THEN
             CALL errr(__FILE__, __LINE__)
@@ -151,7 +153,7 @@ CONTAINS
             END IF
         END DO
 
-        CALL stop_timer(17)
+        CALL stop_timer(221)
     END SUBROUTINE ftoc_begin
 
 
@@ -163,7 +165,7 @@ CONTAINS
 
         INTEGER(int32) :: idx
 
-        CALL start_timer(18)
+        CALL start_timer(222)
 
         IF (.NOT. in_progress) THEN
             CALL errr(__FILE__, __LINE__)
@@ -190,7 +192,7 @@ CONTAINS
         flag = ' '
         in_progress = .FALSE.
 
-        CALL stop_timer(18)
+        CALL stop_timer(222)
     END SUBROUTINE ftoc_end
 
 
@@ -284,8 +286,9 @@ CONTAINS
         ! true
         INTEGER :: igrid, iprocc
 
-        CALL set_timer(17, "CTOF_INIT")
-        CALL set_timer(18, "CTOF_FINISH")
+        CALL set_timer(220, "FTOC")
+        CALL set_timer(221, "FTOC_BEGIN")
+        CALL set_timer(222, "FTOC_END")
 
         IF (.NOT. is_init) THEN
             ALLOCATE(sendReqs(nMyGrids))

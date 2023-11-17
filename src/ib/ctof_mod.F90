@@ -46,9 +46,11 @@ CONTAINS
         ! field on the fine grid
         REAL(realk), TARGET, INTENT(inout) :: fc_p(:)
 
+        CALL start_timer(230)
         CALL ctof_begin(ff_p, fc_p, noflevel(ilevel), &
             igrdoflevel(1, ilevel))
         CALL ctof_end()
+        CALL stop_timer(230)
     END SUBROUTINE ctof
 
 
@@ -71,7 +73,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, iprocc, iprocf
 
-        CALL start_timer(9)
+        CALL start_timer(231)
 
         IF (.NOT. isInit) THEN
             CALL errr(__FILE__, __LINE__)
@@ -117,7 +119,7 @@ CONTAINS
             END IF
         END DO
 
-        CALL stop_timer(9)
+        CALL stop_timer(231)
     END SUBROUTINE ctof_begin
 
 
@@ -139,7 +141,7 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: idx
 
-        CALL start_timer(10)
+        CALL start_timer(232)
 
         IF (.NOT. in_progress) THEN
             CALL errr(__FILE__, __LINE__)
@@ -171,7 +173,7 @@ CONTAINS
         NULLIFY(fc)
         in_progress = .FALSE.
 
-        CALL stop_timer(10)
+        CALL stop_timer(232)
     END SUBROUTINE ctof_end
 
 
@@ -248,8 +250,9 @@ CONTAINS
         ! Local variables
         INTEGER :: igrid, iprocc, iprocf
 
-        CALL set_timer(9, "CTOF_INIT")
-        CALL set_timer(10, "CTOF_FINISH")
+        CALL set_timer(230, "CTOF")
+        CALL set_timer(231, "CTOF_BEGIN")
+        CALL set_timer(232, "CTOF_END")
 
         IF (.NOT. isInit) THEN
             ALLOCATE(sendReqs(nMyGrids*maxChilds))

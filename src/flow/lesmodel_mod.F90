@@ -143,7 +143,6 @@ CONTAINS
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
 
-        CALL start_timer(500)
         DO ilevel = maxlevel, minlevel, -1
             DO i = 1, nmygridslvl(ilevel)
                 igrid = mygridslvl(i, ilevel)
@@ -182,7 +181,6 @@ CONTAINS
             CALL bound%bound(ilevel, g_f)
         END DO
 
-        CALL start_timer(502)
         DO ilevel = minlevel, maxlevel
             DO i = 1, nmygridslvl(ilevel)
                 igrid = mygridslvl(i, ilevel)
@@ -192,13 +190,10 @@ CONTAINS
                 CALL setginbody(kk, jj, ii, bp, g)
             END DO
         END DO
-        CALL stop_timer(502)
 
         DO ilevel = minlevel, maxlevel
             CALL connect(ilevel, 1, s1=g_f)
         END DO
-
-        CALL stop_timer(500)
     END SUBROUTINE lesmodel_gc
 
 

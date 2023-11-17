@@ -40,46 +40,48 @@ CONTAINS
         CALL init_wernerwengle()
         CALL init_lesmodel()
 
+        ! Werner wengle and LES models are often used by other models (scalar)
+        ! even when no flow is solved.
+        IF (.NOT. solve_flow) RETURN
+
         ! These sould only be needed when flow is actually solved
-        IF (solve_flow) THEN
-            CALL set_timer(300, "FLOW")
-            CALL set_timer(310, "FLOW_TSTLE4")
-            CALL set_timer(320, "FLOW_MGPOISL")
-            CALL set_timer(321, "FLOW_MGPOISIT")
-            CALL set_timer(330, "FLOW_LESMODEL")
-            CALL set_timer(340, "FLOW_SETIBVALUES")
-            CALL set_timer(341, "FLOW_GETIBVALUES")
-            CALL set_timer(342, "FLOW_SETPOINTVALUES")
-            CALL set_timer(350, "FLOW_ITINFO")
-            CALL set_timer(360, "FLOW_BOUSSINESQTERM")
+        CALL set_timer(300, "FLOW")
+        CALL set_timer(310, "FLOW_TSTLE4")
+        CALL set_timer(320, "FLOW_MGPOISL")
+        CALL set_timer(321, "FLOW_MGPOISIT")
+        CALL set_timer(330, "FLOW_LESMODEL")
+        CALL set_timer(340, "FLOW_SETIBVALUES")
+        CALL set_timer(341, "FLOW_GETIBVALUES")
+        CALL set_timer(342, "FLOW_SETPOINTVALUES")
+        CALL set_timer(350, "FLOW_ITINFO")
+        CALL set_timer(360, "FLOW_BOUSSINESQTERM")
 
-            CALL init_pressuresolver()
-            CALL init_boussinesqterm()
-            CALL init_itinfo(dcont)
+        CALL init_pressuresolver()
+        CALL init_boussinesqterm()
+        CALL init_itinfo(dcont)
 
-            ! Need to call this here - cannot be in flowcore because that
-            ! create a circular dependency
-            SELECT TYPE(ib)
-            TYPE IS (gc_t)
-                CALL create_flowstencils(ib)
+        ! Need to call this here - cannot be in flowcore because that
+        ! create a circular dependency
+        SELECT TYPE(ib)
+        TYPE IS (gc_t)
+            CALL create_flowstencils(ib)
 
-                CALL set_field("PWU", istag=1, buffers=.TRUE.)
-                CALL set_field("PWV", jstag=1, buffers=.TRUE.)
-                CALL set_field("PWW", kstag=1, buffers=.TRUE.)
+            CALL set_field("PWU", istag=1, buffers=.TRUE.)
+            CALL set_field("PWV", jstag=1, buffers=.TRUE.)
+            CALL set_field("PWW", kstag=1, buffers=.TRUE.)
 
-                CALL get_field(pwu, "PWU")
-                CALL get_field(pwv, "PWV")
-                CALL get_field(pww, "PWW")
-                CALL get_field(u, "U")
-                CALL get_field(v, "V")
-                CALL get_field(w, "W")
-                CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
-                CALL setibvalues(u, v, w)
+            CALL get_field(pwu, "PWU")
+            CALL get_field(pwv, "PWV")
+            CALL get_field(pww, "PWW")
+            CALL get_field(u, "U")
+            CALL get_field(v, "V")
+            CALL get_field(w, "W")
+            CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
+            CALL setibvalues(u, v, w)
 
-                CALL get_field(sdiv, "SDIV")
-                CALL setsdivfield(sdiv)
-            END SELECT
-        END IF
+            CALL get_field(sdiv, "SDIV")
+            CALL setsdivfield(sdiv)
+        END SELECT
     END SUBROUTINE init_flow
 
 
