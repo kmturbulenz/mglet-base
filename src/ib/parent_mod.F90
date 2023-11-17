@@ -81,7 +81,7 @@ CONTAINS
         ! Only exchange face-normal velocity components
         LOGICAL, OPTIONAL, INTENT(in) :: normal
 
-        CALL start_timer(11)
+        CALL start_timer(210)
 
         ! Check if the connection information has been created
         IF (is_init .EQV. .FALSE.) THEN
@@ -162,7 +162,7 @@ CONTAINS
         NULLIFY(p2)
         NULLIFY(p3)
 
-        CALL stop_timer(11)
+        CALL stop_timer(210)
     END SUBROUTINE parent
 
 
@@ -789,6 +789,8 @@ CONTAINS
         INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
 
         INTEGER(int32) :: ierr
+
+        CALL set_timer(210, "PARENT")
 
         ! Maximum number of parents for "simple" cases is number
         ! of grids*6. However, due to the possible prescence of
