@@ -206,13 +206,18 @@ CONTAINS
 
         INTEGER(intk) :: i
         LOGICAL :: thisfound
+        CHARACTER(len=nchar_name) :: name2
 
         IF (LEN_TRIM(name) > nchar_name) CALL errr(__FILE__, __LINE__)
-        NULLIFY(field)
 
+        ! Avoid calling TRIM in a loop, copy input fieldname to a
+        ! variable with fixed length
+        name2 = name
+
+        NULLIFY(field)
         thisfound = .FALSE.
         DO i = 1, nfields
-            IF (TRIM(fields(i)%name) == TRIM(name)) THEN
+            IF (fields(i)%name == name2) THEN
                 field => fields(i)
                 thisfound = .TRUE.
             END IF
@@ -237,13 +242,18 @@ CONTAINS
 
         INTEGER(intk) :: i
         LOGICAL :: thisfound
+        CHARACTER(len=nchar_name) :: name2
 
         IF (LEN_TRIM(name) > nchar_name) CALL errr(__FILE__, __LINE__)
-        NULLIFY(fieldarr)
 
+        ! Avoid calling TRIM in a loop, copy input fieldname to a
+        ! variable with fixed length
+        name2 = name
+
+        NULLIFY(fieldarr)
         thisfound = .FALSE.
         DO i = 1, nfields
-            IF (TRIM(fields(i)%name) == TRIM(name)) THEN
+            IF (fields(i)%name == name2) THEN
                 fieldarr => fields(i)%arr
                 thisfound = .TRUE.
             END IF
