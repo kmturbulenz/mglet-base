@@ -86,18 +86,15 @@ CONTAINS
 
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
-                DO ilevel = minlevel, maxlevel
-                    CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
-                END DO
+                CALL connect(layers=2, s1=t, corners=.TRUE.)
                 CALL set_scastencils("P", scalar(l), t=t)
             END IF
 
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, t%arr, t%arr, 'T')
             END DO
-            DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
-            END DO
+
+            CALL connect(layers=2, s1=t, corners=.TRUE.)
 
             ! TODO: Fill ghost layers of T (maybe only at last IRK?)
         END DO

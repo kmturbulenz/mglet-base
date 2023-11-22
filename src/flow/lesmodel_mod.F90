@@ -191,9 +191,7 @@ CONTAINS
             END DO
         END DO
 
-        DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 1, s1=g_f)
-        END DO
+        CALL connect(layers=1, s1=g_f)
     END SUBROUTINE lesmodel_gc
 
 
