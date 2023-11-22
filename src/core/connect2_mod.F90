@@ -224,7 +224,7 @@ CONTAINS
 
     ! Main connect functions
     SUBROUTINE connect(ilevel, layers, v1, v2, v3, &
-            s1, s2, s3, geom, corners, normal, forward, ityp)
+            s1, s2, s3, geom, corners, normal, forward, ityp, minlvl, maxlvl)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
@@ -233,6 +233,7 @@ CONTAINS
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+        INTEGER(intk), INTENT(in), OPTIONAL :: minlvl, maxlvl
 
         ! Local variables
         LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
@@ -305,7 +306,8 @@ CONTAINS
         END IF
 
         CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
-            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp, &
+            minlvl, maxlvl)
     END SUBROUTINE connect
 
 
@@ -363,7 +365,8 @@ CONTAINS
 
     ! Main connect function
     SUBROUTINE connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
-            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp)
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp, &
+            minlvl, maxlvl)
 
         ! The ilevel and nplane parameters are the only required
         ! parameters
@@ -376,6 +379,7 @@ CONTAINS
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+        INTEGER(intk), INTENT(in), OPTIONAL :: minlvl, maxlvl
 
         ! Local variables
         LOGICAL :: has_real_arg
@@ -497,18 +501,26 @@ CONTAINS
         !     CALL errr(__FILE__, __LINE__)
         ! END IF
 
-        ! Set other parameters
+        ! Either ilevel or both minlvl and maxlvl
+        IF (PRESENT(ilevel) .AND. (PRESENT(minlvl) .OR. PRESENT(maxlvl))) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        IF (PRESENT(minlvl) .NEQV. PRESENT(maxlvl)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        minconlvl = minlevel
+        maxconlvl = maxlevel
         IF (PRESENT(ilevel)) THEN
-            IF ((ilevel >= minlevel) .AND. (ilevel <= maxlevel)) THEN
-                minConLvl = ilevel
-                maxConLvl = ilevel
-            ELSE
-                WRITE(*,*) "Invalid level"
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        ELSE
-            minConLvl = minlevel
-            maxConLvl = maxlevel
+            minconlvl = ilevel
+            maxconlvl = ilevel
+        ELSE IF (PRESENT(minlvl) .AND. PRESENT(maxlvl)) THEN
+            minconlvl = minlvl
+            maxconlvl = maxlvl
+        END IF
+        IF ((minconlvl < minlevel) .OR. (maxconlvl > maxlevel)) THEN
+            WRITE(*, *) "Invalid levels: ", minconlvl, maxconlvl
+            CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Sanity check if integers/realk

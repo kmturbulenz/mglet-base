@@ -378,9 +378,7 @@ CONTAINS
             ! Connect needed due to prior ftoc, since this does not do
             ! anything on the finest level, no need to connect finest level
             ! either.
-            DO ilevel = minlevel, maxlevel-1
-                CALL connect(ilevel, 1, s1=hilf)
-            END DO
+            CALL connect(layers=1, s1=hilf)
 
             ! res <- laplace(hilf)
             CALL laplacephi(res, hilf, bp)
