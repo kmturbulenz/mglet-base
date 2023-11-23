@@ -175,10 +175,10 @@ CONTAINS
             END DO
         END DO
 
-        DO ilevel = maxlevel, minlevel, -1
-            CALL connect(ilevel, 1, s1=g_f)
+        DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, s1=g_f)
             CALL bound%bound(ilevel, g_f)
+            CALL connect(ilevel, 1, s1=g_f)
         END DO
 
         DO ilevel = minlevel, maxlevel
@@ -191,7 +191,9 @@ CONTAINS
             END DO
         END DO
 
-        CALL connect(layers=1, s1=g_f)
+        ! TSTLE4 access corner values of viscosity such as (k, j+1, i+1),
+        ! therefore connect with corners
+        CALL connect(layers=1, s1=g_f, corners=.TRUE.)
     END SUBROUTINE lesmodel_gc
 
 
