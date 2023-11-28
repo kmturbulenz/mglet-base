@@ -17,6 +17,7 @@ jobs:
       matrix:
         image: ["intel-impi-image:sha-57f558e", "gnu-ompi-image:sha-57f558e"]
         build: ["Release", "Debug"]
+        prec: ["Single", "Double"]
       fail-fast: false
 
     container:
@@ -31,7 +32,7 @@ jobs:
         source /opt/bashrc || true
         mkdir build
         cd build
-        cmake -GNinja -DCMAKE_BUILD_TYPE="${{ matrix.build }}" ..
+        cmake -GNinja -DCMAKE_BUILD_TYPE="${{ matrix.build }}" -DREAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
         ninja
         ls -R
 
