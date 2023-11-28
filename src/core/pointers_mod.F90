@@ -77,9 +77,11 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: ip3
 
+#ifdef _MGLET_DEBUG_
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         ip3 = ip3d(igrid)
     END SUBROUTINE get_ip3

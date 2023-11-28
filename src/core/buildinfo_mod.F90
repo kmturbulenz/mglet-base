@@ -1,6 +1,6 @@
 MODULE buildinfo_mod
     USE comms_mod, ONLY: myid
-    USE precision_mod, ONLY: real_bytes, int_bytes, intk
+    USE precision_mod, ONLY: real_bytes, int_bytes, ifk_bytes, intk
     USE envvars_mod, ONLY: getenv_char_coll
 
     IMPLICIT NONE(type, external)
@@ -43,6 +43,7 @@ CONTAINS
         WRITE(*, '("COMPILED PRECISION:")')
         WRITE(*, '("    REAL:          ", I0, " bytes")') real_bytes
         WRITE(*, '("    INTEGER:       ", I0, " bytes")') int_bytes
+        WRITE(*, '("    INTEGER(ifk):  ", I0, " bytes")') ifk_bytes
         WRITE(*, '()')
 
         WRITE(*, '("JOB INFORMATION:")')
