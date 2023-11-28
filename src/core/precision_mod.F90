@@ -30,8 +30,13 @@ MODULE precision_mod
 #endif
 
     ! Special kind for integer fields
+#ifdef _MGLET_IFK64_
     INTEGER(int32), PARAMETER :: ifk = int64
     INTEGER(int32), PARAMETER :: ifk_bytes = 8
+#else
+    INTEGER(int32), PARAMETER :: ifk = int32
+    INTEGER(int32), PARAMETER :: ifk_bytes = 4
+#endif
 
     ! MPI data types for REAL and INTEGER
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_real
@@ -105,7 +110,11 @@ CONTAINS
         mglet_mpi_int = MPI_INTEGER
 #endif
 
+#ifdef _MGLET_IFK64_
         mglet_mpi_ifk = MPI_INTEGER8
+#else
+        mglet_mpi_ifk = MPI_INTEGER
+#endif
 
     END SUBROUTINE init_precision
 

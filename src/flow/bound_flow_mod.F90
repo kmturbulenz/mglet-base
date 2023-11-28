@@ -105,12 +105,12 @@ CONTAINS
 
                     ! Tangential velocities are zero-gradient for outflow,
                     ! and prescribed values in case of inflow
-                    flag = SIGN(1.0, dir*(u(k, j, istag2) + u(k, j+1, istag2)))
+                    flag = SIGN(1.0_realk, dir*(u(k, j, istag2) + u(k, j+1, istag2)))
                     flag = 0.5*(flag + 1.0)
                     v(k, j, i2) = flag*v(k, j, i3) &
                         + (1.0-flag)*(2.0*vbuf(k, j, 1) - v(k, j, i3))
 
-                    flag = SIGN(1.0, dir*(u(k, j, istag2) + u(k+1, j, istag2)))
+                    flag = SIGN(1.0_realk, dir*(u(k, j, istag2) + u(k+1, j, istag2)))
                     flag = 0.5*(flag + 1.0)
                     w(k, j, i2) = flag*w(k, j, i3) &
                         + (1.0-flag)*(2.0*wbuf(k, j, 1) - w(k, j, i3))
@@ -334,7 +334,7 @@ CONTAINS
                 DO k = 1, kk-1
                     ! Tangential velocities are zero-gradient for outflow,
                     ! and prescribed values in case of inflow
-                    flag = SIGN(1.0, dir*(v(k, jstag2, i) + v(k, jstag2, i+1)))
+                    flag = SIGN(1.0_realk, dir*(v(k, jstag2, i) + v(k, jstag2, i+1)))
                     flag = 0.5*(flag + 1.0)
                     u(k, j2, i) = flag*u(k, j3, i) &
                         + (1.0-flag)*(2.0*ubuf(k, i, 1) - u(k, j3, i))
@@ -344,7 +344,7 @@ CONTAINS
 
                     ! Tangential velocities are zero-gradient for outflow,
                     ! and prescribed values in case of inflow
-                    flag = SIGN(1.0, dir*(v(k, jstag2, i) + v(k+1, jstag2, i)))
+                    flag = SIGN(1.0_realk, dir*(v(k, jstag2, i) + v(k+1, jstag2, i)))
                     flag = 0.5*(flag + 1.0)
                     w(k, j2, i) = flag*w(k, j3, i) &
                         + (1.0-flag)*(2.0*wbuf(k, i, 1) - w(k, j3, i))
@@ -568,12 +568,12 @@ CONTAINS
                 DO j = 1, jj-1
                     ! Tangential velocities are zero-gradient for outflow,
                     ! and prescribed values in case of inflow
-                    flag = SIGN(1.0, dir*(w(kstag2, j, i) + w(kstag2, j, i+1)))
+                    flag = SIGN(1.0_realk, dir*(w(kstag2, j, i) + w(kstag2, j, i+1)))
                     flag = 0.5*(flag + 1.0)
                     u(k2, j, i) = flag*u(k3, j, i) &
                         + (1.0-flag)*(2*ubuf(j, i, 1) - u(k3, j, i))
 
-                    flag = SIGN(1.0, dir*(w(kstag2, j, i) + w(kstag2, j+1, i)))
+                    flag = SIGN(1.0_realk, dir*(w(kstag2, j, i) + w(kstag2, j+1, i)))
                     flag = 0.5*(flag + 1.0)
                     v(k2, j, i) = flag*v(k3, j, i) &
                         + (1.0-flag)*(2.0*vbuf(j, i, 1) - v(k3, j, i))

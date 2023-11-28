@@ -271,7 +271,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: fak
-        REAL(realk), INTENT(out) :: div(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: div(kk, jj, ii)
         REAL(realk), INTENT(in) :: u(kk, jj, ii)
         REAL(realk), INTENT(in) :: v(kk, jj, ii)
         REAL(realk), INTENT(in) :: w(kk, jj, ii)
@@ -284,7 +284,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, j, i
 
-        div = 0.0
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2

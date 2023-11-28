@@ -419,11 +419,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         kk = gridinfo(igrid)%kk
         jj = gridinfo(igrid)%jj
@@ -453,11 +455,13 @@ CONTAINS
         REAL(realk), INTENT(OUT) :: minx, maxx, miny, maxy, minz, maxz
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         minx = gridinfo(igrid)%bbox(1)
         maxx = gridinfo(igrid)%bbox(2)
@@ -487,11 +491,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: flag
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         flag = l_to_i(BTEST(gridinfo(igrid)%flags, 0))
     END SUBROUTINE get_gradpxflag
@@ -659,11 +665,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: level
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         level = gridinfo(igrid)%level
     END SUBROUTINE get_level
@@ -672,11 +680,13 @@ CONTAINS
     INTEGER(intk) FUNCTION iposition(igrid)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         iposition = gridinfo(igrid)%iposition
     END FUNCTION iposition
@@ -685,11 +695,13 @@ CONTAINS
     INTEGER(intk) FUNCTION jposition(igrid)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         jposition = gridinfo(igrid)%jposition
     END FUNCTION jposition
@@ -698,11 +710,13 @@ CONTAINS
     INTEGER(intk) FUNCTION kposition(igrid)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         kposition = gridinfo(igrid)%kposition
     END FUNCTION kposition
@@ -711,11 +725,13 @@ CONTAINS
     INTEGER(intk) FUNCTION iparent(igrid)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         iparent = gridinfo(igrid)%iparent
     END FUNCTION iparent
@@ -724,11 +740,13 @@ CONTAINS
     INTEGER(intk) FUNCTION level(igrid)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         level = gridinfo(igrid)%level
     END FUNCTION level
@@ -738,11 +756,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: neighbours(26)
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         neighbours = gridinfo(igrid)%nbrgrid
     END SUBROUTINE get_neighbours
@@ -752,11 +772,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: kk
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         kk = gridinfo(igrid)%kk
     END SUBROUTINE get_kk
@@ -766,11 +788,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: jj
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         jj = gridinfo(igrid)%jj
     END SUBROUTINE get_jj
@@ -780,11 +804,13 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: ii
         INTEGER(intk), INTENT(IN) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         ii = gridinfo(igrid)%ii
     END SUBROUTINE get_ii
@@ -794,11 +820,13 @@ CONTAINS
         INTEGER(intk), INTENT(out) :: nfro, nbac, nrgt, nlft, nbot, ntop
         INTEGER(intk), INTENT(in) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         nfro = itypboconds(1, 1, igrid)
         nbac = itypboconds(1, 2, igrid)
@@ -813,11 +841,13 @@ CONTAINS
         INTEGER(intk), INTENT(out) :: bconds(6)
         INTEGER(intk), INTENT(in) :: igrid
 
+#ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*,*) "Invalid igrid: ", igrid
             WRITE(*,*) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         bconds(1) = itypboconds(1, 1, igrid)
         bconds(2) = itypboconds(1, 2, igrid)

@@ -35,7 +35,14 @@ else ( REAL64 )
     message( STATUS "Compiling MGLET in single precision mode" )
 endif ( REAL64 )
 
-# CMake build options
+option(IFK64 "Compile MGLET with 64 bit integer fields" ON)
+if ( IFK64 )
+    message( STATUS "Compiling MGLET with 64 ifk fields" )
+    add_compile_definitions(_MGLET_IFK64_=1)
+else ( IFK64 )
+    message( STATUS "Compiling MGLET with 32 bit ifk fields" )
+endif ( IFK64 )
+
 option(INT64 "Compile MGLET with 64 bit integer support (DOES NOT WORK)" OFF)
 if ( INT64 )
     message( STATUS "Compiling MGLET with 64 bit integers" )
