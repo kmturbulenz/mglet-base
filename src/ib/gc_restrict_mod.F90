@@ -185,8 +185,12 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: nk, ink
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+
+        REAL(realk) :: pv1(kk), pv2(kk), pv3(kk), pv4(kk)
         REAL(realk) :: sum_pv, sum_v
+
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:), bp(:, :, :)
 
         CALL this%start_and_stop(istart, istop, jstart, jstop, &
@@ -197,25 +201,63 @@ CONTAINS
         CALL get_fieldptr(ddz, "DDZ", igrid)
         CALL get_fieldptr(bp, "BP", igrid)
 
+        ! Number of k iterations
+        ! (not to be confused with kk - these are not the same!!!)
+        nk = (kstop-kstart)/2+1
+
         icount = 0
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
-                DO k = kstart, kstop, 2
-                    sum_pv = ff(k, j, i)*bp(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
-                        + ff(k, j, i+1)*bp(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
-                        + ff(k, j+1, i)*bp(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
-                        + ff(k, j+1, i+1)*bp(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
-                        + ff(k+1, j, i)*bp(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
-                        + ff(k+1, j, i+1)*bp(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
-                        + ff(k+1, j+1, i)*bp(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
-                        + ff(k+1, j+1, i+1)*bp(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
+
+                ! Vomume
+                DO k = kstart, kstop+1
+                    pv1(k) = ff(k, j, i)*bp(k, j, i)*ddz(k)*ddy(j)*ddx(i)
+                END DO
+                DO k = kstart, kstop+1
+                    pv2(k) = ff(k, j, i+1)*bp(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1)
+                END DO
+                DO k = kstart, kstop+1
+                    pv3(k) = ff(k, j+1, i)*bp(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i)
+                END DO
+                DO k = kstart, kstop+1
+                    pv4(k) = ff(k, j+1, i+1)*bp(k, j+1, i+1) &
+                        *ddz(k)*ddy(j+1)*ddx(i+1)
+                END DO
+
+                ! Sum up and divide
+                !$omp simd private(k, sum_pv, sum_v)
+                DO ink = 1, nk
+                    k = kstart + 2*(ink-1)
+
+                    sum_pv = pv1(k) + pv2(k) + pv3(k) + pv4(k) &
+                        + pv1(k+1) + pv2(k+1) + pv3(k+1) + pv4(k+1)
 
                     sum_v = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1)) &
                         *(ddz(k) + ddz(k+1))
 
-                    icount = icount + 1
-                    sendbuf(icount) = sum_pv/sum_v
+                    sendbuf(icount + ink) = sum_pv/sum_v
                 END DO
+
+                ! Increment counter
+                icount = icount + nk
+
+                ! Legacy code - keep for reference
+                ! DO k = kstart, kstop, 2
+                !     sum_pv = ff(k, j, i)*bp(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
+                !         + ff(k, j, i+1)*bp(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
+                !         + ff(k, j+1, i)*bp(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
+                !         + ff(k, j+1, i+1)*bp(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
+                !         + ff(k+1, j, i)*bp(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
+                !         + ff(k+1, j, i+1)*bp(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
+                !         + ff(k+1, j+1, i)*bp(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
+                !         + ff(k+1, j+1, i+1)*bp(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
+
+                !     sum_v = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1)) &
+                !         *(ddz(k) + ddz(k+1))
+
+                !     icount = icount + 1
+                !     sendbuf(icount) = sum_pv/sum_v
+                ! END DO
             END DO
         END DO
     END SUBROUTINE restrict_r
