@@ -71,7 +71,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: lofgrids(ngrids)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, iprocc, iprocf
+        INTEGER(intk) :: i, igrid, iprocc, iprocf, ipar
 
         CALL start_timer(231)
 
@@ -93,13 +93,14 @@ CONTAINS
         ! Make all Recv-calls
         DO i = 1, ngrids
             igrid = lofgrids(i)
-            IF (iparent(igrid) /= 0 ) THEN
+            ipar = iparent(igrid)
+            IF (ipar /= 0 ) THEN
                 iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(iparent(igrid))
+                iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocf) THEN
                     nRecv = nRecv + 1
-                    CALL prolong_recv(igrid, iparent(igrid))
+                    CALL prolong_recv(igrid, ipar)
                     recvGrids(nRecv) = igrid
                 END IF
             END IF
@@ -108,13 +109,14 @@ CONTAINS
         ! Make all Send-calls
         DO i = 1, ngrids
             igrid = lofgrids(i)
-            IF (iparent(igrid) /= 0 ) THEN
+            ipar = iparent(igrid)
+            IF (ipar /= 0 ) THEN
                 iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(iparent(igrid))
+                iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocc) THEN
                     nSend = nSend + 1
-                    CALL prolong_send(igrid, iparent(igrid))
+                    CALL prolong_send(igrid, ipar)
                 END IF
             END IF
         END DO
@@ -248,7 +250,7 @@ CONTAINS
     ! Initialize arrays and data types
     SUBROUTINE init_ctof()
         ! Local variables
-        INTEGER :: igrid, iprocc, iprocf
+        INTEGER :: igrid, iprocc, iprocf, ipar
 
         CALL set_timer(230, "CTOF")
         CALL set_timer(231, "CTOF_BEGIN")
@@ -270,9 +272,10 @@ CONTAINS
 
         ! Make all Send- and Recv-types
         DO igrid = 1, ngrid
-            IF (iparent(igrid) /= 0 ) THEN
+            ipar = iparent(igrid)
+            IF (ipar /= 0 ) THEN
                 iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(iparent(igrid))
+                iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocf) THEN
                     nRecv = nRecv + 1
@@ -285,7 +288,7 @@ CONTAINS
                         CALL errr(__FILE__, __LINE__)
                     END IF
 
-                    CALL create_sendtype(igrid, iparent(igrid))
+                    CALL create_sendtype(igrid, ipar)
                 END IF
             END IF
         END DO
