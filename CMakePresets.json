@@ -1,0 +1,99 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "intel",
+            "hidden": true,
+            "condition": {
+                "type": "notEquals",
+                "lhs": "$penv{ONEAPI_ROOT}",
+                "rhs": ""
+            },
+            "displayName": "Intel oneAPI compilers",
+            "description": "Default build options using the Intel compilers",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "icx",
+                "CMAKE_CXX_COMPILER": "icpx",
+                "CMAKE_Fortran_COMPILER": "ifx",
+
+                "MGLET_C_FLAGS": "",
+                "MGLET_CXX_FLAGS": "",
+                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors",
+
+                "MGLET_C_FLAGS_RELEASE": "-g;-qopenmp-simd",
+                "MGLET_CXX_FLAGS_RELEASE": "-g;-qopenmp-simd",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g;-qopenmp-simd",
+
+                "MGLET_C_FLAGS_DEBUG": "-O1;-g",
+                "MGLET_CXX_FLAGS_DEBUG": "-O1;-g",
+                "MGLET_Fortran_FLAGS_DEBUG": "-O1;-g;-traceback;-ftrapuv;-check;arg_temp_created,bounds,contiguous,pointers"
+            }
+        },
+        {
+            "name": "intel-release",
+            "displayName": "Intel oneAPI compilers (release)",
+            "description": "Release configuration using the Intel compilers",
+            "inherits": "intel",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "intel-debug",
+            "displayName": "Intel oneAPI compilers (debug)",
+            "description": "Debug configuration using the Intel compilers",
+            "inherits": "intel",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "gnu",
+            "hidden": true,
+            "displayName": "GNU compilers",
+            "description": "Default build options using the GNU compilers",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_Fortran_COMPILER": "gfortran",
+
+                "MGLET_C_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized",
+                "MGLET_CXX_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized",
+                "MGLET_Fortran_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized;-std=f2018;-fimplicit-none;-ffpe-trap=invalid,zero,overflow;-Wno-unused-dummy-argument;-Wno-uninitialized",
+
+                "MGLET_C_FLAGS_RELEASE": "-g;-fopenmp-simd",
+                "MGLET_CXX_FLAGS_RELEASE": "-g;-fopenmp-simd",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g;-fopenmp-simd",
+
+                "MGLET_C_FLAGS_DEBUG": "-Og;-g",
+                "MGLET_CXX_FLAGS_DEBUG": "-Og;-g",
+                "MGLET_Fortran_FLAGS_DEBUG": "-Og;-g;-fbacktrace;-fcheck=all"
+            }
+        },
+        {
+            "name": "gnu-release",
+            "displayName": "GNU compilers (release)",
+            "description": "Release configuration using the GNU compilers",
+            "inherits": "gnu",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+
+            }
+        },
+        {
+            "name": "gnu-debug",
+            "displayName": "GNU compilers (release)",
+            "description": "Debug configuration using the GNU compilers",
+            "inherits": "gnu",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+
+            }
+        }
+    ]
+}

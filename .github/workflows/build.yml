@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         image: ["intel-impi-image:sha-57f558e", "gnu-ompi-image:sha-57f558e"]
-        build: ["Release", "Debug"]
+        build: ["release", "debug"]
         prec: ["Single", "Double"]
       fail-fast: false
 
@@ -32,7 +32,8 @@ jobs:
         source /opt/bashrc || true
         mkdir build
         cd build
-        cmake -GNinja -DCMAKE_BUILD_TYPE="${{ matrix.build }}" -DREAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
+        TOOLCHAIN=${{ contains(matrix.image, 'gnu') && 'gnu' || 'intel' }}
+        cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
         ninja
         ls -R
 
@@ -50,9 +51,13 @@ jobs:
         export I_MPI_FABRICS=shm
         export I_MPI_PLATFORM=ivb
         export I_MPI_DEBUG=5
+        EXITCODE=0
         TIC=`date +%s`
-        ctest --timeout ${{ matrix.build == 'Debug' && '600' || '150' }} --output-on-failure --test-dir tests
+        ctest --timeout ${{ matrix.build == 'Debug' && '600' || '150' }} --output-on-failure --test-dir tests  || EXITCODE=1
         TOC=`date +%s`
         DURATION=$((TOC-TIC))
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "Total test time: $DURATION sec" >> $GITHUB_STEP_SUMMARY
+        CPUNAME=$(lscpu | grep 'Model name' | cut -f 2 -d ":" | awk '{$1=$1}1')
+        echo "CPU model name: $CPUNAME" >> $GITHUB_STEP_SUMMARY
+        exit $EXITCODE
