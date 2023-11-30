@@ -40,6 +40,8 @@
 # Corefiles
 #core
 
+CMakeUserPresets.json
+
 
 # ----------------------------------------------------------- #
 #                 MGLET specials below                        #

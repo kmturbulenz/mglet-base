@@ -50,21 +50,27 @@ add_library(core STATIC
 )
 
 target_include_directories(core
-    PRIVATE ${nlohmann_json_SOURCE_DIR}/include
-    PRIVATE ${exprtk_SOURCE_DIR}
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 
 target_link_libraries(core
-    PRIVATE nlohmann_json::nlohmann_json
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
 )
 
+# Set include directories for specific files
+set_source_files_properties(exprtk_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
+    ${exprtk_SOURCE_DIR}
+)
+set_source_files_properties(jsoncpp_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
+    ${json_SOURCE_DIR}/include
+)
+
 set_property(TARGET core PROPERTY CXX_STANDARD 11)
 
+# Other neccesary compile flags
 set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>
 )
@@ -82,7 +88,7 @@ set_source_files_properties(simdfunctions_mod.F90 PROPERTIES COMPILE_FLAGS
 )
 
 set_source_files_properties(stl_is_binary.c PROPERTIES COMPILE_FLAGS
-    $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-unused-result>
+    $<$<STREQUAL:"${CMAKE_C_COMPILER_ID}","GNU">:-Wno-unused-result>
 )
 
 set_source_files_properties(utils_mod.F90 PROPERTIES COMPILE_FLAGS
