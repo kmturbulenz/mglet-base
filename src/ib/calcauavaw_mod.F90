@@ -84,7 +84,7 @@ CONTAINS
             has_yus = .FALSE.
         END IF
 
-        ! ix xpsw is present, we also need icellspointer and icells
+        ! If xpsw is present, we also need icellspointer and icells
         IF (PRESENT(xpsw)) THEN
             IF (.NOT. PRESENT(icellspointer)) CALL errr(__FILE__, __LINE__)
             IF (.NOT. PRESENT(icells)) CALL errr(__FILE__, __LINE__)
@@ -205,6 +205,11 @@ CONTAINS
 
         CALL blockcheck_grid(kk, jj, ii, kanteu, kantev, kantew, &
                 knoten, 1)
+
+        ! Since this is an INTENT(out) this must be done
+        IF (PRESENT(xpsw)) THEN
+            xpsw = 0.0
+        END IF
 
         ! Indices must be the same as in calc_nvecs_grid in gc_mod.F90!!!
         DO i = 2, ii
@@ -479,8 +484,6 @@ CONTAINS
                         END DO
 
                         IF (PRESENT(xpsw)) THEN
-                            xpsw = 0.0
-
                             area = SQRT( &
                                 (ddz(k)*ddy(j)*(au(k, j, i) &
                                 - au(k, j, i-1)))**2 &

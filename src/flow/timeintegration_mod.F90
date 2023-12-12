@@ -441,7 +441,7 @@ CONTAINS
             END DO
         END DO
 
-        esum = esum/vol
+        esum = esum/vsum
     END SUBROUTINE enerfg
 
 
@@ -473,6 +473,6 @@ CONTAINS
             END DO
         END DO
 
-        esum = esum/vol
+        esum = esum/vsum
     END SUBROUTINE enerfs
 END MODULE timeintegration_mod

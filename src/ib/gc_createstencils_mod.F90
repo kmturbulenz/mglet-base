@@ -201,7 +201,7 @@ CONTAINS
         REAL(realk) :: a, b, c, dpl, velu, velv, velw
 
         ! Parameter for the accuracy of the numerical integration
-        INTEGER(intk), PARAMETER :: parts = 25
+        INTEGER(intk), PARAMETER :: parts = 20
 
         counter = -bzelltyp(kt, jt, it)
         a = nvecs(1, counter)
