@@ -1,5 +1,6 @@
 MODULE plugins_mod
     USE precision_mod, ONLY: intk, realk
+    USE timer_mod, ONLY: set_timer, start_timer, stop_timer
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -68,6 +69,12 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
+        CALL set_timer(180, "PLUGINS")
+        CALL set_timer(181, "PLUGINS_TIMEINTEGRATE")
+        CALL set_timer(182, "PLUGINS_ITINFO")
+        CALL set_timer(183, "PLUGINS_POSTPROCESS")
+        CALL set_timer(184, "PLUGINS_CHECKPOINT")
+
         DO i = 1, n_plugins
             IF (ASSOCIATED(plugins(i)%init)) THEN
                 CALL plugins(i)%init()
@@ -107,11 +114,17 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
+        CALL start_timer(180)
+        CALL start_timer(181)
+
         DO i = 1, n_plugins
             IF (ASSOCIATED(plugins(i)%timeintegrate)) THEN
                 CALL plugins(i)%timeintegrate(itstep, ittot, timeph, dt)
             END IF
         END DO
+
+        CALL stop_timer(181)
+        CALL stop_timer(180)
     END SUBROUTINE timeintegrate_plugins
 
 
@@ -125,11 +138,17 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
+        CALL start_timer(180)
+        CALL start_timer(182)
+
         DO i = 1, n_plugins
             IF (ASSOCIATED(plugins(i)%itinfo)) THEN
                 CALL plugins(i)%itinfo(itstep, ittot, timeph, dt)
             END IF
         END DO
+
+        CALL stop_timer(182)
+        CALL stop_timer(180)
     END SUBROUTINE itinfo_plugins
 
 
@@ -143,11 +162,17 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
+        CALL start_timer(180)
+        CALL start_timer(183)
+
         DO i = 1, n_plugins
             IF (ASSOCIATED(plugins(i)%postprocess)) THEN
                 CALL plugins(i)%postprocess(itstep, ittot, timeph, dt)
             END IF
         END DO
+
+        CALL stop_timer(183)
+        CALL stop_timer(180)
     END SUBROUTINE postprocess_plugins
 
 
@@ -173,11 +198,17 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
+        CALL start_timer(180)
+        CALL start_timer(184)
+
         DO i = 1, n_plugins
             IF (ASSOCIATED(plugins(i)%checkpoint)) THEN
                 CALL plugins(i)%checkpoint()
             END IF
         END DO
+
+        CALL stop_timer(184)
+        CALL stop_timer(180)
     END SUBROUTINE checkpoint_plugins
 
 
