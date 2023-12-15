@@ -80,6 +80,10 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
+        ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
+        ! the du, dv, dw fields before each step
+        CALL rkscheme%get_coeffs(frhs, fu, dtrk, dtrki, irk)
+
         ! Compute the GC fluxes
         IF (irk == 1 .AND. ib%type == "GHOSTCELL") THEN
             CALL setibvalues(u, v, w)
@@ -88,10 +92,6 @@ CONTAINS
         ! TSTLE4 zeroize uo, vo, wo before use internally
         CALL tstle4(uo, vo, wo, pwu, pwv, pww, ut, vt, wt, p, g)
         CALL boussinesqterm(uo, vo, wo)
-
-        ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
-        ! the du, dv, dw fields before each step
-        CALL rkscheme%get_coeffs(frhs, fu, dtrk, dtrki, irk)
 
         ! dU_j = A_j*dU_(j-1) + dt*uo
         du%arr = frhs*du%arr + uo%arr
