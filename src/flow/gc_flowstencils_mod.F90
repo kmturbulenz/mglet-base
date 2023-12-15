@@ -398,6 +398,8 @@ CONTAINS
                                 zvel = zvel + ucell(3, -bzelltyp(k-1, j, i))
                             END IF
                             xvel = xvel/ngeomnbr
+                            yvel = yvel/ngeomnbr
+                            zvel = zvel/ngeomnbr
                         ELSE IF (ngeomnbr < 0) THEN
                             ! in einer geschlossenen Nachbarzelle ist Geometrie
                             IF (foundx1 == 0 .AND. bzelltyp(k, j, i+1) < 0) THEN
@@ -431,6 +433,8 @@ CONTAINS
                                 zvel = zvel + ucell(3, -bzelltyp(k-1, j, i))
                             END IF
                             xvel = -xvel/ngeomnbr
+                            yvel = -yvel/ngeomnbr
+                            zvel = -zvel/ngeomnbr
                         END IF
                     END IF
 
