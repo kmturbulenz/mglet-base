@@ -393,7 +393,7 @@ CONTAINS
                         + (u(k, j, i) - u(k, j, i-1))*rddx(i) &
                         + (v(k, j, i) - v(k, j-1, i))*rddy(j) &
                         + (w(k, j, i) - w(k-1, j, i))*rddz(k)
-                    ! div = bp(k, j, i)*div
+                    div = bp(k, j, i)*div
 
                     IF (ABS(div) > divmax) THEN
                         divmax = ABS(div)
