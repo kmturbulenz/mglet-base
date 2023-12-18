@@ -52,6 +52,10 @@ CONTAINS
         ! Required values
         CALL fort7%get(flowconf, "/flow")
         CALL flowconf%get_value("/gmol", gmol)
+        IF (gmol <= 0.0) THEN
+            WRITE(*, *) "Viscosity must be positive: ", gmol
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
         ! Either uinf is real or expression
         IF (flowconf%is_real("/uinf/0")) THEN
@@ -91,7 +95,17 @@ CONTAINS
 
         ! Optional values
         CALL flowconf%get_value("/rho", rho, 1.0)
+        IF (rho <= 0.0) THEN
+            WRITE(*, *) "Density must be positive: ", rho
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
         CALL flowconf%get_value("/tu_level", tu_level, 0.1)
+        IF (tu_level < 0.0) THEN
+            WRITE(*, *) "tu_level cannot be negative: ", tu_level
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
         CALL flowconf%get_value("/solve", solve_flow, .TRUE.)
 
         gradp = 0.0
