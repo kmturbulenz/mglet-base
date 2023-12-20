@@ -32,7 +32,7 @@ MODULE gc_flowstencils_mod
     TYPE(real_stencils_t), ALLOCATABLE, TARGET :: woldsol(:), woldsolvel(:)
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
-        setsdivfield, finish_flowstencils
+        finish_flowstencils
 
 CONTAINS
     SUBROUTINE create_flowstencils(gc)
@@ -91,6 +91,8 @@ CONTAINS
                 gc%bzelltyp, gc%icells, gc%icellspointer, gc%bodyid, &
                 gc%nvecs, gc%ucell)
         END DO
+
+        CALL setsdivfield()
 
         ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
@@ -398,6 +400,8 @@ CONTAINS
                                 zvel = zvel + ucell(3, -bzelltyp(k-1, j, i))
                             END IF
                             xvel = xvel/ngeomnbr
+                            yvel = yvel/ngeomnbr
+                            zvel = zvel/ngeomnbr
                         ELSE IF (ngeomnbr < 0) THEN
                             ! in einer geschlossenen Nachbarzelle ist Geometrie
                             IF (foundx1 == 0 .AND. bzelltyp(k, j, i+1) < 0) THEN
@@ -431,6 +435,8 @@ CONTAINS
                                 zvel = zvel + ucell(3, -bzelltyp(k-1, j, i))
                             END IF
                             xvel = -xvel/ngeomnbr
+                            yvel = -yvel/ngeomnbr
+                            zvel = -zvel/ngeomnbr
                         END IF
                     END IF
 
@@ -1502,9 +1508,9 @@ CONTAINS
     END SUBROUTINE setibvalues_level
 
 
-    SUBROUTINE setsdivfield(sdiv_f)
+    SUBROUTINE setsdivfield()
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: sdiv_f
+        ! none...
 
         ! Local variables
         TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
@@ -1512,10 +1518,12 @@ CONTAINS
             ddy(:), ddz(:)
         INTEGER(intk) :: i, igrid, ilevel
         INTEGER(intk) :: kk, jj, ii
+        TYPE(field_t), POINTER :: sdiv_f
 
         CALL get_field(ddx_f, "DDX")
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
+        CALL get_field(sdiv_f, "SDIV")
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
