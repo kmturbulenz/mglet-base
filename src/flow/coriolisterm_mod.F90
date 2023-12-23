@@ -60,7 +60,7 @@ CONTAINS
         ! Checking activity
         IF ( has_coriolis ) THEN
 
-            CALL start_timer(360)
+            CALL start_timer(370)
 
             ! getting the velocity fields
             CALL get_field(u_f, "U")
@@ -89,7 +89,7 @@ CONTAINS
                     nfro, nbac, nrgt, nlft, nbot, ntop)
             END DO
 
-            CALL stop_timer(360)
+            CALL stop_timer(370)
 
         END IF
 

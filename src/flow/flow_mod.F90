@@ -56,6 +56,7 @@ CONTAINS
         CALL set_timer(342, "FLOW_SETPOINTVALUES")
         CALL set_timer(350, "FLOW_ITINFO")
         CALL set_timer(360, "FLOW_BOUSSINESQTERM")
+        CALL set_timer(370, "FLOW_CORIOLISTERM")
 
         CALL init_pressuresolver()
         CALL init_boussinesqterm()
