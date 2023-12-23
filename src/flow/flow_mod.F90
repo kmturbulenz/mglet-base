@@ -26,7 +26,7 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: u, v, w
-        TYPE(field_t), POINTER :: pwu, pwv, pww, sdiv
+        TYPE(field_t), POINTER :: pwu, pwv, pww
 
         CALL init_flowcore()
         IF (.NOT. has_flow) RETURN
@@ -80,9 +80,6 @@ CONTAINS
             CALL get_field(w, "W")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
             CALL setibvalues(u, v, w)
-
-            CALL get_field(sdiv, "SDIV")
-            CALL setsdivfield(sdiv)
         END SELECT
     END SUBROUTINE init_flow
 
