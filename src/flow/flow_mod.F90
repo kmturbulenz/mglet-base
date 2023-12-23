@@ -22,6 +22,7 @@ CONTAINS
         USE pressuresolver_mod
         USE itinfo_mod, ONLY: init_itinfo
         USE boussinesqterm_mod, ONLY: init_boussinesqterm
+        USE coriolisterm_mod, ONLY: init_coriolisterm
 
         ! Local variables
         TYPE(field_t), POINTER :: u, v, w
@@ -58,6 +59,7 @@ CONTAINS
 
         CALL init_pressuresolver()
         CALL init_boussinesqterm()
+        CALL init_coriolisterm()
         CALL init_itinfo(dcont)
 
         ! Need to call this here - cannot be in flowcore because that
@@ -93,6 +95,7 @@ CONTAINS
         USE gc_flowstencils_mod
         USE ib_mod
         USE boussinesqterm_mod, ONLY: finish_boussinesqterm
+        USE coriolisterm_mod, ONLY: finish_coriolisterm
 
         IF (.NOT. has_flow) RETURN
 
@@ -106,6 +109,7 @@ CONTAINS
 
             CALL finish_itinfo
             CALL finish_boussinesqterm()
+            CALL finish_coriolisterm()
             CALL finish_pressuresolver()
         END IF
 
