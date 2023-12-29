@@ -144,7 +144,7 @@ CONTAINS
                             vlocal(2) = 0.25 * (v(k,j-1,i) + v(k,j-1,i+1) + v(k,j,i) + v(k,j,i+1))
                             vlocal(3) = 0.25 * (w(k-1,j,i) + w(k-1,j,i+1) + w(k,j,i) + w(k,j,i+1))
                             ! computing the cross product 
-                            cterm = -2.0 * ( omega(2) * vlocal(3) - omega(3) * vlocal(3) )
+                            cterm = -2.0 * ( omega(2) * vlocal(3) - omega(3) * vlocal(2) )
                             ! adding to the momentum balance
                             uo(k,j,i) = uo(k,j,i) + cterm
                         END DO
