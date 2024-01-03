@@ -10,6 +10,7 @@ MODULE timeintegration_mod
     USE tstle4_mod
     USE setboundarybuffers_mod
     USE boussinesqterm_mod, ONLY: boussinesqterm
+    USE coriolisterm_mod, ONLY: coriolisterm
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -92,6 +93,7 @@ CONTAINS
         ! TSTLE4 zeroize uo, vo, wo before use internally
         CALL tstle4(uo, vo, wo, pwu, pwv, pww, ut, vt, wt, p, g)
         CALL boussinesqterm(uo, vo, wo)
+        CALL coriolisterm(uo, vo, wo)
 
         ! dU_j = A_j*dU_(j-1) + dt*uo
         du%arr = frhs*du%arr + uo%arr
