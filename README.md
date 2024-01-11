@@ -114,31 +114,53 @@ thousands of MPI ranks in big supercomputers throughout Europe.
 Building MGLET-base
 -------------------
 
-Very few dependencies are required to build MGLET-base. You will need a good
-set of Fortran, C and C++ compilers with complete Fortran 2018 support, an MPI
-library a HDF5 library with MPI support. You will also need CMake for
-configuring the build. Other dependencies are listed below, but these
-are automatically fetched by CMake at build time, so there is no need to
-install any of them explicitly.
+The most important build requirement is a set with C, C++ and Fortran
+compiler with Fortran 2018 support. Then you will need an MPI library and a
+HDF5 library with MPI support.
+
+The code is currently tested with GNU compilers version >= 11.2 and Intel
+compilers from the oneAPI toolkits version >= 2022.2.1. Older compilers
+than these will typically not work.
 
 ### Dependencies
 
 * An MPI implementation of your choice that provides the `MPI_f08` Fortran
 bindings
 * HDF5: https://github.com/HDFGroup/hdf5
+* CMake: https://cmake.org/download/
+
+The following dependencies are fetched and built automatically by CMake:
+
 * Nlohman JSON: https://github.com/nlohmann/json
 * Exprtk: https://github.com/ArashPartow/exprtk
 
 ### Build instructions
+
+MGLET-base make use of
+[CMake presets](https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html)
+to store a default set of build settings for the most common environments.
+There are currently four pre-defined presets:
+
+* `gnu-debug`: GNU compilers `gcc`, `g++` and `gfortran` with common debug flags
+* `gnu-release`: GNU compilers `gcc`, `g++` and `gfortran` with flags
+for release (performance-optimized) builds
+* `intel-debug`: Intel compilers `icx`, `icpx` and `ifx` with common debug flags
+* `intel-debug`: Intel compilers `icx`, `icpx` and `ifx` with flags for release
+(performance-optimized) builds
+
+In order to build MGLET there is a few simple steps to follow:
 
 1. Check out the source code
 
 2. Create a separate `build` directory in the source code root and enter that
 directory: `mkdir build && cd build`
 
-3. Run CMake: `cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..`
+3. Run CMake: `cmake --preset=gnu-release ..` (replace the preset with your
+desired one)
 
 4. Compile: `make`
+
+5. Run tests: `ctest --output-on-failure --test-dir tests`
 
 
 License and trademarks
