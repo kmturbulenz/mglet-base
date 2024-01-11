@@ -1,6 +1,4 @@
 MODULE gc_createstencils_mod
-    USE MPI_f08, ONLY: MPI_Wtime
-
     USE core_mod, ONLY: intk, realk, errr
 
     ! Commom routines shared among flow, scalar etc. stencil creation

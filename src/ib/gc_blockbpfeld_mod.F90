@@ -1,5 +1,5 @@
 MODULE gc_blockbpfeld_mod
-    USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, nmygridslvl, &
+    USE core_mod, ONLY: realk, intk, minlevel, maxlevel, nmygridslvl, &
         mygridslvl, get_ip3, get_mgdims, field_t
 
     IMPLICIT NONE(type, external)

@@ -1,6 +1,6 @@
 MODULE calcauavaw_mod
-    USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, nmygrids, &
-        mygrids, nmygridslvl, mygridslvl, get_mgdims, get_ip3, get_ip3n, &
+    USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, &
+        nmygridslvl, mygridslvl, get_mgdims, get_ip3, get_ip3n, &
         get_fieldptr, field_t, connect
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE calcfacearea_mod, ONLY: calcfacedata, calcwallfacecenter, &
@@ -174,7 +174,7 @@ CONTAINS
         INTEGER(intk) :: nka(6), connectka(2, 6), nkn(6), connectkn(4, 6), &
             nwa, connectwa(7)
         INTEGER(intk) :: bodyidkanten(12)
-        INTEGER(intk) :: connect(6), ncon, fltyp
+        INTEGER(intk) :: connect(6), ncon
         INTEGER(intk) :: ika, ikn, npoints, i, j, k, icell, idx
         REAL(realk) :: xx(3, npmax)
         REAL(realk) :: area, cartarea, s1, s2
@@ -323,9 +323,7 @@ CONTAINS
                         DO idx = 1, 6
                             IF (nka(idx) + nkn(idx) > 0) THEN
                                 ncon = nka(idx) + nkn(idx)
-                                fltyp = 1
                                 DO ika = 1, nka(idx)
-                                    fltyp = 0
                                     connect(ika) = connectka(ika, idx) + 8 &
                                         + npoints - 20
                                 END DO
@@ -504,10 +502,9 @@ CONTAINS
                                     connectwa, xx, xpsw(1, icell), &
                                     xpsw(2, icell), xpsw(3, icell))
                             ELSE
-                                CALL calcwallfacecenter(k, j, i, nwa, npoints, &
-                                    connectwa, xx, cartarea, area, &
-                                    xpsw(1, icell), xpsw(2, icell), &
-                                    xpsw(3, icell))
+                                CALL calcwallfacecenter(nwa, npoints, &
+                                    connectwa, xx, area, xpsw(1, icell), &
+                                    xpsw(2, icell), xpsw(3, icell))
                             END IF
                         END IF
                     ELSE

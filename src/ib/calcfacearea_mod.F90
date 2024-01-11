@@ -1,6 +1,5 @@
 MODULE calcfacearea_mod
     USE core_mod, ONLY: realk, intk, divide0
-    USE ibconst_mod, ONLY: maccur
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -89,17 +88,15 @@ CONTAINS
 
     ! TODO: Why is area part of the argument list at all? This routine is only
     ! called from calcauavaw and area is not used there... Remove!
-    SUBROUTINE calcwallfacecenter(k, j, i, nwa, npoints, connectwa, xpoints, &
-            cartarea, area, s1, s2, s3)
+    SUBROUTINE calcwallfacecenter(nwa, npoints, connectwa, xpoints, &
+            area, s1, s2, s3)
         ! Berechnet den mittelpunkt der koerperschnittflaeche
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: k, j, i
         INTEGER(intk), INTENT(in) :: nwa
         INTEGER(intk), INTENT(in) :: npoints
         INTEGER(intk), INTENT(in) :: connectwa(7)
         REAL(realk), INTENT(in) :: xpoints(3, npoints)
-        REAL(realk), INTENT(in) :: cartarea
         REAL(realk), INTENT(out) :: area, s1, s2, s3
 
         ! Local variables

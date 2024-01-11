@@ -1,5 +1,5 @@
 MODULE noib_restrict_mod
-    USE core_mod, ONLY: realk, intk, get_mgdims, errr, get_fieldptr
+    USE core_mod, ONLY: realk, intk, errr, get_fieldptr
     USE ibmodel_mod, ONLY: restrict_t
 
     IMPLICIT NONE(type, external)

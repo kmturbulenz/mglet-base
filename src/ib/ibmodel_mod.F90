@@ -1,6 +1,7 @@
 MODULE ibmodel_mod
-    USE core_mod, ONLY: realk, intk, idim3d, field_t
+    USE core_mod, ONLY: realk, intk, field_t
     USE blockbp_mod, ONLY: blockbp_t
+
     IMPLICIT NONE(type, external)
     PRIVATE
 

@@ -1,6 +1,6 @@
 MODULE gc_finishknotenbezelltyp_mod
     USE core_mod, ONLY: realk, intk, errr, get_fieldptr, ngrid, minlevel, &
-        maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3, &
+        maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3, &
         get_ip3n, field_t
     USE checkzelle_mod, ONLY: checkzelle_grid
     USE gc_zelltyp_mod, ONLY: zelltyp_grid

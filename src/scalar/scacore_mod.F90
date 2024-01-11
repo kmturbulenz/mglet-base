@@ -1,6 +1,6 @@
 MODULE scacore_mod
     USE core_mod
-    USE ib_mod, ONLY: ftoc, parent, ib, gc_t
+    USE ib_mod, ONLY: ib, gc_t
     USE flow_mod, ONLY: has_flow
 
     IMPLICIT NONE(type, external)

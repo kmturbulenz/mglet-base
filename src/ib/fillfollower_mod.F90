@@ -1,7 +1,7 @@
 MODULE fillfollower_mod
     USE MPI_f08
 
-    USE core_mod, ONLY: realk, intk, int32, idim3d, get_mgdims, get_ip3, &
+    USE core_mod, ONLY: realk, intk, int32, get_mgdims, get_ip3, &
         nmygrids, mygrids, field_t, mglet_mpi_int, get_field, errr, myid
     USE filling_mod, ONLY: blockquad_search
 

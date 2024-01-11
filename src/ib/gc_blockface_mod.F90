@@ -1,5 +1,5 @@
 MODULE gc_blockface_mod
-    USE core_mod, ONLY: intk, realk, errr, minlevel, field_t, &
+    USE core_mod, ONLY: intk, realk, minlevel, field_t, &
         maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3
     IMPLICIT NONE(type, external)
     PRIVATE

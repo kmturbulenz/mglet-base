@@ -5,7 +5,6 @@ MODULE realfield_mod
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
     USE basefield_mod
-    USE commbuf_mod, ONLY: bigbuf
 
     IMPLICIT NONE(type, external)
     PRIVATE

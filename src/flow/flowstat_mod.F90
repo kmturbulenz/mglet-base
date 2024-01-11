@@ -1,6 +1,9 @@
 MODULE flowstat_mod
     USE core_mod
 
+    IMPLICIT NONE(type, external)
+    PRIVATE
+
     PUBLIC :: init_flowstat, finish_flowstat
 
 CONTAINS

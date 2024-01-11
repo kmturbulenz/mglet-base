@@ -1,7 +1,6 @@
 MODULE freekante_mod
-    USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
-        mygridslvl, nmygridslvl, minlevel, maxlevel, errr, &
-        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr
+    USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, minlevel, &
+        maxlevel, errr, field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr
     USE topol_mod, ONLY: topol_t
     USE punktekoordinaten_mod, ONLY: punkteeinekante2
 

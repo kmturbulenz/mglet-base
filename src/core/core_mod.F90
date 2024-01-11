@@ -41,7 +41,7 @@ MODULE core_mod
     USE utils_mod
     USE write3d_mod
 
-    IMPLICIT NONE
+    IMPLICIT NONE (type, external)
     ! In this module everything is public. It exports all the public
     ! definitions from the other modules as well, which makes it easier
     ! to use them, you do not need to "USE" so many modules each place.

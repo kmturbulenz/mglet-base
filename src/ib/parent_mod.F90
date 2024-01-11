@@ -595,7 +595,7 @@ CONTAINS
 
         ! Grid to send from
         ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, igridc, iface
+        INTEGER(intk) :: igrid, iface
 
         ! Message sizes
         ! Must be int32 because it iterface with MPI
@@ -611,7 +611,6 @@ CONTAINS
 
         ! Set variables from send table
         igrid = recvConns(3, recvId)
-        igridc = recvConns(4, recvId)
         iface = recvConns(5, recvId)
 
         ! Get grid dimentsions and pointers

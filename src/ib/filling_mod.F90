@@ -1,10 +1,10 @@
 MODULE filling_mod
     USE MPI_f08
-    USE core_mod, ONLY: realk, intk, int32, int64, mygridslvl, nmygridslvl, &
-        minlevel, maxlevel, errr, connect, mglet_mpi_real, field_t, &
+    USE core_mod, ONLY: realk, intk, int64, mygridslvl, nmygridslvl, &
+        minlevel, maxlevel, errr, connect, field_t, &
         get_mgdims, get_field, get_mgbasb, get_ip3, myid
     USE ftoc_mod, ONLY: ftoc
-    USE ibconst_mod, ONLY: nloopmax, itermax
+    USE ibconst_mod, ONLY: nloopmax
     USE parent_mod, ONLY: parent
 
     IMPLICIT NONE (type, external)

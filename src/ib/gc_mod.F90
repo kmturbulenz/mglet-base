@@ -201,14 +201,14 @@ CONTAINS
 
             CALL this%calc_nvecs_grid(kk, jj, ii, ddx, ddy, ddz, &
                 bzelltyp(ip3), au%arr(ip3), av%arr(ip3), aw%arr(ip3), &
-                ncells, xpsw(:, ipp:ipp+ncells-1), &
-                nvecs(:, ipp:ipp+ncells-1), arealist(ipp:ipp+ncells-1))
+                xpsw(:, ipp:ipp+ncells-1), nvecs(:, ipp:ipp+ncells-1), &
+                arealist(ipp:ipp+ncells-1))
         END DO
     END SUBROUTINE calc_nvecs
 
 
     SUBROUTINE calc_nvecs_grid(kk, jj, ii, ddx, ddy, ddz, bzelltyp, &
-            au, av, aw, ncells, xpsw, nvecs, arealist)
+            au, av, aw, xpsw, nvecs, arealist)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
@@ -216,7 +216,6 @@ CONTAINS
         REAL(realk), INTENT(in) :: au(kk, jj, ii)
         REAL(realk), INTENT(in) :: av(kk, jj, ii)
         REAL(realk), INTENT(in) :: aw(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: ncells
         REAL(realk), INTENT(in) :: xpsw(:, :)
         REAL(realk), INTENT(out) :: nvecs(:, :)
         REAL(realk), INTENT(out) :: arealist(:)

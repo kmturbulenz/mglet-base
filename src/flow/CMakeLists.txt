@@ -18,6 +18,7 @@ add_library(flow STATIC
 
 target_include_directories(flow
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
+    PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 
 target_link_libraries(flow

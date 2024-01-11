@@ -1,10 +1,8 @@
 MODULE gc_stencils_mod
     USE HDF5
-    USE core_mod, ONLY: realk, intk, eps, errr, int_stencils_t, &
-        real_stencils_t, nmygrids, get_imygrid, sub2ind, field_t, &
-        mygrids, nmygrids, get_mgdims, hdf5common_attr_read, &
-        hdf5common_open, hdf5common_close, hdf5common_attr_write, get_ip3, &
-        idim3d, myid, ind2sub
+    USE core_mod, ONLY: realk, intk, eps, errr, nmygrids, sub2ind, field_t, &
+        mygrids, nmygrids, get_mgdims, hdf5common_attr_read, hdf5common_open, &
+        hdf5common_close, hdf5common_attr_write, get_ip3, myid, ind2sub
     USE stencils_mod, ONLY: stencils_t
     IMPLICIT NONE(type, external)
     PRIVATE
