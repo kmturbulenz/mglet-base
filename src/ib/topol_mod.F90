@@ -41,7 +41,7 @@ CONTAINS
 
         ! Local variables
         TYPE(config_t) :: geometries, geometry
-        INTEGER(intk) :: i, j, offset, ngeom, this_id, last_id, only_id
+        INTEGER(intk) :: i, j, offset, ngeom, this_id, only_id
 
         REAL(realk), ALLOCATABLE :: vertices(:, :, :)
         REAL(realk), POINTER :: topol3d(:, :, :)
@@ -67,7 +67,6 @@ CONTAINS
         END IF
 
         ! Count *number of* STL's to read
-        last_id = 0
         DO i = 1, ngeom
             WRITE(jsonptr, '("/geometries/", I0)') i-1
             CALL blockconf%get(geometry, jsonptr)
@@ -91,7 +90,6 @@ CONTAINS
         this%ids = 0
 
         j = 0
-        last_id = 0
         DO i = 1, ngeom
             WRITE(jsonptr, '("/geometries/", I0)') i-1
             CALL blockconf%get(geometry, jsonptr)

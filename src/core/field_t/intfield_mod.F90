@@ -1,7 +1,7 @@
 MODULE intfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims
-    USE precision_mod, ONLY: intk, realk, ifk, mglet_hdf5_ifk, mglet_mpi_ifk
+    USE precision_mod, ONLY: intk, ifk, mglet_hdf5_ifk, mglet_mpi_ifk
     USE basefield_mod
 
     IMPLICIT NONE(type, external)

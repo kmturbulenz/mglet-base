@@ -1,6 +1,6 @@
 MODULE blockbt_mod
     USE core_mod
-    USE ib_mod, ONLY: ctof, parent, ib
+    USE ib_mod, ONLY: ctof
 
     IMPLICIT NONE(type, external)
     PRIVATE

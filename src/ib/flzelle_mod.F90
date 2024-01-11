@@ -1,5 +1,5 @@
 MODULE flzelle_mod
-    USE core_mod, ONLY: realk, intk, errr, divide0
+    USE core_mod, ONLY: intk, errr
 
     IMPLICIT NONE(type, external)
     PRIVATE

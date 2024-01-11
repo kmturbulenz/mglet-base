@@ -1,5 +1,5 @@
 MODULE gc_zelltyp_mod
-    USE core_mod, ONLY: intk, realk, errr, get_fieldptr, ngrid, minlevel, &
+    USE core_mod, ONLY: intk, realk, errr, ngrid, minlevel, &
         maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3, field_t
     IMPLICIT NONE(type, external)
     PRIVATE

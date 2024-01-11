@@ -591,9 +591,9 @@ CONTAINS
 
         REAL(realk) :: qkut, qkub, qkun, qkus, qkvw, qkve, qkvt, qkvb, &
             qkww, qkwe, qkwn, qkws, &
-            fut, fub, fun, fus, aux, auy, auz, &
-            fvw, fve, fvt, fvb, avx, avy, avz, &
-            fww, fwe, fwn, fws, awx, awy, awz
+            fut, fub, fun, fus, auy, auz, &
+            fvw, fve, fvt, fvb, avx, avz, &
+            fww, fwe, fwn, fws, awx, awy
         REAL(realk) :: dxi, ddxi, dyj, ddyj, dzk, ddzk, rdzk, rddzk
         REAL(realk), PARAMETER :: wkon = 1.0
 
@@ -621,7 +621,6 @@ CONTAINS
                     rdzk = rdz(k)
                     ddzk = ddz(k)
                     rddzk = rddz(k)
-                    aux = ddyj*ddzk
                     avx = dyj*ddzk
                     awx = ddyj*dzk
                     fvw = avx*(ut(k, j, i-1) + ut(k, j+1, i-1))*0.5
@@ -655,7 +654,6 @@ CONTAINS
                     rdzk = rdz(k)
                     ddzk = ddz(k)
                     rddzk = rddz(k)
-                    aux = ddyj*ddzk
                     avx = dyj*ddzk
                     awx = ddyj*dzk
                     fvw = avx*(ut(k, j, i-1) + ut(k, j+1, i-1))*0.5
@@ -691,7 +689,6 @@ CONTAINS
                     ddzk = ddz(k)
                     rddzk = rddz(k)
                     auy = dxi*ddzk
-                    avy = ddxi*ddzk
                     awy = ddxi*dzk
 
                     fus = auy*(vt(k, j-1, i) + vt(k, j-1, i+1))*0.5
@@ -726,7 +723,6 @@ CONTAINS
                     ddzk = ddz(k)
                     rddzk = rddz(k)
                     auy = dxi*ddzk
-                    avy = ddxi*ddzk
                     awy = ddxi*dzk
 
                     fus = auy*(vt(k, j-1, i) + vt(k, j-1, i+1))*0.5
@@ -761,7 +757,6 @@ CONTAINS
                     ddyj = ddy(j)
                     auz = dxi*ddyj
                     avz = ddxi*dyj
-                    awz = ddxi*ddyj
                     rdzk = rdz(k)
                     rddzk = rddz(k)
 
@@ -797,7 +792,6 @@ CONTAINS
                     ddyj = ddy(j)
                     auz = dxi*ddyj
                     avz = ddxi* dyj
-                    awz = ddxi*ddyj
 
                     rdzk = rdz(k)
                     rddzk = rddz(k)

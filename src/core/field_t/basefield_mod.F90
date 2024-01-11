@@ -4,7 +4,7 @@ MODULE basefield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, minlevel, maxlevel, get_imygrid, &
         level
-    USE pointers_mod, ONLY: get_len3, idim2d, get_ibb
+    USE pointers_mod, ONLY: get_len3
     USE precision_mod, ONLY: intk, realk
 
 

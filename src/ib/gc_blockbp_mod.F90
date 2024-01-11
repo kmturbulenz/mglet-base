@@ -17,7 +17,6 @@ MODULE gc_blockbp_mod
     USE gc_blockface_mod, ONLY: blockface
     USE gc_blockbpfeld_mod, ONLY: blockbpfeld
     USE openbubvbw_mod, ONLY: openbubvbw
-    USE topol_mod, ONLY: topol_t
     USE blockbp_mod, ONLY: blockbp_t
     USE parent_mod, ONLY: parent
     USE ftoc_mod, ONLY: ftoc

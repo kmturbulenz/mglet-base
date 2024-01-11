@@ -1,7 +1,6 @@
 MODULE ibcore_mod
     USE core_mod, ONLY: fort7, config_t, errr, intk, realk
     USE ibmodel_mod, ONLY: ibmodel_t
-    USE noib_mod, ONLY: noib_t
 
     IMPLICIT NONE(type, external)
     PRIVATE

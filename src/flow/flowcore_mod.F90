@@ -1,6 +1,5 @@
 MODULE flowcore_mod
     USE core_mod
-    USE ib_mod, ONLY: ftoc, parent, ib
 
     IMPLICIT NONE(type, external)
     PRIVATE

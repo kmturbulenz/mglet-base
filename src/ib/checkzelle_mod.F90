@@ -1,9 +1,7 @@
 MODULE checkzelle_mod
-    USE core_mod, ONLY: realk, intk, int32, mygrids, nmygrids, &
-        mygridslvl, nmygridslvl, minlevel, maxlevel, errr, connect, &
-        field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
+    USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, minlevel, &
+        maxlevel, errr, field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
         ind2sub
-    USE cutcorner_mod, ONLY: calcint
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE punktekoordinaten_mod, ONLY: punkteeinekante2
     USE topol_mod, ONLY: topol_t
