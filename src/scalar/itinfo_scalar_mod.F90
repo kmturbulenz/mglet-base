@@ -4,7 +4,7 @@ MODULE itinfo_scalar_mod
     USE MPI_f08
     USE scacore_mod
 
-    IMPLICIT NONE
+    IMPLICIT NONE (type, external)
     PRIVATE
 
     INTEGER(intk), PARAMETER :: itinfo_nsca_max = 16

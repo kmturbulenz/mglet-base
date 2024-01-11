@@ -3,7 +3,7 @@ MODULE itinfo_mod
     USE core_mod
     USE MPI_f08
 
-    IMPLICIT NONE
+    IMPLICIT NONE (type, external)
     PRIVATE
 
     TYPE, BIND(C) :: itinfo_t
