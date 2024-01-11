@@ -31,6 +31,7 @@ add_executable(mglet
 )
 target_include_directories(mglet
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
+    PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 target_link_libraries(mglet
     PRIVATE mgletlib

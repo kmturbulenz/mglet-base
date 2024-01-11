@@ -12,6 +12,7 @@ add_library(scalar STATIC
 
 target_include_directories(scalar
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
+    PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 
 target_link_libraries(scalar
