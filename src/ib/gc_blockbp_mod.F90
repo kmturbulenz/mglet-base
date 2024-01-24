@@ -3,6 +3,7 @@ MODULE gc_blockbp_mod
 
     USE core_mod
     USE calcauavaw_mod, ONLY: calcauavaw
+    USE checkblock_mod, ONLY: checkblock
     USE checkzelle_mod, ONLY: checkzelle
     USE cutcorner_mod, ONLY: cutcorner
     USE blocknodes_mod, ONLY: blocknodes
@@ -37,12 +38,13 @@ MODULE gc_blockbp_mod
     PUBLIC :: gc_blockbp_t, list_to_field, blockluecken_closetoboundary
 
 CONTAINS
-    SUBROUTINE blockbp(this, icells, icellspointer, stencils)
+    SUBROUTINE blockbp(this, icells, icellspointer, stencils, stop_now)
         ! Subroutine arguments
         CLASS(gc_blockbp_t), INTENT(inout) :: this
         INTEGER(intk), INTENT(inout) :: icells(:)
         INTEGER(intk), INTENT(inout) :: icellspointer(:)
         TYPE(gc_stencils_t), INTENT(inout) :: stencils
+        LOGICAL, INTENT(out) :: stop_now
 
         ! Local variables
         INTEGER(intk), PARAMETER :: ntrimax = 2
@@ -61,6 +63,7 @@ CONTAINS
         ! Read configuration etc.
         CALL this%init()
 
+        stop_now = .FALSE.
         IF (.NOT. this%do_blocking) THEN
             RETURN
         END IF
@@ -151,6 +154,35 @@ CONTAINS
 
         CALL totwasser(this%fluidpoints, bp)
         CALL bubvbw(bp, bu, bv, bw)
+
+        IF (TRIM(this%blocking_type) == "checkblock") THEN
+            CALL knoten%finish()
+
+            CALL au%finish()
+            CALL av%finish()
+            CALL aw%finish()
+
+            CALL kanteu%finish()
+            CALL kantev%finish()
+            CALL kantew%finish()
+
+            DEALLOCATE(triau)
+            DEALLOCATE(triav)
+            DEALLOCATE(triaw)
+            DEALLOCATE(bzelltyp)
+
+            IF (myid == 0) THEN
+                WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                    'CHECKBLOCK', MPI_Wtime() - this%time0
+            END IF
+            CALL checkblock(bp, this%outfile)
+
+            CALL this%finish()
+
+            IF (myid == 0) WRITE(*, '()')
+            stop_now = .TRUE.
+            RETURN
+        END IF
 
         ! BP field is now finished
         IF (myid == 0) THEN

@@ -62,11 +62,11 @@ CONTAINS
     END SUBROUTINE destructor
 
 
-    SUBROUTINE blockbp(this)
+    SUBROUTINE blockbp(this, stop_now)
         CLASS(noib_t), INTENT(inout) :: this
+        LOGICAL, INTENT(out) :: stop_now
 
-        ! Not doing anything
-        CONTINUE
+        stop_now = .FALSE.
     END SUBROUTINE blockbp
 
 

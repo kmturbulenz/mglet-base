@@ -2,7 +2,8 @@ MODULE fields_mod
     USE HDF5
     USE comms_mod, ONLY: myid
     USE err_mod, ONLY: errr
-    USE fieldio2_mod, ONLY: fieldio_read, fieldio_write
+    USE fieldio2_mod, ONLY: fieldio_read, fieldio_write, init_fieldio, &
+        finish_fieldio
     USE fort7_mod
     USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
         hdf5common_group_open, hdf5common_group_close
@@ -74,6 +75,7 @@ CONTAINS
             WRITE(*, '("Opening file ", A, " for reading")') TRIM(filename)
         END IF
 
+        CALL init_fieldio()
         CALL hdf5common_open(filename, 'r', file_id)
         CALL hdf5common_group_open("VOLUMEFIELDS", file_id, group_id, &
             track_index=.TRUE.)
@@ -97,6 +99,7 @@ CONTAINS
                 TRIM(filename), writemode
         END IF
 
+        CALL init_fieldio()
         CALL hdf5common_open(filename, writemode, file_id)
         CALL hdf5common_group_open("VOLUMEFIELDS", file_id, group_id, &
             track_index=.TRUE.)
@@ -138,6 +141,7 @@ CONTAINS
 
         CALL hdf5common_group_close(group_id)
         CALL hdf5common_close(file_id)
+        CALL finish_fieldio()
 
         filename = REPEAT(" ", mglet_filename_max)
         file_id = 0

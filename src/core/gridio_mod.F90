@@ -54,8 +54,8 @@ MODULE gridio_mod
         INTEGER(c_intk) :: realprm(2, maxboconds)
     END TYPE bcond_t
 
-    ! Public subroutines
-    PUBLIC :: read_gridinfo, read_bcondinfo, maxboconds, gridinfo_t, bcond_t
+    PUBLIC :: read_gridinfo, read_bcondinfo, maxboconds, gridinfo_t, bcond_t, &
+        write_gridinfo, write_bcondinfo
 
 CONTAINS
     SUBROUTINE read_gridinfo(parent_id, gridinfo, realprms, intprms, ngrid)
@@ -504,4 +504,110 @@ CONTAINS
         CALL MPI_Type_free(prmtype)
     END SUBROUTINE create_bcond_mpitype
 
+
+    SUBROUTINE write_gridinfo(parent_id, gridinfo, realprms, intprms, new_ngrid)
+        ! Subroutine arguments
+        INTEGER(HID_T), INTENT(inout) :: parent_id
+        TYPE(gridinfo_t), INTENT(in), TARGET :: gridinfo(:)
+        REAL(realk), ALLOCATABLE, INTENT(in) :: realprms(:)
+        INTEGER(intk), ALLOCATABLE, INTENT(in) :: intprms(:)
+        INTEGER(intk), INTENT(in) :: new_ngrid
+
+        ! Local variables
+        INTEGER(int32) :: ierr
+        TYPE(C_PTR) :: ptr
+        INTEGER(HID_T) :: dset_id, dspace_id, gridinfo_h5type
+        INTEGER(HSIZE_T) :: dims(1)
+
+        CALL create_gridinfo_h5type(gridinfo_h5type)
+
+        dims(1) = new_ngrid
+        CALL h5screate_simple_f(1, dims, dspace_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5dcreate_f(parent_id, "GRIDINFO", gridinfo_h5type, &
+            dspace_id, dset_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Only rank 0 have valid data to write
+        IF (myid == 0) THEN
+            ptr = C_LOC(gridinfo)
+        ELSE
+            ptr = C_NULL_PTR
+            CALL h5sselect_none_f(dspace_id, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL h5dwrite_f(dset_id, gridinfo_h5type, ptr, ierr, &
+            file_space_id=dspace_id)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5dclose_f(dset_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5sclose_f(dspace_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5tclose_f(gridinfo_h5type, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Writing attributes "REALPRM" and "INTPRM" of GRIDINFO table
+        ! All processes has identical copies of these for simplicity...
+        IF (SIZE(realprms) > 0) THEN
+            CALL hdf5common_attr_write_arr("REALPRMS", realprms, &
+                parent_id, "GRIDINFO")
+        END IF
+
+        IF (SIZE(intprms) > 0) THEN
+            CALL hdf5common_attr_write_arr("INTPRMS", intprms, &
+                parent_id, "GRIDINFO")
+        END IF
+    END SUBROUTINE write_gridinfo
+
+
+    SUBROUTINE write_bcondinfo(parent_id, bcond_arr, face, new_ngrid)
+        ! Subroutine arguments
+        INTEGER(HID_T), INTENT(inout) :: parent_id
+        TYPE(bcond_t), INTENT(IN), TARGET :: bcond_arr(:)
+        CHARACTER(LEN=*), INTENT(IN) :: face
+        INTEGER(intk), INTENT(in) :: new_ngrid
+
+        ! Local variables
+        INTEGER(int32) :: ierr
+        TYPE(C_PTR) :: ptr
+        INTEGER(HID_T) :: dset_id, dspace_id, bcond_h5type
+        INTEGER(HSIZE_T) :: dims(1)
+
+        CALL create_bcond_h5type(bcond_h5type)
+
+        dims(1) = new_ngrid
+        CALL h5screate_simple_f(1, dims, dspace_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5dcreate_f(parent_id, face, bcond_h5type, &
+            dspace_id, dset_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        ! Only rank 0 have valid data to write
+        IF (myid == 0) THEN
+            ptr = C_LOC(bcond_arr)
+        ELSE
+            ptr = C_NULL_PTR
+            CALL h5sselect_none_f(dspace_id, ierr)
+            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL h5dwrite_f(dset_id, bcond_h5type, ptr, ierr, &
+            file_space_id=dspace_id)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5dclose_f(dset_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5sclose_f(dspace_id, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+
+        CALL h5tclose_f(bcond_h5type, ierr)
+        IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
+    END SUBROUTINE write_bcondinfo
 END MODULE gridio_mod

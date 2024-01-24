@@ -103,6 +103,7 @@ CONTAINS
 
         CALL hdf5common_open(filename, "r", file_id)
 
+        CALL init_fieldio()
         CALL fieldio_read(file_id, x)
         CALL fieldio_read(file_id, dx)
         CALL fieldio_read(file_id, ddx)
@@ -114,6 +115,7 @@ CONTAINS
         CALL fieldio_read(file_id, z)
         CALL fieldio_read(file_id, dz)
         CALL fieldio_read(file_id, ddz)
+        CALL finish_fieldio()
 
         CALL hdf5common_close(file_id)
 
@@ -124,39 +126,6 @@ CONTAINS
             WRITE(*, '()')
         END IF
     END SUBROUTINE read_gridspacing
-
-
-#if 0
-    SUBROUTINE write_gridspacing(gridid)
-        USE HDF5
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: gridid(:)
-
-        ! Local variables
-        INTEGER(HID_T) :: file_id
-        CHARACTER(len=mglet_filename_max) :: filename
-
-        filename = REPEAT(" ", mglet_filename_max)
-        CALL fort7%get_value("/io/grids", filename)
-
-        CALL hdf5common_open(filename, "w", file_id)
-
-        CALL fieldio_write(file_id, x)
-        CALL fieldio_write(file_id, dx)
-        CALL fieldio_write(file_id, ddx)
-
-        CALL fieldio_write(file_id, y)
-        CALL fieldio_write(file_id, dy)
-        CALL fieldio_write(file_id, ddy)
-
-        CALL fieldio_write(file_id, z)
-        CALL fieldio_write(file_id, dz)
-        CALL fieldio_write(file_id, ddz)
-
-        CALL hdf5common_close(file_id)
-    END SUBROUTINE write_gridspacing
-#endif
 
 
     SUBROUTINE calc_reciprocals()

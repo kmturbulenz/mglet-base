@@ -8,51 +8,60 @@ PROGRAM main
     USE timeloop_mod, ONLY: init_timeloop, finish_timeloop, timeloop
     USE scalar_mod, ONLY: init_scalar, finish_scalar
 
+    IMPLICIT NONE (type, external)
+
+    LOGICAL :: exit_now
+
     ! Initialization of core data structures
     CALL init_core()
 
-    ! Open result file for reading
-    CALL fields_begin_read()
-
     ! Immersed boundary
     CALL init_ib()
-    CALL ib%blockbp()
-    CALL ib%read_stencils()
-    CALL ib%giteig()
+    CALL ib%blockbp(exit_now)
 
-    ! Initialize plugins
-    CALL register_builtin_plugins()
-    CALL init_plugins()
+    IF (.NOT. exit_now) THEN
+        CALL ib%read_stencils()
+        CALL ib%giteig()
 
-    ! Initialize builtin physical models
-    CALL init_flow()
-    CALL init_scalar()
+        ! Open result file for reading
+        CALL fields_begin_read()
 
-    ! This initialize the time loop. Reads the RUNINFO table in case of DCONT.
-    CALL init_timeloop()
+        ! Initialize plugins
+        CALL register_builtin_plugins()
+        CALL init_plugins()
 
-    ! After this position no data is allowed to be read from fields.h5 any more
-    CALL fields_end_rw()
+        ! Initialize builtin physical models
+        CALL init_flow()
+        CALL init_scalar()
 
-    ! Run time loop
-    CALL timeloop()
+        ! This initialize the time loop. Reads the RUNINFO table in case of
+        ! DCONT.
+        CALL init_timeloop()
 
-    ! Writes RUNINFO-table
-    CALL fields_begin_write()
-    CALL finish_timeloop()
+        ! After this position no data is allowed to be read from fields.h5
+        ! any more
+        CALL fields_end_rw()
 
-    ! Finish plugins
-    CALL finish_plugins()
+        ! Run time loop
+        CALL timeloop()
 
-    ! Finish physical models
-    CALL finish_scalar()
-    CALL finish_flow()
-    CALL finish_ib()
+        ! Writes RUNINFO-table
+        CALL fields_begin_write()
+        CALL finish_timeloop()
 
-    ! Write out fields and close fields.h5
-    CALL fields_write()
-    CALL fields_end_rw()
+        ! Finish plugins
+        CALL finish_plugins()
+
+        ! Finish physical models
+        CALL finish_scalar()
+        CALL finish_flow()
+
+        ! Write out fields and close fields.h5
+        CALL fields_write()
+        CALL fields_end_rw()
+    END IF
 
     ! Deallocate core consructs
+    CALL finish_ib()
     CALL finish_core()
 END PROGRAM main

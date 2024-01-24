@@ -23,7 +23,10 @@ MODULE fieldio2_mod
 
     ! Number of columns in the 'mygridinfo' table. Need to know this globally
     ! for the counts, displs that are pre-computed for communication
-    INTEGER(intk), PARAMETER :: info_dim = 2
+    !   Column 1: original igrid
+    !   Column 2: "new" igrid (used during checkblock)
+    !   Column 3: length
+    INTEGER(intk), PARAMETER :: info_dim = 3
 
     ! Properties for the IO group (iogrcomm comm.) - this is all processes that
     ! are associated with a particular IO process. First stage gathering of
@@ -37,6 +40,12 @@ MODULE fieldio2_mod
     ! communicate and write data to disk.
     INTEGER(int32), ALLOCATABLE :: io_counts(:)
     INTEGER(int32), ALLOCATABLE :: io_displs(:)
+
+    ! Flag if a grid is to be written or not
+    INTEGER(intk) :: nmygrids_io, ngrid_io
+    INTEGER(intk), ALLOCATABLE :: mygrids_io(:)
+    INTEGER(intk), ALLOCATABLE :: gridid_io(:)
+    LOGICAL :: write_vds
 
     ! Type containing an offset,length pair used to look up grids
     TYPE, BIND(C) :: offset_t
@@ -66,15 +75,14 @@ MODULE fieldio2_mod
 
 CONTAINS
     ! Initialize common data structures
-    SUBROUTINE init_fieldio()
-        ! Local variables
-        INTEGER(intk) :: i
+    SUBROUTINE init_fieldio(new_gridids)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in), OPTIONAL :: new_gridids(:)
 
-        CALL set_timer(100, "FIELDIO2")
-        CALL set_timer(101, "FIELDIO2_GATHER")
-        CALL set_timer(102, "FIELDIO2_WRITE")
-        CALL set_timer(103, "FIELDIO2_READ")
-        CALL set_timer(104, "FIELDIO2_SCATTER")
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+
+        IF (is_init) CALL errr(__FILE__, __LINE__)
 
         IF (ioproc) THEN
             ALLOCATE(iogr_counts(iogrprocs))
@@ -90,6 +98,46 @@ CONTAINS
             ALLOCATE(io_displs(0))
         END IF
 
+        IF (PRESENT(new_gridids)) THEN
+            ! This is only for writing out really, due to the needs of
+            ! checkblock. Not implemtned for reading in.
+            write_vds = .FALSE.
+            ALLOCATE(gridid_io, SOURCE=new_gridids)
+
+            ! Overall number of grids to write
+            ngrid_io = 0
+            DO igrid = 1, ngrid
+                IF (new_gridids(igrid) > 0) ngrid_io = ngrid_io + 1
+            END DO
+
+            ! Number of grids on this process to write
+            nmygrids_io = 0
+            DO i = 1, nmygrids
+                igrid = mygrids(i)
+                IF (new_gridids(igrid) > 0) nmygrids_io = nmygrids_io + 1
+            END DO
+            ALLOCATE(mygrids_io(nmygrids_io), SOURCE=0)
+
+            ! List which grids this process are writing
+            nmygrids_io = 0
+            DO i = 1, nmygrids
+                igrid = mygrids(i)
+                IF (new_gridids(igrid) > 0) THEN
+                    nmygrids_io = nmygrids_io + 1
+                    mygrids_io(nmygrids_io) = igrid
+                END IF
+            END DO
+        ELSE
+            write_vds = .TRUE.
+            ngrid_io = ngrid
+            nmygrids_io = nmygrids
+            ALLOCATE(mygrids_io, SOURCE=mygrids)
+            ALLOCATE(gridid_io(ngrid))
+            DO i = 1, ngrid
+                gridid_io(i) = i
+            END DO
+        END IF
+
         ! Establish properties for IO group communicator
         BLOCK
             INTEGER(intk), ALLOCATABLE :: niogridsproc(:)
@@ -100,7 +148,7 @@ CONTAINS
                 ALLOCATE(niogridsproc(0))
             END IF
 
-            CALL MPI_Gather(nmygrids, 1, mglet_mpi_int, &
+            CALL MPI_Gather(nmygrids_io, 1, mglet_mpi_int, &
                 niogridsproc, 1, mglet_mpi_int, 0, iogrcomm)
 
             iogr_counts = 0
@@ -135,7 +183,7 @@ CONTAINS
             ! ngrid == niogrids_tot. Grids on levels where no data are present
             ! just have length == 0
             niogrids_tot = SUM(niogrids_all)
-            IF (ngrid /= niogrids_tot) CALL errr(__FILE__, __LINE__)
+            IF (ngrid_io /= niogrids_tot) CALL errr(__FILE__, __LINE__)
 
             io_counts = 0
             io_displs = 0
@@ -250,6 +298,7 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: hdferr
 
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
         is_init = .FALSE.
 
         CALL h5tclose_f(offset_h5t, hdferr)
@@ -264,6 +313,11 @@ CONTAINS
 
         IF (ALLOCATED(io_counts)) DEALLOCATE(io_counts)
         IF (ALLOCATED(io_displs)) DEALLOCATE(io_displs)
+
+       IF (ALLOCATED(mygrids_io)) DEALLOCATE(mygrids_io)
+       IF (ALLOCATED(gridid_io)) DEALLOCATE(gridid_io)
+       nmygrids_io = 0
+       ngrid_io = 0
     END SUBROUTINE finish_fieldio
 
 
@@ -330,6 +384,16 @@ CONTAINS
         INTEGER(hid_t) :: group_id
         INTEGER(int32) :: ierr
         LOGICAL :: link_exists
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
+
+        ! Sanity check
+        ! Passing init_fieldio to init_fieldio allows to write a
+        ! subset of grids out - this is not implemented for reading
+        ! (there are no such need - you always read the entire restart or
+        ! grids file)
+        IF (ngrid_io /= ngrid) CALL errr(__FILE__, __LINE__)
+        IF (nmygrids_io /= nmygrids) CALL errr(__FILE__, __LINE__)
 
         ! Check if field is present
         IF (PRESENT(required)) THEN
@@ -542,7 +606,10 @@ CONTAINS
             CALL gather_grids(ifkbuf, iogridinfo, field)
             CALL write_grids(parent_id, ifkbuf, iogridinfo)
         END SELECT
-        CALL write_levels_vds(parent_id, field%hdf5_dtype, iogridinfo)
+
+        IF (write_vds) THEN
+            CALL write_levels_vds(parent_id, field%hdf5_dtype, iogridinfo)
+        END IF
 
         DEALLOCATE(iogridinfo)
     END SUBROUTINE write_data
@@ -578,7 +645,7 @@ CONTAINS
             DO i = 1, niogrgrids
                 igrid = iogridinfo(1, i)
                 iproc = idprocofgrd(igrid)
-                nelems = iogridinfo(2, i)
+                nelems = iogridinfo(3, i)
 
                 ! Grids with no data are not communicated
                 IF (nelems == 0) CYCLE
@@ -617,8 +684,8 @@ CONTAINS
             TYPE IS (intfield_t)
                 ALLOCATE(transposed, mold=field%arr)
             END SELECT
-            DO i = 1, nmygrids
-                igrid = mygrids(i)
+            DO i = 1, nmygrids_io
+                igrid = mygrids_io(i)
                 IF (.NOT. field%active_level(level(igrid))) CYCLE
 
                 CALL get_mgdims(kk, jj, ii, igrid)
@@ -641,10 +708,10 @@ CONTAINS
             END SELECT
         END IF
 
-        ALLOCATE(sendreq(nmygrids))
+        ALLOCATE(sendreq(nmygrids_io))
         nsend = 0
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
+        DO i = 1, nmygrids_io
+            igrid = mygrids_io(i)
             IF (.NOT. field%active_level(level(igrid))) CYCLE
             nsend = nsend + 1
 
@@ -717,17 +784,17 @@ CONTAINS
         CALL create_iogridinfo_all(iogridinfo_all, iogridinfo)
 
         ! Compute global offset and length information
-        ALLOCATE(offset(ngrid))
+        ALLOCATE(offset(ngrid_io))
         offset(1)%offset = 1
-        DO i = 1, ngrid
-            offset(i)%length = iogridinfo_all(2, i)
+        DO i = 1, ngrid_io
+            offset(i)%length = iogridinfo_all(3, i)
         END DO
-        DO i = 2, ngrid
+        DO i = 2, ngrid_io
             offset(i)%offset = offset(i-1)%offset + offset(i-1)%length
         END DO
 
         ! Create/open dataset
-        shape1(1) = offset(ngrid)%offset + offset(ngrid)%length - 1
+        shape1(1) = offset(ngrid_io)%offset + offset(ngrid_io)%length - 1
         CALL hdf5common_dataset_create("DATA", shape1, memtype, &
             parent_id, dset_id, filespace)
 
@@ -765,7 +832,7 @@ CONTAINS
 
         ! Write offset, length table
         cptr = C_LOC(offset)
-        shape1(1) = ngrid
+        shape1(1) = ngrid_io
         CALL stencilio_write_master_cptr(parent_id, "OFFSET", cptr, &
             shape1, offset_h5t)
 
@@ -811,7 +878,7 @@ CONTAINS
         ALLOCATE(offset(ngrid))
         offset(1)%offset = 1
         DO i = 1, ngrid
-            offset(i)%length = iogridinfo_all(2, i)
+            offset(i)%length = iogridinfo_all(3, i)
         END DO
         DO i = 2, ngrid
             offset(i)%offset = offset(i-1)%offset + offset(i-1)%length
@@ -832,7 +899,7 @@ CONTAINS
             nofthislevel(ilevel) = nofthislevel(ilevel) + 1
             igridlvl(i) = nofthislevel(ilevel)
 
-            nelems = iogridinfo_all(2, i)
+            nelems = iogridinfo_all(3, i)
             maxofthislevel(ilevel) = MAX(maxofthislevel(ilevel), nelems)
 
             IF (nelems > 0) THEN
@@ -1034,7 +1101,7 @@ CONTAINS
                 IF (count2(2) == 0) THEN
                     offset2(1) = 0
                     offset2(2) = igridlvl(igrid) - 1
-                    count2(1) = iogridinfo(2, i)
+                    count2(1) = iogridinfo(3, i)
                     count2(2) = 0
                 END IF
 
@@ -1049,7 +1116,7 @@ CONTAINS
                     END IF
 
                     ! If length of next grid is different - stop
-                    IF (iogridinfo(2, i+1) /= iogridinfo(2, i)) THEN
+                    IF (iogridinfo(3, i+1) /= iogridinfo(3, i)) THEN
                         finishblock = .TRUE.
                     END IF
 
@@ -1224,10 +1291,10 @@ CONTAINS
         CALL start_timer(104)
 
         ! All processes call Recv first
-        ALLOCATE(recvreq(nmygrids))
+        ALLOCATE(recvreq(nmygrids_io))
         nrecv = 0
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
+        DO i = 1, nmygrids_io
+            igrid = mygrids_io(i)
             IF (.NOT. field%active_level(level(igrid))) CYCLE
             nrecv = nrecv + 1
 
@@ -1252,7 +1319,7 @@ CONTAINS
             DO i = 1, niogrgrids
                 igrid = iogridinfo(1, i)
                 iproc = idprocofgrd(igrid)
-                nelems = iogridinfo(2, i)
+                nelems = iogridinfo(3, i)
 
                 ! Grids with no data are not communicated
                 IF (nelems == 0) CYCLE
@@ -1285,8 +1352,8 @@ CONTAINS
         ! IMPORTANT: Deliberate use of "wrong" ordering of kk, jj, ii to
         ! transpose backwards!
         IF (field%ndim == 3) THEN
-            DO i = 1, nmygrids
-                igrid = mygrids(i)
+            DO i = 1, nmygrids_io
+                igrid = mygrids_io(i)
                 IF (.NOT. field%active_level(level(igrid))) CYCLE
 
                 CALL get_mgdims(kk, jj, ii, igrid)
@@ -1323,14 +1390,15 @@ CONTAINS
         ! lookup-tables when reading the file back in, either in MGLET or
         ! in various postprocessing tools. Therefore it is useful to
         ! know which grids are absent.
-        ALLOCATE(mygridinfo(info_dim, nmygrids))
+        ALLOCATE(mygridinfo(info_dim, nmygrids_io))
         mygridinfo = 0
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
+        DO i = 1, nmygrids_io
+            igrid = mygrids_io(i)
             mygridinfo(1, i) = igrid
+            mygridinfo(2, i) = gridid_io(igrid)
 
             IF (.NOT. field%active_level(level(igrid))) CYCLE
-            CALL field%get_len(mygridinfo(2, i), igrid)
+            CALL field%get_len(mygridinfo(3, i), igrid)
         END DO
 
         IF (ioproc) THEN
@@ -1338,7 +1406,7 @@ CONTAINS
         ELSE
             ALLOCATE(iogridinfo(info_dim, 0))
         END IF
-        CALL MPI_Gatherv(mygridinfo, info_dim*nmygrids, mglet_mpi_int, &
+        CALL MPI_Gatherv(mygridinfo, info_dim*nmygrids_io, mglet_mpi_int, &
             iogridinfo, iogr_counts, iogr_displs, mglet_mpi_int, &
             0, iogrcomm)
         DEALLOCATE(mygridinfo)
@@ -1368,28 +1436,18 @@ CONTAINS
         INTEGER(intk), ALLOCATABLE :: sortidx(:)
         INTEGER(intk), ALLOCATABLE :: iogridinfo_tmp(:, :)
 
-        ALLOCATE(iogridinfo_all(info_dim, ngrid))
+        ALLOCATE(iogridinfo_all(info_dim, ngrid_io))
         CALL MPI_Allgatherv(iogridinfo, info_dim*niogrgrids, &
             mglet_mpi_int, iogridinfo_all, io_counts, io_displs, &
             mglet_mpi_int, iocomm)
 
         ! iogridinfo_all needs sorting by grid id
-        ALLOCATE(sortidx(ngrid))
-        CALL sortix(ngrid, iogridinfo_all(1, :), sortidx)
+        ALLOCATE(sortidx(ngrid_io))
+        CALL sortix(ngrid_io, iogridinfo_all(1, :), sortidx)
 
         ALLOCATE(iogridinfo_tmp, mold=iogridinfo_all)
-        DO i = 1, ngrid
+        DO i = 1, ngrid_io
             iogridinfo_tmp(:, i) = iogridinfo_all(:, sortidx(i))
-        END DO
-
-        ! Sanity check to assure that we have received information
-        ! for all grids by checking that the grid-id is sequential and
-        ! no grids are missing
-        ! TODO: encapsulate in _MGLET_DEBUG_
-        DO i = 1, ngrid-1
-            IF (iogridinfo_tmp(1, i+1) /= iogridinfo_tmp(1, i) + 1) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
         END DO
 
         DEALLOCATE(sortidx)
@@ -1421,19 +1479,19 @@ CONTAINS
 
         finishblock = .FALSE.
         DO i = 1, niogrgrids
-            igrid = iogridinfo(1, i)
+            igrid = iogridinfo(2, i)
 
             ! start new block?
             IF (count1(1) == 0) THEN
                 offset1(1) = offset(igrid)%offset - 1
             END IF
 
-            count1(1) = count1(1) + iogridinfo(2, i)
+            count1(1) = count1(1) + iogridinfo(3, i)
 
             ! Finish current block?
             IF (i < niogrgrids) THEN
                 ! If it's non-contigous in filespace, stop block here
-                IF (iogridinfo(1, i+1) /= igrid + 1) THEN
+                IF (iogridinfo(2, i+1) /= igrid + 1) THEN
                     finishblock = .TRUE.
                 END IF
             ELSE

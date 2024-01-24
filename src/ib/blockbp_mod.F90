@@ -18,6 +18,7 @@ MODULE blockbp_mod
         REAL(realk), ALLOCATABLE :: nofluidpoints(:, :)
 
         CHARACTER(len=mglet_filename_max) :: blocking_type
+        CHARACTER(len=mglet_filename_max) :: outfile
 
         TYPE(topol_t) :: topol
         REAL(real64) :: time0
@@ -46,6 +47,9 @@ CONTAINS
         CALL this%blockconf%get_value("/blocking", this%blocking_type)
         IF (TRIM(this%blocking_type) == "newblock") THEN
             this%do_blocking = .TRUE.
+        ELSE IF (TRIM(this%blocking_type) == "checkblock") THEN
+            this%do_blocking = .TRUE.
+            CALL this%blockconf%get_value("/outfile", this%outfile)
         ELSE IF (TRIM(this%blocking_type) == "useblock") THEN
             RETURN
         ELSE
