@@ -111,14 +111,15 @@ CONTAINS
     END SUBROUTINE destructor
 
 
-    SUBROUTINE blockbp(this)
+    SUBROUTINE blockbp(this, stop_now)
         ! Subroutine arguments
         CLASS(gc_t), INTENT(inout) :: this
+        LOGICAL, INTENT(out) :: stop_now
 
         SELECT TYPE(blockbp_op => this%blockbp_op)
         TYPE IS (gc_blockbp_t)
             CALL blockbp_op%blockbp(this%icells, this%icellspointer, &
-                this%stencils)
+                this%stencils, stop_now)
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT

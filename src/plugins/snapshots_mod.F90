@@ -127,10 +127,12 @@ CONTAINS
         CALL hdf5common_attr_write("TIMEPH", timeph, group2_id)
         CALL hdf5common_attr_write("DT", dt, group2_id)
 
+        CALL init_fieldio()
         DO i = 1, nfields
             CALL get_field(field, fieldlist(i))
             CALL fieldio_write(group2_id, field)
         END DO
+        CALL finish_fieldio()
 
         CALL hdf5common_group_close(group2_id)
         CALL hdf5common_group_close(group1_id)

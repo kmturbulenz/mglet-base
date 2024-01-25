@@ -47,6 +47,7 @@ add_library(core STATIC
     timer_mod.F90
     utils_mod.F90
     write3d_mod.F90
+    write_grids_mod.F90
 )
 
 target_include_directories(core

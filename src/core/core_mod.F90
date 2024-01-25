@@ -40,6 +40,7 @@ MODULE core_mod
     USE timer_mod
     USE utils_mod
     USE write3d_mod
+    USE write_grids_mod
 
     IMPLICIT NONE (type, external)
     ! In this module everything is public. It exports all the public
@@ -66,6 +67,12 @@ CONTAINS
         CALL init_timer()
 
         CALL set_timer(1, "MGLET")
+        CALL set_timer(100, "FIELDIO2")
+        CALL set_timer(101, "FIELDIO2_GATHER")
+        CALL set_timer(102, "FIELDIO2_WRITE")
+        CALL set_timer(103, "FIELDIO2_READ")
+        CALL set_timer(104, "FIELDIO2_SCATTER")
+
         CALL start_timer(1)
 
         CALL init_hdf5common()
@@ -74,7 +81,6 @@ CONTAINS
         CALL init_grids()
         CALL init_pointers()
         CALL init_commbuf()
-        CALL init_fieldio()
         CALL init_fields()
         CALL init_corefields()
         CALL init_connect2()
@@ -97,7 +103,6 @@ CONTAINS
         CALL finish_connect2()
         CALL finish_corefields()
         CALL finish_fields()
-        CALL finish_fieldio()
         CALL finish_commbuf()
         CALL finish_pointers()
         CALL finish_grids()

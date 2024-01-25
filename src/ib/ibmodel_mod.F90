@@ -42,9 +42,10 @@ MODULE ibmodel_mod
             INTEGER(intk), INTENT(IN) :: igrid
         END SUBROUTINE restrict_i
 
-        SUBROUTINE blockbp_i(this)
+        SUBROUTINE blockbp_i(this, stop_now)
             IMPORT :: ibmodel_t
             CLASS(ibmodel_t), INTENT(inout) :: this
+            LOGICAL, INTENT(out) :: stop_now
         END SUBROUTINE blockbp_i
 
         SUBROUTINE read_stencils_i(this)

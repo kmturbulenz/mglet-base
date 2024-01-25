@@ -8,6 +8,7 @@ add_library(ib STATIC
     calcauavaw_mod.F90
     calcfacearea_mod.F90
     calcnormals_mod.F90
+    checkblock_mod.F90
     checkzelle_mod.F90
     ctof_mod.F90
     cutcorner_mod.F90

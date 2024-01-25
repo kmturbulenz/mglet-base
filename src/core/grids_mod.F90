@@ -2,6 +2,7 @@ MODULE grids_mod
     USE precision_mod, ONLY: intk, realk, mglet_filename_max
     USE err_mod, ONLY: errr
     USE gridio_mod, ONLY: gridinfo_t, bcond_t, maxboconds
+    USE comms_mod, ONLY: myid
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -45,7 +46,7 @@ MODULE grids_mod
     PUBLIC :: init_grids, finish_grids, get_bbox, get_gradpxflag, get_bcprms, &
         get_imygrid, get_mgdims, get_level, iposition, jposition, kposition, &
         iparent, get_neighbours, level, get_kk, get_jj, get_ii, get_mgbasb, &
-        get_bc_ctyp, get_gridvolume, get_nbcprms
+        get_bc_ctyp, get_gridvolume, get_nbcprms, rewrite_grids
 
     ! Public data arrays
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &
@@ -917,4 +918,116 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_bc_ctyp
+
+
+    SUBROUTINE rewrite_grids(new_gridinfo, new_front, new_back, new_right, &
+            new_left, new_bottom, new_top, new_realprms, new_intprms, &
+            new_gridids, new_ngrid, nfluidcells)
+        ! Subroutine arguments
+        TYPE(gridinfo_t), INTENT(out), ALLOCATABLE :: new_gridinfo(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_front(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_back(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_right(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_left(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_bottom(:)
+        TYPE(bcond_t), INTENT(out), ALLOCATABLE :: new_top(:)
+        REAL(realk), INTENT(out), ALLOCATABLE :: new_realprms(:)
+        INTEGER(intk), INTENT(out), ALLOCATABLE  :: new_intprms(:)
+        INTEGER(intk), INTENT(out), ALLOCATABLE :: new_gridids(:)
+        INTEGER(intk), INTENT(out) :: new_ngrid
+        INTEGER(intk), INTENT(in) :: nfluidcells(:)
+
+        ! Local variables
+        INTEGER(intk) :: igrid, new_igrid, idx
+
+        ! Create new gridid's
+        ALLOCATE(new_realprms, SOURCE=realprms)
+        ALLOCATE(new_intprms, SOURCE=intprms)
+        ALLOCATE(new_gridids(ngrid), SOURCE=0)
+
+        ! Assign new gridid's
+        new_ngrid = 0
+        DO igrid = 1, ngrid
+            ! Grid is kept
+            IF(nfluidcells(igrid) > 0) THEN
+                new_ngrid = new_ngrid + 1
+                new_gridids(igrid) = new_ngrid
+            END IF
+        END DO
+
+        IF (myid == 0) THEN
+            ! Allocate new grid structures
+            ALLOCATE(new_gridinfo(new_ngrid))
+            ALLOCATE(new_front(new_ngrid))
+            ALLOCATE(new_back(new_ngrid))
+            ALLOCATE(new_right(new_ngrid))
+            ALLOCATE(new_left(new_ngrid))
+            ALLOCATE(new_bottom(new_ngrid))
+            ALLOCATE(new_top(new_ngrid))
+
+            ! Create new grid structures
+            DO igrid = 1, ngrid
+                new_igrid = new_gridids(igrid)
+                IF (new_igrid == 0) CYCLE
+
+                ! Copy grid information
+                new_gridinfo(new_igrid) = gridinfo(igrid)
+                new_front(new_igrid) = front(igrid)
+                new_back(new_igrid) = back(igrid)
+                new_right(new_igrid) = right(igrid)
+                new_left(new_igrid) = left(igrid)
+                new_bottom(new_igrid) = bottom(igrid)
+                new_top(new_igrid) = top(igrid)
+
+                ! Assign NIX boundary condition
+                CALL set_nix(new_front(new_igrid), nfluidcells(igrid), 1)
+                CALL set_nix(new_back(new_igrid), nfluidcells(igrid), 2)
+                CALL set_nix(new_right(new_igrid), nfluidcells(igrid), 3)
+                CALL set_nix(new_left(new_igrid), nfluidcells(igrid), 4)
+                CALL set_nix(new_bottom(new_igrid), nfluidcells(igrid), 5)
+                CALL set_nix(new_top(new_igrid), nfluidcells(igrid), 6)
+
+                ! Renumber grid
+                new_gridinfo(new_igrid)%igrid = new_igrid
+
+                ! Renumber any parent references
+                IF (gridinfo(igrid)%iparent > 0) THEN
+                    new_gridinfo(new_igrid)%iparent = &
+                        new_gridids(gridinfo(igrid)%iparent)
+                END IF
+
+                ! Change all nbrgrid's
+                DO idx = 1, 26
+                    IF (gridinfo(igrid)%nbrgrid(idx) > 0) THEN
+                        new_gridinfo(new_igrid)%nbrgrid(idx) = &
+                            new_gridids(gridinfo(igrid)%nbrgrid(idx))
+                    END IF
+                END DO
+            END DO
+        END IF
+    END SUBROUTINE rewrite_grids
+
+
+    PURE SUBROUTINE set_nix(bcond, nfluidcells, idir)
+        ! Subroutine arguments
+        TYPE(bcond_t), INTENT(INOUT) :: bcond
+        INTEGER(intk), INTENT(IN) :: nfluidcells, idir
+
+        ! Local variables
+        INTEGER(intk) :: i
+        CHARACTER(LEN=*), PARAMETER :: nix = "NIX"
+
+        ! If ther is fluid cells in the BC, the bit is flipped on and we do
+        ! nothing
+        IF (BTEST(nfluidcells, idir)) RETURN
+
+        ! Remove all traces of previous boundary condition(s)
+        DO i = 1, bcond%nbocd
+            bcond%type(:, i) = REPEAT(" ", LEN(bcond%type(:, i)))
+        END DO
+
+        ! Apply NIX as the only BC left
+        bcond%nbocd = 1
+        bcond%type(1:LEN(nix), 1) = TRANSFER(nix, bcond%type(1:LEN(nix), 1))
+    END SUBROUTINE set_nix
 END MODULE grids_mod

@@ -1,0 +1,26 @@
+{
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+
+        "blocking": "checkblock",
+        "outfile": "grids_new.h5",
+        "fluidpoints": [
+            [-0.7, -0.7, -0.7],
+            [0.7, 0.7, 0.7]
+        ],
+        "nofluidpoints": [
+            [0.0, 0.0, 0.0]
+        ],
+        "geometries": [
+            {
+                "file": "box.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            }
+        ]
+    }
+}
