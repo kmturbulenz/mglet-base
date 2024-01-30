@@ -142,6 +142,7 @@ CONTAINS
         ! if it is negative, a the 'programname' buffer was too short and the
         ! returnded value was truncated
         ! if it is zero, everything is good
+        wdata%programname = REPEAT(" ", LEN(wdata%programname))
         IF (status <= 0) THEN
             wdata%programname = TRANSFER(programname, wdata%programname)
         ELSE
