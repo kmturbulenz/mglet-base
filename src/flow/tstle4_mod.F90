@@ -363,21 +363,21 @@ CONTAINS
                     ge = g(k, j, i+1)
                     gw = g(k, j, i)
                     gn = g(k, j, i)*g(k, j+1, i) &
-                        /max(g(k, j, i) + g(k, j+1, i), gmol) &
+                        /MAX(g(k, j, i) + g(k, j+1, i), gmol) &
                         + g(k, j, i+1)*g(k, j+1, i+1) &
-                        /max(g(k, j, i+1) + g(k, j+1, i+1), gmol)
+                        /MAX(g(k, j, i+1) + g(k, j+1, i+1), gmol)
                     gs = g(k, j-1, i)*g(k, j, i) &
-                        /max(g(k, j-1, i) + g(k, j, i), gmol) &
+                        /MAX(g(k, j-1, i) + g(k, j, i), gmol) &
                         + g(k, j-1, i+1)*g(k, j, i+1) &
-                        /max(g(k, j-1, i+1) + g(k, j, i+1), gmol)
+                        /MAX(g(k, j-1, i+1) + g(k, j, i+1), gmol)
                     gt = g(k, j, i)*g(k+1, j, i) &
-                        /max(g(k, j, i) + g(k+1, j, i), gmol) &
+                        /MAX(g(k, j, i) + g(k+1, j, i), gmol) &
                         + g(k, j, i+1)*g(k+1, j, i+1) &
-                        /max(g(k, j, i+1) + g(k+1, j, i+1), gmol)
+                        /MAX(g(k, j, i+1) + g(k+1, j, i+1), gmol)
                     gb = g(k-1, j, i)*g(k, j, i) &
-                        /max(g(k-1, j, i) + g(k, j, i), gmol) &
+                        /MAX(g(k-1, j, i) + g(k, j, i), gmol) &
                         + g(k-1, j, i+1)*g(k, j, i+1) &
-                        /max(g(k-1, j, i+1) + g(k, j, i+1), gmol)
+                        /MAX(g(k-1, j, i+1) + g(k, j, i+1), gmol)
 
                     qe = -ge*ax*rddx(i+1)*(u(k, j, i+1) - u(k, j, i))
                     qw = -gw*ax*rddx(i)*(u(k, j, i) - u(k, j, i-1))
@@ -408,23 +408,23 @@ CONTAINS
                     az = ddx(i)*dy(j)
 
                     ge = g(k, j, i)*g(k, j, i+1) &
-                        /max(g(k, j, i) + g(k, j, i+1), gmol) &
+                        /MAX(g(k, j, i) + g(k, j, i+1), gmol) &
                         + g(k, j+1, i)*g(k, j+1, i+1) &
-                        /max(g(k, j+1, i) + g(k, j+1, i+1), gmol)
+                        /MAX(g(k, j+1, i) + g(k, j+1, i+1), gmol)
                     gw = g(k, j, i-1)*g(k, j, i) &
-                        /max(g(k, j, i-1) + g(k, j, i), gmol) &
+                        /MAX(g(k, j, i-1) + g(k, j, i), gmol) &
                         + g(k, j+1, i-1)*g(k, j+1, i) &
-                        /max(g(k, j+1, i-1) + g(k, j+1, i), gmol)
+                        /MAX(g(k, j+1, i-1) + g(k, j+1, i), gmol)
                     gn = g(k, j+1, i)
                     gs = g(k, j, i)
                     gt = g(k, j, i)*g(k+1, j, i) &
-                        /max(g(k, j, i) + g(k+1, j, i), gmol) &
+                        /MAX(g(k, j, i) + g(k+1, j, i), gmol) &
                         + g(k, j+1, i)*g(k+1, j+1, i) &
-                        /max(g(k, j+1, i) + g(k+1, j+1, i), gmol)
+                        /MAX(g(k, j+1, i) + g(k+1, j+1, i), gmol)
                     gb = g(k-1, j, i)*g(k, j, i) &
-                        /max(g(k-1, j, i) + g(k, j, i), gmol) &
+                        /MAX(g(k-1, j, i) + g(k, j, i), gmol) &
                         + g(k-1, j+1, i)*g(k, j+1, i) &
-                        /max(g(k-1, j+1, i) + g(k, j+1, i), gmol)
+                        /MAX(g(k-1, j+1, i) + g(k, j+1, i), gmol)
 
                     qe = -ge*ax*rdx(i) * (v(k, j, i+1) - v(k, j, i))
                     qw = -gw*ax*rdx(i-1) * (v(k, j, i) - v(k, j, i-1))
@@ -455,21 +455,21 @@ CONTAINS
                     az = ddx(i)*ddy(j)
 
                     ge = g(k, j, i)*g(k, j, i+1) &
-                        /max(g(k, j, i) + g(k, j, i+1), gmol) &
+                        /MAX(g(k, j, i) + g(k, j, i+1), gmol) &
                         + g(k+1, j, i)*g(k+1, j, i+1) &
-                        /max(g(k+1, j, i) + g(k+1, j, i+1), gmol)
+                        /MAX(g(k+1, j, i) + g(k+1, j, i+1), gmol)
                     gw = g(k, j, i-1)*g(k, j, i) &
-                        /max(g(k, j, i-1) + g(k, j, i), gmol) &
+                        /MAX(g(k, j, i-1) + g(k, j, i), gmol) &
                         + g(k+1, j, i-1)*g(k+1, j, i) &
-                        /max(g(k+1, j, i-1) + g(k+1, j, i), gmol)
+                        /MAX(g(k+1, j, i-1) + g(k+1, j, i), gmol)
                     gn = g(k, j, i)*g(k, j+1, i) &
-                        /max(g(k, j, i) + g(k, j+1, i), gmol) &
+                        /MAX(g(k, j, i) + g(k, j+1, i), gmol) &
                         + g(k+1, j, i)*g(k+1, j+1, i) &
-                        /max(g(k+1, j, i) + g(k+1, j+1, i), gmol)
+                        /MAX(g(k+1, j, i) + g(k+1, j+1, i), gmol)
                     gs = g(k, j-1, i)*g(k, j, i) &
-                        /max(g(k, j-1, i) + g(k, j, i), gmol) &
+                        /MAX(g(k, j-1, i) + g(k, j, i), gmol) &
                         + g(k+1, j-1, i)*g(k+1, j, i) &
-                        /max(g(k+1, j-1, i) + g(k+1, j, i), gmol)
+                        /MAX(g(k+1, j-1, i) + g(k+1, j, i), gmol)
                     gt = g(k+1, j, i)
                     gb = g(k, j, i)
 
