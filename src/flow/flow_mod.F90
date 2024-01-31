@@ -16,6 +16,7 @@ CONTAINS
     SUBROUTINE init_flow()
         ! These symbold do not need to be exported from this module
         USE core_mod
+        USE gc_compbodyforce_mod, ONLY: init_compbodyforce
         USE gc_flowstencils_mod
         USE ib_mod
         USE lesmodel_mod
@@ -55,6 +56,7 @@ CONTAINS
         CALL set_timer(341, "FLOW_GETIBVALUES")
         CALL set_timer(342, "FLOW_SETPOINTVALUES")
         CALL set_timer(350, "FLOW_ITINFO")
+        CALL set_timer(351, "FLOW_COMPBODYFORCE")
         CALL set_timer(360, "FLOW_BOUSSINESQTERM")
         CALL set_timer(370, "FLOW_CORIOLISTERM")
 
@@ -68,6 +70,7 @@ CONTAINS
         SELECT TYPE(ib)
         TYPE IS (gc_t)
             CALL create_flowstencils(ib)
+            IF (compbodyforce) CALL init_compbodyforce(dcont)
 
             CALL set_field("PWU", istag=1, buffers=.TRUE.)
             CALL set_field("PWV", jstag=1, buffers=.TRUE.)
@@ -90,6 +93,7 @@ CONTAINS
         USE lesmodel_mod
         USE pressuresolver_mod
         USE itinfo_mod, ONLY: finish_itinfo
+        USE gc_compbodyforce_mod, ONLY: finish_compbodyforce
         USE gc_flowstencils_mod
         USE ib_mod
         USE boussinesqterm_mod, ONLY: finish_boussinesqterm
@@ -101,6 +105,7 @@ CONTAINS
             SELECT TYPE(ib)
             TYPE IS (gc_t)
                 IF (solve_flow) THEN
+                    IF (compbodyforce) CALL finish_compbodyforce()
                     CALL finish_flowstencils()
                 END IF
             END SELECT

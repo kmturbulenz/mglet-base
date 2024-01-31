@@ -15,6 +15,7 @@ MODULE flowcore_mod
     REAL(realk), PROTECTED :: tu_level
     REAL(realk), PROTECTED :: targetcflmax
     REAL(realk), PROTECTED :: gradp(3)
+    LOGICAL, PROTECTED :: compbodyforce
 
     ! TODO: Allocatable length - some expressions can be LONG!
     CHARACTER(len=10240), PROTECTED :: uinf_expr(3) = ""
@@ -23,7 +24,7 @@ MODULE flowcore_mod
 
     PUBLIC :: init_flowcore, finish_flowcore, has_flow, solve_flow, gmol, &
         rho, uinf, uinf_expr, uinf_is_expr, uinf_is_time, tu_level, &
-        targetcflmax, gradp
+        targetcflmax, gradp, compbodyforce
 
 CONTAINS
     SUBROUTINE init_flowcore()
@@ -106,6 +107,7 @@ CONTAINS
         END IF
 
         CALL flowconf%get_value("/solve", solve_flow, .TRUE.)
+        CALL flowconf%get_value("/compbodyforce", compbodyforce, .FALSE.)
 
         gradp = 0.0
         IF (flowconf%exists("/gradp")) THEN
