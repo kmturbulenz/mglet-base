@@ -2,6 +2,7 @@ MODULE timeintegration_mod
     USE bound_flow_mod
     USE core_mod
     USE flowcore_mod
+    USE gc_compbodyforce_mod, ONLY: sample_compbodyforce
     USE gc_flowstencils_mod, ONLY: setpointvalues, setibvalues, getibvalues
     USE ib_mod
     USE itinfo_mod, ONLY: itinfo_sample, itinfo_print
@@ -155,7 +156,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
-        TYPE(field_t), POINTER :: u_f, v_f, w_f, g_f, bp_f, sdiv_f
+        TYPE(field_t), POINTER :: u_f, v_f, w_f, p_f, g_f, bp_f, sdiv_f
         TYPE(field_t), POINTER :: x_f, y_f, z_f
         TYPE(field_t), POINTER :: dx_f, dy_f, dz_f
         TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
@@ -243,6 +244,12 @@ CONTAINS
         CALL itinfo_print(itstep, ittot, timeph, globalcflmax, exploded)
 
         CALL stop_timer(350)
+
+        IF (compbodyforce .AND. ib%type == "GHOSTCELL") THEN
+            CALL get_field(p_f, "P")
+            CALL sample_compbodyforce(u_f, v_f, w_f, p_f, g_f, ittot, timeph)
+        END IF
+
         CALL stop_timer(300)
     END SUBROUTINE itinfo_flow
 

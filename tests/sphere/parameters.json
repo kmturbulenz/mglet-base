@@ -50,7 +50,8 @@
         },
         "lesmodel": {
             "model": "smagorinsky"
-        }
+        },
+        "compbodyforce": true
     },
     "probes": {
         "itsamp": 1,
