@@ -53,6 +53,6 @@ CMakeUserPresets.json
 # Compiled binaries
 mglet
 
-# Build folder
-build
+# Build folder(s)
+build*
 
