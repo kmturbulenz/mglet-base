@@ -1538,6 +1538,23 @@ CONTAINS
         DO ilevel = maxlevel, minlevel+1, -1
             CALL ftoc(ilevel, sdiv_f%arr, sdiv_f%arr, 'S')
         END DO
+
+        CALL connect(layers=2, s1=sdiv_f, corners=.TRUE.)
+
+        ! Restricted and connected sdiv field is rewritten to xpolr,
+        ! so that at parent-interfaces coarse and fine velocities are
+        ! corrected (fcorr) in the same way.
+        ! Relevant for + parent interfaces were all four fine velocities
+        ! are blocked and the buffer pressure cell is open.
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL sdiv_f%get_ptr(sdiv, igrid)
+            CALL ddx_f%get_ptr(ddx, igrid)
+            CALL ddy_f%get_ptr(ddy, igrid)
+            CALL ddz_f%get_ptr(ddz, igrid)
+            CALL getsdivfield_grid(igrid, kk, jj, ii, sdiv, ddx, ddy, ddz)
+        END DO
     END SUBROUTINE setsdivfield
 
 
@@ -1576,6 +1593,38 @@ CONTAINS
             sdiv(k, j, i) = acoeffstc/(ddx(i)*ddy(j)*ddz(k))
         END DO
     END SUBROUTINE setsdivfield_grid
+
+
+    SUBROUTINE getsdivfield_grid(igrid, kk, jj, ii, sdiv, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: igrid, kk, jj, ii
+        REAL(realk), INTENT(in) :: sdiv(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ddx(ii)
+        REAL(realk), INTENT(in) :: ddy(jj)
+        REAL(realk), INTENT(in) :: ddz(kk)
+
+        ! Local variables
+        INTEGER(intk) :: pntxpoli, pntxpolr, cellcount, intcell
+        INTEGER(intk) :: imygrid
+        INTEGER(intk) :: k, j, i
+
+        pntxpoli = 1
+        pntxpolr = 1
+        CALL get_imygrid(imygrid, igrid)
+        DO cellcount = 1, fnblg(imygrid)
+            pntxpoli = pntxpoli + 1
+
+            intcell = fxpoli(imygrid)%arr(pntxpoli)
+            pntxpoli = pntxpoli + 1
+
+            ! skip ax1, ...
+            pntxpolr = pntxpolr + 6
+
+            CALL ind2sub(intcell, k, j, i, kk, jj, ii)
+            fxpolr(imygrid)%arr(pntxpolr) = sdiv(k, j, i)*ddx(i)*ddy(j)*ddz(k)
+            pntxpolr = pntxpolr + 1
+        END DO
+    END SUBROUTINE getsdivfield_grid
 
 
     SUBROUTINE writestencils()
