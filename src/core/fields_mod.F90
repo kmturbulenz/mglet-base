@@ -224,6 +224,7 @@ CONTAINS
             IF (fields(i)%name == name2) THEN
                 field => fields(i)
                 thisfound = .TRUE.
+                EXIT
             END IF
         END DO
 
@@ -260,6 +261,7 @@ CONTAINS
             IF (fields(i)%name == name2) THEN
                 fieldarr => fields(i)%arr
                 thisfound = .TRUE.
+                EXIT
             END IF
         END DO
 
