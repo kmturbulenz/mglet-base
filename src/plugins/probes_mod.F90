@@ -399,8 +399,9 @@ CONTAINS
 
         IF (.NOT. has_probes) RETURN
 
-        ! Start sampling at tstart
-        IF (timeph < tstart) RETURN
+        ! Corresponding to timeloop_mod.F90, where statistics are sampled
+        ! only when time > tstat
+        IF (timeph <= tstart) RETURN
 
         ! File and buffers are initialized at first sampled timestep
         IF (.NOT. isinit_buffers) THEN
