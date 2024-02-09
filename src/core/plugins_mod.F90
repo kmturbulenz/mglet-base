@@ -53,6 +53,8 @@ MODULE plugins_mod
         PROCEDURE(timeintegrate_plugin_i), POINTER, NOPASS :: &
             postprocess => NULL()
         PROCEDURE(can_checkpoint_plugin_i), POINTER, NOPASS :: &
+            emergency_stop => NULL()
+        PROCEDURE(can_checkpoint_plugin_i), POINTER, NOPASS :: &
             can_checkpoint => NULL()
         PROCEDURE(checkpoint_plugin_i), POINTER, NOPASS :: checkpoint => NULL()
         PROCEDURE(finish_plugin_i), POINTER, NOPASS :: finish => NULL()
@@ -61,8 +63,9 @@ MODULE plugins_mod
     INTEGER(intk) :: n_plugins = 0
 
     PUBLIC :: init_plugins, init_late_plugins, timeintegrate_plugins, &
-        itinfo_plugins, postprocess_plugins, can_checkpoint_plugins, &
-        checkpoint_plugins, finish_plugins, register_plugin
+        itinfo_plugins, postprocess_plugins, emergency_stop_plugins, &
+        can_checkpoint_plugins, checkpoint_plugins, finish_plugins, &
+        register_plugin
 
 CONTAINS
     SUBROUTINE init_plugins()
@@ -176,6 +179,27 @@ CONTAINS
     END SUBROUTINE postprocess_plugins
 
 
+    ! It is very important that plugins using this mechanism does the
+    ! appropriate MPI_Allreduce on the stop signal if that is set to true
+    ! (if needed). Otherwise MGLET will deadlock!
+    SUBROUTINE emergency_stop_plugins(stop_now)
+        ! Subroutine arguments
+        LOGICAL, INTENT(out) :: stop_now
+
+        ! Local variables
+        INTEGER(intk) :: i
+        LOGICAL :: stop_now_this
+
+        stop_now = .FALSE.
+        DO i = 1, n_plugins
+            IF (ASSOCIATED(plugins(i)%emergency_stop)) THEN
+                CALL plugins(i)%emergency_stop(stop_now_this)
+                IF (stop_now_this) stop_now = .TRUE.
+            END IF
+        END DO
+    END SUBROUTINE emergency_stop_plugins
+
+
     SUBROUTINE can_checkpoint_plugins(can_checkpoint)
         ! Subroutine arguments
         LOGICAL, INTENT(out) :: can_checkpoint
@@ -225,7 +249,8 @@ CONTAINS
 
 
     SUBROUTINE register_plugin(name, init, init_late, timeintegrate, &
-            itinfo, postprocess, can_checkpoint, checkpoint, finish)
+            itinfo, postprocess, emergency_stop, can_checkpoint, checkpoint, &
+            finish)
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(in) :: name
         PROCEDURE(init_plugin_i), OPTIONAL :: init
@@ -233,6 +258,7 @@ CONTAINS
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: timeintegrate
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: itinfo
         PROCEDURE(timeintegrate_plugin_i), OPTIONAL :: postprocess
+        PROCEDURE(can_checkpoint_plugin_i), OPTIONAL :: emergency_stop
         PROCEDURE(can_checkpoint_plugin_i), OPTIONAL :: can_checkpoint
         PROCEDURE(checkpoint_plugin_i), OPTIONAL :: checkpoint
         PROCEDURE(finish_plugin_i), OPTIONAL :: finish
@@ -264,6 +290,10 @@ CONTAINS
 
         IF (PRESENT(postprocess)) THEN
             plugins(n_plugins)%postprocess => postprocess
+        END IF
+
+        IF (PRESENT(emergency_stop)) THEN
+            plugins(n_plugins)%emergency_stop => emergency_stop
         END IF
 
         IF (PRESENT(can_checkpoint)) THEN
