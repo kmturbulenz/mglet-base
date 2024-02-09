@@ -259,6 +259,15 @@ CONTAINS
                 CALL itinfo_plugins(itstep, ittot, timeph, dt)
             END IF
 
+            ! Explosions trigger immediate stop
+            IF (exploded > 0) THEN
+                IF (myid == 0) THEN
+                    WRITE(*, '("STOP SIMULATION, SOLUTION EXPLODED")')
+                    WRITE(*, '()')
+                END IF
+                EXIT timeintegration
+            END IF
+
             ! Sample statistics
             IF (timeph > tstat .AND. MOD(ittot, itsamp) == 0) THEN
                 CALL sample_statistics(dt)
@@ -267,10 +276,10 @@ CONTAINS
             ! Postprocess, _after_ time is globally incremented
             CALL postprocess_plugins(itstep, ittot, timeph, dt)
 
-            ! Explosions trigger immediate stop
-            IF (exploded > 0) THEN
+            CALL emergency_stop_plugins(stop_now)
+            IF (stop_now) THEN
                 IF (myid == 0) THEN
-                    WRITE(*, '("STOP SIMULATION, SOLUTION EXPLODED")')
+                    WRITE(*, '("STOP SIMULATION, PLUGINS EMERGENCY!")')
                     WRITE(*, '()')
                 END IF
                 EXIT timeintegration

@@ -243,25 +243,38 @@ CONTAINS
         CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, ip3
+        INTEGER(intk) :: i, ilevel, igrid
         INTEGER(intk) :: kk, jj, ii
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
         REAL(realk), CONTIGUOUS, POINTER :: rddx(:), rddy(:), rddz(:)
+        REAL(realk), CONTIGUOUS, POINTER :: div_p(:, :, :), u_p(:, :, :), &
+            v_p(:, :, :), w_p(:, :, :)
 
         CALL get_field(rddx_f, "RDDX")
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL rddx_f%get_ptr(rddx, igrid)
-            CALL rddy_f%get_ptr(rddy, igrid)
-            CALL rddz_f%get_ptr(rddz, igrid)
+        DO ilevel = minlevel, maxlevel
+            ! Assume that U, V, W and DIV are defined on the same levels!!!
+            IF (.NOT. u%active_level(ilevel)) CYCLE
 
-            CALL divcal_grid(kk, jj, ii, fak, div%arr(ip3), u%arr(ip3), &
-                v%arr(ip3), w%arr(ip3), rddx, rddy, rddz)
+            DO i = 1, nmygridslvl(ilevel)
+
+                igrid = mygridslvl(i, ilevel)
+                CALL get_mgdims(kk, jj, ii, igrid)
+
+                CALL rddx_f%get_ptr(rddx, igrid)
+                CALL rddy_f%get_ptr(rddy, igrid)
+                CALL rddz_f%get_ptr(rddz, igrid)
+
+                CALL div%get_ptr(div_p, igrid)
+                CALL u%get_ptr(u_p, igrid)
+                CALL v%get_ptr(v_p, igrid)
+                CALL w%get_ptr(w_p, igrid)
+
+                CALL divcal_grid(kk, jj, ii, fak, div_p, u_p, &
+                    v_p, w_p, rddx, rddy, rddz)
+            END DO
         END DO
     END SUBROUTINE divcal
 
