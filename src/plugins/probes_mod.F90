@@ -96,6 +96,10 @@ CONTAINS
             RETURN
         END IF
 
+        CALL set_timer(800, "PROBES")
+        CALL set_timer(801, "PROBES_SAMPLE")
+        CALL set_timer(802, "PROBES_WRITE")
+
         CALL probesconf%get_value("/itsamp", itsamp)
         IF (itsamp <= 0) THEN
             WRITE(*, '("probes: itsamp must be positive: ", I7)') itsamp
@@ -403,6 +407,9 @@ CONTAINS
         ! only when time > tstat
         IF (timeph <= tstart) RETURN
 
+        CALL start_timer(800)
+        CALL start_timer(801)
+
         ! File and buffers are initialized at first sampled timestep
         IF (.NOT. isinit_buffers) THEN
             CALL init_file_and_buffers(ittot, mtstep_probes, itint_probes, &
@@ -435,10 +442,14 @@ CONTAINS
             navg = 0
         END IF
 
+        CALL stop_timer(801)
+
         ! When buffer(s) are full - write to disk
         IF (bufloc > buflen) THEN
             CALL write_probes()
         END IF
+
+        CALL stop_timer(800)
     END SUBROUTINE sample_probes
 
 
@@ -1094,6 +1105,8 @@ CONTAINS
             RETURN
         END IF
 
+        CALL start_timer(802)
+
         IF (myid == 0) THEN
             WRITE(*, "('Writing probes to disk')")
             WRITE(*, "()")
@@ -1115,6 +1128,8 @@ CONTAINS
         fileoffset = fileoffset + bufloc
         bufloc = 1
         navg = 0
+
+        CALL stop_timer(802)
     END SUBROUTINE write_probes
 
 
