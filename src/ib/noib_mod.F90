@@ -250,6 +250,8 @@ CONTAINS
         REAL(realk), CONTIGUOUS, POINTER :: div_p(:, :, :), u_p(:, :, :), &
             v_p(:, :, :), w_p(:, :, :)
 
+        CALL start_timer(240)
+
         CALL get_field(rddx_f, "RDDX")
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
@@ -276,6 +278,8 @@ CONTAINS
                     v_p, w_p, rddx, rddy, rddz)
             END DO
         END DO
+
+        CALL stop_timer(240)
     END SUBROUTINE divcal
 
 

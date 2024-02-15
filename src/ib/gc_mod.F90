@@ -289,6 +289,8 @@ CONTAINS
         REAL(realk), CONTIGUOUS, POINTER :: sdiv(:, :, :), bp(:, :, :), &
             div_p(:, :, :), u_p(:, :, :), v_p(:, :, :), w_p(:, :, :)
 
+        CALL start_timer(240)
+
         ! For safety
         NULLIFY(bp_f)
         NULLIFY(sdiv_f)
@@ -334,6 +336,8 @@ CONTAINS
                     v_p, w_p, rddx, rddy, rddz, bp, sdiv)
             END DO
         END DO
+
+        CALL stop_timer(240)
     END SUBROUTINE divcal
 
 END MODULE gc_mod
