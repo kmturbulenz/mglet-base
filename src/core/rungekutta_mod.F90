@@ -43,7 +43,7 @@ MODULE rungekutta_mod
         PROCEDURE, PRIVATE :: comp_c
     END TYPE rk_2n_t
 
-    PUBLIC :: rk_2n_t
+    PUBLIC :: rk_2n_t, rkstep
 CONTAINS
 
     SUBROUTINE init_2n(this, ctyp)
@@ -244,4 +244,28 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE comp_c
+
+
+    ! Perform an update of fields in the RK time integration scheme
+    ! dU_j = A_j*dU_(j-1) + dt*uo
+    ! U_j = U_(j-1) + B_j*dU_j
+    PURE SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: p(:)
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: dp(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: rhsp(:)
+        REAL(realk), INTENT(in) :: frhs
+        REAL(realk), INTENT(in) :: dtfu
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        ! Perform the update in a manually crafted loop is faster than using an
+        ! implicit loop, because of cache effects (dp(i) is already in cache
+        ! when p(i) is updated)
+        DO i = 1, SIZE(p)
+            dp(i) = frhs*dp(i) + rhsp(i)
+            p(i) = p(i) + dtfu*dp(i)
+        END DO
+    END SUBROUTINE rkstep
 END MODULE rungekutta_mod
