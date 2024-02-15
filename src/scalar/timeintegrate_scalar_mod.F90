@@ -76,10 +76,8 @@ CONTAINS
             CALL rkscheme%get_coeffs(frhs, fu, dtrk, dtrki, irk)
 
             ! dT_j = A_j*dT_(j-1) + QTT
-            dt_f%arr = frhs*dt_f%arr + qtt%arr
-
             ! T_j = T_(j-1) + B_j*dT_j
-            t%arr = t%arr + dt*fu*dt_f%arr
+            CALL rkstep(t%arr, dt_f%arr, qtt%arr, frhs, dt*fu)
 
             ! Mask blocked cells
             CALL maskbt(t)

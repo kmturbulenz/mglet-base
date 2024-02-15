@@ -97,14 +97,10 @@ CONTAINS
         CALL coriolisterm(uo, vo, wo)
 
         ! dU_j = A_j*dU_(j-1) + dt*uo
-        du%arr = frhs*du%arr + uo%arr
-        dv%arr = frhs*dv%arr + vo%arr
-        dw%arr = frhs*dw%arr + wo%arr
-
         ! U_j = U_(j-1) + B_j*dU_j
-        u%arr = u%arr + dt*fu*du%arr
-        v%arr = v%arr + dt*fu*dv%arr
-        w%arr = w%arr + dt*fu*dw%arr
+        CALL rkstep(u%arr, du%arr, uo%arr, frhs, dt*fu)
+        CALL rkstep(v%arr, dv%arr, vo%arr, frhs, dt*fu)
+        CALL rkstep(w%arr, dw%arr, wo%arr, frhs, dt*fu)
 
         IF (ib%type == "GHOSTCELL") THEN
             ! Equivalent to old "cop3dzero"
