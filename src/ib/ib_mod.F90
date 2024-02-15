@@ -32,6 +32,8 @@ MODULE ib_mod
 
 CONTAINS
     SUBROUTINE init_ib()
+        USE core_mod, ONLY: set_timer
+
         CALL register_ib("ghostcell", gc_constructor)
         CALL register_ib("noib", noib_constructor)
 
@@ -41,6 +43,8 @@ CONTAINS
         CALL init_parent()
 
         CALL set_finecell()
+
+        CALL set_timer(240, "DIVCAL")
     END SUBROUTINE init_ib
 
 
