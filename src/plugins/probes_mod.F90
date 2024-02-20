@@ -841,7 +841,7 @@ CONTAINS
         ! Per-process number of values sampled
         nvalues_max = 0
         DO iarr = 1, narrays
-            nvalues_max = nvalues_max + arr(iarr)%nvars*arr(iarr)%npts
+            nvalues_max = nvalues_max + arr(iarr)%nvars*arr(iarr)%nmypnts
         END DO
 
         ! Sum over IO group
