@@ -4,6 +4,7 @@ MODULE statistics_mod
     USE fields_mod
     USE fort7_mod
     USE precision_mod
+    USE timer_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -51,6 +52,8 @@ CONTAINS
         REAL(realk) :: tsamp
 
         is_init = .TRUE.
+        CALL set_timer(170, "STATISTICS")
+
         IF (.NOT. fort7%is_array("/statistics")) RETURN
         CALL fort7%get_size("/statistics", nfields)
         ALLOCATE(active_fields(nfields))
@@ -101,6 +104,7 @@ CONTAINS
         REAL(realk) :: tsamp
 
         IF (.NOT. ALLOCATED(active_fields)) RETURN
+        CALL start_timer(170)
 
         DO i = 1, SIZE(active_fields)
             idx = active_fields(i)
@@ -129,6 +133,8 @@ CONTAINS
             ! Prepare for next field
             CALL field%finish()
         END DO
+
+        CALL stop_timer(170)
     END SUBROUTINE sample_statistics
 
 
