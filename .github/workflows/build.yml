@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-57f558e", "gnu-ompi-image:sha-57f558e"]
+        image: ["intel-impi-image:sha-c3a35ba", "gnu-ompi-image:sha-c3a35ba"]
         build: ["release", "debug"]
         prec: ["Single", "Double"]
       fail-fast: false
@@ -25,7 +25,7 @@ jobs:
       options: "--cap-add=SYS_PTRACE --shm-size=4gb"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Build MGLET
       run: |
@@ -35,12 +35,6 @@ jobs:
         TOOLCHAIN=${{ contains(matrix.image, 'gnu') && 'gnu' || 'intel' }}
         cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
         ninja
-        ls -R
-
-    - name: Install 'gdb' and 'pidof'
-      run: |
-        source /opt/bashrc || true
-        yum ${{ contains(matrix.image, 'intel') && '--disablerepo=oneAPI' || '' }} --disablerepo=ius -y install gdb sysvinit-tools
 
     - name: Run testcases
       run: |
