@@ -1,8 +1,14 @@
 name: mglet-build
 
 on:
-  pull_request:
-    branches: [ master ]
+  push:
+    branches: 
+      - 'michael/**'
+      - 'lukas/**'
+      - 'yoshi/**'
+      - 'simon/**'
+      - 'philip/**'
+      - 'julius/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,34 +17,35 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-c3a35ba", "gnu-ompi-image:sha-c3a35ba"]
-        build: ["release", "debug"]
+        image: ["build-base-image:master"]
+        build: ["debug"]
         prec: ["Single", "Double"]
       fail-fast: false
 
     container:
-      image: ghcr.io/kmturbulenz/${{ matrix.image }}
+      image: ghcr.io/tum-hydromechanics/${{ matrix.image }}
       options: "--cap-add=SYS_PTRACE --shm-size=4gb"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
     - name: Build MGLET
       run: |
-        source /opt/bashrc || true
+        source /root/.bashrc || true
         mkdir build
         cd build
-        TOOLCHAIN=${{ contains(matrix.image, 'gnu') && 'gnu' || 'intel' }}
+        TOOLCHAIN=${{ contains(matrix.image, 'base') && 'gnu' || 'intel' }}
         cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
         ninja
+        ls -R
 
     - name: Run testcases
       run: |
-        source /opt/bashrc || true
+        source /root/.bashrc || true
         cd build
         export OMPI_ALLOW_RUN_AS_ROOT=1
         export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
@@ -53,5 +60,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "Total test time: $DURATION sec" >> $GITHUB_STEP_SUMMARY
         CPUNAME=$(lscpu | grep 'Model name' | cut -f 2 -d ":" | awk '{$1=$1}1')
+
+        
         echo "CPU model name: $CPUNAME" >> $GITHUB_STEP_SUMMARY
         exit $EXITCODE
