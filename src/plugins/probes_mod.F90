@@ -663,7 +663,6 @@ CONTAINS
 
         ! Local variables
         INTEGER(HID_T)  :: fileh
-        INTEGER(int32) :: ierr
         INTEGER(intk) :: iarr
         LOGICAL :: link_exists
 
@@ -676,26 +675,25 @@ CONTAINS
             CALL init_data_transfer(arr(iarr))
         END DO
 
-        IF (ioproc) THEN
-            ! Open existing file if it extst, create new if not
-            IF (dcont) THEN
-                CALL hdf5common_open(outfile, 'a', fileh)
-            ELSE
-                CALL hdf5common_open(outfile, 'w', fileh)
-            END IF
-
-            ! Initialize file if required
-            CALL h5lexists_f(fileh, "PROBES", link_exists, ierr)
-            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
-
-            IF (.NOT. link_exists) THEN
-                CALL init_file(fileh)
-            ELSE
-                CALL read_file(fileh, ittot)
-            END IF
-
-            CALL hdf5common_close(fileh)
+        ! Open existing file if it extst, create new if not
+        IF (dcont) THEN
+            CALL hdf5common_open(outfile, 'a', fileh)
+        ELSE
+            CALL hdf5common_open(outfile, 'w', fileh)
         END IF
+
+        ! Initialize file if required
+        ! The wrapper does not care if you check for a dataset or a group,
+        ! here we use it for a group which is fine.
+        CALL hdf5common_dataset_exists("PROBES", fileh, link_exists)
+
+        IF (.NOT. link_exists) THEN
+            CALL init_file(fileh)
+        ELSE
+            CALL read_file(fileh, ittot)
+        END IF
+
+        CALL hdf5common_close(fileh)
 
         isinit_buffers = .TRUE.
         ! Write more statistics to terminal
@@ -721,56 +719,103 @@ CONTAINS
         INTEGER(hsize_t) :: npts
         INTEGER(int32) :: hdferr
 
+        ! TODO: there are lots of IF (ioproc) in this routine, maybe
+        ! using more of the wrappers from hdf5common_mod would be prettier
+
         ! Greate group(s)
-        CALL h5gcreate_f(fileh, "PROBES", probes_grouph, hdferr)
-        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        IF (ioproc) THEN
+            CALL h5gcreate_f(fileh, "PROBES", probes_grouph, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
 
         ! Initialize arrays
         DO iarr = 1, narrays
             ! Group for individual array
-            CALL h5gcreate_f(probes_grouph, TRIM(arr(iarr)%name), arr_grouph, &
-                hdferr)
-            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
-
-            ! Variables legend (P, PC etc.)
-            CALL hdf5common_attr_write_arr("VARIABLES", arr(iarr)%variables, &
-                arr_grouph)
+            IF (ioproc) THEN
+                CALL h5gcreate_f(probes_grouph, TRIM(arr(iarr)%name), &
+                    arr_grouph, hdferr)
+                IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            END IF
 
             ! Probes coordinates and grid id's
-            CALL stencilio_write_master_cptr(arr_grouph, 'coordinates', &
-                C_LOC(arr(iarr)%coordinates), &
-                INT([3, arr(iarr)%npts], HSIZE_T), &
-                mglet_hdf5_real)
-            CALL stencilio_write_master_cptr(arr_grouph, 'igrid', &
-                C_LOC(arr(iarr)%grid), INT([arr(iarr)%npts], HSIZE_T), &
-                mglet_hdf5_int)
+            ! This is a collective operation, all processes must call it
+            ! Only IO processes have a valid arr_grouph
+            CALL write_coordinates(arr_grouph, arr(iarr))
 
-            DO ivar = 1, arr(iarr)%nvars
-                npts = arr(iarr)%npts
-                shape2 = [npts, 0_hsize_t]
-                maxdims2 = [npts, H5S_UNLIMITED_F]
-                chunksize2 = [MIN(chunksize21, npts), chunksize22]
-                CALL hdf5common_dataset_create(arr(iarr)%variables(ivar), &
-                    shape2, mglet_hdf5_real, arr_grouph, dset_id, &
-                    filespace, maxdims2, chunksize2)
-                CALL hdf5common_dataset_close(dset_id, filespace)
-            END DO
+            IF (ioproc) THEN
+                DO ivar = 1, arr(iarr)%nvars
+                    npts = arr(iarr)%npts
+                    shape2 = [npts, 0_hsize_t]
+                    maxdims2 = [npts, H5S_UNLIMITED_F]
+                    chunksize2 = [MIN(chunksize21, npts), chunksize22]
+                    CALL hdf5common_dataset_create(arr(iarr)%variables(ivar), &
+                        shape2, mglet_hdf5_real, arr_grouph, dset_id, &
+                        filespace, maxdims2, chunksize2)
+                    CALL hdf5common_dataset_close(dset_id, filespace)
+                END DO
 
-            CALL h5gclose_f(arr_grouph, hdferr)
-            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+                CALL h5gclose_f(arr_grouph, hdferr)
+                IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            END IF
         END DO
 
         ! Initialize time
-        shape1 = [0]
-        maxdims1 = [H5S_UNLIMITED_F]
-        chunksize1 = [chunksize11]
-        CALL hdf5common_dataset_create("time", shape1, timeinfo_h5t, &
-            probes_grouph, dset_id, filespace, maxdims1, chunksize1)
-        CALL hdf5common_dataset_close(dset_id, filespace)
+        IF (ioproc) THEN
+            shape1 = [0]
+            maxdims1 = [H5S_UNLIMITED_F]
+            chunksize1 = [chunksize11]
+            CALL hdf5common_dataset_create("time", shape1, timeinfo_h5t, &
+                probes_grouph, dset_id, filespace, maxdims1, chunksize1)
+            CALL hdf5common_dataset_close(dset_id, filespace)
 
-        CALL h5gclose_f(probes_grouph, hdferr)
-        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            CALL h5gclose_f(probes_grouph, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
     END SUBROUTINE init_file
+
+
+    ! Gather and write coordinates and grid id's
+    SUBROUTINE write_coordinates(arr_grouph, arr)
+        ! Subroutine arguments
+        INTEGER(hid_t), INTENT(in) :: arr_grouph
+        TYPE(probearr_t), INTENT(in) :: arr
+
+        ! Local variables
+        INTEGER(intk) :: i
+        INTEGER(int32) :: npts
+        REAL(realk), ALLOCATABLE, TARGET :: coordinates(:, :)
+        INTEGER(intk), ALLOCATABLE, TARGET :: igrid(:)
+
+        ALLOCATE(coordinates(3, arr%npts), source=0.0_realk)
+        ALLOCATE(igrid(arr%npts), source=0_intk)
+
+        ! Each MPI rank put their coordinates in the global arrays
+        DO i = 1, arr%nmypnts
+            coordinates(:, arr%id(i)) = arr%coordinates(:, i)
+            igrid(arr%id(i)) = arr%grid(i)
+        END DO
+
+        ! Do an MPI reduction to rank 0 to gather the data from all ranks
+        ! MPI_Reduce fail with MPI_IN_PLACE... Allreduce works.
+        ! https://stackoverflow.com/questions/17741574/in-place-mpi-reduce-crashes-with-openmpi
+        ! Allreduce looks more elegant, therefore use it here.
+        npts = 3*arr%npts
+        CALL MPI_Allreduce(MPI_IN_PLACE, coordinates, npts, &
+            mglet_mpi_real, MPI_SUM, MPI_COMM_WORLD)
+        npts = arr%npts
+        CALL MPI_Allreduce(MPI_IN_PLACE, igrid, npts, &
+            mglet_mpi_int, MPI_SUM, MPI_COMM_WORLD)
+
+        ! Write coordinates and grid id's to file
+        CALL stencilio_write_master_cptr(arr_grouph, 'coordinates', &
+            C_LOC(coordinates), INT([3, arr%npts], HSIZE_T), &
+            mglet_hdf5_real)
+        CALL stencilio_write_master_cptr(arr_grouph, 'igrid', &
+            C_LOC(igrid), INT([arr%npts], HSIZE_T), mglet_hdf5_int)
+
+        DEALLOCATE(coordinates)
+        DEALLOCATE(igrid)
+    END SUBROUTINE write_coordinates
 
 
     SUBROUTINE read_file(file_id, ittot)
@@ -786,6 +831,8 @@ CONTAINS
         INTEGER(hsize_t) :: i, dims1(1)
         TYPE(timeinfo_t), ALLOCATABLE, TARGET :: timeinfo_old(:)
         TYPE(C_PTR) :: cptr
+
+        IF (.NOT. ioproc) RETURN
 
         CALL hdf5common_group_open("PROBES", file_id, probes_id)
 
@@ -803,7 +850,7 @@ CONTAINS
                 CALL stencilio_read_master_cptr(probes_id, "time", cptr, &
                     dims1, timeinfo_h5t)
 
-                ! The ittot given presently is the ittotbefore the first
+                ! The ittot given presently is the ittot before the first
                 ! timestep of the present simulation is executed. First sampeld
                 ! variable in the present simulation will be with ittot + 1.
                 fileoffset = 0
