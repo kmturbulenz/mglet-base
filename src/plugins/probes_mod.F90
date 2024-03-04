@@ -13,6 +13,7 @@ MODULE probes_mod
         INTEGER(intk) :: nmypnts
         INTEGER(intk) :: grouppnts
         INTEGER(intk) :: notfound
+        CHARACTER(len=mglet_filename_max) :: filename
         CHARACTER(len=nchar_name), ALLOCATABLE :: variables(:)
         REAL(realk), ALLOCATABLE :: coordinates(:, :)
         REAL(realk), ALLOCATABLE :: coords_notfound(:, :)
@@ -129,7 +130,7 @@ CONTAINS
             WRITE(jsonptr, '("/arrays/", I0)') i-1
             CALL probesconf%get(array, jsonptr)
 
-            ! Array name
+            ! Array name and other options
             CALL array%get_value("/name", arr(i)%name)
             CALL array%get_value("/maskbp", maskbp, .TRUE.)
 
@@ -253,7 +254,6 @@ CONTAINS
         LOGICAL, INTENT(in) :: maskbp
 
         ! Local variables
-        CHARACTER(len=mglet_filename_max) :: filename
         CHARACTER(len=64) :: jsonptr
         INTEGER(intk) :: i, igrid, ilevel, ipoint
         INTEGER(intk), ALLOCATABLE :: probesgrids(:)
@@ -264,11 +264,19 @@ CONTAINS
         REAL(realk) :: minx, maxx, miny, maxy, minz, maxz
         REAL(realk) :: dx, dy, dz
 
+        ! If the "filename" is set read it here - if the "positions" is
+        ! read from a file, that filename will take precedence over this one
+        arr%filename = REPEAT(' ', LEN(arr%name))
+        IF (arrayconf%exists("/filename")) THEN
+            CALL arrayconf%get_value("/filename", arr%filename)
+        END IF
+
         ! Rank 0 reads the coordinates into 'tmpcoords'
         IF (myid == 0) THEN
             IF (arrayconf%is_char("/positions")) THEN
-                CALL arrayconf%get_value("/positions", filename)
-                CALL read_datfile(tmpcoords, filename)
+                CALL arrayconf%get_value("/positions", arr%filename)
+                CALL arrayconf%set_value("/filename", arr%filename)
+                CALL read_datfile(tmpcoords, arr%filename)
             ELSE
                 CALL arrayconf%get_size("/positions", arr%npts)
                 ALLOCATE(tmpcoords(3, arr%npts))
@@ -813,6 +821,11 @@ CONTAINS
                 CALL h5gcreate_f(probes_grouph, TRIM(arr(iarr)%name), &
                     arr_grouph, hdferr)
                 IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+
+                IF (LEN_TRIM(arr(iarr)%filename) > 0) THEN
+                    CALL hdf5common_attr_write("FILENAME", &
+                        TRIM(arr(iarr)%filename), arr_grouph)
+                END IF
             END IF
 
             ! Probes coordinates and grid id's
