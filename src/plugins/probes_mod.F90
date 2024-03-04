@@ -620,8 +620,9 @@ CONTAINS
             ! bp=0 cells are excluded
             sol = 0.0
             DO i = 1, 8
-                sol = sol + psi(i)*field(i)
+                sol = sol + psi(i)*field(i)*blocked(i)
             END DO
+            sol = sol/sumfac
         ELSE
             ! Pick nearest point with bp=1
             kk = SIZE(z)
