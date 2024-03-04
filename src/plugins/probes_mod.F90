@@ -79,6 +79,7 @@ CONTAINS
         CHARACTER(len=64) :: jsonptr
         INTEGER(intk) :: i, j, ivar
         TYPE(field_t), POINTER :: field
+        LOGICAL :: maskbp
 
         has_probes = .FALSE.
         IF (.NOT. fort7%exists("/probes")) THEN
@@ -128,6 +129,7 @@ CONTAINS
 
             ! Array name
             CALL array%get_value("/name", arr(i)%name)
+            CALL array%get_value("/maskbp", maskbp, .TRUE.)
 
             ! Which variables to sample (U, V, P, etc)
             CALL array%get_size("/variables", arr(i)%nvars)
@@ -138,7 +140,7 @@ CONTAINS
             END DO
 
             ! Probe positions from file or directly from JSON
-            CALL read_positions(arr(i), array)
+            CALL read_positions(arr(i), array, maskbp)
             CALL array%finish()
         END DO
         CALL probesconf%finish()
@@ -240,12 +242,13 @@ CONTAINS
     END SUBROUTINE checkpoint_probes
 
 
-    SUBROUTINE read_positions(arr, arrayconf)
+    SUBROUTINE read_positions(arr, arrayconf, maskbp)
         ! Read and distribute positions among ranks
 
         ! Subroutine arguments
         TYPE(probearr_t), INTENT(inout) :: arr
         TYPE(config_t), INTENT(inout) :: arrayconf
+        LOGICAL, INTENT(in) :: maskbp
 
         ! Local variables
         CHARACTER(len=mglet_filename_max) :: filename
@@ -334,6 +337,16 @@ CONTAINS
             END DO
         END DO
 
+        ! If the maskbp flag is set, we need to check if the probe is
+        ! sufficiently close to a BP=1 cell. If not, we set the grid to 0
+        ! This will effectively disable the probe.
+        IF (maskbp) THEN
+            DO i = 1, nmygrids
+                igrid = mygrids(i)
+                CALL check_probe(probesgrids, igrid, arr, tmpcoords)
+            END DO
+        END IF
+
         ! Do an allreduce with MPI_MAX to find the finest grid level with this
         ! grid within
         CALL MPI_Allreduce(MPI_IN_PLACE, probesgrids, arr%npts, &
@@ -371,6 +384,50 @@ CONTAINS
         DEALLOCATE(probesgrids)
         DEALLOCATE(tmpcoords)
     END SUBROUTINE read_positions
+
+
+    ! Subroutine that checks if the probe is sufficiently close to a BP=1
+    ! cell to have a valid sample value.
+    ! The check is for the valid sampling of a pressure value
+    SUBROUTINE check_probe(probesgrids, igrid, arr, coordinates)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: probesgrids(:)
+        INTEGER(intk), INTENT(in) :: igrid
+        TYPE(probearr_t), INTENT(in) :: arr
+        REAL(realk), INTENT(in), CONTIGUOUS :: coordinates(:, :)
+
+        ! Local variables
+        INTEGER(intk) :: ipoint
+        INTEGER(intk) :: kp, jp, ip
+        REAL(realk), CONTIGUOUS, POINTER :: bp(:, :, :)
+        REAL(realk), CONTIGUOUS, POINTER :: x(:), y(:), z(:)
+
+        ! Find grid "bounding box"
+        CALL get_fieldptr(x, "X", igrid)
+        CALL get_fieldptr(y, "Y", igrid)
+        CALL get_fieldptr(z, "Z", igrid)
+        CALL get_fieldptr(bp, "BP", igrid)
+
+        ! This is before a reduction is performed on the probesgrids array,
+        ! so this is filled in with valid grid-id's only for the probes this
+        ! process owns.
+        DO ipoint = 1, arr%npts
+            IF (probesgrids(ipoint) /= igrid) CYCLE
+
+            CALL get_idx(kp, coordinates(3, ipoint), z)
+            CALL get_idx(jp, coordinates(2, ipoint), y)
+            CALL get_idx(ip, coordinates(1, ipoint), x)
+
+            ! Probe is in between ip and ip+1, therefore the indices we check
+            ! bp for is one additional cell in each direction.
+            ! Ref. solintxyzgrad0
+            ! When there are no valid cell in that region, the probe is
+            ! disabled by setting igrid to zero.
+            IF (MAXVAL(bp(kp-1:kp+2, jp-1:jp+2, ip-1:ip+2)) < 0.5) THEN
+                probesgrids(ipoint) = 0
+            END IF
+        END DO
+    END SUBROUTINE check_probe
 
 
     PURE ELEMENTAL SUBROUTINE probearr_destructor(this)
