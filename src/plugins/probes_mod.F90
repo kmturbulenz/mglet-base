@@ -15,7 +15,9 @@ MODULE probes_mod
         INTEGER(intk) :: notfound
         CHARACTER(len=nchar_name), ALLOCATABLE :: variables(:)
         REAL(realk), ALLOCATABLE :: coordinates(:, :)
+        REAL(realk), ALLOCATABLE :: coords_notfound(:, :)
         INTEGER(intk), ALLOCATABLE :: id(:)
+        INTEGER(intk), ALLOCATABLE :: id_notfound(:)
         INTEGER(intk), ALLOCATABLE :: groupid(:)
         INTEGER(intk), ALLOCATABLE :: grid(:)
         REAL(realk), ALLOCATABLE :: buffer(:, :, :)
@@ -79,6 +81,7 @@ CONTAINS
         CHARACTER(len=64) :: jsonptr
         INTEGER(intk) :: i, j, ivar
         TYPE(field_t), POINTER :: field
+        LOGICAL :: maskbp
 
         has_probes = .FALSE.
         IF (.NOT. fort7%exists("/probes")) THEN
@@ -128,6 +131,7 @@ CONTAINS
 
             ! Array name
             CALL array%get_value("/name", arr(i)%name)
+            CALL array%get_value("/maskbp", maskbp, .TRUE.)
 
             ! Which variables to sample (U, V, P, etc)
             CALL array%get_size("/variables", arr(i)%nvars)
@@ -138,7 +142,7 @@ CONTAINS
             END DO
 
             ! Probe positions from file or directly from JSON
-            CALL read_positions(arr(i), array)
+            CALL read_positions(arr(i), array, maskbp)
             CALL array%finish()
         END DO
         CALL probesconf%finish()
@@ -240,12 +244,13 @@ CONTAINS
     END SUBROUTINE checkpoint_probes
 
 
-    SUBROUTINE read_positions(arr, arrayconf)
+    SUBROUTINE read_positions(arr, arrayconf, maskbp)
         ! Read and distribute positions among ranks
 
         ! Subroutine arguments
         TYPE(probearr_t), INTENT(inout) :: arr
         TYPE(config_t), INTENT(inout) :: arrayconf
+        LOGICAL, INTENT(in) :: maskbp
 
         ! Local variables
         CHARACTER(len=mglet_filename_max) :: filename
@@ -334,6 +339,16 @@ CONTAINS
             END DO
         END DO
 
+        ! If the maskbp flag is set, we need to check if the probe is
+        ! sufficiently close to a BP=1 cell. If not, we set the grid to 0
+        ! This will effectively disable the probe.
+        IF (maskbp) THEN
+            DO i = 1, nmygrids
+                igrid = mygrids(i)
+                CALL check_probe(probesgrids, igrid, arr, tmpcoords)
+            END DO
+        END IF
+
         ! Do an allreduce with MPI_MAX to find the finest grid level with this
         ! grid within
         CALL MPI_Allreduce(MPI_IN_PLACE, probesgrids, arr%npts, &
@@ -368,9 +383,69 @@ CONTAINS
         ! ownership to...
         arr%notfound = COUNT(probesgrids == 0)
 
+        ! MPI rank 0 allocate and store coordinates of not found probes
+        ! for later output. No sampling or handling is otherwise done on these
+        ! probes, though.
+        IF (myid == 0) THEN
+            ALLOCATE(arr%coords_notfound(3, arr%notfound))
+            ALLOCATE(arr%id_notfound(arr%notfound))
+            ipoint = 0
+            DO i = 1, arr%npts
+                IF (probesgrids(i) == 0) THEN
+                    ipoint = ipoint + 1
+                    arr%coords_notfound(:, ipoint) = tmpcoords(:, i)
+                    arr%id_notfound(ipoint) = i
+                END IF
+            END DO
+        END IF
+
         DEALLOCATE(probesgrids)
         DEALLOCATE(tmpcoords)
     END SUBROUTINE read_positions
+
+
+    ! Subroutine that checks if the probe is sufficiently close to a BP=1
+    ! cell to have a valid sample value.
+    ! The check is for the valid sampling of a pressure value
+    SUBROUTINE check_probe(probesgrids, igrid, arr, coordinates)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: probesgrids(:)
+        INTEGER(intk), INTENT(in) :: igrid
+        TYPE(probearr_t), INTENT(in) :: arr
+        REAL(realk), INTENT(in), CONTIGUOUS :: coordinates(:, :)
+
+        ! Local variables
+        INTEGER(intk) :: ipoint
+        INTEGER(intk) :: kp, jp, ip
+        REAL(realk), CONTIGUOUS, POINTER :: bp(:, :, :)
+        REAL(realk), CONTIGUOUS, POINTER :: x(:), y(:), z(:)
+
+        ! Find grid "bounding box"
+        CALL get_fieldptr(x, "X", igrid)
+        CALL get_fieldptr(y, "Y", igrid)
+        CALL get_fieldptr(z, "Z", igrid)
+        CALL get_fieldptr(bp, "BP", igrid)
+
+        ! This is before a reduction is performed on the probesgrids array,
+        ! so this is filled in with valid grid-id's only for the probes this
+        ! process owns.
+        DO ipoint = 1, arr%npts
+            IF (probesgrids(ipoint) /= igrid) CYCLE
+
+            CALL get_idx(kp, coordinates(3, ipoint), z)
+            CALL get_idx(jp, coordinates(2, ipoint), y)
+            CALL get_idx(ip, coordinates(1, ipoint), x)
+
+            ! Probe is in between ip and ip+1, therefore the indices we check
+            ! bp for is one additional cell in each direction.
+            ! Ref. solintxyzgrad0
+            ! When there are no valid cell in that region, the probe is
+            ! disabled by setting igrid to zero.
+            IF (MAXVAL(bp(kp-1:kp+2, jp-1:jp+2, ip-1:ip+2)) < 0.5) THEN
+                probesgrids(ipoint) = 0
+            END IF
+        END DO
+    END SUBROUTINE check_probe
 
 
     PURE ELEMENTAL SUBROUTINE probearr_destructor(this)
@@ -382,7 +457,9 @@ CONTAINS
 
         IF (ALLOCATED(this%variables)) DEALLOCATE(this%variables)
         IF (ALLOCATED(this%coordinates)) DEALLOCATE(this%coordinates)
+        IF (ALLOCATED(this%coords_notfound)) DEALLOCATE(this%coords_notfound)
         IF (ALLOCATED(this%id)) DEALLOCATE(this%id)
+        IF (ALLOCATED(this%id_notfound)) DEALLOCATE(this%id_notfound)
         IF (ALLOCATED(this%groupid)) DEALLOCATE(this%groupid)
         IF (ALLOCATED(this%grid)) DEALLOCATE(this%grid)
         IF (ALLOCATED(this%buffer)) DEALLOCATE(this%buffer)
@@ -620,8 +697,9 @@ CONTAINS
             ! bp=0 cells are excluded
             sol = 0.0
             DO i = 1, 8
-                sol = sol + psi(i)*field(i)
+                sol = sol + psi(i)*field(i)*blocked(i)
             END DO
+            sol = sol/sumfac
         ELSE
             ! Pick nearest point with bp=1
             kk = SIZE(z)
@@ -663,7 +741,6 @@ CONTAINS
 
         ! Local variables
         INTEGER(HID_T)  :: fileh
-        INTEGER(int32) :: ierr
         INTEGER(intk) :: iarr
         LOGICAL :: link_exists
 
@@ -676,26 +753,25 @@ CONTAINS
             CALL init_data_transfer(arr(iarr))
         END DO
 
-        IF (ioproc) THEN
-            ! Open existing file if it extst, create new if not
-            IF (dcont) THEN
-                CALL hdf5common_open(outfile, 'a', fileh)
-            ELSE
-                CALL hdf5common_open(outfile, 'w', fileh)
-            END IF
-
-            ! Initialize file if required
-            CALL h5lexists_f(fileh, "PROBES", link_exists, ierr)
-            IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
-
-            IF (.NOT. link_exists) THEN
-                CALL init_file(fileh)
-            ELSE
-                CALL read_file(fileh, ittot)
-            END IF
-
-            CALL hdf5common_close(fileh)
+        ! Open existing file if it extst, create new if not
+        IF (dcont) THEN
+            CALL hdf5common_open(outfile, 'a', fileh)
+        ELSE
+            CALL hdf5common_open(outfile, 'w', fileh)
         END IF
+
+        ! Initialize file if required
+        ! The wrapper does not care if you check for a dataset or a group,
+        ! here we use it for a group which is fine.
+        CALL hdf5common_dataset_exists("PROBES", fileh, link_exists)
+
+        IF (.NOT. link_exists) THEN
+            CALL init_file(fileh)
+        ELSE
+            CALL read_file(fileh, ittot)
+        END IF
+
+        CALL hdf5common_close(fileh)
 
         isinit_buffers = .TRUE.
         ! Write more statistics to terminal
@@ -721,56 +797,112 @@ CONTAINS
         INTEGER(hsize_t) :: npts
         INTEGER(int32) :: hdferr
 
+        ! TODO: there are lots of IF (ioproc) in this routine, maybe
+        ! using more of the wrappers from hdf5common_mod would be prettier
+
         ! Greate group(s)
-        CALL h5gcreate_f(fileh, "PROBES", probes_grouph, hdferr)
-        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        IF (ioproc) THEN
+            CALL h5gcreate_f(fileh, "PROBES", probes_grouph, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
 
         ! Initialize arrays
         DO iarr = 1, narrays
             ! Group for individual array
-            CALL h5gcreate_f(probes_grouph, TRIM(arr(iarr)%name), arr_grouph, &
-                hdferr)
-            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
-
-            ! Variables legend (P, PC etc.)
-            CALL hdf5common_attr_write_arr("VARIABLES", arr(iarr)%variables, &
-                arr_grouph)
+            IF (ioproc) THEN
+                CALL h5gcreate_f(probes_grouph, TRIM(arr(iarr)%name), &
+                    arr_grouph, hdferr)
+                IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            END IF
 
             ! Probes coordinates and grid id's
-            CALL stencilio_write_master_cptr(arr_grouph, 'coordinates', &
-                C_LOC(arr(iarr)%coordinates), &
-                INT([3, arr(iarr)%npts], HSIZE_T), &
-                mglet_hdf5_real)
-            CALL stencilio_write_master_cptr(arr_grouph, 'igrid', &
-                C_LOC(arr(iarr)%grid), INT([arr(iarr)%npts], HSIZE_T), &
-                mglet_hdf5_int)
+            ! This is a collective operation, all processes must call it
+            ! Only IO processes have a valid arr_grouph
+            CALL write_coordinates(arr_grouph, arr(iarr))
 
-            DO ivar = 1, arr(iarr)%nvars
-                npts = arr(iarr)%npts
-                shape2 = [npts, 0_hsize_t]
-                maxdims2 = [npts, H5S_UNLIMITED_F]
-                chunksize2 = [MIN(chunksize21, npts), chunksize22]
-                CALL hdf5common_dataset_create(arr(iarr)%variables(ivar), &
-                    shape2, mglet_hdf5_real, arr_grouph, dset_id, &
-                    filespace, maxdims2, chunksize2)
-                CALL hdf5common_dataset_close(dset_id, filespace)
-            END DO
+            IF (ioproc) THEN
+                DO ivar = 1, arr(iarr)%nvars
+                    npts = arr(iarr)%npts
+                    shape2 = [npts, 0_hsize_t]
+                    maxdims2 = [npts, H5S_UNLIMITED_F]
+                    chunksize2 = [MIN(chunksize21, npts), chunksize22]
+                    CALL hdf5common_dataset_create(arr(iarr)%variables(ivar), &
+                        shape2, mglet_hdf5_real, arr_grouph, dset_id, &
+                        filespace, maxdims2, chunksize2)
+                    CALL hdf5common_dataset_close(dset_id, filespace)
+                END DO
 
-            CALL h5gclose_f(arr_grouph, hdferr)
-            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+                CALL h5gclose_f(arr_grouph, hdferr)
+                IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            END IF
         END DO
 
         ! Initialize time
-        shape1 = [0]
-        maxdims1 = [H5S_UNLIMITED_F]
-        chunksize1 = [chunksize11]
-        CALL hdf5common_dataset_create("time", shape1, timeinfo_h5t, &
-            probes_grouph, dset_id, filespace, maxdims1, chunksize1)
-        CALL hdf5common_dataset_close(dset_id, filespace)
+        IF (ioproc) THEN
+            shape1 = [0]
+            maxdims1 = [H5S_UNLIMITED_F]
+            chunksize1 = [chunksize11]
+            CALL hdf5common_dataset_create("time", shape1, timeinfo_h5t, &
+                probes_grouph, dset_id, filespace, maxdims1, chunksize1)
+            CALL hdf5common_dataset_close(dset_id, filespace)
 
-        CALL h5gclose_f(probes_grouph, hdferr)
-        IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+            CALL h5gclose_f(probes_grouph, hdferr)
+            IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
+        END IF
     END SUBROUTINE init_file
+
+
+    ! Gather and write coordinates and grid id's
+    SUBROUTINE write_coordinates(arr_grouph, arr)
+        ! Subroutine arguments
+        INTEGER(hid_t), INTENT(in) :: arr_grouph
+        TYPE(probearr_t), INTENT(in) :: arr
+
+        ! Local variables
+        INTEGER(intk) :: i
+        INTEGER(int32) :: npts
+        REAL(realk), ALLOCATABLE, TARGET :: coordinates(:, :)
+        INTEGER(intk), ALLOCATABLE, TARGET :: igrid(:)
+
+        ALLOCATE(coordinates(3, arr%npts), source=0.0_realk)
+        ALLOCATE(igrid(arr%npts), source=0_intk)
+
+        ! Each MPI rank put their coordinates in the global arrays
+        DO i = 1, arr%nmypnts
+            coordinates(:, arr%id(i)) = arr%coordinates(:, i)
+            igrid(arr%id(i)) = arr%grid(i)
+        END DO
+
+        ! MPI rank 0 has the coordinates of probes not found in any grid as
+        ! well, add these to the list
+        IF (myid == 0) THEN
+            DO i = 1, arr%notfound
+                coordinates(:, arr%id_notfound(i)) = arr%coords_notfound(:, i)
+                igrid(arr%id_notfound(i)) = 0
+            END DO
+        END IF
+
+        ! Do an MPI reduction to rank 0 to gather the data from all ranks
+        ! MPI_Reduce fail with MPI_IN_PLACE... Allreduce works.
+        ! https://stackoverflow.com/questions/17741574/in-place-mpi-reduce-crashes-with-openmpi
+        ! Allreduce looks more elegant, therefore use it here.
+        npts = 3*arr%npts
+        CALL MPI_Allreduce(MPI_IN_PLACE, coordinates, npts, &
+            mglet_mpi_real, MPI_SUM, MPI_COMM_WORLD)
+        npts = arr%npts
+        CALL MPI_Allreduce(MPI_IN_PLACE, igrid, npts, &
+            mglet_mpi_int, MPI_SUM, MPI_COMM_WORLD)
+
+        ! Write coordinates and grid id's to file
+        CALL stencilio_write_master_cptr(arr_grouph, 'coordinates', &
+            C_LOC(coordinates), INT([3, arr%npts], HSIZE_T), &
+            mglet_hdf5_real)
+        CALL stencilio_write_master_cptr(arr_grouph, 'igrid', &
+            C_LOC(igrid), INT([arr%npts], HSIZE_T), mglet_hdf5_int)
+
+        DEALLOCATE(coordinates)
+        DEALLOCATE(igrid)
+    END SUBROUTINE write_coordinates
 
 
     SUBROUTINE read_file(file_id, ittot)
@@ -786,6 +918,8 @@ CONTAINS
         INTEGER(hsize_t) :: i, dims1(1)
         TYPE(timeinfo_t), ALLOCATABLE, TARGET :: timeinfo_old(:)
         TYPE(C_PTR) :: cptr
+
+        IF (.NOT. ioproc) RETURN
 
         CALL hdf5common_group_open("PROBES", file_id, probes_id)
 
@@ -803,7 +937,7 @@ CONTAINS
                 CALL stencilio_read_master_cptr(probes_id, "time", cptr, &
                     dims1, timeinfo_h5t)
 
-                ! The ittot given presently is the ittotbefore the first
+                ! The ittot given presently is the ittot before the first
                 ! timestep of the present simulation is executed. First sampeld
                 ! variable in the present simulation will be with ittot + 1.
                 fileoffset = 0
