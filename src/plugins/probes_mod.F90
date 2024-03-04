@@ -15,7 +15,9 @@ MODULE probes_mod
         INTEGER(intk) :: notfound
         CHARACTER(len=nchar_name), ALLOCATABLE :: variables(:)
         REAL(realk), ALLOCATABLE :: coordinates(:, :)
+        REAL(realk), ALLOCATABLE :: coords_notfound(:, :)
         INTEGER(intk), ALLOCATABLE :: id(:)
+        INTEGER(intk), ALLOCATABLE :: id_notfound(:)
         INTEGER(intk), ALLOCATABLE :: groupid(:)
         INTEGER(intk), ALLOCATABLE :: grid(:)
         REAL(realk), ALLOCATABLE :: buffer(:, :, :)
@@ -381,6 +383,22 @@ CONTAINS
         ! ownership to...
         arr%notfound = COUNT(probesgrids == 0)
 
+        ! MPI rank 0 allocate and store coordinates of not found probes
+        ! for later output. No sampling or handling is otherwise done on these
+        ! probes, though.
+        IF (myid == 0) THEN
+            ALLOCATE(arr%coords_notfound(3, arr%notfound))
+            ALLOCATE(arr%id_notfound(arr%notfound))
+            ipoint = 0
+            DO i = 1, arr%npts
+                IF (probesgrids(i) == 0) THEN
+                    ipoint = ipoint + 1
+                    arr%coords_notfound(:, ipoint) = tmpcoords(:, i)
+                    arr%id_notfound(ipoint) = i
+                END IF
+            END DO
+        END IF
+
         DEALLOCATE(probesgrids)
         DEALLOCATE(tmpcoords)
     END SUBROUTINE read_positions
@@ -439,7 +457,9 @@ CONTAINS
 
         IF (ALLOCATED(this%variables)) DEALLOCATE(this%variables)
         IF (ALLOCATED(this%coordinates)) DEALLOCATE(this%coordinates)
+        IF (ALLOCATED(this%coords_notfound)) DEALLOCATE(this%coords_notfound)
         IF (ALLOCATED(this%id)) DEALLOCATE(this%id)
+        IF (ALLOCATED(this%id_notfound)) DEALLOCATE(this%id_notfound)
         IF (ALLOCATED(this%groupid)) DEALLOCATE(this%groupid)
         IF (ALLOCATED(this%grid)) DEALLOCATE(this%grid)
         IF (ALLOCATED(this%buffer)) DEALLOCATE(this%buffer)
@@ -852,6 +872,15 @@ CONTAINS
             coordinates(:, arr%id(i)) = arr%coordinates(:, i)
             igrid(arr%id(i)) = arr%grid(i)
         END DO
+
+        ! MPI rank 0 has the coordinates of probes not found in any grid as
+        ! well, add these to the list
+        IF (myid == 0) THEN
+            DO i = 1, arr%notfound
+                coordinates(:, arr%id_notfound(i)) = arr%coords_notfound(:, i)
+                igrid(arr%id_notfound(i)) = 0
+            END DO
+        END IF
 
         ! Do an MPI reduction to rank 0 to gather the data from all ranks
         ! MPI_Reduce fail with MPI_IN_PLACE... Allreduce works.
