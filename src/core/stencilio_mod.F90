@@ -504,11 +504,10 @@ CONTAINS
                 CALL MPI_Type_free(recvTypes(i), ierr)
             END IF
         END DO
-        IF (ioProc) THEN
-            DEALLOCATE(nblocks)
-            DEALLOCATE(recvTypes)
-            DEALLOCATE(recvReqs)
-        END IF
+
+        DEALLOCATE(nblocks)
+        DEALLOCATE(recvTypes)
+        DEALLOCATE(recvReqs)
 
         ! Bigbuf now contain the nessecary data to be written out to disk.
         ! prepare HDF5 datatypes and write data out
@@ -547,7 +546,7 @@ CONTAINS
         curr_shape2 = 0
         IF (append) THEN
             CALL hdf5common_dataset_exists(name, group_id, link_exists, &
-                curr_shape2(1:rank))
+                shape=curr_shape2(1:rank), bcast=.FALSE.)
             IF (link_exists) THEN
                 CALL hdf5common_dataset_open(name, curr_shape2(1:rank), &
                     group_id, dset_id, filespace)

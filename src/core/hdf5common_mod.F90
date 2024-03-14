@@ -524,12 +524,19 @@ CONTAINS
     END SUBROUTINE hdf5common_dataset_open
 
 
-    SUBROUTINE hdf5common_dataset_exists(name, parent_id, link_exists, shape)
+    ! By default this will broadcast the result to all processes  and all
+    ! processes miust call this routine. This is how it is usually used
+    ! from for instacne probes and fieldio2. However, there are also
+    ! occasions where this is used from only IO processes and then
+    ! the optional bcast parameter can be set to false to prevent a deadlock.
+    SUBROUTINE hdf5common_dataset_exists(name, parent_id, link_exists, shape, &
+            bcast)
         ! Subroutine arguments
         CHARACTER(LEN=*), INTENT(IN) :: name
         INTEGER(HID_T), INTENT(IN) :: parent_id
         LOGICAL, INTENT(OUT) :: link_exists
         INTEGER(HSIZE_T), INTENT(OUT), OPTIONAL :: shape(:)
+        LOGICAL, INTENT(IN), OPTIONAL :: bcast
 
         ! Local variables
         INTEGER(HID_T) :: dset_id, filespace
@@ -537,13 +544,20 @@ CONTAINS
         INTEGER(HSIZE_T) :: maxdims(maxrank)
         INTEGER(intk) :: i, ndims
         INTEGER(int32) :: ierr
+        LOGICAL :: bcast2
 
         IF (ioproc) THEN
             CALL h5lexists_f(parent_id, name, link_exists, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
         END IF
 
-        CALL MPI_Bcast(link_exists, 1, MPI_LOGICAL, 0, iogrcomm)
+        bcast2 = .TRUE.
+        IF (PRESENT(bcast)) THEN
+            bcast2 = bcast
+        END IF
+        IF (bcast2) THEN
+            CALL MPI_Bcast(link_exists, 1, MPI_LOGICAL, 0, iogrcomm)
+        END IF
 
         IF (link_exists .AND. PRESENT(shape)) THEN
             IF (ioproc) THEN
@@ -585,8 +599,10 @@ CONTAINS
             END IF
 
             ! IO processes now has the shape of the dataset, broadcast this
-            CALL MPI_Bcast(shape, INT(ndims, int32), mglet_mpi_hsize_t, &
-                0, iogrcomm)
+            IF (bcast2) THEN
+                CALL MPI_Bcast(shape, INT(ndims, int32), mglet_mpi_hsize_t, &
+                    0, iogrcomm)
+            END IF
         END IF
     END SUBROUTINE hdf5common_dataset_exists
 

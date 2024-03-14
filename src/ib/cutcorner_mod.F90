@@ -99,7 +99,7 @@ CONTAINS
         REAL(realk) :: x2, y2, z2, x3, y3, z3, betrag
         REAL(realk) :: length, eps
         REAL(realk) :: xmin, xmax, ymin, ymax, zmin, zmax
-        LOGICAL :: exactedge2
+        LOGICAL :: exactedge2, valid
 
         ! Initializing variables
         kanteu = 0.0
@@ -146,14 +146,15 @@ CONTAINS
             IF (zmax < zstag(1) - (2*maccur+1)*ddz(1)) CYCLE
             IF (zmin > zstag(kk) + (2*maccur)*ddz(kk)) CYCLE
 
+            ! Check if trinagle is valid and compute area.
+            CALL valid_triangle(valid, betrag, x1, y1, z1, x2, y2, z2, &
+                x3, y3, z3)
+            IF (.NOT. valid) CYCLE
+
             ! Triangle normal vector
             a = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1)
             b = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1)
             c = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
-
-            ! If triangle has zero area, skip triangle
-            betrag = sqrt(a**2 + b**2 + c**2)
-            IF (betrag < TINY(1.0_realk)) CYCLE
             a = a/betrag
             b = b/betrag
             c = c/betrag
@@ -272,6 +273,57 @@ CONTAINS
         END DO
 
     END SUBROUTINE cutcorner_grid
+
+
+    ! Subroutine to check if a triangle is valid. It will check if the area
+    ! of the triangle is zero and if any of the sides lengths of the triangle
+    ! is zero.
+    !
+    ! The reason for also checking if the side lengths are zero is because of
+    ! round-off erros in the area computation, there have been cases where the
+    ! area round off to a slight non-zero value while still having a zero
+    ! length side. This cause a floating point exception in intinface.
+    PURE SUBROUTINE valid_triangle(valid, area, x1, y1, z1, x2, y2, z2, &
+            x3, y3, z3)
+        ! Subroutine arguments
+        LOGICAL, INTENT(out) :: valid
+        REAL(realk), INTENT(out) :: area
+        REAL(realk), INTENT(in) :: x1, y1, z1, x2, y2, z2, x3, y3, z3
+
+        ! Local variables
+        REAL(realk) :: a, b, c, areasqr
+
+        ! Set return values for an invalid triangle
+        valid = .FALSE.
+        area = 0.0
+
+        ! Check all sides, if one side has length == 0.0 triangle is invalid
+        a = x2 - x1
+        b = y2 - y1
+        c = z2 - z1
+        IF (a**2 + b**2 + c**2 < TINY(1.0_realk)) RETURN
+
+        a = x3 - x2
+        b = y3 - y2
+        c = z3 - z2
+        IF (a**2 + b**2 + c**2 < TINY(1.0_realk)) RETURN
+
+        a = x1 - x3
+        b = y1 - y3
+        c = z1 - z3
+        IF (a**2 + b**2 + c**2 < TINY(1.0_realk)) RETURN
+
+        ! Triangle normal vector and area**2
+        a = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1)
+        b = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1)
+        c = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
+        areasqr = a**2 + b**2 + c**2
+        IF (areasqr < TINY(1.0_realk)) RETURN
+
+        ! If we reach so far, the triangle is valid and the area is computed
+        valid = .TRUE.
+        area = SQRT(areasqr)
+    END SUBROUTINE valid_triangle
 
 
     SUBROUTINE insertcutpoint(kk, jj, ii, ntopol, ntrimax, xstag, ystag, &
