@@ -155,7 +155,7 @@ CONTAINS
         !
         ! Wrapper shmem_alloc want the number of elements to allocate,
         ! not bytes.
-        CALL shmem_alloc(this%shmtopol, 3*3*INT(this%n, int64))
+        CALL this%shmtopol%allocate(3*3*INT(this%n, int64))
 
         ! Only one rank per compute node/SHM group do this to spare memory
         IF (shmid == 0) THEN
@@ -191,7 +191,7 @@ CONTAINS
         IF (myid == 0) DEALLOCATE(stldata)
 
         ! Allocate and set bodyid
-        CALL shmem_alloc(this%shmbodyid, INT(this%n, int64))
+        CALL this%shmbodyid%allocate(INT(this%n, int64))
         IF (shmid == 0) THEN
             offset = 1
             DO i = 1, this%nbody
@@ -231,8 +231,8 @@ CONTAINS
         NULLIFY(this%bodyid)
 
         IF (this%shmem_is_allocated) THEN
-            CALL shmem_dealloc(this%shmtopol)
-            CALL shmem_dealloc(this%shmbodyid)
+            CALL this%shmtopol%free()
+            CALL this%shmbodyid%free()
         END IF
         this%shmem_is_allocated = .FALSE.
     END SUBROUTINE finish
