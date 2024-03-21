@@ -6,6 +6,10 @@ MODULE topol_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    TYPE :: stldata_t
+        REAL(realk), ALLOCATABLE :: verts(:, :, :)
+    END TYPE stldata_t
+
     TYPE :: topol_t
         INTEGER(intk) :: n = 0
         REAL(realk), POINTER, CONTIGUOUS :: topol(:)
@@ -43,10 +47,9 @@ CONTAINS
         TYPE(config_t) :: geometries, geometry
         INTEGER(intk) :: i, j, offset, ngeom, this_id, only_id
 
-        REAL(realk), ALLOCATABLE :: vertices(:, :, :)
         REAL(realk), POINTER :: topol3d(:, :, :)
         INTEGER(intk), ALLOCATABLE :: ntri(:)
-        LOGICAL, ALLOCATABLE :: is_binary(:)
+        TYPE(stldata_t), ALLOCATABLE :: stldata(:)
 
         CHARACTER(len=64) :: jsonptr
 
@@ -114,19 +117,26 @@ CONTAINS
         ! Read STL's
         ALLOCATE(ntri(this%nbody))
         ntri = 0
-        ALLOCATE(is_binary(this%nbody))
-        is_binary = .FALSE.
 
+        ! Rank 0 read the STL's into a temporary data structure in memory
         IF (myid == 0) THEN
+            ALLOCATE(stldata(this%nbody))
             DO i = 1, this%nbody
-                CALL stl_info(this%geometries(i), is_binary(i), ntri(i))
+                CALL stl_read(stldata(i)%verts, this%geometries(i))
+                ntri(i) = SIZE(stldata(i)%verts, 3)
+
+                ! Transpose data order
+                !   original order: x1, y1, z1, x2, y2, z2, x3, y3, z3
+                !   new order:      x1, x2, x3, y1, y2, y3, z1, z2, z3
+                DO j = 1, ntri(i)
+                    stldata(i)%verts(1:3, 1:3, j) = &
+                        TRANSPOSE(stldata(i)%verts(1:3, 1:3, j))
+                END DO
             END DO
         END IF
 
+        ! Broadcast the number of triangles to all ranks
         CALL MPI_Bcast(ntri, INT(this%nbody, int32), mglet_mpi_int, &
-            0, MPI_COMM_WORLD)
-
-        CALL MPI_Bcast(is_binary, INT(this%nbody, int32), MPI_LOGICAL, &
             0, MPI_COMM_WORLD)
 
         ! Overall number of triangles to be read in
@@ -145,47 +155,40 @@ CONTAINS
         !
         ! Wrapper shmem_alloc want the number of elements to allocate,
         ! not bytes.
-        CALL shmem_alloc(this%shmtopol, &
-            3*3*INT(this%n, int64))
+        CALL shmem_alloc(this%shmtopol, 3*3*INT(this%n, int64))
 
         ! Only one rank per compute node/SHM group do this to spare memory
         IF (shmid == 0) THEN
-            CALL C_F_POINTER(this%shmtopol%baseptr, &
-                topol3d, [3, 3, this%n])
+            CALL C_F_POINTER(this%shmtopol%baseptr, topol3d, [3, 3, this%n])
             offset = 1
             DO i = 1, this%nbody
                 ! If the topol have zero triangles, do nothing
                 IF (ntri(i) <= 0) CYCLE
 
-                ALLOCATE(vertices(3, 3, ntri(i)))
-
-                ! Global rank 0 read the STL
-                IF (myid == 0) THEN
-                    CALL stl_read(this%geometries(i), &
-                        is_binary(i), vertices)
+                ! Sanity check
+                IF (offset > this%n) THEN
+                    CALL errr(__FILE__, __LINE__)
                 END IF
 
-                ! Rank 0 broadcast the vertices to other shm master ranks
-                CALL MPI_Bcast(vertices, 3*3*ntri(i), &
+                ! MPI rank 0 copy data to topol3d
+                IF (myid == 0) THEN
+                    topol3d(:, :, offset:offset+ntri(i)-1) = &
+                        stldata(i)%verts(:, :, :)
+                END IF
+
+                ! This data is then broadcasted to one rank per SHM group
+                CALL MPI_Bcast(topol3d(1, 1, offset), 3*3*ntri(i), &
                     mglet_mpi_real, 0, shm_masters_comm)
 
-                ! Now all ranks with shmid == 0 have the vertices data
-                DO j = 1, ntri(i)
-                    IF (offset > this%n) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-
-                    topol3d(1, :, offset) = vertices(:, 1, j) ! x1, y1, z1
-                    topol3d(2, :, offset) = vertices(:, 2, j) ! x2, y2, z2
-                    topol3d(3, :, offset) = vertices(:, 3, j) ! x3, y3, z3
-
-                    offset = offset + 1
-                END DO
-                DEALLOCATE(vertices)
+                ! Increment offset
+                offset = offset + ntri(i)
             END DO
             NULLIFY(topol3d)
         END IF
         CALL this%shmtopol%barrier()
+
+        ! Deallocate local storage for vertices
+        IF (myid == 0) DEALLOCATE(stldata)
 
         ! Allocate and set bodyid
         CALL shmem_alloc(this%shmbodyid, INT(this%n, int64))
@@ -204,7 +207,7 @@ CONTAINS
         ! Also in the case of zero trinagles, ntopol is zero from now on..
         this%n = SUM(ntri)
 
-        DEALLOCATE(is_binary, ntri)
+        DEALLOCATE(ntri)
 
         ! Set convenience pointers
         CALL C_F_POINTER(this%shmtopol%baseptr, this%topol, &
