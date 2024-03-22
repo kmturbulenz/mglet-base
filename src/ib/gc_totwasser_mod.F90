@@ -183,8 +183,16 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = MAX(2, 1+ksta), kk-ksto
-                        IF (NINT(bp(k-1, j, i)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        ! Using NINT is not performant here.
+                        ! IF (NINT(bp(k-1, j, i)) >= 2) THEN
+                        IF (bp(k-1, j, i) > 1.5_realk) THEN
+                            ! Various ways to check if the bp value is 1.0
+                            ! without performing a flaoting point equality
+                            ! check. NINT is the slowest, the two others are
+                            ! more or less equivalent.
+                            ! IF (NINT(bp(k, j, i)) == 1) THEN
+                            ! IF (ABS(bp(k, j, i) - 1.0) < 0.001) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k-1, j, i)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
@@ -197,8 +205,8 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = MIN(kk-1, kk-ksto), 1+ksta, -1
-                        IF (NINT(bp(k+1, j, i)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        IF (bp(k+1, j, i) > 1.5_realk) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k+1, j, i)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
@@ -211,8 +219,8 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = MAX(2, 1+jsta), jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (NINT(bp(k, j-1, i)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        IF (bp(k, j-1, i) > 1.5_realk) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k, j-1, i)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
@@ -225,8 +233,8 @@ CONTAINS
             DO i = 1+ista, ii-isto
                 DO j = MIN(jj-1, jj-jsto), 1+jsta, -1
                     DO k = 1+ksta, kk-ksto
-                        IF (NINT(bp(k, j+1, i)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        IF (bp(k, j+1, i) > 1.5_realk) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k, j+1, i)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
@@ -239,8 +247,8 @@ CONTAINS
             DO i = MAX(1+ista, 2), ii-isto
                 DO j = 1+jsta, jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (NINT(bp(k, j, i-1)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        IF (bp(k, j, i-1) > 1.5_realk) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k, j, i-1)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
@@ -253,8 +261,8 @@ CONTAINS
             DO i = MIN(ii-1, ii-isto), 1+ista, -1
                 DO j = 1+jsta, jj-jsto
                     DO k = 1+ksta, kk-ksto
-                        IF (NINT(bp(k, j, i+1)) >= 2) THEN
-                            IF (NINT(bp(k, j, i)) == 1) THEN
+                        IF (bp(k, j, i+1) > 1.5_realk) THEN
+                            IF (bp(k, j, i) > 0.9 .AND. bp(k, j, i) < 1.1) THEN
                                 bp(k, j, i) = 1.0 &
                                     + bp(k, j, i+1)*finecell(k, j, i)
                                 ncount = ncount + NINT(finecell(k, j, i))
