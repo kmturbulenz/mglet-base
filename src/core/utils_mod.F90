@@ -2,7 +2,6 @@ MODULE utils_mod
     USE err_mod, ONLY: errr
     USE precision_mod, ONLY: intk, realk
     USE qsort_mod, ONLY: sortix
-    USE comms_mod, ONLY: myid
 
     IMPLICIT NONE(type, external)
     PRIVATE

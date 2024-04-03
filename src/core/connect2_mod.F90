@@ -4,7 +4,7 @@ MODULE connect2_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf, isendbuf, irecvbuf
     USE err_mod, ONLY: errr
     USE timer_mod, ONLY: start_timer, set_timer, stop_timer
-    USE pointers_mod, ONLY: get_ip3
+    ! USE pointers_mod, ONLY: get_ip3
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs

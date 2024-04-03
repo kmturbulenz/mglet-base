@@ -34,7 +34,8 @@ target_include_directories(mglet
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 target_link_libraries(mglet
-    PRIVATE mgletlib
+    PUBLIC mgletlib
+    PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ${MPI_Fortran_LIBRARIES}
 )
 
