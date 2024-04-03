@@ -245,7 +245,7 @@ CONTAINS
                             i, j, k, a, b, c, xp, yp, zp, &
                             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
                             eps, xmin, xmax, ymin, ymax, zmin, zmax, &
-                            found, foundx, foundy, foundz, .FALSE.)
+                            found, foundx, foundy, foundz, exactedge2)
 
                         IF (foundx == 1) THEN
                             CALL insertcutpoint(kk, jj, ii, ntopol, ntrimax, &
