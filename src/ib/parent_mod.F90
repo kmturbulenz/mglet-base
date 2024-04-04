@@ -58,7 +58,8 @@ MODULE parent_mod
     LOGICAL :: pack_buvw = .FALSE.
 
     ! Fields
-    TYPE(field_t), POINTER :: u, v, w, p1, p2, p3
+    TYPE(field_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
+        p1 => NULL(), p2 => NULL(), p3 => NULL()
 
     ! If true, exchange only surface normal component of
     ! vector field

@@ -50,7 +50,7 @@ MODULE ftoc_mod
     INTEGER(intk), ALLOCATABLE :: recvGrids(:)
 
     ! pointers to fine and coarse field used in restriction
-    REAL(realk), POINTER, CONTIGUOUS  :: ffg(:), fcg(:)
+    REAL(realk), POINTER, CONTIGUOUS  :: ffg(:) => NULL(), fcg(:) => NULL()
 
     ! contained functions
     PUBLIC :: ftoc, init_ftoc, finish_ftoc

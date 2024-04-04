@@ -90,7 +90,8 @@ MODULE connect2_mod
     LOGICAL :: connect_integer = .FALSE.
 
     ! Fields
-    CLASS(basefield_t), POINTER :: u, v, w, p1, p2, p3
+    CLASS(basefield_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
+        p1 => NULL(), p2 => NULL(), p3 => NULL()
 
     INTEGER(intk), PARAMETER :: facelist(4,26) = RESHAPE((/ &
         1, 1, 0, 0, &

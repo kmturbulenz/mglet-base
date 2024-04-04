@@ -32,7 +32,7 @@ MODULE ctof_mod
     TYPE(MPI_Datatype), ALLOCATABLE :: recvTypes(:)
 
     ! Field to prolongate
-    REAL(realk), POINTER :: ff(:), fc(:)
+    REAL(realk), POINTER :: ff(:) => NULL(), fc(:) => NULL()
 
     PUBLIC :: ctof, init_ctof, finish_ctof
 
