@@ -658,11 +658,11 @@ CONTAINS
                 ! the correct MPI type along
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
-                    CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
+                    CALL MPI_Irecv(buffer(bufptr), nelems, &
                         field%mpi_dtype, iproc, igrid, iogrcomm, &
                         recvreq(nrecv))
                 TYPE IS (INTEGER(ifk))
-                    CALL MPI_Irecv(buffer(bufptr:bufptr+nelems-1), nelems, &
+                    CALL MPI_Irecv(buffer(bufptr), nelems, &
                         field%mpi_dtype, iproc, igrid, iogrcomm, &
                         recvreq(nrecv))
                 END SELECT
@@ -725,10 +725,10 @@ CONTAINS
             ! the correct MPI type along
             SELECT TYPE (transposed)
             TYPE IS (REAL(realk))
-                CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
+                CALL MPI_Isend(transposed(ptr), nelems, &
                     field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
             TYPE IS (INTEGER(ifk))
-                CALL MPI_Isend(transposed(ptr:ptr+nelems-1), nelems, &
+                CALL MPI_Isend(transposed(ptr), nelems, &
                     field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
             END SELECT
         END DO
@@ -1302,10 +1302,10 @@ CONTAINS
             CALL field%get_len(nelems, igrid)
             SELECT TYPE (field)
             TYPE IS (field_t)
-                CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
+                CALL MPI_Irecv(field%arr(ptr), nelems, &
                     field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
             TYPE IS (intfield_t)
-                CALL MPI_Irecv(field%arr(ptr:ptr+nelems-1), nelems, &
+                CALL MPI_Irecv(field%arr(ptr), nelems, &
                     field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
             END SELECT
         END DO
@@ -1327,11 +1327,11 @@ CONTAINS
                 nsend = nsend + 1
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
-                    CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
+                    CALL MPI_Isend(buffer(bufptr), nelems, &
                         field%mpi_dtype, iproc, igrid, iogrcomm, &
                         sendreq(nsend))
                 TYPE IS (INTEGER(ifk))
-                    CALL MPI_Isend(buffer(bufptr:bufptr+nelems-1), nelems, &
+                    CALL MPI_Isend(buffer(bufptr), nelems, &
                         field%mpi_dtype, iproc, igrid, iogrcomm, &
                         sendreq(nsend))
                 END SELECT
