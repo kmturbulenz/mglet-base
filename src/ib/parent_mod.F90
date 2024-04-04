@@ -756,6 +756,7 @@ CONTAINS
         INTEGER(int32) :: unpackLen
 
         DO WHILE (.TRUE.)
+            IF (nRecv == 0) EXIT
             CALL MPI_Waitany(nRecv, recvReqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN
