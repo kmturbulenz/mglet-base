@@ -25,10 +25,10 @@ CONTAINS
         CHARACTER(c_char), DIMENSION(LEN(prefix)+1) :: c_prefix
 
         ! Add trailing C_NULL_CHAR to key
-        c_path = TRANSFER(path, c_path)
+        c_path(1:LEN(path)) = TRANSFER(path, c_path)
         c_path(LEN_TRIM(path)+1) = C_NULL_CHAR
 
-        c_prefix = TRANSFER(prefix, c_prefix)
+        c_prefix(1:LEN(prefix)) = TRANSFER(prefix, c_prefix)
         c_prefix(LEN_TRIM(prefix)+1) = C_NULL_CHAR
 
         CALL create_pvtk(c_path, c_prefix)

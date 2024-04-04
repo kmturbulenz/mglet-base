@@ -30,7 +30,7 @@ CONTAINS
         CHARACTER(c_char), DIMENSION(LEN(filename)+1) :: c_filename
 
         ! Convert the filename to a C string
-        c_filename = TRANSFER(filename, c_filename)
+        c_filename(1:LEN(filename)) = TRANSFER(filename, c_filename)
         c_filename(LEN_TRIM(filename)+1) = c_null_char
 
         CALL readstl(vertices, c_filename, ierr)
