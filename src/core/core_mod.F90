@@ -242,6 +242,7 @@ CONTAINS
         CHARACTER(len=1024) :: mglet_fpe_trap
 
         IF (myid /= 0) RETURN
+        mglet_fpe_trap = ""
 
         WRITE(*, '("IEEE aritmetic flags:")')
 
