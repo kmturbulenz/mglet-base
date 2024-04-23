@@ -721,7 +721,7 @@ CONTAINS
             at, ab, ap, bp)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(out) :: res(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: res(kk, jj, ii)
         REAL(realk), INTENT(in) :: phi(kk, jj, ii)
         REAL(realk), INTENT(in) :: aw(ii), ae(ii), an(jj), as(jj), &
             at(kk), ab(kk)
@@ -730,10 +730,6 @@ CONTAINS
 
         ! Local variables
         INTEGER :: k, j, i
-
-        ! To properly define an INTENT(out) since the loop does not iterate
-        ! over all indices of res
-        res = 0.0
 
         IF (PRESENT(bp)) THEN
             DO i = 3, ii-2
