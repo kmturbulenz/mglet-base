@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-c3a35ba", "gnu-ompi-image:sha-c3a35ba"]
+        image: ["intel-impi-image:sha-f052b7b", "gnu-ompi-image:sha-f052b7b"]
         build: ["release", "debug"]
         prec: ["Single", "Double"]
       fail-fast: false
