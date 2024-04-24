@@ -836,7 +836,7 @@ CONTAINS
             TYPE IS (CHARACTER(*))
                 CALL h5tcopy_f(H5T_NATIVE_CHARACTER, hdf5_dtype, ierr)
                 IF (ierr < 0) CALL errr(__FILE__, __LINE__)
-                CALL h5tset_size_f(hdf5_dtype, INT(LEN(value(1)), size_t), ierr)
+                CALL h5tset_size_f(hdf5_dtype, LEN(value, size_t), ierr)
                 IF (ierr < 0) CALL errr(__FILE__, __LINE__)
                 buf = C_LOC(value)
                 nelems = SIZE(value)
