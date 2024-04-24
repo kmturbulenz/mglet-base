@@ -33,15 +33,6 @@ MODULE dlopen_mod
             TYPE(C_FUNPTR) :: funptr
         END FUNCTION dlsym
 
-        ! void *dlsym(void *handle, char *symbol);
-        FUNCTION dlsym_ptr(handle, symbol) RESULT(ptr) BIND(C, NAME='dlsym')
-            ! Returns a C_PTR instead of a C_FUNPTR
-            IMPORT :: c_char, c_ptr
-            TYPE(C_PTR), VALUE :: handle
-            CHARACTER(C_CHAR), DIMENSION(*), INTENT(IN) :: symbol
-            TYPE(C_PTR) :: ptr
-        END FUNCTION dlsym_ptr
-
         ! int dlclose(void *handle);
         FUNCTION dlclose(handle) RESULT(ierror) BIND(C, NAME='dlclose')
             IMPORT :: c_int, c_ptr
@@ -56,8 +47,7 @@ MODULE dlopen_mod
         END FUNCTION dlerror
     END INTERFACE
 
-    PUBLIC :: shlib_load, finish_dlopen, shlib_get_fun, shlib_get_ptr, &
-        init_dlopen
+    PUBLIC :: shlib_load, finish_dlopen, shlib_get_fun, init_dlopen
 
 CONTAINS
     SUBROUTINE init_dlopen()
@@ -153,35 +143,6 @@ CONTAINS
             END IF
         END IF
     END SUBROUTINE shlib_get_fun
-
-
-    SUBROUTINE shlib_get_ptr(name, ptr, required)
-        ! Subroutine arguments
-        CHARACTER(len=*), INTENT(IN) :: name
-        TYPE(C_PTR), INTENT(OUT) :: ptr
-        LOGICAL, OPTIONAL :: required
-
-        ! Local variables
-        INTEGER :: i
-        LOGICAL :: success
-
-        success = .FALSE.
-        ptr = C_NULL_PTR
-        DO i = 1, shlib_idx
-            ptr = dlsym_ptr(handle(i), trim(name)//C_NULL_CHAR)
-            IF (C_ASSOCIATED(ptr)) THEN
-                success = .TRUE.
-                EXIT
-            END IF
-        END DO
-
-        IF (.NOT. success .AND. PRESENT(required)) THEN
-            IF (required) THEN
-                WRITE(*,*) "Could not find: ", name
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END IF
-    END SUBROUTINE shlib_get_ptr
 
 
     SUBROUTINE finish_dlopen()
