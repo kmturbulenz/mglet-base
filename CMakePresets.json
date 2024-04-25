@@ -21,13 +21,13 @@
                 "CMAKE_CXX_COMPILER": "icpx",
                 "CMAKE_Fortran_COMPILER": "ifx",
 
-                "MGLET_C_FLAGS": "",
-                "MGLET_CXX_FLAGS": "",
-                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors",
+                "MGLET_C_FLAGS": "-qno-openmp-simd",
+                "MGLET_CXX_FLAGS": "-qno-openmp-simd",
+                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors;-qno-openmp-simd",
 
-                "MGLET_C_FLAGS_RELEASE": "-g;-qopenmp-simd",
-                "MGLET_CXX_FLAGS_RELEASE": "-g;-qopenmp-simd",
-                "MGLET_Fortran_FLAGS_RELEASE": "-g;-qopenmp-simd",
+                "MGLET_C_FLAGS_RELEASE": "-g",
+                "MGLET_CXX_FLAGS_RELEASE": "-g",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g",
 
                 "MGLET_C_FLAGS_DEBUG": "-O1;-g",
                 "MGLET_CXX_FLAGS_DEBUG": "-O1;-g",
