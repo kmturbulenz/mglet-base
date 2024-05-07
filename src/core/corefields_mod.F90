@@ -176,7 +176,6 @@ CONTAINS
         IF (SIZE(x) /= ii) CALL errr(__FILE__, __LINE__)
         IF (SIZE(dx) /= ii) CALL errr(__FILE__, __LINE__)
 
-        !$omp simd
         DO i = 1, ii
             xstag(i) = x(i) + 0.5*dx(i)
         END DO

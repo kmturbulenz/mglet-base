@@ -734,7 +734,6 @@ CONTAINS
         IF (PRESENT(bp)) THEN
             DO i = 3, ii-2
                 DO j = 3, jj-2
-                    !$omp simd
                     DO k = 3, kk-2
                         res(k, j, i) = &
                             - aw(i)*phi(k, j, i-1)*bp(k, j, i-1)*bp(k, j, i) &
@@ -750,7 +749,6 @@ CONTAINS
         ELSE
             DO i = 3, ii-2
                 DO j = 3, jj-2
-                    !$omp simd
                     DO k = 3, kk-2
                         res(k, j, i) = &
                             - aw(i) * phi(k, j, i-1) &
