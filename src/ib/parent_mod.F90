@@ -58,7 +58,8 @@ MODULE parent_mod
     LOGICAL :: pack_buvw = .FALSE.
 
     ! Fields
-    TYPE(field_t), POINTER :: u, v, w, p1, p2, p3
+    TYPE(field_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
+        p1 => NULL(), p2 => NULL(), p3 => NULL()
 
     ! If true, exchange only surface normal component of
     ! vector field
@@ -755,6 +756,7 @@ CONTAINS
         INTEGER(int32) :: unpackLen
 
         DO WHILE (.TRUE.)
+            IF (nRecv == 0) EXIT
             CALL MPI_Waitany(nRecv, recvReqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN

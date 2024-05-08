@@ -4,7 +4,7 @@ MODULE connect2_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf, isendbuf, irecvbuf
     USE err_mod, ONLY: errr
     USE timer_mod, ONLY: start_timer, set_timer, stop_timer
-    USE pointers_mod, ONLY: get_ip3
+    ! USE pointers_mod, ONLY: get_ip3
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
@@ -90,7 +90,8 @@ MODULE connect2_mod
     LOGICAL :: connect_integer = .FALSE.
 
     ! Fields
-    CLASS(basefield_t), POINTER :: u, v, w, p1, p2, p3
+    CLASS(basefield_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
+        p1 => NULL(), p2 => NULL(), p3 => NULL()
 
     INTEGER(intk), PARAMETER :: facelist(4,26) = RESHAPE((/ &
         1, 1, 0, 0, &
@@ -1191,6 +1192,7 @@ CONTAINS
         INTEGER(int32) :: unpacklen
 
         DO WHILE (.TRUE.)
+            IF (nRecv == 0) EXIT
             CALL MPI_Waitany(nRecv, recvReqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN

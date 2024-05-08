@@ -2,7 +2,6 @@ MODULE utils_mod
     USE err_mod, ONLY: errr
     USE precision_mod, ONLY: intk, realk
     USE qsort_mod, ONLY: sortix
-    USE comms_mod, ONLY: myid
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -185,7 +184,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(path)+1) :: c_path
 
         ! Add trailing C_NULL_CHAR to key
-        c_path = TRANSFER(path, c_path)
+        c_path(1:LEN(path)) = TRANSFER(path, c_path)
         c_path(LEN_TRIM(path)+1) = C_NULL_CHAR
 
         CALL create_directory_f(c_path)

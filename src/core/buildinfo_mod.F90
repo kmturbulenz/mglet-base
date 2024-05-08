@@ -34,8 +34,10 @@ CONTAINS
         IF (myid /= 0) RETURN
 
         WRITE(*, '("BUILD INFORMATION:")')
+#ifndef __NAG_COMPILER_RELEASE
         WRITE(*, '("    Date:          ", A)') __DATE__
         WRITE(*, '("    Time:          ", A)') __TIME__
+#endif
         WRITE(*, '("    Compiler:      ", A)') COMPILER_VERSION()
         WRITE(*, '("    Options:       ", A)') COMPILER_OPTIONS()
         WRITE(*, '()')

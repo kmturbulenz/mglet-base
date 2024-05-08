@@ -1,9 +1,7 @@
 MODULE stencilio_mod
     USE, INTRINSIC ::  ISO_C_BINDING, ONLY: c_ptr, c_loc
 
-    ! Intel compilers have a problem compiling this file if using MPI_F08:
-    ! https://community.intel.com/t5/Intel-Fortran-Compiler/Calling-a-function-with-TYPE-with-a-CLASS-argument/m-p/1497024
-    USE MPI
+    USE MPI_f08
     USE HDF5
     USE comms_mod
     USE err_mod, ONLY: errr
@@ -11,7 +9,7 @@ MODULE stencilio_mod
     USE precision_mod
     USE qsort_mod, ONLY: sortix
 
-    IMPLICIT NONE
+    IMPLICIT NONE (type, external)
     PRIVATE
 
     TYPE :: int_stencils_t
@@ -93,12 +91,9 @@ CONTAINS
             array_of_displacements(:), nblocks(:)
 
         ! MPI_08 types
-        ! TYPE(MPI_Datatype), ALLOCATABLE :: recvTypes(:)
-        ! TYPE(MPI_Request), ALLOCATABLE :: recvReqs(:)
-        ! TYPE(MPI_Datatype) :: mpi_dtype
-        INTEGER(int32), ALLOCATABLE :: recvTypes(:)
-        INTEGER(int32), ALLOCATABLE :: recvReqs(:)
-        INTEGER(int32) :: mpi_dtype
+        TYPE(MPI_Datatype), ALLOCATABLE :: recvTypes(:)
+        TYPE(MPI_Request), ALLOCATABLE :: recvReqs(:)
+        TYPE(MPI_Datatype) :: mpi_dtype
 
         INTEGER(intk) :: len, ptr
         INTEGER(intk) :: rank, r, ncmp2
@@ -122,7 +117,7 @@ CONTAINS
         SELECT TYPE (stencils)
         TYPE IS (int_stencils_t)
             hdf5_memtype = mglet_hdf5_int
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
 
             ! Determine max int value
             maxarr = 0
@@ -151,7 +146,7 @@ CONTAINS
         TYPE IS (real_stencils_t)
             hdf5_memtype = mglet_hdf5_real
             hdf5_filetype = mglet_hdf5_real
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         TYPE IS (INTEGER(intk))
             IF (.NOT. PRESENT(get_len)) THEN
                 CALL errr(__FILE__, __LINE__)
@@ -161,7 +156,7 @@ CONTAINS
             END IF
 
             hdf5_memtype = mglet_hdf5_int
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
 
             ! Determine max int value
             maxarr = 0.0
@@ -199,15 +194,15 @@ CONTAINS
 
             hdf5_memtype = mglet_hdf5_real
             hdf5_filetype = mglet_hdf5_real
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
         ! Number of grids in IO group
         nGrpGrids = 0
-        CALL MPI_Allreduce(nMyGrids, nGrpGrids, 1, mglet_mpi_int%MPI_val, &
-            MPI_SUM, iogrcomm%MPI_val, ierr)
+        CALL MPI_Allreduce(nMyGrids, nGrpGrids, 1, mglet_mpi_int, &
+            MPI_SUM, iogrcomm, ierr)
 
         ! Allocate memory
         ALLOCATE(stencilInfo(3, nMyGrids))
@@ -221,9 +216,9 @@ CONTAINS
 
         ! Gather and compute offset
         array_of_blocklengths = 0
-        CALL MPI_Gather(nMyGrids*3, 1, mglet_mpi_int%MPI_val, &
-            array_of_blocklengths, 1, mglet_mpi_int%MPI_val, 0, &
-            iogrcomm%MPI_val, ierr)
+        CALL MPI_Gather(nMyGrids*3, 1, mglet_mpi_int, &
+            array_of_blocklengths, 1, mglet_mpi_int, 0, &
+            iogrcomm, ierr)
 
         array_of_displacements = 0
         DO i = 2, iogrprocs
@@ -283,9 +278,9 @@ CONTAINS
 
         ! Collect list
         CALL MPI_Gatherv(stencilInfo, INT(3*nMyGrids, int32), &
-            mglet_mpi_int%MPI_val, grpStencilInfo, array_of_blocklengths, &
-            array_of_displacements, mglet_mpi_int%MPI_val, 0, &
-            iogrcomm%MPI_val, ierr)
+            mglet_mpi_int, grpStencilInfo, array_of_blocklengths, &
+            array_of_displacements, mglet_mpi_int, 0, &
+            iogrcomm, ierr)
 
         ! Each node determine own stencil data length, allocate data and copy
         my_len = 0
@@ -436,17 +431,17 @@ CONTAINS
                 IF (nblocks(i) > 0) THEN
                     SELECT TYPE (stencils)
                     TYPE IS (int_stencils_t)
-                        CALL MPI_Irecv(intbuf, 1, recvTypes(i), i, 1, &
-                            iogrcomm%MPI_val, recvReqs(i), ierr)
+                        CALL MPI_Irecv(intbuf(:), 1, recvTypes(i), i, 1, &
+                            iogrcomm, recvReqs(i), ierr)
                     TYPE IS (INTEGER(intk))
-                        CALL MPI_Irecv(intbuf, 1, recvTypes(i), i, 1, &
-                            iogrcomm%MPI_val, recvReqs(i), ierr)
+                        CALL MPI_Irecv(intbuf(:), 1, recvTypes(i), i, 1, &
+                            iogrcomm, recvReqs(i), ierr)
                     TYPE IS (real_stencils_t)
-                        CALL MPI_Irecv(bigbuf, 1, recvTypes(i), i, 1, &
-                            iogrcomm%MPI_val, recvReqs(i), ierr)
+                        CALL MPI_Irecv(bigbuf(:), 1, recvTypes(i), i, 1, &
+                            iogrcomm, recvReqs(i), ierr)
                     TYPE IS (REAL(realk))
-                        CALL MPI_Irecv(bigbuf, 1, recvTypes(i), i, 1, &
-                            iogrcomm%MPI_val, recvReqs(i), ierr)
+                        CALL MPI_Irecv(bigbuf(:), 1, recvTypes(i), i, 1, &
+                            iogrcomm, recvReqs(i), ierr)
                     END SELECT
                 END IF
             END DO
@@ -462,8 +457,20 @@ CONTAINS
                 write(*,*) "exceed: ", HUGE(1_int32)
                 CALL errr(__FILE__, __LINE__)
             END IF
-            CALL MPI_Send(localbuf, INT(my_len, int32), mpi_dtype, 0, 1, &
-                iogrcomm%MPI_val, ierr)
+
+            ! The SELECT TYPE here is really not neccesary, but exist as
+            ! a workaround for an Intel Fortran compiler bug:
+            ! https://community.intel.com/t5/Intel-Fortran-Compiler/Calling-a-function-with-TYPE-with-a-CLASS-argument/m-p/1497024
+            SELECT TYPE (localbuf)
+            TYPE IS (REAL(realk))
+                CALL MPI_Send(localbuf, INT(my_len, int32), mpi_dtype, 0, 1, &
+                    iogrcomm, ierr)
+            TYPE IS (INTEGER(intk))
+                CALL MPI_Send(localbuf, INT(my_len, int32), mpi_dtype, 0, 1, &
+                    iogrcomm, ierr)
+            CLASS DEFAULT
+                CALL errr(__FILE__, __LINE__)
+            END SELECT
         END IF
 
         ! All processes can now deallocate some memory
@@ -482,7 +489,7 @@ CONTAINS
 
         ! In order to assure that all processes have deallocated localbuf
         ! before proceeding, let's have an MPI_Barrier here.
-        CALL MPI_Barrier(iogrcomm%MPI_val, ierr)
+        CALL MPI_Barrier(iogrcomm, ierr)
 
         ! Non-io processes can now return
         IF (.NOT. ioproc) THEN
@@ -514,7 +521,7 @@ CONTAINS
 
         ! Total number of elements to be written
         CALL MPI_Allreduce(ioproc_len, total_len, 1, MPI_INTEGER8, MPI_SUM, &
-            iocomm%MPI_val, ierr)
+            iocomm, ierr)
 
         rank = 1
         shape2(1) = total_len
@@ -588,8 +595,8 @@ CONTAINS
         CALL h5sselect_none_f(filespace, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
-        CALL MPI_Allreduce(nGrpGrids, nTotGrids, 1, mglet_mpi_int%MPI_val, &
-            MPI_SUM, iocomm%MPI_val, ierr)
+        CALL MPI_Allreduce(nGrpGrids, nTotGrids, 1, mglet_mpi_int, &
+            MPI_SUM, iocomm, ierr)
 
         ! Set rank of IO process in IO comm in group information
         DO i = 1, nGrpGrids
@@ -598,8 +605,8 @@ CONTAINS
 
         ! Blocklength and displacements for totStencilInfo array
         array_of_blocklengths = 0
-        CALL MPI_Allgather(nGrpGrids*3, 1, mglet_mpi_int%MPI_val, &
-            array_of_blocklengths, 1, mglet_mpi_int%MPI_val, iocomm%MPI_val, &
+        CALL MPI_Allgather(nGrpGrids*3, 1, mglet_mpi_int, &
+            array_of_blocklengths, 1, mglet_mpi_int, iocomm, &
             ierr)
         array_of_displacements = 0
         DO i = 2, ioprocs
@@ -609,8 +616,8 @@ CONTAINS
 
         ALLOCATE(totStencilInfo(3, nTotGrids))
         CALL MPI_Allgatherv(grpStencilInfo, INT(3*nGrpGrids, int32), &
-            mglet_mpi_int%MPI_val, totStencilInfo, array_of_blocklengths, &
-            array_of_displacements, mglet_mpi_int%MPI_val, iocomm%MPI_val, ierr)
+            mglet_mpi_int, totStencilInfo, array_of_blocklengths, &
+            array_of_displacements, mglet_mpi_int, iocomm, ierr)
 
         DEALLOCATE(grdOffsets)
         DEALLOCATE(idx)
@@ -760,10 +767,8 @@ CONTAINS
         INTEGER(kind=int64) :: ioproc_len
 
         INTEGER(kind=int32), ALLOCATABLE :: displs(:), sendcounts(:)
-        ! TYPE(MPI_Request), ALLOCATABLE :: recvReqs(:), sendReqs(:)
-        ! TYPE(MPI_Datatype) :: mpi_dtype
-        INTEGER(int32), ALLOCATABLE :: recvReqs(:), sendReqs(:)
-        INTEGER(int32) :: mpi_dtype
+        TYPE(MPI_Request), ALLOCATABLE :: recvReqs(:), sendReqs(:)
+        TYPE(MPI_Datatype) :: mpi_dtype
 
         INTEGER(intk) :: len, ptr
         INTEGER :: rank
@@ -781,10 +786,10 @@ CONTAINS
         SELECT TYPE (stencils)
         TYPE IS (int_stencils_t)
             hdf5_dtype = mglet_hdf5_int
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
         TYPE IS (real_stencils_t)
             hdf5_dtype = mglet_hdf5_real
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         TYPE IS (INTEGER(intk))
             IF (.NOT. PRESENT(get_len)) THEN
                 CALL errr(__FILE__, __LINE__)
@@ -793,7 +798,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
             hdf5_dtype = mglet_hdf5_int
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
         TYPE IS (REAL(realk))
             IF (.NOT. PRESENT(get_len)) THEN
                 CALL errr(__FILE__, __LINE__)
@@ -802,21 +807,21 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
             hdf5_dtype = mglet_hdf5_real
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
         ! Number of grids in IO group
         nGrpGrids = 0
-        CALL MPI_Allreduce(nMyGrids, nGrpGrids, 1, mglet_mpi_int%MPI_val, &
-            MPI_SUM, iogrcomm%MPI_val, ierr)
+        CALL MPI_Allreduce(nMyGrids, nGrpGrids, 1, mglet_mpi_int, &
+            MPI_SUM, iogrcomm, ierr)
 
         nTotGrids = 0
         IF (ioproc) THEN
             ! Overall number of grids reduced across all IO processes
-            CALL MPI_Allreduce(nGrpGrids, nTotGrids, 1, mglet_mpi_int%MPI_val, &
-                MPI_SUM, iocomm%MPI_val, ierr)
+            CALL MPI_Allreduce(nGrpGrids, nTotGrids, 1, mglet_mpi_int, &
+                MPI_SUM, iocomm, ierr)
 
             ! Allocate offset-and-length arrays and read them in from Index table
             ALLOCATE(file_offset(nTotGrids))
@@ -834,16 +839,16 @@ CONTAINS
         displ = 0
         gridid = -1
 
-        CALL MPI_Gather(nMyGrids, 1, mglet_mpi_int%MPI_val, nGridsProc, 1, &
-            mglet_mpi_int%MPI_val, 0, iogrcomm%MPI_val, ierr)
+        CALL MPI_Gather(nMyGrids, 1, mglet_mpi_int, nGridsProc, 1, &
+            mglet_mpi_int, 0, iogrcomm, ierr)
 
         DO i = 2, iogrprocs
             displ(i) = displ(i-1) + nGridsProc(i-1)
         END DO
 
-        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int%MPI_val, &
-            gridid, nGridsProc, displ, mglet_mpi_int%MPI_val, 0, &
-            iogrcomm%MPI_val, ierr)
+        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int, &
+            gridid, nGridsProc, displ, mglet_mpi_int, 0, &
+            iogrcomm, ierr)
 
         DEALLOCATE(displ)
 
@@ -1001,8 +1006,8 @@ CONTAINS
         DEALLOCATE(gridid)
         ! Scatter this list to IO group members
         CALL MPI_Scatterv(grpStencilInfo, sendcounts, displs, &
-            mglet_mpi_int%MPI_val, stencilInfo, INT(nMyGrids*3, int32), &
-            mglet_mpi_int%MPI_val, 0, iogrcomm%MPI_val, ierr)
+            mglet_mpi_int, stencilInfo, INT(nMyGrids*3, int32), &
+            mglet_mpi_int, 0, iogrcomm, ierr)
 
         DEALLOCATE(displs)
         DEALLOCATE(sendcounts)
@@ -1022,14 +1027,14 @@ CONTAINS
                 stencils(i)%arr = 0
                 IF (length > 0) THEN
                     CALL MPI_Irecv(stencils(i)%arr, length, mpi_dtype, &
-                        0, 0, iogrcomm%MPI_val, recvReqs(i), ierr)
+                        0, 0, iogrcomm, recvReqs(i), ierr)
                 END IF
             TYPE IS (real_stencils_t)
                 ALLOCATE(stencils(i)%arr(length))
                 stencils(i)%arr = 0.0
                 IF (length > 0) THEN
                     CALL MPI_Irecv(stencils(i)%arr, length, mpi_dtype, &
-                        0, 0, iogrcomm%MPI_val, recvReqs(i), ierr)
+                        0, 0, iogrcomm, recvReqs(i), ierr)
                 END IF
             TYPE IS (INTEGER(intk))
                 CALL get_len(len, igrid)
@@ -1040,7 +1045,7 @@ CONTAINS
                 END IF
                 IF (length > 0) THEN
                     CALL MPI_Irecv(stencils(ptr), length, mpi_dtype, &
-                        0, 0, iogrcomm%MPI_val, recvReqs(i), ierr)
+                        0, 0, iogrcomm, recvReqs(i), ierr)
                 END IF
             TYPE IS (REAL(realk))
                 CALL get_len(len, igrid)
@@ -1051,7 +1056,7 @@ CONTAINS
                 END IF
                 IF (length > 0) THEN
                     CALL MPI_Irecv(stencils(ptr), length, mpi_dtype, &
-                        0, 0, iogrcomm%MPI_val, recvReqs(i), ierr)
+                        0, 0, iogrcomm, recvReqs(i), ierr)
                 END IF
             END SELECT
         END DO
@@ -1069,19 +1074,19 @@ CONTAINS
                     SELECT TYPE (stencils)
                     TYPE IS (int_stencils_t)
                         CALL MPI_Isend(intbuf(offset32), length, &
-                            mpi_dtype, iproc, 0, iogrcomm%MPI_val, &
+                            mpi_dtype, iproc, 0, iogrcomm, &
                             sendReqs(idx(i)), ierr)
                     TYPE IS (INTEGER(intk))
                         CALL MPI_Isend(intbuf(offset32), length, &
-                            mpi_dtype, iproc, 0, iogrcomm%MPI_val, &
+                            mpi_dtype, iproc, 0, iogrcomm, &
                             sendReqs(idx(i)), ierr)
                     TYPE IS (real_stencils_t)
                         CALL MPI_Isend(bigbuf(offset32), length, &
-                            mpi_dtype, iproc, 0, iogrcomm%MPI_val, &
+                            mpi_dtype, iproc, 0, iogrcomm, &
                             sendReqs(idx(i)), ierr)
                     TYPE IS (REAL(realk))
                         CALL MPI_Isend(bigbuf(offset32), length, &
-                            mpi_dtype, iproc, 0, iogrcomm%MPI_val, &
+                            mpi_dtype, iproc, 0, iogrcomm, &
                             sendReqs(idx(i)), ierr)
                     END SELECT
                 END IF
@@ -1131,21 +1136,20 @@ CONTAINS
         TYPE(C_PTR) :: cptr
 
         INTEGER(HID_T) :: hdf5_dtype
-        ! TYPE(MPI_Datatype) :: mpi_dtype
-        INTEGER(int32) :: mpi_dtype
+        TYPE(MPI_Datatype) :: mpi_dtype
 
         INTEGER(kind=int32) :: ierr
 
         SELECT TYPE (list)
         TYPE IS (INTEGER(kind=intk))
             hdf5_dtype = mglet_hdf5_int
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
         TYPE IS (INTEGER(kind=int64))
             hdf5_dtype = h5kind_to_type(int64, H5_INTEGER_KIND)
             mpi_dtype = MPI_INTEGER8
         TYPE IS (REAL(kind=realk))
             hdf5_dtype = mglet_hdf5_real
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1158,8 +1162,8 @@ CONTAINS
 
         ! Do an Allgather here since this data is used to compute nElemsTot,
         ! in this way everyone gets nElemsTot in the end
-        CALL MPI_Allgather(nMyGrids, 1, mglet_mpi_int%MPI_val, &
-            nElemsProc, 1, mglet_mpi_int%MPI_val, MPI_COMM_WORLD, ierr)
+        CALL MPI_Allgather(nMyGrids, 1, mglet_mpi_int, &
+            nElemsProc, 1, mglet_mpi_int, MPI_COMM_WORLD, ierr)
 
         ! Allocate more....
         nElemsTot = SUM(nElemsProc)
@@ -1172,26 +1176,45 @@ CONTAINS
         DO i = 2, numprocs
             displ(i) = displ(i-1) + nElemsProc(i-1)
         END DO
-        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int%MPI_val, &
-            gridid, nElemsProc, displ, mglet_mpi_int%MPI_val, 0, &
+        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int, &
+            gridid, nElemsProc, displ, mglet_mpi_int, 0, &
             MPI_COMM_WORLD, ierr)
 
-        ! Allocate data
+        ! Allocate and communicate
+        ! The SELECT TYPE on the datalist is neccesary to work around an Intel
+        ! bug:
+        ! https://community.intel.com/t5/Intel-Fortran-Compiler/Calling-a-function-with-TYPE-with-a-CLASS-argument/m-p/1497024
+        ! When this is solved it will be more elegant to have the MPI_Gatherv
+        ! after the entire SELECT TYPE (list) block.
         SELECT TYPE (list)
-        TYPE IS (INTEGER(kind=intk))
-            ALLOCATE(INTEGER(kind=intk) :: datalist(nElemsTot))
-            ALLOCATE(INTEGER(kind=intk) :: sorted(nElemsTot))
-        TYPE IS (INTEGER(kind=int64))
-            ALLOCATE(INTEGER(kind=int64) :: datalist(nElemsTot))
-            ALLOCATE(INTEGER(kind=int64) :: sorted(nElemsTot))
-        TYPE IS (REAL(kind=realk))
-            ALLOCATE(REAL(kind=realk) :: datalist(nElemsTot))
-            ALLOCATE(REAL(kind=realk) :: sorted(nElemsTot))
-        END SELECT
+        TYPE IS (INTEGER(intk))
+            ALLOCATE(INTEGER(intk) :: datalist(nElemsTot))
+            ALLOCATE(INTEGER(intk) :: sorted(nElemsTot))
 
-        ! Collect data and store into datalist (make sure that )
-        CALL MPI_Gatherv(list, nMyGrids, mpi_dtype, &
-            datalist, nElemsProc, displ, mpi_dtype, 0, MPI_COMM_WORLD, ierr)
+            SELECT TYPE(datalist)
+            TYPE IS (INTEGER(intk))
+                CALL MPI_Gatherv(list, nMyGrids, mpi_dtype, datalist, &
+                    nElemsProc, displ, mpi_dtype, 0, MPI_COMM_WORLD, ierr)
+            END SELECT
+        TYPE IS (INTEGER(int64))
+            ALLOCATE(INTEGER(int64) :: datalist(nElemsTot))
+            ALLOCATE(INTEGER(int64) :: sorted(nElemsTot))
+
+            SELECT TYPE(datalist)
+            TYPE IS (INTEGER(int64))
+                CALL MPI_Gatherv(list, nMyGrids, mpi_dtype, datalist, &
+                    nElemsProc, displ, mpi_dtype, 0, MPI_COMM_WORLD, ierr)
+            END SELECT
+        TYPE IS (REAL(realk))
+            ALLOCATE(REAL(realk) :: datalist(nElemsTot))
+            ALLOCATE(REAL(realk) :: sorted(nElemsTot))
+
+            SELECT TYPE(datalist)
+            TYPE IS (REAL(realk))
+                CALL MPI_Gatherv(list, nMyGrids, mpi_dtype, datalist, &
+                    nElemsProc, displ, mpi_dtype, 0, MPI_COMM_WORLD, ierr)
+            END SELECT
+        END SELECT
 
         ! Sort by grid ID
         IF (ioid == 0) THEN
@@ -1340,15 +1363,14 @@ CONTAINS
         INTEGER(kind=intk) :: i, nelemstot
         CLASS(*), ALLOCATABLE :: datalist(:), sorted(:)
         INTEGER(intk), ALLOCATABLE :: nElemsProc(:), displ(:)
-        ! TYPE(MPI_Datatype) :: mpi_dtype
-        INTEGER(int32) :: mpi_dtype
+        TYPE(MPI_Datatype) :: mpi_dtype
         INTEGER(int32) :: ierr
 
         SELECT TYPE (list)
         TYPE IS (INTEGER(kind=intk))
-            mpi_dtype = mglet_mpi_int%MPI_val
+            mpi_dtype = mglet_mpi_int
         TYPE IS (REAL(kind=realk))
-            mpi_dtype = mglet_mpi_real%MPI_val
+            mpi_dtype = mglet_mpi_real
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1360,8 +1382,8 @@ CONTAINS
         displ = 0
 
         ! All processes need to know the length of the dataset
-        CALL MPI_Allgather(nMyGrids, 1, mglet_mpi_int%MPI_val, &
-            nElemsProc, 1, mglet_mpi_int%MPI_val, MPI_COMM_WORLD, ierr)
+        CALL MPI_Allgather(nMyGrids, 1, mglet_mpi_int, &
+            nElemsProc, 1, mglet_mpi_int, MPI_COMM_WORLD, ierr)
 
         ! Allocate more....
         nElemsTot = SUM(nElemsProc)
@@ -1372,8 +1394,8 @@ CONTAINS
         DO i = 2, numprocs
             displ(i) = displ(i-1) + nElemsProc(i-1)
         END DO
-        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int%MPI_val, &
-            gridid, nElemsProc, displ, mglet_mpi_int%MPI_val, 0, &
+        CALL MPI_Gatherv(myGrids, INT(nMyGrids, int32), mglet_mpi_int, &
+            gridid, nElemsProc, displ, mglet_mpi_int, 0, &
             MPI_COMM_WORLD, ierr)
 
         ! Allocate data
@@ -1762,8 +1784,8 @@ CONTAINS
         ! same dataset size
         count = 0
         count(1:rank) = shape
-        CALL MPI_Bcast(count, maxrank, mglet_mpi_hsize_t%MPI_Val, 0, &
-            iocomm%MPI_val, ierr)
+        CALL MPI_Bcast(count, maxrank, mglet_mpi_hsize_t, 0, &
+            iocomm, ierr)
 
         ! Open/create dataset and filespace
         ! Count is synchronized among all IO processes and thus being the same

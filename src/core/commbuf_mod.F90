@@ -21,14 +21,14 @@ MODULE commbuf_mod
     INTEGER(int8), ALLOCATABLE, TARGET :: buffer(:)
 
     ! Various buffers that all point to the same core buffer
-    REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:)
-    REAL(realk), POINTER, CONTIGUOUS :: recvbuf(:)
-    REAL(realk), POINTER, CONTIGUOUS :: bigbuf(:)
-    INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:)
+    REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:) => NULL()
+    REAL(realk), POINTER, CONTIGUOUS :: recvbuf(:) => NULL()
+    REAL(realk), POINTER, CONTIGUOUS :: bigbuf(:) => NULL()
+    INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:) => NULL()
 
-    INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:)
-    INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:)
-    INTEGER(ifk), POINTER, CONTIGUOUS :: irecvbuf(:)
+    INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:) => NULL()
+    INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:) => NULL()
+    INTEGER(ifk), POINTER, CONTIGUOUS :: irecvbuf(:) => NULL()
 
     PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &

@@ -1332,7 +1332,7 @@ CONTAINS
 
             ALLOCATE(recvreq(0:iogrprocs-1))
             DO i = 0, iogrprocs-1
-                CALL MPI_Irecv(outputbuf, INT(bufloc, int32), &
+                CALL MPI_Irecv(outputbuf(:, :), INT(bufloc, int32), &
                     array%mpitype(i), INT(i, int32), 0, iogrcomm, &
                     recvreq(i))
             END DO

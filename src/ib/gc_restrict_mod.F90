@@ -126,7 +126,6 @@ CONTAINS
                 END DO
 
                 ! Sum up and divide
-                !$omp simd private(k, sum_pv, sum_v)
                 DO ink = 1, nk
                     k = kstart + 2*(ink-1)
 
@@ -225,7 +224,6 @@ CONTAINS
                 END DO
 
                 ! Sum up and divide
-                !$omp simd private(k, sum_pv, sum_v)
                 DO ink = 1, nk
                     k = kstart + 2*(ink-1)
 

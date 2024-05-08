@@ -32,7 +32,7 @@ MODULE ctof_mod
     TYPE(MPI_Datatype), ALLOCATABLE :: recvTypes(:)
 
     ! Field to prolongate
-    REAL(realk), POINTER :: ff(:), fc(:)
+    REAL(realk), POINTER :: ff(:) => NULL(), fc(:) => NULL()
 
     PUBLIC :: ctof, init_ctof, finish_ctof
 
@@ -96,7 +96,6 @@ CONTAINS
             ipar = iparent(igrid)
             IF (ipar /= 0 ) THEN
                 iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocf) THEN
                     nRecv = nRecv + 1
@@ -111,7 +110,6 @@ CONTAINS
             igrid = lofgrids(i)
             ipar = iparent(igrid)
             IF (ipar /= 0 ) THEN
-                iprocf = idprocofgrd(igrid)
                 iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocc) THEN
@@ -204,11 +202,10 @@ CONTAINS
         INTEGER, INTENT(in) :: igridc
 
         ! Local variables
-        INTEGER(intk) :: iprocf, iprocc
+        INTEGER(intk) :: iprocf
         INTEGER(intk) :: ip3
 
         iprocf = idprocofgrd(igridf)
-        iprocc = idprocofgrd(igridc)
 
         CALL get_ip3(ip3, igridc)
         CALL MPI_Isend(fc(ip3), 1, sendTypes(igridf), iprocf, igridf, &

@@ -223,7 +223,6 @@ CONTAINS
 
         DO i = 3, ii-2
             DO j = 3, jj-2
-                !$omp simd private(dxf, dyf, dzf)
                 DO k = 3, kk-2
                     dxf = 0.25*dx(i-1)*rddx(i)
                     ! dU/dX

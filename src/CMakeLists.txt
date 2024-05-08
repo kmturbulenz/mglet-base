@@ -5,7 +5,7 @@ add_subdirectory("ib")
 add_subdirectory("plugins")
 add_subdirectory("scalar")
 
-add_library(mgletlib SHARED
+add_library(mgletlib STATIC
     runinfo_mod.F90
     timeloop_mod.F90
 )
@@ -34,12 +34,14 @@ target_include_directories(mglet
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 target_link_libraries(mglet
-    PRIVATE mgletlib
+    PUBLIC mgletlib
+    PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ${MPI_Fortran_LIBRARIES}
 )
 
 
 # Intel must use the Fortran compiler to link properly
-if (CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
+if (CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM"
+        OR CMAKE_Fortran_COMPILER_ID STREQUAL "NAG")
     set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)
 endif()

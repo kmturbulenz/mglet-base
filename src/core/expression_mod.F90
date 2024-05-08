@@ -57,10 +57,10 @@ CONTAINS
         INTEGER(c_int) :: ierr
 
         ! Add trailing C_NULL_CHAR to expr and name
-        c_expr = TRANSFER(expr, c_expr)
+        c_expr(1:LEN(expr)) = TRANSFER(expr, c_expr)
         c_expr(LEN_TRIM(expr)+1) = C_NULL_CHAR
 
-        c_name = TRANSFER(name, c_name)
+        c_name(1:LEN(name)) = TRANSFER(name, c_name)
         c_name(LEN_TRIM(name)+1) = C_NULL_CHAR
 
         CALL eval_real_expr(res, c_name, c_expr, rho, gmol, tu_level, &

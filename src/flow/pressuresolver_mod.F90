@@ -721,7 +721,7 @@ CONTAINS
             at, ab, ap, bp)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(out) :: res(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: res(kk, jj, ii)
         REAL(realk), INTENT(in) :: phi(kk, jj, ii)
         REAL(realk), INTENT(in) :: aw(ii), ae(ii), an(jj), as(jj), &
             at(kk), ab(kk)
@@ -731,14 +731,9 @@ CONTAINS
         ! Local variables
         INTEGER :: k, j, i
 
-        ! To properly define an INTENT(out) since the loop does not iterate
-        ! over all indices of res
-        res = 0.0
-
         IF (PRESENT(bp)) THEN
             DO i = 3, ii-2
                 DO j = 3, jj-2
-                    !$omp simd
                     DO k = 3, kk-2
                         res(k, j, i) = &
                             - aw(i)*phi(k, j, i-1)*bp(k, j, i-1)*bp(k, j, i) &
@@ -754,7 +749,6 @@ CONTAINS
         ELSE
             DO i = 3, ii-2
                 DO j = 3, jj-2
-                    !$omp simd
                     DO k = 3, kk-2
                         res(k, j, i) = &
                             - aw(i) * phi(k, j, i-1) &

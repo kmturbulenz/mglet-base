@@ -33,6 +33,7 @@ add_library(core STATIC
     pvtk.c
     pvtk_mod.F90
     qsort_mod.F90
+    readstl.cxx
     readstl_mod.F90
     rungekutta_mod.F90
     shmem_mod.F90
@@ -40,7 +41,6 @@ add_library(core STATIC
     sort_wrapper.cxx
     statistics_mod.F90
     stencilio_mod.F90
-    stl_is_binary.c
     sym_name_mod.F90
     tensormath_mod.F90
     timekeeper_mod.F90
@@ -86,10 +86,6 @@ set_source_files_properties(err_mod.F90 PROPERTIES COMPILE_FLAGS
 
 set_source_files_properties(simdfunctions_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-compare-reals>
-)
-
-set_source_files_properties(stl_is_binary.c PROPERTIES COMPILE_FLAGS
-    $<$<STREQUAL:"${CMAKE_C_COMPILER_ID}","GNU">:-Wno-unused-result>
 )
 
 set_source_files_properties(utils_mod.F90 PROPERTIES COMPILE_FLAGS

@@ -1,5 +1,5 @@
 MODULE blockcheck_mod
-    USE core_mod, ONLY: realk, intk, int32, mygridslvl, nmygridslvl, &
+    USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, &
         minlevel, maxlevel, errr, field_t, get_mgdims, get_ip3
 
     IMPLICIT NONE(type, external)

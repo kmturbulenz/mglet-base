@@ -2,7 +2,7 @@ name: mglet-build
 
 on:
   push:
-    branches: 
+    branches:
       - 'michael/**'
       - 'lukas/**'
       - 'yoshi/**'
@@ -68,6 +68,6 @@ jobs:
         echo "Total test time: $DURATION sec" >> $GITHUB_STEP_SUMMARY
         CPUNAME=$(lscpu | grep 'Model name' | cut -f 2 -d ":" | awk '{$1=$1}1')
 
-        
+
         echo "CPU model name: $CPUNAME" >> $GITHUB_STEP_SUMMARY
         exit $EXITCODE

@@ -278,7 +278,7 @@ CONTAINS
         ! Local variables
         INTEGER(c_int) :: ierr
         CHARACTER(C_CHAR), DIMENSION(LEN(filename)+1) :: c_filename
-        c_filename = TRANSFER(filename, c_filename)
+        c_filename(1:LEN(filename)) = TRANSFER(filename, c_filename)
         c_filename(LEN_TRIM(filename)+1) = C_NULL_CHAR
 
         this%handle = C_NULL_PTR
@@ -298,7 +298,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         new%handle = C_NULL_PTR
@@ -369,7 +369,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         IF (PRESENT(found)) found = .FALSE.
@@ -392,7 +392,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         IF (PRESENT(found)) found = .FALSE.
@@ -415,7 +415,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         IF (PRESENT(found)) found = .FALSE.
@@ -438,7 +438,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         IF (PRESENT(found)) found = .FALSE.
@@ -462,7 +462,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         IF (PRESENT(found)) found = .FALSE.
@@ -488,7 +488,7 @@ CONTAINS
         CHARACTER(c_char), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         maxlen = LEN(cval)
@@ -520,7 +520,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         CALL json_set_int(this%handle, c_key, val, ierr)
@@ -539,7 +539,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         CALL json_set_int64(this%handle, c_key, val, ierr)
@@ -558,7 +558,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         CALL json_set_float(this%handle, c_key, val, ierr)
@@ -577,7 +577,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         CALL json_set_double(this%handle, c_key, val, ierr)
@@ -597,7 +597,7 @@ CONTAINS
         LOGICAL(c_bool) :: c_bool_val
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         c_bool_val = LOGICAL(val, kind=c_bool)
@@ -618,11 +618,11 @@ CONTAINS
         CHARACTER(c_char), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         ! Add trailing C_NULL_CHAR to cval
-        c_cval = TRANSFER(cval, c_cval)
+        c_cval(1:LEN(cval)) = TRANSFER(cval, c_cval)
         c_cval(LEN_TRIM(cval)+1) = C_NULL_CHAR
 
         CALL json_set_char(this%handle, c_key, c_cval, ierr)
@@ -643,7 +643,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         length = SIZE(arr)
@@ -667,7 +667,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         length = SIZE(arr)
@@ -691,7 +691,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         length = SIZE(arr)
@@ -715,7 +715,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         length = SIZE(arr)
@@ -738,7 +738,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         c_exists = .FALSE.
@@ -968,7 +968,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         CALL json_get_size(this%handle, c_key, c_size, ierr)
@@ -1024,7 +1024,7 @@ CONTAINS
         CHARACTER(C_CHAR), DIMENSION(LEN(key)+1) :: c_key
 
         ! Add trailing C_NULL_CHAR to key
-        c_key = TRANSFER(key, c_key)
+        c_key(1:LEN(key)) = TRANSFER(key, c_key)
         c_key(LEN_TRIM(key)+1) = C_NULL_CHAR
 
         exists = .FALSE.

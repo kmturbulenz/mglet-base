@@ -21,13 +21,13 @@
                 "CMAKE_CXX_COMPILER": "icpx",
                 "CMAKE_Fortran_COMPILER": "ifx",
 
-                "MGLET_C_FLAGS": "",
-                "MGLET_CXX_FLAGS": "",
-                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors",
+                "MGLET_C_FLAGS": "-qno-openmp-simd",
+                "MGLET_CXX_FLAGS": "-qno-openmp-simd",
+                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors;-qno-openmp-simd",
 
-                "MGLET_C_FLAGS_RELEASE": "-g;-qopenmp-simd",
-                "MGLET_CXX_FLAGS_RELEASE": "-g;-qopenmp-simd",
-                "MGLET_Fortran_FLAGS_RELEASE": "-g;-qopenmp-simd",
+                "MGLET_C_FLAGS_RELEASE": "-g",
+                "MGLET_CXX_FLAGS_RELEASE": "-g",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g",
 
                 "MGLET_C_FLAGS_DEBUG": "-O1;-g",
                 "MGLET_CXX_FLAGS_DEBUG": "-O1;-g",
@@ -90,6 +90,49 @@
             "displayName": "GNU compilers (release)",
             "description": "Debug configuration using the GNU compilers",
             "inherits": "gnu",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+
+            }
+        },
+        {
+            "name": "nag",
+            "hidden": true,
+            "displayName": "NAG Fortran compiler and GCC C/C++ compilers",
+            "description": "Default build options using the NAG Fortran compiler",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_Fortran_COMPILER": "nagfor",
+
+                "MGLET_C_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized",
+                "MGLET_CXX_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized;-Wno-error=pedantic",
+                "MGLET_Fortran_FLAGS": "-f2018;-w=uda;-w=longlines;-quiet",
+
+                "MGLET_C_FLAGS_RELEASE": "-g;-fopenmp-simd",
+                "MGLET_CXX_FLAGS_RELEASE": "-g;-fopenmp-simd",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g;-O4",
+
+                "MGLET_C_FLAGS_DEBUG": "-Og;-g",
+                "MGLET_CXX_FLAGS_DEBUG": "-Og;-g",
+                "MGLET_Fortran_FLAGS_DEBUG": "-C;-g;-gline;-nan;-not_openmp"
+            }
+        },
+        {
+            "name": "nag-release",
+            "displayName": "NAG Fortran compiler (release)",
+            "description": "Release configuration using the NAG compiler",
+            "inherits": "nag",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+
+            }
+        },
+        {
+            "name": "nag-debug",
+            "displayName": "NAG Fortran compiler (release)",
+            "description": "Debug configuration using the NAG compiler",
+            "inherits": "nag",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
 
