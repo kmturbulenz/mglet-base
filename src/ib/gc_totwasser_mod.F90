@@ -1,7 +1,7 @@
 MODULE gc_totwasser_mod
     USE MPI_f08
     USE core_mod, ONLY: realk, intk, int64, mygridslvl, nmygridslvl, &
-        minlevel, maxlevel, errr, connect, field_t, &
+        nmygrids, mygrids, minlevel, maxlevel, errr, connect, field_t, &
         get_mgdims, get_field, get_mgbasb, get_ip3, myid
     USE ftoc_mod, ONLY: ftoc
     USE ibconst_mod, ONLY: nloopmax
@@ -21,8 +21,8 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: iloop, ilevel, igrid, i, kk, jj, ii, ip3
-        INTEGER(intk) :: nfluidpoints, nfound, nfilled
-        INTEGER(int64) :: nfilled_tot
+        INTEGER(intk) :: nfluidpoints, nfound
+        INTEGER(int64) :: nfilled_tot, nfilled_old
         INTEGER(int64) :: cellcounter(3)
         INTEGER(intk), ALLOCATABLE :: ifluidpoints(:, :)
         LOGICAL :: converged
@@ -43,12 +43,12 @@ CONTAINS
         ifluidpoints = 0
 
         converged = .FALSE.
+        nfilled_old = 0
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, bp%arr, bp%arr, 'F')
             END DO
 
-            nfilled_tot = 0
             DO ilevel = minlevel, maxlevel
                 CALL parent(ilevel, s1=bp)
 
@@ -70,18 +70,19 @@ CONTAINS
 
                     CALL totwasser_grid(kk, jj, ii, nfro, nbac, nrgt, nlft, &
                         nbot, ntop, nfound, ifluidpoints, finecell, &
-                        bp%arr(ip3), nfilled)
-
-                    nfilled_tot = nfilled_tot + INT(nfilled, int64)
+                        bp%arr(ip3))
                 END DO
 
                 CALL connect(ilevel, 2, s1=bp, corners=.TRUE.)
             END DO
 
-            CALL MPI_Allreduce(MPI_IN_PLACE, nfilled_tot, 1, MPI_INTEGER8, &
-                MPI_SUM, MPI_COMM_WORLD)
+            ! This counts the overall number of filled cells in the domain
+            ! after each iterattion. If the number of filled cells does not
+            ! change anymore, the totwasser is converged.
+            nfilled_old = nfilled_tot
+            CALL count_filled(nfilled_tot, bp)
 
-            IF (nfilled_tot < 1) THEN
+            IF (nfilled_old == nfilled_tot) THEN
                 converged = .TRUE.
                 EXIT
             END IF
@@ -128,7 +129,7 @@ CONTAINS
 
 
     SUBROUTINE totwasser_grid(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
-            npts, i0, finecell, bp, nfilled)
+            npts, i0, finecell, bp)
         ! Das BP-Feld hat zu diesem Zeitpunkt entweder 1 (Fluid) oder 0 (Koerper)
         ! Zum Finden der Totwassergebiete wird das BP-Feld ausgehend von der
         ! Painting-Area um 1 erhöht. Abschliessend werden alle BP=1 Werte auf 0
@@ -141,7 +142,6 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: i0(3, npts)
         REAL(realk), INTENT(in) :: finecell(kk, jj, ii)
         REAL(realk), INTENT(inout) :: bp(kk, jj, ii)
-        INTEGER(intk), INTENT(out) :: nfilled
 
         ! Local variables
         INTEGER(intk) :: idx, k, j, i
@@ -149,8 +149,6 @@ CONTAINS
         INTEGER(intk) :: ncount, iloop
         INTEGER(intk), PARAMETER :: itermax = 10000
         LOGICAL :: converged
-
-        nfilled = 0
 
         ! Initial starting point (seed point)
         DO idx = 1, npts
@@ -272,8 +270,6 @@ CONTAINS
                 END DO
             END DO
 
-            nfilled = nfilled + ncount
-
             ! If no cells were filled during one iteration, leave
             IF (ncount == 0) THEN
                 converged = .TRUE.
@@ -315,5 +311,42 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE totwasser_finish
+
+
+    SUBROUTINE count_filled(nall, bp_f)
+        ! To make it easier to make 64-bit integer literals
+        USE precision_mod, ONLY: i8 => int64
+
+        ! Subroutine arguments
+        INTEGER(int64), INTENT(out) :: nall
+        TYPE(field_t), INTENT(inout) :: bp_f
+
+        ! Local variables
+        INTEGER(int64) :: nsingle
+        INTEGER(intk) :: igr, igrid, bpi
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
+
+        nsingle = 0
+
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL bp_f%get_ptr(bp, igrid)
+
+            DO i = 3, ii-2
+                DO j = 3, jj-2
+                    DO k = 3, kk-2
+                        bpi = NINT(bp(k, j, i))
+                        nsingle = nsingle + MIN(MAX(bpi - 1_i8, 0_i8), 1_i8)
+                    END DO
+                END DO
+            END DO
+        END DO
+
+        CALL MPI_Allreduce(nsingle, nall, 1, MPI_INTEGER8, MPI_SUM, &
+            MPI_COMM_WORLD)
+    END SUBROUTINE count_filled
 
 END MODULE gc_totwasser_mod
