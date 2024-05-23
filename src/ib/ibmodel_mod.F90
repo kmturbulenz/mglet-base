@@ -5,6 +5,13 @@ MODULE ibmodel_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
+    TYPE, ABSTRACT :: restrict_t
+    CONTAINS
+        PROCEDURE :: message_length
+        PROCEDURE(start_and_stop_i), NOPASS, DEFERRED :: start_and_stop
+        PROCEDURE(restrict_i), DEFERRED :: restrict
+    END TYPE restrict_t
+
     TYPE, ABSTRACT :: ibmodel_t
         CHARACTER(len=16) :: type
         CLASS(restrict_t), ALLOCATABLE :: restrict_op
@@ -15,13 +22,6 @@ MODULE ibmodel_mod
         PROCEDURE(giteig_i), NOPASS, DEFERRED :: giteig
         PROCEDURE(divcal_i), DEFERRED :: divcal
     END TYPE ibmodel_t
-
-    TYPE, ABSTRACT :: restrict_t
-    CONTAINS
-        PROCEDURE :: message_length
-        PROCEDURE(start_and_stop_i), NOPASS, DEFERRED :: start_and_stop
-        PROCEDURE(restrict_i), DEFERRED :: restrict
-    END TYPE restrict_t
 
     ABSTRACT INTERFACE
         SUBROUTINE start_and_stop_i(ista, isto, jsta, jsto, &

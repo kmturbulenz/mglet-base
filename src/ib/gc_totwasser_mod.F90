@@ -318,11 +318,11 @@ CONTAINS
         USE precision_mod, ONLY: i8 => int64
 
         ! Subroutine arguments
-        INTEGER(int64), INTENT(out) :: nall
+        INTEGER(i8), INTENT(out) :: nall
         TYPE(field_t), INTENT(inout) :: bp_f
 
         ! Local variables
-        INTEGER(int64) :: nsingle
+        INTEGER(i8) :: nsingle
         INTEGER(intk) :: igr, igrid, bpi
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: kk, jj, ii
