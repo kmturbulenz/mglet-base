@@ -4,6 +4,9 @@ MODULE checkblock_mod
 
     USE core_mod
 
+    IMPLICIT NONE(type, external)
+    PRIVATE
+
     PUBLIC :: checkblock
 
 CONTAINS

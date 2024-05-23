@@ -435,7 +435,7 @@ CONTAINS
         ! |Sd| = SQRT(Sd_ij*Sd_ij)
         ! We need to take the off-diagonal terms twice due to symmetry,
         ! i.e. Sd12**2 + Sd21**2 = 2*Sd12**2
-        Sd_abs = SQRT(Sd00**2 + 2*Sd01**2 + 2*Sd02**2 \
+        Sd_abs = SQRT(Sd00**2 + 2*Sd01**2 + 2*Sd02**2 &
             + Sd11**2 + 2*Sd12**2 + Sd22**2)
 
 #if 0
