@@ -32,10 +32,7 @@ CONTAINS
         CALL init_flowcore()
         IF (.NOT. has_flow) RETURN
 
-        IF (.NOT. dread) THEN
-            CALL init_uvwp()
-        END IF
-
+        CALL init_uvwp()
         CALL init_flowstat()
 
         ! Wall- and LES models are needed for pure scalar simulation
@@ -124,13 +121,16 @@ CONTAINS
 
     SUBROUTINE init_uvwp()
         USE bound_flow_mod
-        USE core_mod, ONLY: get_field, field_t, intk, minlevel, maxlevel, &
-            connect, zero_ghostlayers
+        USE core_mod
         USE ib_mod
         USE setboundarybuffers_mod, ONLY: setboundarybuffers
 
         TYPE(field_t), POINTER :: u, v, w, p
         INTEGER(intk) :: ilevel
+
+        IF (ib%type /= "NONE") THEN
+            CALL init_fix_openfraction()
+        END IF
 
         CALL get_field(u, "U")
         CALL get_field(v, "V")
@@ -141,6 +141,10 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=0.0_realk)
         END DO
+
+        ! The rest of this routine is initializing the flow field - we do not
+        ! want to overwrite results read from a restart file
+        IF (dread) RETURN
 
         ! Set initial condition
         IF (uinf_is_expr) THEN
@@ -246,4 +250,84 @@ CONTAINS
         END DO
 
     END SUBROUTINE init_uvw_expr
+
+
+    ! This subroutine compute the open fraction for the FIX boundary condition
+    ! used to create a divergence-free inflow condition also when an immersed
+    ! boundary intersect the inflow
+    SUBROUTINE init_fix_openfraction()
+        USE core_mod
+        USE ib_mod
+
+        TYPE(field_t) :: bucoarse, bvcoarse, bwcoarse
+        TYPE(field_t), POINTER :: bu, bv, bw
+        INTEGER(intk) :: i, igrid, iface, ipic, ilevel
+        INTEGER(intk) :: kk, jj, ii
+        CHARACTER(len=8) :: ctyp
+        REAL(realk), POINTER, CONTIGUOUS :: buf(:, :, :), field(:, :, :)
+
+        CALL get_field(bu, "BU")
+        CALL get_field(bv, "BV")
+        CALL get_field(bw, "BW")
+
+        CALL bu%init_buffers()
+        CALL bv%init_buffers()
+        CALL bw%init_buffers()
+
+        CALL bucoarse%copy_from(bu)
+        CALL bvcoarse%copy_from(bv)
+        CALL bwcoarse%copy_from(bw)
+
+        DO ilevel = maxlevel, minlevel+1, -1
+            CALL ftoc(ilevel, bucoarse%arr, bucoarse%arr, 'U')
+            CALL ftoc(ilevel, bvcoarse%arr, bvcoarse%arr, 'V')
+            CALL ftoc(ilevel, bwcoarse%arr, bwcoarse%arr, 'W')
+        END DO
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            DO iface = 1, 6
+                ! It is assumed that FIX is in the first position ibocd = 1
+                CALL get_bc_ctyp(ctyp, 1, iface, igrid)
+                IF (ctyp /= "FIX") CYCLE
+
+                SELECT CASE(iface)
+                CASE(1, 3, 5)
+                    ipic = 2
+                CASE(2)
+                    ipic = ii-2
+                CASE(4)
+                    ipic = jj-2
+                CASE(6)
+                    ipic = kk-2
+                END SELECT
+
+                ! Both slices in buf are set to the same value, makes it easier
+                ! to multiply correctly
+                SELECT CASE(iface)
+                CASE(1, 2)
+                    CALL bu%buffers%get_buffer(buf, igrid, iface)
+                    CALL bucoarse%get_ptr(field, igrid)
+                    buf(:, :, 1) = field(:, :, ipic)
+                    buf(:, :, 2) = field(:, :, ipic)
+                CASE(3, 4)
+                    CALL bv%buffers%get_buffer(buf, igrid, iface)
+                    CALL bvcoarse%get_ptr(field, igrid)
+                    buf(:, :, 1) = field(:, ipic, :)
+                    buf(:, :, 2) = field(:, ipic, :)
+                CASE(5, 6)
+                    CALL bw%buffers%get_buffer(buf, igrid, iface)
+                    CALL bwcoarse%get_ptr(field, igrid)
+                    buf(:, :, 1) = field(ipic, :, :)
+                    buf(:, :, 2) = field(:, ipic, :)
+                END SELECT
+            END DO
+        END DO
+
+        CALL bucoarse%finish()
+        CALL bvcoarse%finish()
+        CALL bwcoarse%finish()
+    END SUBROUTINE init_fix_openfraction
 END MODULE flow_mod

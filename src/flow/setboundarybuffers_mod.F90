@@ -1,5 +1,6 @@
 MODULE setboundarybuffers_mod
     USE core_mod
+    USE ib_mod, ONLY: ib
     USE flowcore_mod
 
     IMPLICIT NONE(type, external)
@@ -33,8 +34,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddy(:), ddz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+            wbuf(:, :, :), bubuf(:, :, :)
         REAL(realk) :: xbuf(2), dxbuf(2)
+        TYPE(field_t), POINTER :: bu
 
         ! Only works on FIX and OP1 boundaries, should do nothing otherwise
         ! For OP1 the velocity set is the velocity that is prescribed when
@@ -93,6 +95,15 @@ CONTAINS
             vbuf = uinf(2)
             wbuf = uinf(3)
         END IF
+
+        ! Without IB or if the boundary condition is not FIX, we are done
+        IF (ib%type == "NONE" .OR. ctyp /= "FIX") RETURN
+
+        ! This multiplies with the open fraction of a cell in the FIX boundary
+        ! condition. This is done to ensure that the inflow is divergence free
+        CALL get_field(bu, "BU")
+        CALL bu%buffers%get_buffer(bubuf, igrid, iface)
+        ubuf = ubuf*bubuf
     END SUBROUTINE bfront
 
 
@@ -109,8 +120,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+            wbuf(:, :, :), bvbuf(:, :, :)
         REAL(realk) :: ybuf(2), dybuf(2)
+        TYPE(field_t), POINTER :: bv
 
         ! Only works on FIX and OP1 boundaries, should do nothing otherwise
         ! For OP1 the velocity set is the velocity that is prescribed when
@@ -169,6 +181,15 @@ CONTAINS
             vbuf = uinf(2)
             wbuf = uinf(3)
         END IF
+
+        ! Without IB or if the boundary condition is not FIX, we are done
+        IF (ib%type == "NONE" .OR. ctyp /= "FIX") RETURN
+
+        ! This multiplies with the open fraction of a cell in the FIX boundary
+        ! condition. This is done to ensure that the inflow is divergence free
+        CALL get_field(bv, "BV")
+        CALL bv%buffers%get_buffer(bvbuf, igrid, iface)
+        vbuf = vbuf*bvbuf
     END SUBROUTINE bright
 
 
@@ -185,8 +206,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:)
         REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+            wbuf(:, :, :), bwbuf(:, :, :)
         REAL(realk) :: zbuf(2), dzbuf(2)
+        TYPE(field_t), POINTER :: bw
 
         ! Only works on FIX and OP1 boundaries, should do nothing otherwise
         ! For OP1 the velocity set is the velocity that is prescribed when
@@ -245,5 +267,14 @@ CONTAINS
             vbuf = uinf(2)
             wbuf = uinf(3)
         END IF
+
+        ! Without IB or if the boundary condition is not FIX, we are done
+        IF (ib%type == "NONE" .OR. ctyp /= "FIX") RETURN
+
+        ! This multiplies with the open fraction of a cell in the FIX boundary
+        ! condition. This is done to ensure that the inflow is divergence free
+        CALL get_field(bw, "BW")
+        CALL bw%buffers%get_buffer(bwbuf, igrid, iface)
+        wbuf = wbuf*bwbuf
     END SUBROUTINE bbottom
 END MODULE setboundarybuffers_mod
