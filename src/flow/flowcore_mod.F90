@@ -32,10 +32,12 @@ CONTAINS
         ! None...
 
         ! Local variables
-        TYPE(config_t) :: flowconf
+        TYPE(config_t) :: flowconf, lesconf
         INTEGER(intk), PARAMETER :: units_v(7) = [0, 1, -1, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_p(7) = [1, -1, -2, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_g(7) = [1, -1, -1, 0, 0, 0, 0]
+        INTEGER(intk), PARAMETER :: nchar = 16
+        CHARACTER(len=nchar) :: clesmodel
 
         ! Read configuration values - if not exists no timeintegration is
         ! performed
@@ -51,6 +53,13 @@ CONTAINS
 
         ! Required values
         CALL fort7%get(flowconf, "/flow")
+        IF ( fort7%exists("/flow/lesmodel") ) THEN
+            CALL fort7%get(lesconf, "/flow/lesmodel")
+            CALL lesconf%get_value("/model", clesmodel, "Smagorinsky")
+        ELSE
+            clesmodel = "none"
+        END IF
+
         CALL flowconf%get_value("/gmol", gmol)
         IF (gmol <= 0.0) THEN
             WRITE(*, *) "Viscosity must be positive: ", gmol
@@ -130,8 +139,13 @@ CONTAINS
             required=dread, dwrite=dwrite, buffers=.TRUE.)
         CALL set_field("P", units=units_p, dread=dread, &
             required=dread, dwrite=dwrite, buffers=.TRUE.)
-        CALL set_field("G", units=units_g, dread=dread, &
-            required=dread, dwrite=dwrite, buffers=.TRUE.)
+
+        IF ( lower(clesmodel) == "none" ) THEN
+            CALL set_field("G", units=units_g, buffers=.TRUE.)
+        ELSE
+            CALL set_field("G", units=units_g, dread=dread, &
+                required=dread, dwrite=dwrite, buffers=.TRUE.)
+        END IF
 
         ! For RK time integration
         CALL set_field("DU", istag=1)
