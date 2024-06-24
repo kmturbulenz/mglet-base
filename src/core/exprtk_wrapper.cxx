@@ -12,6 +12,100 @@
 
 
 template <typename T>
+inline T ramp0(T timeph, T time1, T time2) {
+    T result;
+    if (timeph < time1) {
+        result = 0.0;
+    }
+    else if (timeph < time2) {
+        result = (timeph - time1)/(time2 - time1);
+    }
+    else {
+        result = 1.0;
+    }
+
+    return result;
+}
+
+
+template <typename T>
+struct ramp final : public exprtk::ifunction<T> {
+    using exprtk::ifunction<T>::operator();
+
+    ramp() : exprtk::ifunction<T>(3) {
+        exprtk::disable_has_side_effects(*this);
+    }
+
+    inline T operator()(const T& timeph, const T& time1, const T& time2) {
+        // ramp_time is the time it takers to ramp from 0 to 1, that is the
+        // time from time1 to time2
+        T ramp_time = time2 - time1;
+
+        // Time for transition, this is fixed to 10% of the ramp time
+        T trans_time = 0.1*ramp_time;
+
+        // Compute result without smoothing
+        T result = ramp0(timeph, time1, time2);
+
+        // Smooth transition from initial flat to slope is only done if
+        // time1 is >= than trans_time/2.0
+        T ts1 = time1 - trans_time/2.0;
+        T ts2 = time1 + trans_time/2.0;
+        if (timeph > ts1 && timeph < ts2 && time1 > trans_time/2.0) {
+            T delta = (timeph - ts1)/trans_time;
+            T end = ramp0(ts2, time1, time2);
+            result = end*delta*delta;
+        }
+
+        // Smooth transition from slope to flat again - always done
+        ts1 = time2 - trans_time/2.0;
+        ts2 = time2 + trans_time/2.0;
+        if (timeph > ts1 && timeph < ts2) {
+            T delta = (timeph - ts1)/trans_time - 1.0;
+            T start = 1.0 - ramp0(ts1, time1, time2);
+            result = 1.0 - start*delta*delta;
+        }
+
+        return result;
+    }
+};
+
+
+template <typename T>
+struct ramp_inf final : public exprtk::ifunction<T> {
+    using exprtk::ifunction<T>::operator();
+
+    ramp_inf() : exprtk::ifunction<T>(2) {
+        exprtk::disable_has_side_effects(*this);
+    }
+
+    inline T operator()(const T& timeph, const T& time1) {
+        // Compute result without smoothing
+        T result = timeph < time1 ? 0.0 : (timeph - time1);
+
+        // No smooth transition
+        if (time1 <= 0.0) {
+            return result;
+        }
+
+        // Time for transition, this is fixed to 10% of the flat plateou time
+        T trans_time = 0.1*time1;
+
+        // Smooth transition from initial flat to slope
+        T ts1 = time1 - trans_time/2.0;
+        T ts2 = time1 + trans_time/2.0;
+        if (timeph > ts1 && timeph < ts2) {
+            T delta = (timeph - ts1)/trans_time;
+            T end = ts2 - time1;
+            result = end*delta*delta;
+        }
+
+        return result;
+    }
+};
+
+
+template <typename T>
 void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
                T rho, T gmol, T tu_level, T timeph,
                CFI_cdesc_t* x, CFI_cdesc_t* y, CFI_cdesc_t* z,
@@ -45,6 +139,12 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     symbol_table.add_constant("tu_level", tu_level);
     symbol_table.add_constant("timeph", timeph);
 
+    ramp<T> ramp_func;
+    symbol_table.add_function("ramp", ramp_func);
+
+    ramp_inf<T> ramp_inf_func;
+    symbol_table.add_function("ramp_inf", ramp_inf_func);
+
     symbol_table.add_variable("x", x_p);
     symbol_table.add_variable("y", y_p);
     symbol_table.add_variable("z", z_p);
@@ -68,13 +168,11 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     expression.register_symbol_table(symbol_table);
 
     parser_t parser;
-    if (!parser.compile(expr, expression))
-    {
+    if (!parser.compile(expr, expression)) {
         // See exprtk_simple_example_08.cpp for error handling
         printf("Error: %s\tExpression: %s\n", parser.error().c_str(), expr);
 
-        for (std::size_t i = 0; i < parser.error_count(); ++i)
-        {
+        for (std::size_t i = 0; i < parser.error_count(); ++i) {
             error_t error = parser.get_error(i);
             exprtk::parser_error::update_error(error, expr);
 
@@ -126,12 +224,9 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     assert (res->dim[1].lower_bound == 0);
     assert (res->dim[2].lower_bound == 0);
 
-    for (CFI_index_t i = 0; i < ii; i++)
-    {
-        for (CFI_index_t j = 0; j < jj; j++)
-        {
-            for (CFI_index_t k = 0; k < kk; k++)
-            {
+    for (CFI_index_t i = 0; i < ii; i++) {
+        for (CFI_index_t j = 0; j < jj; j++) {
+            for (CFI_index_t k = 0; k < kk; k++) {
                 // The random value is updated for every cell and lies in the
                 // interval [0, 1.0)
                 randval_p = dis(rng);

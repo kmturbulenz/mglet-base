@@ -1,0 +1,50 @@
+{
+    "time": {
+        "mtstep": 2000,
+        "dt": 0.001,
+        "itinfo": 1,
+        "write": false
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "noib"
+    },
+    "flow": {
+        "gmol": 0.1,
+        "rho": 1.0,
+        "uinf": [
+            "0.5 + 0.5*ramp_inf(timeph, 1.0)",
+            "0.0",
+            "0.0"
+        ],
+        "gradp": [0.0, 0.0, 0.0],
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.0,
+            "nouter_min": 0,
+            "nouter": 2,
+            "ninner": 5
+        },
+        "lesmodel": {
+            "model": "none"
+        }
+    },
+    "probes": {
+        "itsamp": 1,
+        "tstart": 0.0,
+        "file": "probes-ramp_inf.h5",
+        "arrays": [
+            {
+                "name": "point",
+                "variables": ["U"],
+                "positions": [
+                    [0.032, 0.0, 0.0]
+                ]
+            }
+        ]
+    }
+}
