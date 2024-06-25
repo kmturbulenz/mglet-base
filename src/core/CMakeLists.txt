@@ -63,7 +63,7 @@ target_link_libraries(core
 
 # Set include directories for specific files
 set_source_files_properties(exprtk_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
-    ${exprtk_SOURCE_DIR}
+    ${exprtk_SOURCE_DIR}/exprtk
 )
 set_source_files_properties(jsoncpp_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
     ${json_SOURCE_DIR}/include
@@ -72,6 +72,10 @@ set_source_files_properties(jsoncpp_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
 set_property(TARGET core PROPERTY CXX_STANDARD 14)
 
 # Other neccesary compile flags
+set_source_files_properties(exprtk_wrapper.cxx PROPERTIES COMPILE_FLAGS
+    $<$<STREQUAL:"${CMAKE_CXX_COMPILER_ID}","GNU">:-Wno-implicit-fallthrough>
+)
+
 set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>
 )
