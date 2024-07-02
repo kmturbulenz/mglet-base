@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.21)
 if(POLICY CMP0126)
     cmake_policy(SET CMP0126 NEW)
 endif()
+if(POLICY CMP0135)
+	cmake_policy(SET CMP0135 NEW)
+endif()
 
 # Set the project name
 project(mglet-base LANGUAGES C CXX Fortran)
