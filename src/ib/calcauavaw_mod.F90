@@ -60,8 +60,8 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: au, av, aw
         INTEGER(intk), INTENT(in), OPTIONAL :: icells(:)
         INTEGER(intk), INTENT(in), OPTIONAL :: icellspointer(:)
-        REAL(realk), INTENT(out), OPTIONAL, CONTIGUOUS, TARGET :: xpsw(:, :)
-        REAL(realk), INTENT(out), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
+        REAL(realk), INTENT(inout), OPTIONAL, CONTIGUOUS, TARGET :: xpsw(:, :)
+        REAL(realk), INTENT(inout), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
             xws(*), yws(*)
 
         ! Local variables

@@ -31,8 +31,8 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(in) :: knoten
-        INTEGER(intk), INTENT(out) :: bzelltyp(*)
-        INTEGER(intk), INTENT(out), OPTIONAL :: icells(:)
+        INTEGER(intk), INTENT(inout) :: bzelltyp(*)
+        INTEGER(intk), INTENT(inout), OPTIONAL :: icells(:)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, icells2

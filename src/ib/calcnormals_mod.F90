@@ -70,8 +70,8 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
         INTEGER(intk), INTENT(in) :: ncellstot
-        INTEGER(intk), INTENT(out) :: bodyid(:)
-        REAL(realk), INTENT(out) :: ucell(:, :)
+        INTEGER(intk), INTENT(inout) :: bodyid(:)
+        REAL(realk), INTENT(inout) :: ucell(:, :)
         CLASS(stencils_t), INTENT(inout) :: stencils
         LOGICAL, INTENT(in), OPTIONAL :: writegeom
 

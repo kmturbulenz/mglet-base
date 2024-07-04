@@ -61,7 +61,7 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: kanteu
         TYPE(field_t), INTENT(inout) :: kantev
         TYPE(field_t), INTENT(inout) :: kantew
-        INTEGER(intk), INTENT(out) :: icells(:)
+        INTEGER(intk), INTENT(inout) :: icells(:)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n
