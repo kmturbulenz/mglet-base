@@ -1,6 +1,6 @@
 MODULE blockluecken_mod
-    USE core_mod, ONLY: realk, intk, idim3d, mygridslvl, nmygridslvl, &
-        minlevel, maxlevel, get_mgdims, get_ip3, get_mgbasb, errr
+    USE core_mod, ONLY: realk, intk, idim3d, mygrids, nmygrids, &
+        get_mgdims, get_ip3, get_mgbasb, errr
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -14,26 +14,11 @@ CONTAINS
         REAL(realk), INTENT(inout) :: bp(idim3d)
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL blockluecken_level(ilevel, use_bc, bp)
-        END DO
-    END SUBROUTINE blockluecken
-
-
-    SUBROUTINE blockluecken_level(ilevel, use_bc, bp)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        LOGICAL, INTENT(in) :: use_bc
-        REAL(realk), INTENT(inout) :: bp(idim3d)
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
@@ -50,7 +35,7 @@ CONTAINS
             CALL blockluecken_grid(kk, jj, ii, nfro, nbac, nrgt, nlft, &
                 nbot, ntop, bp(ip3))
         END DO
-    END SUBROUTINE blockluecken_level
+    END SUBROUTINE blockluecken
 
 
     SUBROUTINE blockluecken_grid(kk, jj, ii, nfro, nbac, nrgt, nlft, &
