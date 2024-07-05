@@ -8,7 +8,7 @@ MODULE gc_blockface_mod
 CONTAINS
     SUBROUTINE blockface(knoten, bu, bv, bw)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(in) :: knoten
         TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
@@ -27,9 +27,9 @@ CONTAINS
 
     SUBROUTINE blockface_grid(kk, jj, ii, knoten, bu, bv, bw)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(IN) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: knoten(kk, jj, ii)
-        REAL(realk), INTENT(OUT) :: bu(kk, jj, ii), bv(kk, jj, ii), &
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: knoten(kk, jj, ii)
+        REAL(realk), INTENT(out) :: bu(kk, jj, ii), bv(kk, jj, ii), &
             bw(kk, jj, ii)
 
         ! Local variables
