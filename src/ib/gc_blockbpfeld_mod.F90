@@ -1,6 +1,6 @@
 MODULE gc_blockbpfeld_mod
-    USE core_mod, ONLY: realk, intk, minlevel, maxlevel, nmygridslvl, &
-        mygridslvl, get_ip3, get_mgdims, field_t
+    USE core_mod, ONLY: realk, intk, nmygrids, mygrids, get_ip3, &
+        get_mgdims, field_t
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -14,32 +14,17 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: bp
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL blockbpfeld_level(ilevel, bu, bv, bw, bp)
-        END DO
-    END SUBROUTINE blockbpfeld
-
-
-    SUBROUTINE blockbpfeld_level(ilevel, bu, bv, bw, bp)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(in) :: bu, bv, bw
-        TYPE(field_t), INTENT(inout) :: bp
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             CALL blockbpfeld_grid(kk, jj, ii, bu%arr(ip3), bv%arr(ip3), &
                 bw%arr(ip3), bp%arr(ip3))
         END DO
-    END SUBROUTINE blockbpfeld_level
+    END SUBROUTINE blockbpfeld
 
 
     SUBROUTINE blockbpfeld_grid(kk, jj, ii, bu, bv, bw, bp)

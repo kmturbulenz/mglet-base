@@ -1,7 +1,6 @@
 MODULE calcnormals_mod
-    USE core_mod, ONLY: realk, intk, get_fieldptr, minlevel, &
-        maxlevel, nmygridslvl, mygridslvl, idim3d, get_mgdims, get_ip3, &
-        get_ip3n, sub2ind, most_frequent_nonzero, field_t
+    USE core_mod, ONLY: realk, intk, get_fieldptr, nmygrids, mygrids, &
+        get_mgdims, get_ip3, get_ip3n, sub2ind, most_frequent_nonzero, field_t
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE punktekoordinaten_mod, ONLY: punktekoordinaten
     USE knotenundkanten_mod, ONLY: knotenundkanten
@@ -30,7 +29,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: triau(*), triav(*), triaw(*)
         TYPE(field_t), INTENT(in) :: knoten
         TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
-        INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
+        INTEGER(intk), INTENT(in) :: bzelltyp(*)
         TYPE(field_t), INTENT(in) :: au, av, aw
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
@@ -41,48 +40,12 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: writegeom
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL calcnormals_level(ilevel, velocity, topol, ntrimax, &
-                triau, triav, triaw, knoten, kanteu, kantev, kantew, &
-                bzelltyp, au, av, aw, icells, icellspointer, ncellstot, &
-                bodyid, ucell, stencils, writegeom)
-        END DO
-    END SUBROUTINE calcnormals
-
-
-    SUBROUTINE calcnormals_level(ilevel, velocity, topol, ntrimax, &
-            triau, triav, triaw, knoten, kanteu, kantev, kantew, &
-            bzelltyp, au, av, aw, icells, icellspointer, ncellstot, &
-            bodyid, ucell, stencils, writegeom)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: velocity(:, :)
-        TYPE(topol_t), INTENT(in) :: topol
-        INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(*), triav(*), triaw(*)
-        TYPE(field_t), INTENT(in) :: knoten
-        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
-        INTEGER(intk), INTENT(in) :: bzelltyp(idim3d)
-        TYPE(field_t), INTENT(in) :: au, av, aw
-        INTEGER(intk), INTENT(in) :: icells(:)
-        INTEGER(intk), INTENT(in) :: icellspointer(:)
-        INTEGER(intk), INTENT(in) :: ncellstot
-        INTEGER(intk), INTENT(inout) :: bodyid(:)
-        REAL(realk), INTENT(inout) :: ucell(:, :)
-        CLASS(stencils_t), INTENT(inout) :: stencils
-        LOGICAL, INTENT(in), OPTIONAL :: writegeom
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n, ipp, ncells
         REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:), &
             ddx(:), ddy(:), ddz(:), finecell(:, :, :)
 
-
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_fieldptr(xstag, "XSTAG", igrid)
             CALL get_fieldptr(ystag, "YSTAG", igrid)
@@ -101,8 +64,6 @@ CONTAINS
             ipp = icellspointer(igrid)
             ncells = icells(igrid)
 
-            ! Ugly code, because I'm not allowed to do yus(ip3) if yus
-            ! is not present, therefore I must do this
             CALL calcnormals_grid(igrid, kk, jj, ii, xstag, ystag, zstag, &
                 ddx, ddy, ddz, velocity, topol%n, topol%topol, topol%bodyid, &
                 ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), finecell, &
@@ -111,7 +72,7 @@ CONTAINS
                 aw%arr(ip3), icells(igrid), bodyid(ipp:ipp+ncells-1), &
                 ucell(:, ipp:ipp+ncells-1), stencils, writegeom)
         END DO
-    END SUBROUTINE calcnormals_level
+    END SUBROUTINE calcnormals
 
 
     SUBROUTINE calcnormals_grid(igrid, kk, jj, ii, xstag, ystag, zstag, &

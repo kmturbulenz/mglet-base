@@ -1,6 +1,6 @@
 MODULE openbubvbw_mod
-    USE core_mod, ONLY: realk, intk, minlevel, maxlevel, nmygridslvl, &
-        mygridslvl, get_ip3, get_mgdims, field_t
+    USE core_mod, ONLY: realk, intk, nmygrids, mygrids, get_ip3, &
+        get_mgdims, field_t
     USE ibcore_mod, ONLY: openaccur
 
     IMPLICIT NONE(type, external)
@@ -15,32 +15,17 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL openbubvbw_level(ilevel, au, av, aw, bu, bv, bw)
-        END DO
-    END SUBROUTINE openbubvbw
-
-
-    SUBROUTINE openbubvbw_level(ilevel, au, av, aw, bu, bv, bw)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(in) :: au, av, aw
-        TYPE(field_t), INTENT(inout) :: bu, bv, bw
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             CALL openbubvbw_grid(kk, jj, ii, au%arr(ip3), av%arr(ip3), &
                 aw%arr(ip3), bu%arr(ip3), bv%arr(ip3), bw%arr(ip3))
         END DO
-    END SUBROUTINE openbubvbw_level
+    END SUBROUTINE openbubvbw
 
 
     PURE SUBROUTINE openbubvbw_grid(kk, jj, ii, au, av, aw, bu, bv, bw)

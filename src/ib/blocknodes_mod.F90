@@ -1,6 +1,5 @@
 MODULE blocknodes_mod
-    USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, &
-        minlevel, maxlevel, get_mgdims, get_ip3, &
+    USE core_mod, ONLY: realk, intk, mygrids, nmygrids, get_mgdims, get_ip3, &
         field_t, connect
 
     IMPLICIT NONE (type, external)
@@ -15,33 +14,19 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: knoten
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL blocknodes_level(ilevel, kanteu, kantev, kantew, knoten)
-            CALL connect(ilevel, 2, s1=knoten, corners=.TRUE.)
-        END DO
-    END SUBROUTINE blocknodes
-
-
-    SUBROUTINE blocknodes_level(ilevel, kanteu, kantev, kantew, knoten)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(in) :: kanteu, kantev, kantew
-        TYPE(field_t), INTENT(inout) :: knoten
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             CALL blocknodes_grid(kk, jj, ii, kanteu%arr(ip3), kantev%arr(ip3), &
                 kantew%arr(ip3), knoten%arr(ip3))
         END DO
-    END SUBROUTINE blocknodes_level
+
+        CALL connect(layers=2, s1=knoten, corners=.TRUE.)
+    END SUBROUTINE blocknodes
 
 
     PURE SUBROUTINE blocknodes_grid(kk, jj, ii, kanteu, kantev, kantew, knoten)

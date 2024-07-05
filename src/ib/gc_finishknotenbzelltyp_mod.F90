@@ -1,7 +1,6 @@
 MODULE gc_finishknotenbezelltyp_mod
-    USE core_mod, ONLY: realk, intk, errr, get_fieldptr, ngrid, minlevel, &
-        maxlevel, nmygridslvl, mygridslvl, get_mgdims, get_ip3, &
-        get_ip3n, field_t
+    USE core_mod, ONLY: realk, intk, errr, get_fieldptr, ngrid, nmygrids, &
+        mygrids, get_mgdims, get_ip3, get_ip3n, field_t
     USE checkzelle_mod, ONLY: checkzelle_grid
     USE gc_zelltyp_mod, ONLY: zelltyp_grid
     USE blockcheck_mod, ONLY: blockcheck_grid
@@ -32,44 +31,16 @@ CONTAINS
         INTEGER(intk), INTENT(out) :: icells(:)
 
         ! Local variables
-        INTEGER(intk) :: ilevel
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n
+        REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:), &
+            ddx(:), ddy(:), ddz(:)
 
         ! Sanity check
         IF (SIZE(icells) /= ngrid) CALL errr(__FILE__, __LINE__)
         icells = 0
 
-        DO ilevel = minlevel, maxlevel
-            CALL finishknotenbezelltyp_level(ilevel, topol, ntrimax, &
-                triau, triav, triaw, bp, bzelltyp, knoten, &
-                kanteu, kantev, kantew, icells)
-        END DO
-    END SUBROUTINE finishknotenbezelltyp
-
-
-    SUBROUTINE finishknotenbezelltyp_level(ilevel, topol, ntrimax, triau, &
-            triav, triaw, bp, bzelltyp, knoten, kanteu, kantev, kantew, icells)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(topol_t), INTENT(in) :: topol
-        INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(*)
-        INTEGER(intk), INTENT(in) :: triav(*)
-        INTEGER(intk), INTENT(in) :: triaw(*)
-        TYPE(field_t), INTENT(in) :: bp
-        INTEGER(intk), INTENT(inout) :: bzelltyp(*)
-        TYPE(field_t), INTENT(inout) :: knoten
-        TYPE(field_t), INTENT(inout) :: kanteu
-        TYPE(field_t), INTENT(inout) :: kantev
-        TYPE(field_t), INTENT(inout) :: kantew
-        INTEGER(intk), INTENT(inout) :: icells(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n
-        REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:), &
-            ddx(:), ddy(:), ddz(:)
-
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_fieldptr(xstag, "XSTAG", igrid)
             CALL get_fieldptr(ystag, "YSTAG", igrid)
@@ -89,7 +60,7 @@ CONTAINS
                 knoten%arr(ip3), kanteu%arr(ip3), kantev%arr(ip3), &
                 kantew%arr(ip3), icells(igrid))
         END DO
-    END SUBROUTINE finishknotenbezelltyp_level
+    END SUBROUTINE finishknotenbezelltyp
 
 
     SUBROUTINE finishknotenbezelltyp_grid(kk, jj, ii, xstag, ystag, zstag, &

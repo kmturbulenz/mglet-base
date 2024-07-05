@@ -1,6 +1,6 @@
 MODULE checkzelle_mod
-    USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, minlevel, &
-        maxlevel, errr, field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
+    USE core_mod, ONLY: realk, intk, mygrids, nmygrids, &
+        errr, field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
         ind2sub
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE punktekoordinaten_mod, ONLY: punkteeinekante2
@@ -27,36 +27,12 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL checkzelle_level(ilevel, topol, ntrimax, knoten, kanteu, &
-                kantev, kantew, triau, triav, triaw)
-        END DO
-    END SUBROUTINE checkzelle
-
-
-    SUBROUTINE checkzelle_level(ilevel, topol, ntrimax, knoten, kanteu, &
-            kantev, kantew, triau, triav, triaw)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(topol_t), INTENT(in) :: topol
-        INTEGER(intk), INTENT(in) :: ntrimax
-        TYPE(field_t), INTENT(inout) :: knoten
-        TYPE(field_t), INTENT(inout) :: kanteu
-        TYPE(field_t), INTENT(inout) :: kantev
-        TYPE(field_t), INTENT(inout) :: kantew
-        INTEGER(intk), INTENT(in) :: triau(*)
-        INTEGER(intk), INTENT(in) :: triav(*)
-        INTEGER(intk), INTENT(in) :: triaw(*)
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n, iloop, suminfo
         REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:), &
             ddx(:), ddy(:), ddz(:)
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_fieldptr(xstag, "XSTAG", igrid)
             CALL get_fieldptr(ystag, "YSTAG", igrid)
@@ -84,7 +60,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
         END DO
-    END SUBROUTINE checkzelle_level
+    END SUBROUTINE checkzelle
 
 
     SUBROUTINE checkzelle_grid(kk, jj, ii, kanteu, kantev, kantew, knoten, &

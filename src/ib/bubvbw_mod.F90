@@ -13,25 +13,10 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: bu, bv, bw
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL bubvbw_level(ilevel, bp, bu, bv, bw)
-        END DO
-    END SUBROUTINE bubvbw
-
-
-    SUBROUTINE bubvbw_level(ilevel, bp, bu, bv, bw)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(in) :: bp
-        TYPE(field_t), INTENT(inout) :: bu, bv, bw
-
-        ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
@@ -41,8 +26,8 @@ CONTAINS
 
         ! Previously directly in blockbp - this is last place where these
         ! fields are touched
-        CALL connect(ilevel, 2, v1=bu, v2=bv, v3=bw, corners=.TRUE.)
-    END SUBROUTINE bubvbw_level
+        CALL connect(layers=2, v1=bu, v2=bv, v3=bw, corners=.TRUE.)
+    END SUBROUTINE bubvbw
 
 
     PURE SUBROUTINE bubvbw_grid(kk, jj, ii, bp, bu, bv, bw)

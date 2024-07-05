@@ -1,7 +1,6 @@
 MODULE calcauavaw_mod
-    USE core_mod, ONLY: realk, intk, errr, minlevel, maxlevel, &
-        nmygridslvl, mygridslvl, get_mgdims, get_ip3, get_ip3n, &
-        get_fieldptr, field_t, connect
+    USE core_mod, ONLY: realk, intk, errr, nmygrids, mygrids, get_mgdims, &
+        get_ip3, get_ip3n, get_fieldptr, field_t, connect
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE calcfacearea_mod, ONLY: calcfacedata, calcwallfacecenter, &
         calcwallfacecenterrescue
@@ -30,38 +29,8 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: au, av, aw
         INTEGER(intk), INTENT(in), OPTIONAL :: icells(:)
         INTEGER(intk), INTENT(in), OPTIONAL :: icellspointer(:)
-        REAL(realk), INTENT(out), CONTIGUOUS, OPTIONAL :: xpsw(:, :)
+        REAL(realk), INTENT(out), CONTIGUOUS, OPTIONAL, TARGET :: xpsw(:, :)
         REAL(realk), INTENT(out), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
-            xws(*), yws(*)
-
-        ! Local variables
-        INTEGER(intk) :: ilevel
-
-        DO ilevel = minlevel, maxlevel
-            CALL calcauavaw_level(ilevel, topol, ntrimax, triau, triav, triaw, &
-                knoten, kanteu, kantev, kantew, bzelltyp, au, av, aw, &
-                icells, icellspointer, xpsw, yus, zus, xvs, zvs, xws, yws)
-        END DO
-    END SUBROUTINE calcauavaw
-
-
-    SUBROUTINE calcauavaw_level(ilevel, topol, ntrimax, triau, triav, triaw, &
-            knoten, kanteu, kantev, kantew, bzelltyp, au, av, aw, &
-            icells, icellspointer, xpsw, &
-            yus, zus, xvs, zvs, xws, yws)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(topol_t), INTENT(in) :: topol
-        INTEGER(intk), INTENT(in) :: ntrimax
-        INTEGER(intk), INTENT(in) :: triau(*), triav(*), triaw(*)
-        TYPE(field_t), INTENT(in) :: knoten
-        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
-        INTEGER(intk), INTENT(in) :: bzelltyp(*)
-        TYPE(field_t), INTENT(inout) :: au, av, aw
-        INTEGER(intk), INTENT(in), OPTIONAL :: icells(:)
-        INTEGER(intk), INTENT(in), OPTIONAL :: icellspointer(:)
-        REAL(realk), INTENT(inout), OPTIONAL, CONTIGUOUS, TARGET :: xpsw(:, :)
-        REAL(realk), INTENT(inout), OPTIONAL :: yus(*), zus(*), xvs(*), zvs(*), &
             xws(*), yws(*)
 
         ! Local variables
@@ -90,8 +59,8 @@ CONTAINS
             IF (.NOT. PRESENT(icells)) CALL errr(__FILE__, __LINE__)
         END IF
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
 
             CALL get_fieldptr(xstag, "XSTAG", igrid)
             CALL get_fieldptr(ystag, "YSTAG", igrid)
@@ -135,8 +104,8 @@ CONTAINS
 
         ! Originally found on blockbp directly - now moved here becuase this is
         ! the last spot where AU, AV, AW are touched
-        CALL connect(ilevel, 2, v1=au, v2=av, v3=aw, corners=.TRUE.)
-    END SUBROUTINE calcauavaw_level
+        CALL connect(layers=2, v1=au, v2=av, v3=aw, corners=.TRUE.)
+    END SUBROUTINE calcauavaw
 
 
     SUBROUTINE calcauavaw_grid(kk, jj, ii, xstag, ystag, zstag, &
