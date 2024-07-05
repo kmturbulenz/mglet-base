@@ -445,7 +445,7 @@ CONTAINS
 
 
     SUBROUTINE write_stlnames(this, file_id)
-        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC, C_NULL_PTR
 
         ! Subroutine arguments
         CLASS(stencils_t), INTENT(inout), TARGET :: this
@@ -465,7 +465,13 @@ CONTAINS
             CALL h5tset_size_f(str_t, LEN(this%stlnames, kind=size_t), ierr)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
-            cptr = C_LOC(this%stlnames)
+            ! It is not allowed to take C_LOC of a zero-sized array,
+            ! but we want to always construct the dataset, even if zero-sized.
+            IF (shape(1) > 0) THEN
+                cptr = C_LOC(this%stlnames)
+            ELSE
+                cptr = C_NULL_PTR
+            END IF
             CALL stencilio_write_master_cptr(file_id, 'stlnames', &
                                              cptr, shape, str_t)
 

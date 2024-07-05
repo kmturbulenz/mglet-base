@@ -363,7 +363,7 @@ CONTAINS
         ! none...
 
         ! Local variables
-#if __GNUC__ < 12
+#if defined __GNUC__ && __GNUC__ < 12
         CHARACTER(kind=c_char, len=1), ALLOCATABLE, TARGET :: jsondump(:)
 #else
         CHARACTER(kind=c_char, len=:), ALLOCATABLE, TARGET :: jsondump(:)

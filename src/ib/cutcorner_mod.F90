@@ -44,9 +44,9 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: kanteu
         TYPE(field_t), INTENT(inout) :: kantev
         TYPE(field_t), INTENT(inout) :: kantew
-        INTEGER(intk), INTENT(out) :: triau(*)
-        INTEGER(intk), INTENT(out) :: triav(*)
-        INTEGER(intk), INTENT(out) :: triaw(*)
+        INTEGER(intk), INTENT(inout) :: triau(*)
+        INTEGER(intk), INTENT(inout) :: triav(*)
+        INTEGER(intk), INTENT(inout) :: triaw(*)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n

@@ -84,10 +84,10 @@ MODULE config_mod
         SUBROUTINE json_dump(handle, res, ierr) BIND(C)
             IMPORT :: c_ptr, c_int, c_char
             TYPE(C_PTR), VALUE :: handle
-#if __GNUC__ < 12
-            CHARACTER(len=1, kind=c_char), ALLOCATABLE :: res(:)
+#if defined __GNUC__ && __GNUC__ < 12
+            CHARACTER(len=1, kind=c_char), ALLOCATABLE, INTENT(inout) :: res(:)
 #else
-            CHARACTER(len=:, kind=c_char), ALLOCATABLE :: res(:)
+            CHARACTER(len=:, kind=c_char), ALLOCATABLE, INTENT(inout) :: res(:)
 #endif
             INTEGER(C_INT), INTENT(OUT) :: ierr
         END SUBROUTINE json_dump
@@ -310,7 +310,7 @@ CONTAINS
     SUBROUTINE dump(this, result)
         ! Function arguments
         CLASS(config_t), INTENT(inout) :: this
-#if __GNUC__ < 12
+#if defined __GNUC__ && __GNUC__ < 12
         CHARACTER(kind=C_CHAR, len=1), ALLOCATABLE, INTENT(out) :: result(:)
 #else
         CHARACTER(kind=C_CHAR, len=:), ALLOCATABLE, INTENT(out) :: result(:)
@@ -335,7 +335,7 @@ CONTAINS
         CLASS(config_t), INTENT(inout) :: this
 
         ! Local variables
-#if __GNUC__ < 12
+#if defined __GNUC__ && __GNUC__ < 12
         CHARACTER(kind=C_CHAR, len=1), ALLOCATABLE :: jsondump(:)
 #else
         CHARACTER(kind=C_CHAR, len=:), ALLOCATABLE :: jsondump(:)
