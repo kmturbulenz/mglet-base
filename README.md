@@ -115,12 +115,17 @@ Building MGLET-base
 -------------------
 
 The most important build requirement is a set with C, C++ and Fortran
-compiler with Fortran 2018 support. Then you will need an MPI library and a
-HDF5 library with MPI support.
+compiler with Fortran 2008 + TS 29113 support. Then you will need an MPI
+library and a HDF5 library with MPI support.
 
 The code is currently tested with GNU compilers version >= 11.2 and Intel
 compilers from the oneAPI toolkits version >= 2022.2.1. Older compilers
 than these will typically not work.
+
+Since version 7.2 build 7213, the
+[NAG Fortran compiler](https://nag.com/fortran-compiler/) also compiles a
+working binary that runs all testcases successfully. This is only tested on
+x64 Linux systems.
 
 ### Dependencies
 
@@ -145,8 +150,13 @@ There are currently four pre-defined presets:
 * `gnu-release`: GNU compilers `gcc`, `g++` and `gfortran` with flags
 for release (performance-optimized) builds
 * `intel-debug`: Intel compilers `icx`, `icpx` and `ifx` with common debug flags
-* `intel-debug`: Intel compilers `icx`, `icpx` and `ifx` with flags for release
-(performance-optimized) builds
+* `intel-release`: Intel compilers `icx`, `icpx` and `ifx` with flags for
+release (performance-optimized) builds
+* `nag-debug`: NAG Fortran compiler `nagfor` with GNU C and C++ compilers `gcc`
+and `g++` with debug flags. This configuration is very effective of discovering
+errors that the Intel and GNU compilers cannot detect.
+* `nag-release`: NAG Fortran compiler `nagfor` with GNU C and C++ compilers
+`gcc` and `g++` with flags for release (performance-optimized) builds.
 
 In order to build MGLET there is a few simple steps to follow:
 

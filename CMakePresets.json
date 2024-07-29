@@ -87,7 +87,7 @@
         },
         {
             "name": "gnu-debug",
-            "displayName": "GNU compilers (release)",
+            "displayName": "GNU compilers (debug)",
             "description": "Debug configuration using the GNU compilers",
             "inherits": "gnu",
             "cacheVariables": {
@@ -130,7 +130,7 @@
         },
         {
             "name": "nag-debug",
-            "displayName": "NAG Fortran compiler (release)",
+            "displayName": "NAG Fortran compiler (debug)",
             "description": "Debug configuration using the NAG compiler",
             "inherits": "nag",
             "cacheVariables": {
