@@ -1,7 +1,13 @@
 #ifndef __MGLET_PRECISION_H__
 #define __MGLET_PRECISION_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <ISO_Fortran_binding.h>
+#ifdef __cplusplus
+}
+#endif
 
 #ifdef _MGLET_DOUBLE_PRECISION_
 typedef double mgletreal;

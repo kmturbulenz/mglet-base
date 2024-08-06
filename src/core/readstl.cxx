@@ -11,7 +11,9 @@
 #include <vector>       // std::vector
 
 #include <sys/stat.h>   // stat
+extern "C" {
 #include <ISO_Fortran_binding.h>
+}
 
 #define STL_CHECK_LENGTH 4096
 
