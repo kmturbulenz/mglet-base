@@ -5,11 +5,8 @@
 #include <cstdbool>
 #include <cstdint>
 
-#include <ISO_Fortran_binding.h>
-
-#ifdef __cplusplus
 extern "C" {
-#endif
+#include <ISO_Fortran_binding.h>
 
 struct jsoncppc;
 typedef struct jsoncppc jsoncppc_t;
@@ -41,9 +38,7 @@ void json_get_double_arr(jsoncppc_t*, const char*, double*, const size_t, int*);
 void json_get_size(jsoncppc_t*, const char*, size_t* size, int*);
 void json_exists(jsoncppc_t*, const char*, _Bool*, int*, int*);
 
-#ifdef __cplusplus
 }
-#endif
 
 
 template<typename T>

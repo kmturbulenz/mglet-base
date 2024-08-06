@@ -39,9 +39,4 @@ target_link_libraries(mglet
     PRIVATE ${MPI_Fortran_LIBRARIES}
 )
 
-
-# Intel must use the Fortran compiler to link properly
-if (CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM"
-        OR CMAKE_Fortran_COMPILER_ID STREQUAL "NAG")
-    set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)
-endif()
+set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)

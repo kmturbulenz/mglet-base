@@ -8,8 +8,9 @@
 #include <random>
 #include <string>
 
+extern "C" {
 #include <ISO_Fortran_binding.h>
-
+}
 
 template <typename T>
 inline T ramp0(T timeph, T time1, T time2) {
@@ -207,26 +208,41 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     CFI_index_t jj = y->dim[0].extent;
     CFI_index_t kk = z->dim[0].extent;
 
+    // GNU, Intel, NAG and Nvidia seems to set lower_bound to 0
+    // Cray set the lower_bound to 1. Our requirement here is that
+    // lower_bound is the same for all arrays passed in!
+    CFI_index_t lb = x->dim[0].lower_bound;
+    assert (y->dim[0].lower_bound == lb);
+    assert (z->dim[0].lower_bound == lb);
+
     // Check that all grid dimensions are as expected (boooooring...)
     assert (res->dim[0].extent == kk);
     assert (res->dim[1].extent == jj);
     assert (res->dim[2].extent == ii);
 
+    assert (res->dim[0].lower_bound == lb);
+    assert (res->dim[1].lower_bound == lb);
+    assert (res->dim[2].lower_bound == lb);
+
     assert (dx->dim[0].extent == ii);
     assert (dy->dim[0].extent == jj);
     assert (dz->dim[0].extent == kk);
+
+    assert (dx->dim[0].lower_bound == lb);
+    assert (dy->dim[0].lower_bound == lb);
+    assert (dz->dim[0].lower_bound == lb);
 
     assert (ddx->dim[0].extent == ii);
     assert (ddy->dim[0].extent == jj);
     assert (ddz->dim[0].extent == kk);
 
-    assert (res->dim[0].lower_bound == 0);
-    assert (res->dim[1].lower_bound == 0);
-    assert (res->dim[2].lower_bound == 0);
+    assert (ddx->dim[0].lower_bound == lb);
+    assert (ddy->dim[0].lower_bound == lb);
+    assert (ddz->dim[0].lower_bound == lb);
 
-    for (CFI_index_t i = 0; i < ii; i++) {
-        for (CFI_index_t j = 0; j < jj; j++) {
-            for (CFI_index_t k = 0; k < kk; k++) {
+    for (CFI_index_t i = lb; i < ii+lb; i++) {
+        for (CFI_index_t j = lb; j < jj+lb; j++) {
+            for (CFI_index_t k = lb; k < kk+lb; k++) {
                 // The random value is updated for every cell and lies in the
                 // interval [0, 1.0)
                 randval_p = dis(rng);

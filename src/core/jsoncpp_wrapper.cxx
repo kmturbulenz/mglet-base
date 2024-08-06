@@ -7,7 +7,9 @@
 #include <iostream>
 #include <type_traits>
 
+extern "C" {
 #include <ISO_Fortran_binding.h>
+}
 
 using json = nlohmann::json;
 

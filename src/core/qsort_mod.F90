@@ -21,21 +21,33 @@ MODULE qsort_mod
             IMPORT :: c_intk, c_int
 
             INTEGER(c_int), INTENT(in) :: data(:)
+#ifdef _CRAYFTN
+            INTEGER(c_intk), INTENT(inout) :: idx(:)
+#else
             INTEGER(c_intk), INTENT(out) :: idx(:)
+#endif
         END SUBROUTINE sort_int
 
         SUBROUTINE sort_long(data, idx) BIND(C)
             IMPORT :: c_intk, c_long_long
 
             INTEGER(c_long_long), INTENT(in) :: data(:)
+#ifdef _CRAYFTN
+            INTEGER(c_intk), INTENT(inout) :: idx(:)
+#else
             INTEGER(c_intk), INTENT(out) :: idx(:)
+#endif
         END SUBROUTINE sort_long
 
         SUBROUTINE sort_float(data, idx) BIND(C)
             IMPORT :: c_intk, c_float
 
             REAL(c_float), INTENT(in) :: data(:)
+#ifdef _CRAYFTN
+            INTEGER(c_intk), INTENT(inout) :: idx(:)
+#else
             INTEGER(c_intk), INTENT(out) :: idx(:)
+#endif
         END SUBROUTINE sort_float
 
         SUBROUTINE sort_double(data, idx) BIND(C)
@@ -43,7 +55,11 @@ MODULE qsort_mod
 
             ! Subroutine arguments
             REAL(c_double), INTENT(in) :: data(:)
+#ifdef _CRAYFTN
+            INTEGER(c_intk), INTENT(inout) :: idx(:)
+#else
             INTEGER(c_intk), INTENT(out) :: idx(:)
+#endif
         END SUBROUTINE sort_double
     END INTERFACE
 
@@ -65,7 +81,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: n
         INTEGER(int32), INTENT(in) :: data(:)
-        INTEGER(intk), INTENT(out) :: idx(:)
+        INTEGER(intk), INTENT(out), CONTIGUOUS :: idx(:)
 
         ! Local variables
         ! none...
@@ -98,7 +114,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: n
         INTEGER(int64), INTENT(in) :: data(:)
-        INTEGER(intk), INTENT(out) :: idx(:)
+        INTEGER(intk), INTENT(out), CONTIGUOUS :: idx(:)
 
         ! Local variables
         ! none...
@@ -131,7 +147,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: n
         REAL(real32), INTENT(in) :: data(:)
-        INTEGER(intk), INTENT(out) :: idx(:)
+        INTEGER(intk), INTENT(out), CONTIGUOUS :: idx(:)
 
         ! Local variables
         ! none...
@@ -164,7 +180,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: n
         REAL(real64), INTENT(in) :: data(:)
-        INTEGER(intk), INTENT(out) :: idx(:)
+        INTEGER(intk), INTENT(out), CONTIGUOUS :: idx(:)
 
         ! Local variables
         ! none...

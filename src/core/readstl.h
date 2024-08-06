@@ -4,7 +4,9 @@
 #include <string>       // std::string
 #include <vector>       // std::vector
 
+extern "C" {
 #include <ISO_Fortran_binding.h>
+}
 
 extern "C" {
     void readstl(CFI_cdesc_t* data, const char* filename, int* ierr);

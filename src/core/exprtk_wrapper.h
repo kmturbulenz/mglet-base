@@ -2,7 +2,10 @@
 #define __EXPRTK_WRAPPER_H__
 
 #include "mglet_precision.h"
+
+extern "C" {
 #include <ISO_Fortran_binding.h>
+}
 
 template <typename T>
 void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,

@@ -137,6 +137,49 @@
                 "CMAKE_BUILD_TYPE": "Debug"
 
             }
+        },
+        {
+            "name": "cray",
+            "hidden": true,
+            "displayName": "Cray Compiler Environment (CCE)",
+            "description": "Default build options using the Cray compilers",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cc",
+                "CMAKE_CXX_COMPILER": "CC",
+                "CMAKE_Fortran_COMPILER": "ftn",
+
+                "MGLET_C_FLAGS": "",
+                "MGLET_CXX_FLAGS": "",
+                "MGLET_Fortran_FLAGS": "-M;878,969",
+
+                "MGLET_C_FLAGS_RELEASE": "-O2",
+                "MGLET_CXX_FLAGS_RELEASE": "-O2",
+                "MGLET_Fortran_FLAGS_RELEASE": "-O2",
+
+                "MGLET_C_FLAGS_DEBUG": "-O0;-g",
+                "MGLET_CXX_FLAGS_DEBUG": "-O0;-g",
+                "MGLET_Fortran_FLAGS_DEBUG": "-O0;-g;-K;trap=fp;-ei"
+            }
+        },
+        {
+            "name": "cray-release",
+            "displayName": "Cray Compiler Environment (CCE) (release)",
+            "description": "Release configuration using the Cray Compiler Environment (CCE)",
+            "inherits": "cray",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+
+            }
+        },
+        {
+            "name": "cray-debug",
+            "displayName": "Cray Compiler Environment (CCE) (debug)",
+            "description": "Debug configuration using the Cray Compiler Environment (CCE)",
+            "inherits": "cray",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+
+            }
         }
     ]
 }
