@@ -241,21 +241,21 @@ void eval_expr(CFI_cdesc_t* res, const char* name, const char* expr,
     assert (ddz->dim[0].lower_bound == lb);
 
     for (CFI_index_t i = lb; i < ii+lb; i++) {
+        CFI_index_t sub_x[1] = {i};
+        x_p = *((T *) CFI_address(x, sub_x));
+        dx_p = *((T *) CFI_address(dx, sub_x));
+        ddx_p = *((T *) CFI_address(ddx, sub_x));
+
         for (CFI_index_t j = lb; j < jj+lb; j++) {
+            CFI_index_t sub_y[1] = {j};
+            y_p = *((T *) CFI_address(y, sub_y));
+            dy_p = *((T *) CFI_address(dy, sub_y));
+            ddy_p = *((T *) CFI_address(ddy, sub_y));
+
             for (CFI_index_t k = lb; k < kk+lb; k++) {
                 // The random value is updated for every cell and lies in the
                 // interval [0, 1.0)
                 randval_p = dis(rng);
-
-                CFI_index_t sub_x[1] = {i};
-                x_p = *((T *) CFI_address(x, sub_x));
-                dx_p = *((T *) CFI_address(dx, sub_x));
-                ddx_p = *((T *) CFI_address(ddx, sub_x));
-
-                CFI_index_t sub_y[1] = {j};
-                y_p = *((T *) CFI_address(y, sub_y));
-                dy_p = *((T *) CFI_address(dy, sub_y));
-                ddy_p = *((T *) CFI_address(ddy, sub_y));
 
                 CFI_index_t sub_z[1] = {k};
                 z_p = *((T *) CFI_address(z, sub_z));
