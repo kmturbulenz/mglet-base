@@ -3,9 +3,6 @@ MODULE gc_scastencils_mod
     USE ib_mod
     USE scacore_mod
 
-    USE gc_createstencils_mod, ONLY: wmcheckneighbor, choosestencil, &
-        wmindexlistn
-
     IMPLICIT NONE (type, external)
     PRIVATE
 
@@ -106,8 +103,6 @@ CONTAINS
     SUBROUTINE tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
             ddx, ddy, ddz, bp, bzelltyp, bconds, icells, nvecs, arealist, &
             bodyid)
-
-        USE findinterface_mod, ONLY: findinterface2
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid

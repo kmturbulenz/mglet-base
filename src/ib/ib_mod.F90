@@ -6,6 +6,7 @@ MODULE ib_mod
     USE ctof_mod
     USE cutcorner_mod
     USE filling_mod, ONLY: fillfluid
+    USE findinterface_mod
     USE flzelle_mod
     USE freekante_mod, ONLY: freekante
     USE freepressure_mod, ONLY: freepressure
@@ -13,6 +14,7 @@ MODULE ib_mod
     USE gc_blockbpfeld_mod, ONLY: blockbpfeld
     USE gc_blockbp_mod, ONLY: blockluecken_closetoboundary
     USE gc_blockface_mod, ONLY: blockface
+    USE gc_createstencils_mod
     USE gc_totwasser_mod, ONLY: totwasser
     USE gc_zelltyp_mod, ONLY: zelltyp
     USE ibconst_mod
