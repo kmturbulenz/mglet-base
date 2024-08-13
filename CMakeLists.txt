@@ -111,14 +111,14 @@ FetchContent_Declare(json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
     URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
 )
-FetchContent_Populate(json)
+FetchContent_MakeAvailable(json)
 
 # Exprtk expression parser
 FetchContent_Declare(exprtk
     GIT_REPOSITORY https://github.com/kmturbulenz/exprtk
     GIT_TAG 699c1c172b0e28704c2483fc9b3975763691bcd1
 )
-FetchContent_Populate(exprtk)
+FetchContent_MakeAvailable(exprtk)
 
 # Perform various compiler checks
 add_subdirectory("cmake")
