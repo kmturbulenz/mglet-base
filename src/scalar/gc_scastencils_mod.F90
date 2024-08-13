@@ -1,6 +1,7 @@
 MODULE gc_scastencils_mod
     USE core_mod
-    USE ib_mod
+    USE ib_mod, ONLY: gc_t, wmindexlistn, findinterface2, &
+        wmcheckneighbor, choosestencil
     USE scacore_mod
 
     IMPLICIT NONE (type, external)
