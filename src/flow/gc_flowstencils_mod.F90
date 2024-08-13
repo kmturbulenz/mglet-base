@@ -3,9 +3,6 @@ MODULE gc_flowstencils_mod
     USE core_mod
     USE ib_mod
 
-    USE gc_createstencils_mod, ONLY: wmcheckneighbor, choosestencil, &
-        wmmultimatrix, wmaddcoefflist, wmindexlistn
-
     IMPLICIT NONE (type, external)
     PRIVATE
 
@@ -230,9 +227,6 @@ CONTAINS
         !       acoeffstc = Fluss durch die Flaechen komplett im Koerper
         !
         !----------------------------------------------------------------------
-
-        USE findinterface_mod, ONLY: findinterface2
-        USE ibconst_mod, ONLY: maccur
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid
@@ -562,8 +556,6 @@ CONTAINS
     SUBROUTINE fluxstencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, &
             zstag, bp, bzelltyp, bconds, icells, nvecs, ucell, &
             compon)
-
-        USE findinterface_mod, ONLY: findinterface2
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(IN) :: igrid
