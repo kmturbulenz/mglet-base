@@ -350,7 +350,7 @@ CONTAINS
         iles = 1
         IF (ilesmodel == 0) iles = 0
 
-        CALL swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, dx, dy, dz, &
+        CALL swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, &
             ddx, ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
 
         DO i = 3-nfu, ii-3+nbu
@@ -1791,16 +1791,15 @@ CONTAINS
     END SUBROUTINE tstle4_par
 
 
-    SUBROUTINE swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, dx, dy, dz, &
-            ddx, ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
+    SUBROUTINE swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, ddx, ddy, ddz, &
+            nfro, nbac, nrgt, nlft, nbot, ntop)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
             wo(kk, jj, ii)
         REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk), &
-            ddx(ii), ddy(jj), ddz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         INTEGER(intk), INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! Local variables
@@ -1810,10 +1809,8 @@ CONTAINS
             i = 3
             DO j = 2, jj-1
                 DO k = 2, kk-1
-                    vo(k, j, i) = vo(k, j, i) &
-                        - swcle3d_one(dy(j), ddz(k), ddx(i), v(k, j, i))
-                    wo(k, j, i) = wo(k, j, i) &
-                        - swcle3d_one(dz(k), ddy(j), ddx(i), w(k, j, i))
+                    vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddx(i), v(k, j, i))
+                    wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddx(i), w(k, j, i))
                 END DO
             END DO
         END IF
@@ -1822,10 +1819,8 @@ CONTAINS
             i = ii-2
             DO j = 2, jj-1
                 DO k = 2, kk-1
-                    vo(k, j, i) = vo(k, j, i) &
-                        - swcle3d_one(dy(j), ddz(k), ddx(i), v(k, j, i))
-                    wo(k, j, i) = wo(k, j, i) &
-                        - swcle3d_one(dz(k), ddy(j), ddx(i), w(k, j, i))
+                    vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddx(i), v(k, j, i))
+                    wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddx(i), w(k, j, i))
                 END DO
             END DO
         END IF
@@ -1834,10 +1829,8 @@ CONTAINS
             j = 3
             DO i = 2, ii-1
                 DO k = 2, kk-1
-                    uo(k, j, i) = uo(k, j, i) &
-                        - swcle3d_one(dx(i), ddz(k), ddy(j), u(k, j, i))
-                    wo(k, j, i) = wo(k, j, i) &
-                        - swcle3d_one(dz(k), ddx(i), ddy(j), w(k, j, i))
+                    uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddy(j), u(k, j, i))
+                    wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddy(j), w(k, j, i))
                 END DO
             END DO
         END IF
@@ -1846,10 +1839,8 @@ CONTAINS
             j = jj-2
             DO i = 2, ii-1
                 DO k = 2, kk-1
-                    uo(k, j, i) = uo(k, j, i) &
-                        - swcle3d_one(dx(i), ddz(k), ddy(j), u(k, j, i))
-                    wo(k, j, i) = wo(k, j, i) &
-                        - swcle3d_one(dz(k), ddx(i), ddy(j), w(k, j, i))
+                    uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddy(j), u(k, j, i))
+                    wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddy(j), w(k, j, i))
                 END DO
             END DO
         END IF
@@ -1858,10 +1849,8 @@ CONTAINS
             k = 3
             DO i = 2, ii-1
                 DO j = 2, jj-1
-                    uo(k, j, i) = uo(k, j, i) &
-                        - swcle3d_one(dx(i), ddy(j), ddz(k), u(k, j, i))
-                    vo(k, j, i) = vo(k, j, i) &
-                        - swcle3d_one(dy(j), ddx(i), ddz(k), v(k, j, i))
+                    uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddz(k), u(k, j, i))
+                    vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddz(k), v(k, j, i))
                 END DO
             END DO
         END IF
@@ -1870,29 +1859,24 @@ CONTAINS
             k = kk-2
             DO i = 2, ii-1
                 DO j = 2, jj-1
-                    uo(k, j, i) = uo(k, j, i) &
-                        - swcle3d_one(dx(i), ddy(j), ddz(k), u(k, j, i))
-                    vo(k, j, i) = vo(k, j, i) &
-                        - swcle3d_one(dy(j), ddx(i), ddz(k), v(k, j, i))
+                    uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddz(k), u(k, j, i))
+                    vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddz(k), v(k, j, i))
                 END DO
             END DO
         END IF
     END SUBROUTINE swcle3d
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION swcle3d_one(dx, ddy, ddz, u) RESULT(uo)
+    PURE ELEMENTAL REAL(realk) FUNCTION swcle3d_one(ddz, u) RESULT(uo)
         !$omp declare simd(swcle3d_one)
 
         ! Function arguments
-        REAL(realk), INTENT(in) :: dx   ! in direction of u
-        REAL(realk), INTENT(in) :: ddy  ! spanwise
         REAL(realk), INTENT(in) :: ddz  ! wall normal
         REAL(realk), INTENT(in) :: u    ! velocity
 
         ! Local variables
-        REAL(realk) :: WCUZ
+        ! none...
 
-        wcuz = dx*ddy*tauwin(u, ddz)/rho
-        uo = wcuz/(dx*ddy*ddz)
+        uo = tauwin(u, ddz)/rho/ddz
     END FUNCTION swcle3d_one
 END MODULE tstle4_mod
