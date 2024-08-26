@@ -1206,6 +1206,19 @@ CONTAINS
                     END IF
                 END DO
 
+                ! The Cray Fortran compiler ftn fails to compile the above
+                ! loop correctly at "-O3" optimization level. There is not
+                ! much we can do about this, but here is a sanity check to
+                ! catch the error in case it happens:
+                IF (nblocks < array%grouppnts) THEN
+                    IF (blocklengths(nblocks+1) /= 0) THEN
+                        WRITE(*, *) "nblocks: ", nblocks
+                        WRITE(*, *) "blocklengths(nblocks+1): ", &
+                            blocklengths(nblocks+1)
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                END IF
+
                 ! Create temporary datatype
                 CALL MPI_Type_indexed(nblocks, blocklengths, displacements, &
                     mglet_mpi_real, tmptype)
