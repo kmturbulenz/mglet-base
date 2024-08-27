@@ -1,7 +1,8 @@
 MODULE gc_flowstencils_mod
     USE bound_flow_mod
     USE core_mod
-    USE ib_mod
+    USE ib_mod, ONLY: gc_t, parent, ftoc, wmindexlistn, findinterface2, &
+        maccur, wmcheckneighbor, choosestencil, wmmultimatrix, wmaddcoefflist
 
     IMPLICIT NONE (type, external)
     PRIVATE

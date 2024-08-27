@@ -54,7 +54,7 @@ void sort_fortran_array(CFI_cdesc_t* idx, CFI_cdesc_t* data)
 extern "C" {
     void sort_int(CFI_cdesc_t* data,  CFI_cdesc_t* idx)
     {
-        assert (data->type == CFI_type_int);
+        assert (data->type == CFI_type_int || data->type == CFI_type_int32_t);
         assert (idx->type == CFI_type_mgletint);
 
         sort_fortran_array<int>(idx, data);
@@ -62,7 +62,7 @@ extern "C" {
 
     void sort_long(CFI_cdesc_t* data,  CFI_cdesc_t* idx)
     {
-        assert (data->type == CFI_type_long_long);
+        assert (data->type == CFI_type_long_long || data->type == CFI_type_int64_t);
         assert (idx->type == CFI_type_mgletint);
 
         sort_fortran_array<long long>(idx, data);

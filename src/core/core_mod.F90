@@ -222,10 +222,13 @@ CONTAINS
 
         ! Set the flags according to the environment variable
         SELECT CASE(TRIM(mglet_underflow))
+! TODO: monitor when flang-new implements IEEE_SET_UNDERFLOW_MODE
+#ifndef __flang__
         CASE ("gradual")
             CALL IEEE_SET_UNDERFLOW_MODE(.TRUE.)
         CASE ("abrupt")
             CALL IEEE_SET_UNDERFLOW_MODE(.FALSE.)
+#endif
         CASE DEFAULT
             WRITE(*,*) "Invalid value for MGLET_UNDERFLOW: ", &
                 TRIM(mglet_underflow)
@@ -246,12 +249,15 @@ CONTAINS
 
         WRITE(*, '("IEEE aritmetic flags:")')
 
+! TODO: monitor when flang-new implements IEEE_GET_UNDERFLOW_MODE
+#ifndef __flang__
         CALL IEEE_GET_UNDERFLOW_MODE(flag)
         IF (flag) THEN
             WRITE(*, '("    Underflow:     gradual")')
         ELSE
             WRITE(*, '("    Underflow:     abrupt")')
         END IF
+#endif
 
         CALL IEEE_GET_HALTING_MODE(IEEE_DIVIDE_BY_ZERO, flag)
         IF (flag) THEN
