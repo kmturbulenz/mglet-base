@@ -193,11 +193,11 @@
 
                 "MGLET_C_FLAGS": "",
                 "MGLET_CXX_FLAGS": "-Wno-missing-template-arg-list-after-template-kw",
-                "MGLET_Fortran_FLAGS": "-fno-implicit-none",
+                "MGLET_Fortran_FLAGS": "-fimplicit-none",
 
-                "MGLET_C_FLAGS_RELEASE": "-O3;-g",
-                "MGLET_CXX_FLAGS_RELEASE": "-O3;-g",
-                "MGLET_Fortran_FLAGS_RELEASE": "-O3;-g",
+                "MGLET_C_FLAGS_RELEASE": "-g",
+                "MGLET_CXX_FLAGS_RELEASE": "-g",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g",
 
                 "MGLET_C_FLAGS_DEBUG": "-O0;-g",
                 "MGLET_CXX_FLAGS_DEBUG": "-O0;-g",

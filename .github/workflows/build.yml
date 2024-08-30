@@ -15,9 +15,12 @@ jobs:
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-f052b7b", "gnu-ompi-image:sha-f052b7b"]
+        image: ["intel-impi-image:sha-f052b7b", "gnu-ompi-image:sha-f052b7b", "llvm-mpich-image:date-20240829"]
         build: ["release", "debug"]
         prec: ["Single", "Double"]
+        exclude:
+          - image: "llvm-mpich-image:date-20240829"
+            build: "debug"
       fail-fast: false
 
     container:
@@ -32,7 +35,8 @@ jobs:
         source /opt/bashrc || true
         mkdir build
         cd build
-        TOOLCHAIN=${{ contains(matrix.image, 'gnu') && 'gnu' || 'intel' }}
+        IMAGE=${{ matrix.image }}
+        TOOLCHAIN=${IMAGE%%-*}
         cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
         ninja
 
