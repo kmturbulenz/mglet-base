@@ -3,6 +3,7 @@ MODULE statistics_mod
     USE field_mod
     USE fields_mod
     USE fort7_mod
+    USE grids_mod
     USE precision_mod
     USE timer_mod
 
@@ -36,7 +37,7 @@ MODULE statistics_mod
     INTEGER(intk), ALLOCATABLE :: active_fields(:)
 
     PUBLIC :: init_statistics, finish_statistics, register_statfield, &
-        sample_statistics, comp_avg, comp_sqr_avg
+        sample_statistics, comp_avg, comp_sqr_avg, comp_cube_avg, differentiate
 
 CONTAINS
     SUBROUTINE init_statistics()
@@ -230,9 +231,259 @@ CONTAINS
         base_name = name(1:(nchar-4)/2)
         CALL get_field(infield, base_name)
 
+        ! staggeredness is preserved
         CALL field%copy_from(infield)
         field%units = infield%units*2
         field%arr = field%arr(:)**2
     END SUBROUTINE comp_sqr_avg
+
+
+    ! General routine to compute cubes such as UUU_AVG, VVV_AVG etc.
+    ! Does not do any interpolation of staggered quantities.
+    !
+    ! Use the naming convention UUU_AVG -> average of U*U*U etc.
+    SUBROUTINE comp_cube_avg(field, name, dt)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: field
+        CHARACTER(len=*), INTENT(in) :: name
+        REAL(realk), INTENT(in) :: dt
+
+        ! Local variables
+        TYPE(field_t), POINTER :: infield
+        CHARACTER(len=nchar_name) :: base_name
+        INTEGER(intk) :: nchar
+
+        ! Strip off "_AVG" at end of name to get field to compute average from
+        nchar = LEN_TRIM(name)
+
+        ! Sanity checks
+        IF (nchar < 7) CALL errr(__FILE__, __LINE__)
+        IF (nchar > nchar_name) CALL errr(__FILE__, __LINE__)
+        IF (name(nchar-3:nchar) /= "_AVG") CALL errr(__FILE__, __LINE__)
+        IF (MOD(nchar-4, 3) /= 0) CALL errr(__FILE__, __LINE__)
+
+        base_name = name(1:(nchar-4)/3)
+        CALL get_field(infield, base_name)
+
+        ! staggeredness is preserved
+        CALL field%copy_from(infield)
+        field%units = infield%units*3
+        field%arr = field%arr(:)**3
+    END SUBROUTINE comp_cube_avg
+
+
+    ! General routine for spatial differentiation of fields.
+    ! Staggeredness of field is not checked internally (!)
+    !
+    ! naming convention of "ivar":
+    ! DD* = diff. in direction of variable's staggering
+    ! D*S = diff. in other direction than variable's staggering
+    ! D*T = central difference (just for scalar)
+    !
+    SUBROUTINE differentiate(field, a, ivar)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: field
+        CLASS(field_t), INTENT(in) :: a
+        CHARACTER(len=3), INTENT(in) :: ivar
+
+        ! Local Variables
+        INTEGER(intk) :: igr, igrid
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: kk, jj, ii
+        TYPE(field_t), POINTER :: rdxyz
+        ! (usage of different pointers for readability)
+        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: rdx(:), rdy(:), rdz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), phi(:, :, :)
+
+        SELECT CASE (ivar)
+        CASE ("DXS")
+            ! non-x-staggered variable in x
+            IF ( a%istag == 0 .AND. field%istag == 1 .AND. &
+                 a%jstag == field%jstag .AND. &
+                 a%kstag == field%kstag ) THEN
+                CALL get_field(rdxyz, "RDX")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DYS")
+            ! non-y-staggered variable in y
+            IF ( a%istag == field%istag .AND. &
+                 a%jstag == 0 .AND. field%jstag == 1 .AND. &
+                 a%kstag == field%kstag ) THEN
+                CALL get_field(rdxyz, "RDY")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DZS")
+            ! non-z-staggered variable in z
+            IF ( a%istag == field%istag .AND. &
+                 a%jstag == field%jstag .AND. &
+                 a%kstag == 0 .AND. field%kstag == 1 ) THEN
+                CALL get_field(rdxyz, "RDZ")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DXT")
+            ! scalar (non-staggered) in x
+            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
+                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "DX")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DYT")
+            ! scalar (non-staggered) in y
+            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
+                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "DY")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DZT")
+            ! scalar (non-staggered) in z
+            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
+                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "DZ")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DDX")
+            ! x-staggered variable in x
+            IF ( a%istag == 1 .AND. field%istag == 0 .AND. &
+                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "RDDX")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DDY")
+            ! y-staggered variable in y
+            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
+                 a%jstag == 1 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "RDDY")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE ("DDZ")
+            ! z-staggered variable in z
+            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
+                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                 a%kstag == 1 .AND. field%kstag == 0 ) THEN
+                CALL get_field(rdxyz, "RDDZ")
+            ELSE
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        CASE DEFAULT
+            ! undefined derivative type
+            WRITE(*, *) "ivar: ", ivar
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
+
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL field%get_ptr(out, igrid)
+            CALL a%get_ptr(phi, igrid)
+
+            SELECT CASE (ivar)
+            CASE ("DXS")
+                CALL rdxyz%get_ptr(rdx, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k, j, i+1) - phi(k, j, i)) &
+                                *rdx(i)
+                        END DO
+                    END DO
+                END DO
+            CASE ("DXT")
+                CALL rdxyz%get_ptr(dx, igrid)
+                DO i = 3, ii-2
+                    DO j = 3, jj-2
+                        DO k = 3, kk-2
+                            out(k, j, i) = (phi(k, j, i+1) - phi(k, j, i-1)) &
+                                /(dx(i) + dx(i-1))
+                        END DO
+                    END DO
+                END DO
+            CASE ("DDX")
+                CALL rdxyz%get_ptr(rddx, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k, j, i) - phi(k, j, i-1)) &
+                                *rddx(i)
+                        END DO
+                    END DO
+                END DO
+            CASE ("DYS")
+                CALL rdxyz%get_ptr(rdy, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k, j+1, i) - phi(k, j, i)) &
+                                *rdy(j)
+                        END DO
+                    END DO
+                END DO
+            CASE ("DYT")
+                CALL rdxyz%get_ptr(dy, igrid)
+                DO i = 3, ii-2
+                    DO j = 3, jj-2
+                        DO k = 3, kk-2
+                            out(k, j, i) = (phi(k, j+1, i) - phi(k, j-1, i)) &
+                                /(dy(j) + dy(j-1))
+                        END DO
+                    END DO
+                END DO
+            CASE ("DDY")
+                CALL rdxyz%get_ptr(rddy, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k, j, i) - phi(k, j-1, i)) &
+                                *rddy(j)
+                        END DO
+                    END DO
+                END DO
+            CASE ("DZS")
+                CALL rdxyz%get_ptr(rdz, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k+1, j, i) - phi(k, j, i)) &
+                                *rdz(k)
+                        END DO
+                    END DO
+                END DO
+            CASE ("DZT")
+                CALL rdxyz%get_ptr(dz, igrid)
+                DO i = 3, ii-2
+                    DO j = 3, jj-2
+                        DO k = 3, kk-2
+                            out(k, j, i) = (phi(k+1, j, i) - phi(k-1, j, i)) &
+                                /(dz(k) + dz(k-1))
+                        END DO
+                    END DO
+                END DO
+            CASE ("DDZ")
+                CALL rdxyz%get_ptr(rddz, igrid)
+                DO i = 2, ii-1
+                    DO j = 2, jj-1
+                        DO k = 2, kk-1
+                            out(k, j, i) = (phi(k, j, i) - phi(k-1, j, i)) &
+                                *rddz(k)
+                        END DO
+                    END DO
+                END DO
+            END SELECT
+        END DO
+    END SUBROUTINE differentiate
 
 END MODULE statistics_mod

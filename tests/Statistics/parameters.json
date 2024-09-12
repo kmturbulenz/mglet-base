@@ -1,0 +1,66 @@
+{
+    "time": {
+        "dt": 0.05,
+        "mtstep": 40,
+        "tstat": 0.0,
+        "itinfo": 10,
+	"itsamp": 10,
+        "tend": 10000.0,
+        "read": false,
+        "write": false,
+        "continue": false
+    },
+    "io": {
+        "grids": "grids.h5",
+        "infile": "none.h5",
+        "outfile": "none.h5"
+    },
+    "flow": {
+        "solve": true,
+        "gmol": 0.0001,
+        "rho": 1.0,
+        "uinf": [0.0, 0.0, 0.0],
+        "gradp": [-0.005, 0.0, 0.0],
+        "tu_level": 0.0,
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.00005,
+            "nouter_min": 2,
+            "nouter": 12,
+            "ninner": 6,
+            "omega": 1.1,
+            "loglevel": 3
+        },
+        "lesmodel": {
+            "model": "none"
+        }
+    },
+    "ib": {
+        "type": "noib"
+    },
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "SCALAR",
+                "prmol": 1.0
+            }
+        ]
+    },
+    "statistics": [
+        "SCALAR_AVG", "P_AVG",
+        "U_AVG", "V_AVG", "W_AVG",
+        "UU_AVG", "VV_AVG", "WW_AVG",
+        "UV_AVG", "VW_AVG", "UW_AVG",
+	    "UUU_AVG", "VVV_AVG", "WWW_AVG",
+	    "UUV_AVG", "UUW_AVG", "UVW_AVG",
+        "UVV_AVG", "UWW_AVG", "VVW_AVG", "VWW_AVG",
+        "UP_AVG", "VP_AVG", "WP_AVG",
+        "UxP_AVG", "VyP_AVG", "WzP_AVG",
+        "UxUx_AVG", "UyUy_AVG", "UzUz_AVG",
+        "VxVx_AVG", "VyVy_AVG", "VzVz_AVG",
+        "WxWx_AVG", "WyWy_AVG", "WzWz_AVG",
+        "UyP+VxP_AVG", "UzP+WxP_AVG", "VzP+WyP_AVG",
+        "DISSIP_AVG"
+    ]
+}
