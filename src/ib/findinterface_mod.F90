@@ -29,7 +29,7 @@ CONTAINS
         foundz2 = 0
         foundnr = 0
 
-        IF (blocked(k, j ,i) <= 0.5) THEN
+        IF (blocked(k, j, i) <= 0.5) THEN
             IF (blocked(k, j, i+1) >= 0.5) THEN
                 foundnr = foundnr + 1
                 found = 1
@@ -95,13 +95,13 @@ CONTAINS
 
         SELECT CASE(compon)
         CASE (1)
-            IF (NINT(bu(k,j,i)) == 0) THEN
+            IF (NINT(bu(k, j, i)) == 0) THEN
                 IF (NINT(bp(k, j, i)) == 1) found = 1
                 IF (NINT(bp(k, j, i+1)) == 1) found = 1
             END IF
         CASE (2)
             IF (NINT(bv(k, j, i)) == 0) then
-                IF (NINT(bp(k, j, i )) == 1) found = 1
+                IF (NINT(bp(k, j, i)) == 1) found = 1
                 IF (NINT(bp(k, j+1, i)) == 1) found = 1
             END IF
         CASE (3)

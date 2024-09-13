@@ -224,9 +224,9 @@ CONTAINS
             ! Zellen suchen, die das Dreieck schneiden
             ! Innerhalb der zuvor bestimmten Index-Grenzen
             ! wird nach Schnittpunkten gesucht
-            DO i = ntrilim(1,1), ntrilim(1,2)
-                DO j = ntrilim(2,1), ntrilim(2,2)
-                    DO k = ntrilim(3,1), ntrilim(3,2)
+            DO i = ntrilim(1, 1), ntrilim(1, 2)
+                DO j = ntrilim(2, 1), ntrilim(2, 2)
+                    DO k = ntrilim(3, 1), ntrilim(3, 2)
 
                         ! The length is the middle length when the cell has
                         ! different edge lengths.
@@ -360,9 +360,9 @@ CONTAINS
         INTEGER(intk) :: ind(3)
 
         ! ntrimax=2 in usual blocking, =1 in srep and calcvolumesexact
-        IF (-kanteu(k,j,i) < ntrimax) THEN
+        IF (-kanteu(k, j, i) < ntrimax) THEN
             kanteu(k, j, i) = kanteu(k, j, i) - 1.0_realk
-            triau(-INT(kanteu(k, j, i)),k, j, i) = itrineu
+            triau(-INT(kanteu(k, j, i)), k, j, i) = itrineu
         ELSE IF (ntrimax == 2) THEN
             ! In case of ntrimax=2, maximal two intersection points per corner
             ! are stored. The following code chooses, which ones to store.
@@ -472,7 +472,7 @@ CONTAINS
     PURE SUBROUTINE intinface(kk, jj, ii, xstag, ystag, zstag, ddx, ddy, ddz, &
             i, j, k, a, b, c, xp, yp, zp, &
             x1, y1, z1, x2, y2, z2, x3, y3, z3, &
-            eps, xmin, xmax, ymin, ymax, zmin, zmax,&
+            eps, xmin, xmax, ymin, ymax, zmin, zmax, &
             found, foundx, foundy, foundz, exactedge)
 
         ! Subroutine arguments
@@ -604,7 +604,7 @@ CONTAINS
                 IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
                     IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
                             (yy >= ymin-eps) .AND. (yy <= ymax+eps) .AND. &
-                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps)) THEN
                         found  = 1
                         foundx = 1
                     END IF
@@ -670,7 +670,7 @@ CONTAINS
                 IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
                     IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
                             (yy >= ymin-eps) .AND. (yy <= ymax+eps).AND.&
-                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps)) THEN
                         found  = 1
                         foundy = 1
                     END IF
@@ -732,7 +732,7 @@ CONTAINS
                 IF ((s1 <= eps) .AND. (s2 <= eps) .AND. (s3 <= eps)) THEN
                     IF ((xx >= xmin-eps) .AND. (xx <= xmax+eps) .AND. &
                             (yy >= ymin-eps) .AND. (yy <= ymax+eps) .AND. &
-                            (zz >= zmin-eps) .AND. (zz <= zmax+eps) ) THEN
+                            (zz >= zmin-eps) .AND. (zz <= zmax+eps)) THEN
                         found  = 1
                         foundz = 1
                     END IF

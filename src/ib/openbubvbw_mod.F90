@@ -46,15 +46,15 @@ CONTAINS
                 DO k = 2, kk-1
                     IF (au(k, j, i) >= (1.0-openaccur) &
                             .AND. NINT(bu(k, j, i)) == 0) THEN
-                        bu(k,j,i) = 1.0
+                        bu(k, j, i) = 1.0
                     END IF
                     IF (av(k, j, i) >= (1.0-openaccur) &
                             .AND. NINT(bv(k, j, i)) == 0) THEN
-                        bv(k,j,i) = 1.0
+                        bv(k, j, i) = 1.0
                     END IF
                     IF (aw(k, j, i) >= (1.0-openaccur) &
                             .AND. NINT(bw(k, j, i)) == 0) THEN
-                        bw(k,j,i) = 1.0
+                        bw(k, j, i) = 1.0
                     END IF
                 END DO
             END DO

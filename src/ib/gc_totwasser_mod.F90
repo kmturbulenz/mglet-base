@@ -89,7 +89,7 @@ CONTAINS
         END DO
 
         IF (.NOT. converged) THEN
-            WRITE(*,*) "Totwasser algorithm did not converge: ", iloop
+            WRITE(*, *) "Totwasser algorithm did not converge: ", iloop
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -278,7 +278,7 @@ CONTAINS
         END DO
 
         IF (.NOT. converged) THEN
-            WRITE(*,*) "Totwasser algorithm did not converge: ", iloop
+            WRITE(*, *) "Totwasser algorithm did not converge: ", iloop
             CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE totwasser_grid

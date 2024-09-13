@@ -193,9 +193,9 @@ CONTAINS
 
         ! Sanity check
         IF (ioproc .AND. shape(1) /= ngrid) THEN
-            WRITE(*,*) "face: ", face
-            WRITE(*,*) "shape(1): ", shape(1)
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "face: ", face
+            WRITE(*, *) "shape(1): ", shape(1)
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 

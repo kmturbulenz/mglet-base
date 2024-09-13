@@ -85,7 +85,8 @@ CONTAINS
                 WRITE(*, '(2X, A)') TRIM(uinf_expr(2))
                 WRITE(*, '("  Using expression for W:")')
                 WRITE(*, '(2X, A)') TRIM(uinf_expr(3))
-                WRITE(*, '("  Expression is time-dependent: ", L1)') uinf_is_time
+                WRITE(*, '("  Expression is time-dependent: ", L1)') &
+                    uinf_is_time
                 WRITE(*, '()')
             END IF
         ELSE

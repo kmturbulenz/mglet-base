@@ -132,7 +132,7 @@ CONTAINS
 
         IF (idx > maxtimers) CALL errr(__FILE__, __LINE__)
         IF (stack(stackpos) /= idx) THEN
-           write(*, *) "Timer", idx, "stack",stack(stackpos)
+           write(*, *) "Timer", idx, "stack", stack(stackpos)
            CALL errr(__FILE__, __LINE__)
         END IF
         IF (timers(idx)%tic < 0.0) THEN
@@ -153,7 +153,8 @@ CONTAINS
         elapsed = toc - timers(idx)%exTic
         timers(idx)%exSum = timers(idx)%exSum + elapsed
         timers(idx)%exMeanTime = timers(idx)%exMeanTime + &
-            (timers(idx)%exSum - timers(idx)%exMeanTime)/REAL(timers(idx)%n, real64)
+            (timers(idx)%exSum - timers(idx)%exMeanTime) &
+            /REAL(timers(idx)%n, real64)
         timers(idx)%exSum = 0.0
 
         ! Start previous stack timer again
@@ -195,7 +196,7 @@ CONTAINS
             OPEN(newunit=wu, file=filename)
             WRITE(wu, *) "TIMING RESULTS:"
             WRITE(wu, *) "  Average time per instance."
-            WRITE(wu, *) "  Minimum and maximum average instance time per process."
+            WRITE(wu, *) "  Min and max average instance time per process."
             WRITE(wu, *) "  Average number of instances per process."
             WRITE(wu, *) "  Average total time."
             WRITE(wu, *) ""

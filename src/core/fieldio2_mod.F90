@@ -556,8 +556,8 @@ CONTAINS
         CALL h5sget_simple_extent_npoints_f(aspace_id, npoints, hdferr)
         IF (hdferr < 0) CALL errr(__FILE__, __LINE__)
         IF (npoints /= 1) THEN
-            WRITE(*,*) "Error opening attribute"
-            WRITE(*,*) "Number of elements in file: ", npoints
+            WRITE(*, *) "Error opening attribute"
+            WRITE(*, *) "Number of elements in file: ", npoints
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -1147,7 +1147,7 @@ CONTAINS
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
             IF (npoints /= count_m) THEN
-                WRITE(*,*) "npoints, count_m", npoints, count_m
+                WRITE(*, *) "npoints, count_m", npoints, count_m
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -1518,7 +1518,7 @@ CONTAINS
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         IF (npoints /= count_m) THEN
-            WRITE(*,*) "npoints, count_m", npoints, count_m
+            WRITE(*, *) "npoints, count_m", npoints, count_m
             CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE select_hyperslab_data

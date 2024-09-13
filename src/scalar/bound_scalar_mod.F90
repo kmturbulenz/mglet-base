@@ -149,7 +149,7 @@ CONTAINS
                                 (w(k-1, j, i3) + (w(k, j, i3)-w(k-1, j, i3)) &
                                     /ddz(k)*ddz(k-1)*0.5)**2.0 + &
                                 (v(k, j-1, i3) + (v(k, j, i3)-v(k, j-1, i3)) &
-                                    /ddy(j)*ddy(j-1)*0.5 )**2.0)
+                                    /ddy(j)*ddy(j-1)*0.5)**2.0)
                             qtu(k, j, istag2) = -dir*qwallfix(tbuf(k, j, 1), &
                                 t(k, j, i3), uquer, ddx(i3), prmol)*area
                         END DO
@@ -529,7 +529,7 @@ CONTAINS
                                 (u(k3, j, i-1) + (u(k3, j, i)-u(k3, j, i-1)) &
                                     /ddx(i)*ddx(i-1)*0.5)**2.0 + &
                                 (v(k3, j-1, i) + (v(k3, j, i)-v(k3, j-1, i)) &
-                                    /ddy(j)*ddy(j-1)*0.5 )**2.0)
+                                    /ddy(j)*ddy(j-1)*0.5)**2.0)
                             qtw(kstag2, j, i) = -dir*qwallfix(tbuf(j, i, 1), &
                                 t(k3, j, i), uquer, ddz(k3), prmol)*area
                         END DO

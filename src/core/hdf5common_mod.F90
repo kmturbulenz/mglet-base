@@ -127,7 +127,7 @@ CONTAINS
         END IF
 
         IF (LEN(mode) < 1 .OR. LEN(mode) > 2) THEN
-            WRITE(*,*) "Invalid mode: ", mode
+            WRITE(*, *) "Invalid mode: ", mode
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -217,7 +217,7 @@ CONTAINS
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
 
         ELSE
-            WRITE(*,*) "Invalid mode: ", mode
+            WRITE(*, *) "Invalid mode: ", mode
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -402,21 +402,21 @@ CONTAINS
 
             ! Check that dataspace is same dims. as requested
             IF (ierr > maxrank) THEN
-                WRITE(*,*) "Dataset rank in file: ", ierr
-                WRITE(*,*) "Maximum rank: ", maxrank
+                WRITE(*, *) "Dataset rank in file: ", ierr
+                WRITE(*, *) "Maximum rank: ", maxrank
                 CALL errr(__FILE__, __LINE__)
             END IF
             IF (ierr /= SIZE(shape)) THEN
-                WRITE(*,*) "Error opening dataset: ", name
-                WRITE(*,*) "Griven shape parameter: ", shape
-                WRITE(*,*) "Dataset rank in file: ", ierr
+                WRITE(*, *) "Error opening dataset: ", name
+                WRITE(*, *) "Griven shape parameter: ", shape
+                WRITE(*, *) "Dataset rank in file: ", ierr
                 CALL errr(__FILE__, __LINE__)
             END IF
             DO i = 1, SIZE(shape)
                 IF (dims(i) /= shape(i)) THEN
-                    WRITE(*,*) "Error opening dataset: ", name
-                    WRITE(*,*) "Griven shape parameter: ", shape
-                    WRITE(*,*) "Dataset shape in file: ", dims(1:ierr)
+                    WRITE(*, *) "Error opening dataset: ", name
+                    WRITE(*, *) "Griven shape parameter: ", shape
+                    WRITE(*, *) "Dataset shape in file: ", dims(1:ierr)
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END DO
@@ -429,9 +429,9 @@ CONTAINS
             CALL h5tequal_f(filetype, dtype, is_equal, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
             IF (.NOT. is_equal) THEN
-                WRITE(*,*) "Fatal error: datatype in opened dataset is not"
-                WRITE(*,*) "equal to requested datatype."
-                WRITE(*,*) "Dataset name: ", name
+                WRITE(*, *) "Fatal error: datatype in opened dataset is not"
+                WRITE(*, *) "equal to requested datatype."
+                WRITE(*, *) "Dataset name: ", name
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -487,10 +487,10 @@ CONTAINS
             CALL h5fget_name_f(parent_id, filename, flen, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
 
-            WRITE(*,*) "Fatal error in opening dataset: ", name
-            WRITE(*,*) "  group: ", groupname(1:glen)
-            WRITE(*,*) "   file: ", filename(1:flen)
-            WRITE(*,*) "Dataset does not exist!"
+            WRITE(*, *) "Fatal error in opening dataset: ", name
+            WRITE(*, *) "  group: ", groupname(1:glen)
+            WRITE(*, *) "   file: ", filename(1:flen)
+            WRITE(*, *) "Dataset does not exist!"
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -508,14 +508,14 @@ CONTAINS
 
         ! Check that dataspace is same dims. as requested
         IF (ierr > maxrank) THEN
-            WRITE(*,*) "Dataset rank in file: ", ierr
-            WRITE(*,*) "Maximum rank: ", maxrank
+            WRITE(*, *) "Dataset rank in file: ", ierr
+            WRITE(*, *) "Maximum rank: ", maxrank
             CALL errr(__FILE__, __LINE__)
         END IF
         IF (ierr /= SIZE(shape)) THEN
-            WRITE(*,*) "Error opening dataset: ", name
-            WRITE(*,*) "Size of 'shape' parameter: ", SIZE(shape)
-            WRITE(*,*) "Dataset rank in file: ", ierr
+            WRITE(*, *) "Error opening dataset: ", name
+            WRITE(*, *) "Size of 'shape' parameter: ", SIZE(shape)
+            WRITE(*, *) "Dataset rank in file: ", ierr
             CALL errr(__FILE__, __LINE__)
         END IF
         DO i = 1, SIZE(shape)
@@ -575,14 +575,14 @@ CONTAINS
 
                 ! Check that dataspace is same dims. as requested
                 IF (ierr > maxrank) THEN
-                    WRITE(*,*) "Dataset rank in file: ", ierr
-                    WRITE(*,*) "Maximum rank: ", maxrank
+                    WRITE(*, *) "Dataset rank in file: ", ierr
+                    WRITE(*, *) "Maximum rank: ", maxrank
                     CALL errr(__FILE__, __LINE__)
                 END IF
                 IF (ierr /= SIZE(shape)) THEN
-                    WRITE(*,*) "Error opening dataset: ", name
-                    WRITE(*,*) "Size of 'shape' parameter: ", SIZE(shape)
-                    WRITE(*,*) "Dataset rank in file: ", ierr
+                    WRITE(*, *) "Error opening dataset: ", name
+                    WRITE(*, *) "Size of 'shape' parameter: ", SIZE(shape)
+                    WRITE(*, *) "Dataset rank in file: ", ierr
                     CALL errr(__FILE__, __LINE__)
                 END IF
                 ! Copy to output array
@@ -639,9 +639,9 @@ CONTAINS
 
         DO i = 1, ndims
             IF (shape(i) > maxdims(i) .AND. maxdims(i) /= H5S_UNLIMITED_F) THEN
-                WRITE(*,*) "i:          ", i
-                WRITE(*,*) "shape(i):   ", shape(i)
-                WRITE(*,*) "maxdims(i): ", maxdims(i)
+                WRITE(*, *) "i:          ", i
+                WRITE(*, *) "shape(i):   ", shape(i)
+                WRITE(*, *) "maxdims(i): ", maxdims(i)
                 CALL errr(__FILE__, __LINE__)
             END IF
         END DO
@@ -765,8 +765,8 @@ CONTAINS
 
             ! Check that dataspace is scalar
             IF (ierr /= 0) THEN
-                WRITE(*,*) "Error opening attribute: ", name
-                WRITE(*,*) "Attribute rank in file: ", ierr
+                WRITE(*, *) "Error opening attribute: ", name
+                WRITE(*, *) "Attribute rank in file: ", ierr
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -775,9 +775,9 @@ CONTAINS
             CALL h5tequal_f(hdf5_dtype, type_id, is_equal, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
             IF (.NOT. is_equal) THEN
-                WRITE(*,*) "Fatal error: datatype in opened attribute is not"
-                WRITE(*,*) "equal to requested datatype."
-                WRITE(*,*) "Attribute name: ", name
+                WRITE(*, *) "Fatal error: datatype in opened attribute is not"
+                WRITE(*, *) "equal to requested datatype."
+                WRITE(*, *) "Attribute name: ", name
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -891,8 +891,8 @@ CONTAINS
 
             ! Check that dataspace is rank-1
             IF (ierr /= 1) THEN
-                WRITE(*,*) "Error opening attribute: ", name
-                WRITE(*,*) "Attribute rank in file: ", ierr
+                WRITE(*, *) "Error opening attribute: ", name
+                WRITE(*, *) "Attribute rank in file: ", ierr
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -901,9 +901,9 @@ CONTAINS
             CALL h5tequal_f(hdf5_dtype, type_id, is_equal, ierr)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
             IF (.NOT. is_equal) THEN
-                WRITE(*,*) "Fatal error: datatype in opened attribute is not"
-                WRITE(*,*) "equal to requested datatype."
-                WRITE(*,*) "Attribute name: ", name
+                WRITE(*, *) "Fatal error: datatype in opened attribute is not"
+                WRITE(*, *) "equal to requested datatype."
+                WRITE(*, *) "Attribute name: ", name
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -981,14 +981,14 @@ CONTAINS
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
 
             IF (ierr > maxrank) THEN
-                WRITE(*,*) "Dataset rank in file: ", ierr
-                WRITE(*,*) "Maximum rank: ", maxrank
+                WRITE(*, *) "Dataset rank in file: ", ierr
+                WRITE(*, *) "Maximum rank: ", maxrank
                 CALL errr(__FILE__, __LINE__)
             END IF
 
             IF (ierr /= SIZE(shape)) THEN
-                WRITE(*,*) "Attribute rank in file: ", ierr
-                WRITE(*,*) "Size of shape array: ",  SIZE(shape)
+                WRITE(*, *) "Attribute rank in file: ", ierr
+                WRITE(*, *) "Size of shape array: ",  SIZE(shape)
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -1065,15 +1065,15 @@ CONTAINS
 
         ! Check that dataspace is scalar or 1-D
         IF (ierr > 1) THEN
-            WRITE(*,*) "Error opening attribute: ", name
-            WRITE(*,*) "Attribute rank in file: ", ierr
+            WRITE(*, *) "Error opening attribute: ", name
+            WRITE(*, *) "Attribute rank in file: ", ierr
             CALL errr(__FILE__, __LINE__)
         ! In case 1-D the dims must be 1
         ELSE IF (ierr == 1) THEN
             IF (dims(1) /= 1) THEN
-                WRITE(*,*) "Error opening attribute: ", name
-                WRITE(*,*) "Attribute rank in file: ", ierr
-                WRITE(*,*) "Attribute shape: ", dims(1:ierr)
+                WRITE(*, *) "Error opening attribute: ", name
+                WRITE(*, *) "Attribute rank in file: ", ierr
+                WRITE(*, *) "Attribute shape: ", dims(1:ierr)
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF
@@ -1154,16 +1154,16 @@ CONTAINS
 
         ! Check that dataspace is rank-1
         IF (ierr /= 1) THEN
-            WRITE(*,*) "Error opening attribute: ", name
-            WRITE(*,*) "Attribute rank in file: ", ierr
+            WRITE(*, *) "Error opening attribute: ", name
+            WRITE(*, *) "Attribute rank in file: ", ierr
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Check that dataset to be read is same as memory buffer size
         IF (dims(1) /= nelems) THEN
-            WRITE(*,*) "Error opening attribute: ", name
-            WRITE(*,*) "Attribute size in file: ", dims(1)
-            WRITE(*,*) "Memory buffer size: ", nelems
+            WRITE(*, *) "Error opening attribute: ", name
+            WRITE(*, *) "Attribute size in file: ", dims(1)
+            WRITE(*, *) "Memory buffer size: ", nelems
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -1183,9 +1183,9 @@ CONTAINS
         CALL h5tget_class_f(hdf5_dtype, class_value, ierr)
         IF (ierr < 0) CALL errr(__FILE__, __LINE__)
         IF (class_file /= class_value) THEN
-            WRITE(*,*) "Fatal error: datatype in opened attribute is not"
-            WRITE(*,*) "equal to requested datatype."
-            WRITE(*,*) "Attribute name: ", name
+            WRITE(*, *) "Fatal error: datatype in opened attribute is not"
+            WRITE(*, *) "equal to requested datatype."
+            WRITE(*, *) "Attribute name: ", name
             CALL errr(__FILE__, __LINE__)
         END IF
 

@@ -232,7 +232,7 @@ CONTAINS
             found = thisfound
         ELSE
             IF (.NOT. thisfound) THEN
-                WRITE(*,*) "Could not find field: ", TRIM(name)
+                WRITE(*, *) "Could not find field: ", TRIM(name)
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF
@@ -269,7 +269,7 @@ CONTAINS
             found = thisfound
         ELSE
             IF (.NOT. thisfound) THEN
-                WRITE(*,*) "Could not find field: ", TRIM(name)
+                WRITE(*, *) "Could not find field: ", TRIM(name)
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF

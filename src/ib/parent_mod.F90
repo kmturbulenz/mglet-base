@@ -34,7 +34,7 @@ MODULE parent_mod
     ! Lists that hold the messages that are ACTUALLY sendt and received
     INTEGER(intk) :: nSend, nRecv, nRecvFaces
     INTEGER(int32), ALLOCATABLE :: sendList(:), recvList(:)
-    INTEGER(intk), ALLOCATABLE :: recvIdxList(:,:)
+    INTEGER(intk), ALLOCATABLE :: recvIdxList(:, :)
 
     ! Number of send and receive connections
     INTEGER(intk) :: iSend = 0, iRecv = 0
@@ -86,13 +86,13 @@ CONTAINS
 
         ! Check if the connection information has been created
         IF (is_init .EQV. .FALSE.) THEN
-            WRITE(*,*) "'parent' not initialized"
+            WRITE(*, *) "'parent' not initialized"
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Check that no other transfers are in progress
         IF (nSend > 0 .OR. nRecv > 0) THEN
-            WRITE(*,*) "Other transfer in progress."
+            WRITE(*, *) "Other transfer in progress."
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -100,7 +100,8 @@ CONTAINS
         nVars = 0
         IF (PRESENT(v1)) THEN
             IF (.NOT. (PRESENT(v2) .AND. PRESENT(v3))) THEN
-                WRITE(*,*) "If one vector arg is present, all three must be present."
+                WRITE(*, *) "If one vector arg is present, all three " &
+                    // "must be present."
                 CALL errr(__FILE__, __LINE__)
             END IF
             u => v1
@@ -108,7 +109,8 @@ CONTAINS
             w => v3
             nVars = nVars + 3
         ELSE IF (PRESENT(v2) .OR. PRESENT(v3)) THEN
-            WRITE(*,*) "If one vector arg is present, all three must be present."
+            WRITE(*, *) "If one vector arg is present, all three " &
+                // "must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -133,7 +135,7 @@ CONTAINS
                     nVars = nVars - 2
                     sn = .TRUE.
                 ELSE
-                    WRITE(*,*) "normal=.TRUE. require a vector v1, v2, v3."
+                    WRITE(*, *) "normal=.TRUE. require a vector v1, v2, v3."
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END IF
@@ -141,7 +143,7 @@ CONTAINS
 
         ! Not specifying any fields would be very strange
         IF (nVars == 0) THEN
-            WRITE(*,*) "You have not specified any fields to exchange."
+            WRITE(*, *) "You have not specified any fields to exchange."
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -222,7 +224,7 @@ CONTAINS
         nRecv = nRecv + 1
         recvList(nRecv) = iprocnbr
 
-        CALL MPI_Irecv(recvBuf(recvCounter+1) , messageLength, &
+        CALL MPI_Irecv(recvBuf(recvCounter+1), messageLength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvReqs(nRecv))
 
         recvCounter = recvCounter + messageLength
@@ -572,7 +574,7 @@ CONTAINS
 
         ! Check that message length was calculated correctly
         IF (thisMessageLength /= iCount) THEN
-            write(*,*) "nVars:", nVars, " thisMessageLength:", &
+            write(*, *) "nVars:", nVars, " thisMessageLength:", &
                 thisMessageLength, " iCount:", iCount
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -729,15 +731,15 @@ CONTAINS
 
         IF (ASSOCIATED(bv_ptr)) THEN
             NULLIFY(bv_ptr)
-        ENDIF
+        END IF
 
         IF (ASSOCIATED(bw_ptr)) THEN
             NULLIFY(bw_ptr)
-        ENDIF
+        END IF
 
         ! Check that message length is calculated correctly
         IF (idx /= recvIdxList(2, recvId)) THEN
-            WRITE(*,*) "idx:", idx, &
+            WRITE(*, *) "idx:", idx, &
                 "recvIdxList(2, recvId):", recvIdxList(2, recvId)
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -852,8 +854,8 @@ CONTAINS
                     nRecv = nRecv + 1
 
                     IF (nRecv > maxConns) THEN
-                        write(*,*) "Number of PAR's exceeded on process ", myid
-                        write(*,*) "maxConns =", maxConns, &
+                        write(*, *) "Number of PAR's exceeded on process ", myid
+                        write(*, *) "maxConns =", maxConns, &
                             "nMyGrids =", nMyGrids, "nRecv = ", nRecv
                         CALL errr(__FILE__, __LINE__)
                     END IF
@@ -876,10 +878,10 @@ CONTAINS
         iRecv = nRecv
 
         ! Sort recvConns by process ID
-        CALL sort_conns(recvConns(:,1:nRecv))
+        CALL sort_conns(recvConns(:, 1:nRecv))
 
         ! Calculate sdispl offset
-        DO i = 1,numprocs-1
+        DO i = 1, numprocs-1
             sdispls(i) = sdispls(i-1) + sendcounts(i-1)
         END DO
 
@@ -889,7 +891,7 @@ CONTAINS
             MPI_INTEGER, MPI_COMM_WORLD, ierr)
 
         ! Calculate rdispl offset
-        DO i=1,numprocs-1
+        DO i=1, numprocs-1
             rdispls(i) = rdispls(i-1) + recvcounts(i-1)
         END DO
 
@@ -931,9 +933,9 @@ CONTAINS
 
     SUBROUTINE sort_conns(list)
         ! Input array to be sorted
-        INTEGER(int32), INTENT(inout) :: list(:,:)
+        INTEGER(int32), INTENT(inout) :: list(:, :)
 
-        INTEGER(intk) :: i,j
+        INTEGER(intk) :: i, j
 
         ! Temporary storage
         INTEGER(int32) :: temp(7)
@@ -943,18 +945,18 @@ CONTAINS
         END IF
 
         ! Sort by sending processor number (field 2)
-        DO i = 2,SIZE(list, 2)
+        DO i = 2, SIZE(list, 2)
             j = i - 1
-            temp(:) = list(:,i)
+            temp(:) = list(:, i)
             DO WHILE (j >= 1)
-                IF (list(2,j) > temp(2)) THEN
-                    list(:,j+1) = list(:,j)
+                IF (list(2, j) > temp(2)) THEN
+                    list(:, j+1) = list(:, j)
                     j = j - 1
                 ELSE
                     EXIT
                 END IF
             END DO
-            list(:,j+1) = temp(:)
+            list(:, j+1) = temp(:)
         END DO
 
     END SUBROUTINE sort_conns
@@ -1140,14 +1142,14 @@ CONTAINS
 
                     IF (pack_buvw) THEN
                         bvcn = hilf(jc, ic)*(1.0 - hilf(jc-1, ic))
-                        bvcs = hilf(jc-1, ic)*(1.0 - hilf(jc ,ic))
+                        bvcs = hilf(jc-1, ic)*(1.0 - hilf(jc, ic))
 
                         out(jf, ic) = 0.5*(in(jc, ic) + in(jc-1, ic)) &
                             *(1.0 - bvcn - bvcs) &
                             + (in(jc, ic) + in(jc-1, ic))*(bvcn + bvcs)
 
                         out(jf+1, ic) = in(jc, ic)*hilf(jc, ic) &
-                            + divide0(in(jc-1, ic) + in(jc+1,ic), &
+                            + divide0(in(jc-1, ic) + in(jc+1, ic), &
                                       hilf(jc-1, ic) + hilf(jc+1, ic)) &
                             *(1.0 - hilf(jc, ic))
                     ELSE
@@ -1189,7 +1191,7 @@ CONTAINS
             DO if = 1, ii, 2
                 ic = 2 + (if-1)/2
                 DO jf = 1, jj
-                    out(jf, if  ) = in(jf, ic)
+                    out(jf, if) = in(jf, ic)
                     out(jf, if+1) = in(jf, ic)
                 END DO
             END DO

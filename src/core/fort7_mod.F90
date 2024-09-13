@@ -34,7 +34,7 @@ CONTAINS
         CASE (1)
             CALL GET_COMMAND_ARGUMENT(1, value=filename, status=status)
             IF (status /= 0) THEN
-                WRITE(*,*) "filename, status: ", filename, status
+                WRITE(*, *) "filename, status: ", filename, status
                 CALL errr(__FILE__, __LINE__)
             END IF
             IF (myid == 0) THEN
@@ -47,7 +47,7 @@ CONTAINS
 
         INQUIRE(FILE=filename, EXIST=exists)
         IF (.NOT. exists) THEN
-            WRITE(*,*) "File not found: ", filename
+            WRITE(*, *) "File not found: ", filename
             CALL errr(__FILE__, __LINE__)
         END IF
         CALL fort7%read(filename)

@@ -436,12 +436,12 @@ CONTAINS
                         + v(k+1, jstag2, i+1)*(1.0-sb14)*ddz(k+1)*ddx(i+1)) &
                         /((ddz(k)+ddz(k+1))*(ddx(i)+ddx(i+1)))
 
-                    v(k, jstag2, i  ) = (vbuf(k, i, 1)-vbfine)*fak*sb11 &
-                        + v(k, jstag2, i  )*(1.-sb11)*sbv
+                    v(k, jstag2, i) = (vbuf(k, i, 1)-vbfine)*fak*sb11 &
+                        + v(k, jstag2, i)*(1.-sb11)*sbv
                     v(k, jstag2, i+1) = (vbuf(k, i+1, 1)-vbfine)*fak*sb12 &
                         + v(k, jstag2, i+1)*(1.-sb12)*sbv
-                    v(k+1, jstag2, i  ) = (vbuf(k+1, i, 1)-vbfine)*fak*sb13 &
-                        + v(k+1, jstag2, i  )*(1.-sb13)*sbv
+                    v(k+1, jstag2, i) = (vbuf(k+1, i, 1)-vbfine)*fak*sb13 &
+                        + v(k+1, jstag2, i)*(1.-sb13)*sbv
                     v(k+1, jstag2, i+1) = (vbuf(k+1, i+1, 1)-vbfine)*fak*sb14 &
                         + v(k+1, jstag2, i+1)*(1.-sb14)*sbv
                 END DO
@@ -672,7 +672,7 @@ CONTAINS
                         + w(kstag2, j, i)*(1.0-sb11)*sbw
                     w(kstag2, j, i+1) = (wbuf(j, i+1, 1)-wbfine)*fak*sb12 &
                         + w(kstag2, j, i+1)*(1.0-sb12)*sbw
-                    w(kstag2, j+1, i  ) = (wbuf(j+1, i, 1)-wbfine)*fak*sb13 &
+                    w(kstag2, j+1, i) = (wbuf(j+1, i, 1)-wbfine)*fak*sb13 &
                         + w(kstag2, j+1, i)*(1.0-sb13)*sbw
                     w(kstag2, j+1, i+1) = (wbuf(j+1, i+1, 1)-wbfine)*fak*sb14 &
                         + w(kstag2, j+1, i+1)*(1.0-sb14)*sbw

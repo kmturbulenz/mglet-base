@@ -18,7 +18,8 @@ MODULE bound_mod
     END TYPE bound_t
 
     ABSTRACT INTERFACE
-        SUBROUTINE bound_face_i(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
+        SUBROUTINE bound_face_i(igrid, iface, ibocd, ctyp, f1, f2, f3, &
+                f4, timeph)
             IMPORT :: bound_t, intk, realk, field_t
             INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
             CHARACTER(len=*), INTENT(in) :: ctyp

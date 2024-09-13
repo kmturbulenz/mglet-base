@@ -94,7 +94,7 @@ CONTAINS
         DO i = 2, ii-1
             DO j = 2, jj-1
                 DO k = 2, kk-1
-                    knoten(k, j, i) = MIN(knoten(k,j,i), &
+                    knoten(k, j, i) = MIN(knoten(k, j, i), &
                         bp(k+1, j+1, i+1) &
                         + bp(k+1, j+1, i) &
                         + bp(k+1, j, i+1) &
