@@ -234,7 +234,7 @@ CONTAINS
         ! staggeredness is preserved
         CALL field%copy_from(infield)
         field%units = infield%units*2
-        field%arr = field%arr(:)**2
+        field%arr = field%arr**2
     END SUBROUTINE comp_sqr_avg
 
 
@@ -268,7 +268,7 @@ CONTAINS
         ! staggeredness is preserved
         CALL field%copy_from(infield)
         field%units = infield%units*3
-        field%arr = field%arr(:)**3
+        field%arr = field%arr**3
     END SUBROUTINE comp_cube_avg
 
 

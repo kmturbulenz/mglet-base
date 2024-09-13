@@ -54,13 +54,13 @@ CONTAINS
             CALL register_statfield("W"//TRIM(scalar(l)%name)//&
                 "_AVG", comp_ut_avg)
 
-            !UTT_AVG
+            ! UTT_AVG
             CALL register_statfield("U"//TRIM(scalar(l)%name)&
             //TRIM(scalar(l)%name)//"_AVG", comp_utt_avg)
-            !VTT_AVG
+            ! VTT_AVG
             CALL register_statfield("V"//TRIM(scalar(l)%name)&
             //TRIM(scalar(l)%name)//"_AVG", comp_utt_avg)
-            !WTT_AVG
+            ! WTT_AVG
             CALL register_statfield("W"//TRIM(scalar(l)%name)&
             //TRIM(scalar(l)%name)//"_AVG", comp_utt_avg)
         END DO
@@ -82,8 +82,8 @@ CONTAINS
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
-        !Local Variables
-        TYPE(field_t) :: tx_f ! derivative of a scalar in any direction
+        ! Local Variables
+        TYPE(field_t) :: tx_f  ! derivative of a scalar in any direction
         ! The units of the scalar are asummed to be °K (Temperature)
         INTEGER(intk), PARAMETER :: units(*) = [0, -2, 0, 2, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_tx(*) = [0, -1, 0, 1, 0, 0, 0]
@@ -125,17 +125,16 @@ CONTAINS
         ! central difference on scalar (= no staggering)
         CALL differentiate(tx_f, t_f, ivar)
 
-        field%arr = tx_f%arr(:)**2
+        field%arr = tx_f%arr**2
         CALL tx_f%finish()
-
-    END SUBROUTINE
+    END SUBROUTINE comp_txtx_avg
 
 
     ! Routine to compute the UT_AVG, VT_AVG, and WT_AVG fields
     ! Computation at staggered positions of velocity
     !
     SUBROUTINE comp_ut_avg(field, name, dt)
-        !Subroutine arguments
+        ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
@@ -179,7 +178,6 @@ CONTAINS
 
         ! multiplication at staggered positions
         CALL field%multiply(u_f, t_f)
-
     END SUBROUTINE comp_ut_avg
 
 
@@ -192,7 +190,7 @@ CONTAINS
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
-        !Local variables
+        ! Local variables
         INTEGER(intk), PARAMETER :: units(*) = [0, 1, -1, 2, 0, 0, 0]
         TYPE(field_t), POINTER :: u_f, t_f
         INTEGER(intk) :: istag, jstag, kstag
@@ -201,7 +199,7 @@ CONTAINS
         INTEGER(intk) :: nchar
 
         nchar = LEN_TRIM(name)
-        IF ( MODULO((nchar-5),2) /= 0 ) THEN
+        IF (MODULO((nchar-5), 2) /= 0) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
         sca_name_length = (nchar-5) / 2
@@ -234,7 +232,6 @@ CONTAINS
 
         ! multiplication at staggered positions
         CALL field%multiply(u_f, t_f, t_f)
-
-    END SUBROUTINE
+    END SUBROUTINE comp_utt_avg
 
 END MODULE scastat_mod
