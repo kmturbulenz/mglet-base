@@ -104,8 +104,8 @@ CONTAINS
             ! cwa**(1.0/(1.0-cwb)) = 11.8 => intersection between linear and
             ! exponential in plus-units sm is the "real" wall distance [m]
             ! of the switching point
-            sm = gmol / tauwin**0.5 * cwa**(1.0/(1.0-cwb))
-            fsm = 1/dds**2 *( 0.5*sm**2.0*prmol + (tauwin/gmol)**(-cpo1) &
+            sm = gmol / (tauwin*rho)**0.5 * cwa**(1.0/(1.0-cwb))
+            fsm = 1/dds**2 *( 0.5*sm**2.0*prmol + ((tauwin*rho)**0.5/gmol)**(-cpo1) &
                 * cwa/cpo2 * (dds**cpo2 - sm**cpo2) )
 
             qwallfix = gmol / rho * (tbound - tfluid) / dds / fsm
