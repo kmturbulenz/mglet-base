@@ -7,13 +7,13 @@
 	"itsamp": 10,
         "tend": 10000.0,
         "read": false,
-        "write": false,
+        "write": true,
         "continue": false
     },
     "io": {
         "grids": "grids.h5",
         "infile": "none.h5",
-        "outfile": "none.h5"
+        "outfile": "fields.h5"
     },
     "flow": {
         "solve": true,
@@ -42,18 +42,17 @@
         "solve": true,
         "scalars": [
             {
-                "name": "SCALAR",
+                "name": "SCA",
                 "prmol": 1.0
             }
         ]
     },
     "statistics": [
-        "SCALAR_AVG", "P_AVG",
-        "U_AVG", "V_AVG", "W_AVG",
-        "UU_AVG", "VV_AVG", "WW_AVG",
+        "P_AVG", "U_AVG", "V_AVG", "W_AVG",
+        "UU_AVG", "VV_AVG", "WW_AVG", "PP_AVG",
         "UV_AVG", "VW_AVG", "UW_AVG",
-	    "UUU_AVG", "VVV_AVG", "WWW_AVG",
-	    "UUV_AVG", "UUW_AVG", "UVW_AVG",
+        "UUU_AVG", "VVV_AVG", "WWW_AVG",
+        "UUV_AVG", "UUW_AVG", "UVW_AVG",
         "UVV_AVG", "UWW_AVG", "VVW_AVG", "VWW_AVG",
         "UP_AVG", "VP_AVG", "WP_AVG",
         "UxP_AVG", "VyP_AVG", "WzP_AVG",
@@ -61,6 +60,10 @@
         "VxVx_AVG", "VyVy_AVG", "VzVz_AVG",
         "WxWx_AVG", "WyWy_AVG", "WzWz_AVG",
         "UyP+VxP_AVG", "UzP+WxP_AVG", "VzP+WyP_AVG",
-        "DISSIP_AVG"
+        "DISSIP_AVG",
+        "SCA_AVG", "SCASCA_AVG",
+        "SCAxSCAx_AVG", "SCAySCAy_AVG", "SCAzSCAz_AVG",
+        "USCA_AVG", "VSCA_AVG", "WSCA_AVG",
+        "USCASCA_AVG", "VSCASCA_AVG", "WSCASCA_AVG"
     ]
 }
