@@ -125,7 +125,7 @@ CONTAINS
         INTEGER(intk), PARAMETER :: ldofa = 20
 
         INTEGER(intk) :: i, j, k, it, jt, kt
-        INTEGER(intk) :: pntxpoli, pntxpolr, counter, ngeomnbr
+        INTEGER(intk) :: pntxpoli, pntxpolr, counter
         INTEGER(intk) :: found, found2, found3, foundnr
         INTEGER(intk) :: foundx1, foundx2, foundy1, foundy2, foundz1, foundz2
         INTEGER(intk) :: xpolisize, xpolrsize, imygrid
@@ -188,74 +188,56 @@ CONTAINS
                             kt = k
                             found2 = 1
                         ELSE
-                            ! looking of neighboring cells have information
-                            ngeomnbr = 0
-                            if (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
+                            body = 0
 
-                            IF (ngeomnbr > 0) THEN
-                                ! there is information in (at least) one
-                                ! neighboring cells. In case of multiple
-                                ! eligible cells, the biggest bodyid is
-                                ! selected.
-                                body = 0
-                                IF (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j, i+1)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j, i+1))
-                                        it = i+1
-                                        jt = j
-                                        kt = k
-                                    END IF
+                            ! In case of multiple eligible cells, the biggest
+                            ! bodyid is selected.
+                            IF (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j, i+1)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j, i+1))
+                                    it = i+1
+                                    jt = j
+                                    kt = k
                                 END IF
-                                IF (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j, i-1)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j, i-1))
-                                        it = i-1
-                                        jt = j
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j, i-1)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j, i-1))
+                                    it = i-1
+                                    jt = j
+                                    kt = k
                                 END IF
-                                IF (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j+1, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j+1, i))
-                                        it = i
-                                        jt = j+1
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j+1, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j+1, i))
+                                    it = i
+                                    jt = j+1
+                                    kt = k
                                 END IF
-                                IF (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j-1, i  )) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j-1, i))
-                                        it = i
-                                        jt = j-1
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j-1, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j-1, i))
+                                    it = i
+                                    jt = j-1
+                                    kt = k
                                 END IF
-                                IF (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k+1, j, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k+1, j, i))
-                                        it = i
-                                        jt = j
-                                        kt = k+1
-                                    END IF
+                            END IF
+                            IF (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k+1, j, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k+1, j, i))
+                                    it = i
+                                    jt = j
+                                    kt = k+1
                                 END IF
-                                IF (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k-1, j, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k-1, j, i))
-                                        it = i
-                                        jt = j
-                                        kt = k-1
-                                    END IF
+                            END IF
+                            IF (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k-1, j, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k-1, j, i))
+                                    it = i
+                                    jt = j
+                                    kt = k-1
                                 END IF
                             END IF
 
@@ -289,7 +271,7 @@ CONTAINS
                                     xpolrvel, areabyvol, body)
                             END IF
                         ELSE
-                           ! rescuestencil, because no triangle was found
+                            ! rescuestencil, because no triangle was found
                             ! (emergency solution)
                             areabyvol = 0.0
                             body = 0
