@@ -1,0 +1,21 @@
+name: lint
+
+on:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  fortran-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install whatthepatch
+      run: |
+        python3 -m pip install whatthepatch
+
+    - name: Lint
+      run: |
+        git fetch origin master
+        git diff origin/master..HEAD | ./ci/lint-fortran.py --stdin
