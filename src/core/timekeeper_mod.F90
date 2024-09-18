@@ -21,12 +21,12 @@ MODULE timekeeper_mod
 
     TYPE :: timekeeper_t
         ! Time value in double precision
-        REAL(real64), PRIVATE :: time
+        REAL(real64), PRIVATE :: time = 0.0_real64
 
         ! Kahan summation coefficients
-        REAL(real64), PRIVATE :: c
-        REAL(real64), PRIVATE :: y
-        REAL(real64), PRIVATE :: t
+        REAL(real64), PRIVATE :: c = 0.0_real64
+        REAL(real64), PRIVATE :: y = 0.0_real64
+        REAL(real64), PRIVATE :: t = 0.0_real64
     CONTAINS
         GENERIC, PUBLIC :: init => init_sp, init_dp
         PROCEDURE, PRIVATE :: init_sp, init_dp
