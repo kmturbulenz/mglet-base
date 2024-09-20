@@ -79,7 +79,6 @@ CONTAINS
         CALL register_statfield("UyP+VxP_AVG", comp_uyvxp_avg)
         CALL register_statfield("UzP+WxP_AVG", comp_uyvxp_avg)
         CALL register_statfield("VzP+WyP_AVG", comp_uyvxp_avg)
-
     END SUBROUTINE init_flowstat
 
 
@@ -199,9 +198,7 @@ CONTAINS
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
         CALL field%multiply(in1, in2, in3)
-
     END SUBROUTINE comp_uvw_avg
-
 
 
     SUBROUTINE comp_laplacep_avg(field, name, dt)
@@ -301,36 +298,36 @@ CONTAINS
                 flfr = 1.0
             ELSE
                 flfr = 0.0
-            ENDIF
+            END IF
             IF (iba == 1 .AND. i == ii-2) THEN
                 flba = 1.0
             ELSE
                 flba = 0.0
-            ENDIF
+            END IF
 
             DO j = 3, jj-2
                 IF (jri == 1 .AND. j == 3) THEN
                     flri = 1.0
                 ELSE
                     flri = 0.0
-                ENDIF
+                END IF
                 IF (jle == 1 .AND. j == jj-2) THEN
                     flle = 1.0
                 ELSE
                     flle = 0.0
-                ENDIF
+                END IF
 
                 DO k = 3, kk-2
                     IF (kbo == 1 .AND. k == 3) THEN
                         flbo = 1.0
                     ELSE
                         flbo = 0.0
-                    ENDIF
+                    END IF
                     IF(kto == 1 .AND. k == kk-2) THEN
                         flto = 1.0
                     ELSE
                         flto = 0.0
-                    ENDIF
+                    END IF
 
                     d2pdx2 = ((1.0-flba)*bp(k, j, i+1)*p(k, j, i+1) &
                         + (-bp(k, j, i+1)-bp(k, j, i-1)+flfr+flba)*p(k, j, i) &
@@ -402,16 +399,16 @@ CONTAINS
         CALL field%init(name, units=units)
 
         ! Compute Dissipation (It considers only molecular viscosity so far)
-        DO i=1, nmygrids
+        DO i = 1, nmygrids
             igrid = mygrids(i)
 
             CALL field%get_ptr(dfg, igrid)
 
             CALL u_f%get_ptr(u, igrid)
-            CALL v_f%get_ptr(v,igrid)
-            CALL w_f%get_ptr(w,igrid)
-            CALL bp_f%get_ptr(bp,igrid)
-            CALL g_f%get_ptr(g,igrid)
+            CALL v_f%get_ptr(v, igrid)
+            CALL w_f%get_ptr(w, igrid)
+            CALL bp_f%get_ptr(bp, igrid)
+            CALL g_f%get_ptr(g, igrid)
 
             CALL dx_f%get_ptr(dx, igrid)
             CALL dy_f%get_ptr(dy, igrid)
@@ -464,43 +461,42 @@ CONTAINS
                     rddypl = 1.0/(ddy(j) + 0.5*dy(j+1) + 0.5*dy(j-1))
                     rddzpl = 1.0/(ddz(k) + 0.5*dz(k+1) + 0.5*dz(k-1))
 
-                    dudx = rddx(i)*(u(k, j, i)-u(k, j, i-1))
+                    dudx = rddx(i)*(u(k, j, i) - u(k, j, i-1))
 
                     dudy = rddypl * &
-                        ((u(k  ,j+1,i  )-u(k  ,j-1,i  )) * dxf &
-                        + (u(k  ,j+1,i-1)-u(k  ,j-1,i-1)) * (1.0-dxf))
+                        ((u(k, j+1, i) - u(k, j-1, i)) * dxf &
+                        + (u(k, j+1, i-1) - u(k, j-1, i-1)) * (1.0-dxf))
 
                     dudz = rddzpl * &
-                        ((u(k+1,j  ,i  )-u(k-1,j  ,i  )) * dxf &
-                        + (u(k+1,j  ,i-1)-u(k-1,j  ,i-1)) * (1.0-dxf))
+                        ((u(k+1, j, i) - u(k-1, j, i)) * dxf &
+                        + (u(k+1, j, i-1) - u(k-1, j, i-1)) * (1.0-dxf))
 
                     dvdx = rddxpl * &
-                        ((v(k  ,j  ,i+1)-v(k  ,j  ,i-1)) * dyf &
-                        + (v(k  ,j-1,i+1)-v(k  ,j-1,i-1)) * (1.0-dyf))
+                        ((v(k, j, i+1) - v(k, j, i-1)) * dyf &
+                        + (v(k, j-1, i+1) - v(k, j-1, i-1)) * (1.0-dyf))
 
-                    dvdy = rddy(j)*(v(k, j, i)-v(k, j-1, i))
+                    dvdy = rddy(j)*(v(k, j, i) - v(k, j-1, i))
 
                     dvdz = rddzpl * &
-                        ((v(k+1,j  ,i  )-v(k-1,j  ,i  )) * dyf &
-                        + (v(k+1,j-1,i  )-v(k-1,j-1,i  )) * (1.0-dyf))
+                        ((v(k+1, j, i) - v(k-1, j, i)) * dyf &
+                        + (v(k+1, j-1, i) - v(k-1, j-1, i)) * (1.0-dyf))
 
                     dwdx = rddxpl * &
-                        ((w(k  ,j  ,i+1)-w(k  ,j  ,i-1)) * dzf &
-                        + (w(k-1,j  ,i+1)-w(k-1,j  ,i-1)) * (1.0-dzf))
+                        ((w(k, j, i+1) - w(k, j, i-1)) * dzf &
+                        + (w(k-1, j, i+1) - w(k-1, j, i-1)) * (1.0-dzf))
 
                     dwdy = rddypl * &
-                        ((w(k  ,j+1,i  )-w(k  ,j-1,i  )) * dzf &
-                        + (w(k-1,j+1,i  )-w(k-1,j-1,i  )) * (1.0-dzf))
+                        ((w(k, j+1, i) - w(k, j-1, i)) * dzf &
+                        + (w(k-1, j+1, i) - w(k-1, j-1, i)) * (1.0-dzf))
 
-                    dwdz = rddz(k)*(w(k, j, i)-w(k-1, j, i))
+                    dwdz = rddz(k)*(w(k, j, i) - w(k-1, j, i))
 
                     ! masking with "bp" removes IB-intersected cells
                     dfg(k, j, i) = g(k, j, i) * bp(k, j, i) * &
-                        ( 2.0*(dudx*dudx + dvdy*dvdy + dwdz*dwdz) &
+                        (2.0*(dudx*dudx + dvdy*dvdy + dwdz*dwdz) &
                         + (dudy+dvdx) * (dudy+dvdx) &
                         + (dudz+dwdx) * (dudz+dwdx) &
-                        + (dvdz+dwdy) * (dvdz+dwdy) )
-
+                        + (dvdz+dwdy) * (dvdz+dwdy))
                 END DO
             END DO
         END DO
@@ -508,7 +504,7 @@ CONTAINS
 
 
     SUBROUTINE comp_up_avg(field, name, dt)
-        !Subroutine arguments
+        ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
@@ -543,18 +539,18 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL field%multiply(in1,in2)
+        CALL field%multiply(in1, in2)
     END SUBROUTINE comp_up_avg
 
 
-    !This subroutine computes the term du_i/dx_i * P
+    ! This subroutine computes the term du_i/dx_i * P
     SUBROUTINE comp_uxp_avg(field, name, dt)
-        !Subroutine arguments
+        ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
-        !Local variables
+        ! Local variables
         TYPE(field_t) :: ux_f
         INTEGER(intk), PARAMETER :: units(*) = [1, -1, -3, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
@@ -601,7 +597,7 @@ CONTAINS
 
         CALL field%multiply(ux_f, p_f)
         CALL ux_f%finish()
-    END SUBROUTINE
+    END SUBROUTINE comp_uxp_avg
 
 
     SUBROUTINE comp_uxux_avg(field, name, dt)
@@ -693,9 +689,9 @@ CONTAINS
             units=units_ux)
         CALL differentiate(ux_f, u_f, ivar)
 
-        field%arr = ux_f%arr(:)**2
+        field%arr = ux_f%arr**2
         CALL ux_f%finish()
-    END SUBROUTINE
+    END SUBROUTINE comp_uxux_avg
 
 
     SUBROUTINE comp_uxvx_avg(field, name, dt)
@@ -708,13 +704,13 @@ CONTAINS
         TYPE(field_t) :: ux_f, vx_f
         INTEGER(intk), PARAMETER :: units(*) = [0, 0, -2, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
-        !! v_f can be any velocity component different than u_f
+        ! v_f can be any velocity component different than u_f
         TYPE(field_t), POINTER :: u_f, v_f
         INTEGER(intk) :: istag, jstag, kstag
         CHARACTER(len=3) :: ivar1, ivar2
         CHARACTER(len=2) :: name_ux, name_vx
 
-        ! Temporarily staggeredness similar to Legacy version (0,0,0).
+        ! Temporarily staggeredness similar to Legacy version (0, 0, 0).
         ! But it should be taken into account when creating
         ! both du_i/dk_j (Ux), and du_i/dk_j*du_k/dx_j (UxVx).
 
@@ -827,10 +823,10 @@ CONTAINS
         ! multiply method won't be used.
         ! TO DO: if location is not the same multiply method should be used.
 
-        field%arr = ux_f%arr(:) * vx_f%arr(:)
+        field%arr = ux_f%arr * vx_f%arr
         CALL ux_f%finish()
         CALL vx_f%finish()
-    END SUBROUTINE
+    END SUBROUTINE comp_uxvx_avg
 
 
     SUBROUTINE comp_uyvxp_avg(field, name, dt)
@@ -894,7 +890,7 @@ CONTAINS
 
         CALL differentiate(uy_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
-        temp_f%arr(:) = uy_f%arr(:) + vx_f%arr(:)
+        temp_f%arr = uy_f%arr + vx_f%arr
 
         CALL get_field(p_f, "P")
         CALL field%multiply(temp_f, p_f)
@@ -902,6 +898,6 @@ CONTAINS
         CALL uy_f%finish()
         CALL vx_f%finish()
         CALL temp_f%finish()
-    END SUBROUTINE
+    END SUBROUTINE comp_uyvxp_avg
 
 END MODULE flowstat_mod
