@@ -50,7 +50,7 @@ CONTAINS
         has_flow = .TRUE.
 
         ! Required values
-        CALL fort7%get(flowconf, "/flow")
+        CALL fort7%get(flowconf,"/flow")
         CALL flowconf%get_value("/gmol", gmol)
         IF (gmol <= 0.0) THEN
             WRITE(*, *) "Viscosity must be positive: ", gmol
@@ -121,7 +121,7 @@ CONTAINS
             CALL flowconf%set_value("/gradp/0", 0.0)
             CALL flowconf%set_value("/gradp/1", 0.0)
             CALL flowconf%set_value("/gradp/2", 0.0)
-        END IF
+        ENDIF
 
         CALL set_field("U", istag=1, units=units_v, dread=dread, &
             required=dread, dwrite=dwrite, buffers=.TRUE.)
