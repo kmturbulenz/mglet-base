@@ -19,6 +19,7 @@ MODULE scacore_mod
     TYPE :: scalar_t
         CHARACTER(len=nchar_name) :: name
         REAL(realk) :: prmol
+        INTEGER(intk) :: units(7)
         INTEGER(intk) :: kayscrawford
         TYPE(scalar_bc_t), ALLOCATABLE :: geometries(:)
     CONTAINS
@@ -89,6 +90,13 @@ CONTAINS
 
             CALL sc%get_value("/prmol", scalar(l)%prmol)
 
+            ! Retrieving the scalar units (noisy output for test)
+            IF ( sc%exists("/units") ) THEN
+                CALL sc%get_array("/units", scalar(l)%units)
+            ELSE
+                scalar(l)%units = 0
+            END IF
+
             ! The parameters.json should have a logical, but it is easier
             ! to integrate computations with an integer
             CALL sc%get_value("/kayscrawford", kayscrawford, .FALSE.)
@@ -136,8 +144,8 @@ CONTAINS
 
         ! Declare fields
         DO l = 1, nsca
-            CALL set_field(scalar(l)%name, dread=dread, required=dcont, &
-                dwrite=dwrite, buffers=.TRUE.)
+            CALL set_field(scalar(l)%name, units=scalar(l)%units, dread=dread, &
+                required=dcont, dwrite=dwrite, buffers=.TRUE.)
 
             ! Get field, set PRMOL and scalar index as attribute
             CALL get_field(t, scalar(l)%name)
@@ -151,8 +159,8 @@ CONTAINS
             CALL set_field(TRIM(scalar(l)%name)//"_OLD")
 
             IF (myid == 0) THEN
-                WRITE(*, '(2X, "Scalar:               ", A, " prmol: ", G0)') &
-                    scalar(l)%name, scalar(l)%prmol
+                WRITE(*, '(2X, "Scalar:               ", A, " prmol: ", G0, "   unit: [", 7I3, " ]")') &
+                    scalar(l)%name, scalar(l)%prmol, scalar(l)%units
             END IF
         END DO
 
