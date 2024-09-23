@@ -288,7 +288,7 @@ CONTAINS
 
         ! Local Variables
         INTEGER(intk) :: igr, igrid
-        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: k, j, i, n
         INTEGER(intk) :: kk, jj, ii
         TYPE(field_t), POINTER :: rdxyz
         ! (usage of different pointers for readability)
@@ -296,6 +296,19 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: rdx(:), rdy(:), rdz(:)
         REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
         REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), phi(:, :, :)
+
+        ! checking for dimensional consistency
+        DO n = 1, 7
+            IF ( n == 2 ) THEN
+                IF ( field%units(n) /= a%units(n) -1 ) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            ELSE
+                IF ( field%units(n) /= a%units(n) ) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+        END DO
 
         SELECT CASE (ivar)
         CASE ("DXS")

@@ -758,7 +758,8 @@ CONTAINS
         CHARACTER(len=*), INTENT(in) :: key
 
         ! https://github.com/nlohmann/json/blob/develop/include/nlohmann/detail/value_t.hpp
-        is_int = this%is_type(key, 6)
+        is_int = this%is_type(key, 5) ! = signed int
+        ! is_int = this%is_type(key, 6) ! = unsigned int
     END FUNCTION is_int
 
 
