@@ -27,7 +27,7 @@ CONTAINS
 
         ALLOCATE(plog_level(minlevel:maxlevel))
 
-        IF (myid == 0 ) THEN
+        IF (myid == 0) THEN
             INQUIRE(FILE=logfile, EXIST=exists)
             IF (.NOT. exists .OR. .NOT. dcont) THEN
                 OPEN(NEWUNIT=logunit, FILE=logfile)
@@ -71,7 +71,7 @@ CONTAINS
         INTEGER(intk) :: ilevel
         INTEGER :: logunit
 
-        IF (myid == 0 ) THEN
+        IF (myid == 0) THEN
             OPEN(NEWUNIT=logunit, FILE=logfile, POSITION="APPEND")
             DO ilevel = minlevel, maxlevel
                 WRITE(logunit, '(5I9, ES14.5)') &

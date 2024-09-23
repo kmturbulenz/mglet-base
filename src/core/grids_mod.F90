@@ -93,8 +93,8 @@ CONTAINS
 
         ! Sanity check
         IF (ngrid < numprocs) THEN
-            WRITE(*,*) "ngrid:", ngrid
-            WRITE(*,*) "Less than numprocs:", numprocs
+            WRITE(*, *) "ngrid:", ngrid
+            WRITE(*, *) "Less than numprocs:", numprocs
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -173,7 +173,7 @@ CONTAINS
 
 
     SUBROUTINE init_gridstructure()
-        !USE pointer_mod, ONLY: init_pointers, set_pointer
+        ! USE pointer_mod, ONLY: init_pointers, set_pointer
 
         INTEGER(intk) :: igrid
 
@@ -183,7 +183,7 @@ CONTAINS
         nboconds = 0.0
         itypboconds = 0
 
-        !CALL init_pointers(ngrid)
+        ! CALL init_pointers(ngrid)
         DO igrid = 1, ngrid
             ! Set boundary conditions in cobound.h
             CALL setcobound(igrid, 1, front)
@@ -194,7 +194,7 @@ CONTAINS
             CALL setcobound(igrid, 6, top)
 
             ! Set pointers for 3D, 2D, 1D storage
-            !CALL set_pointer(igrid, kk, jj, ii)
+            ! CALL set_pointer(igrid, kk, jj, ii)
         END DO
     END SUBROUTINE init_gridstructure
 
@@ -245,7 +245,7 @@ CONTAINS
             itypboconds(ibocond, idir, igrid) = 18
         ELSEIF (ctyp == 'CO1') THEN
             IF (idir == 2 .OR. idir == 4 .OR. idir == 6) THEN
-                WRITE(6,*) 'SETCOBONE: CO1 NOT ALLOWED IN IDIR=',IDIR
+                WRITE(6, *) 'SETCOBONE: CO1 NOT ALLOWED IN IDIR=', IDIR
                 CALL errr(__FILE__, __LINE__)
             END IF
             itypboconds(ibocond, idir, igrid) = 19
@@ -360,7 +360,7 @@ CONTAINS
 
         INTEGER(intk) :: ilevel, iproc, igrid, i, grdsum
         INTEGER(intk) :: nGrdsOfProcTmp(minlevel:maxlevel)
-        INTEGER(intk), ALLOCATABLE :: nGrdsOfProc(:,:)
+        INTEGER(intk), ALLOCATABLE :: nGrdsOfProc(:, :)
         INTEGER(intk), ALLOCATABLE :: lvl(:)
         INTEGER(intk) :: nlvl, width
 
@@ -372,7 +372,7 @@ CONTAINS
         lvl = 0
 
         ! Count number of grids per process and level
-        DO ilevel = minlevel,maxlevel
+        DO ilevel = minlevel, maxlevel
             DO i = 1, noflevel(ilevel)
                 igrid = igrdoflevel(i, ilevel)
                 iproc = idprocofgrd(igrid)
@@ -398,18 +398,18 @@ CONTAINS
                 grdsum = grdsum + nGrdsOfProc(iproc, ilevel)
                 nGrdsOfProcTmp(ilevel) = nGrdsOfProc(iproc, ilevel)
             END DO
-            WRITE(*,fmt) iproc, nGrdsOfProcTmp(:), grdsum
+            WRITE(*, fmt) iproc, nGrdsOfProcTmp(:), grdsum
         END DO
         WRITE(*, '(A)') REPEAT("-", width)
 
         ! Calculate and print number of grids per level
-        DO ilevel=minlevel,maxlevel
+        DO ilevel=minlevel, maxlevel
             lvl(ilevel) = SUM(nGrdsOfProc(:, ilevel))
         END DO
         fmt = '(1X, "Sum:", 8X, '//REPEAT('I6, 1X, ', nlvl+1)//")"
-        WRITE(*,fmt) lvl, SUM(nGrdsOfProc(:, :))
+        WRITE(*, fmt) lvl, SUM(nGrdsOfProc(:, :))
         WRITE(*, '(A)') REPEAT("=", width)
-        WRITE(*,'()')
+        WRITE(*, '()')
 
         DEALLOCATE(nGrdsOfProc)
         DEALLOCATE(lvl)
@@ -422,8 +422,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -458,8 +458,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -494,8 +494,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -518,14 +518,14 @@ CONTAINS
         TYPE(bcond_t), POINTER :: facearr(:)
 
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 
         IF (ibocd > maxboconds) THEN
-            WRITE(*,*) "Invalid ibocd: ", ibocd
-            WRITE(*,*) "maxboconds: ", maxboconds
+            WRITE(*, *) "Invalid ibocd: ", ibocd
+            WRITE(*, *) "maxboconds: ", maxboconds
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -548,10 +548,10 @@ CONTAINS
 
         nbocd = facearr(igrid)%nbocd
         IF (ibocd > nbocd) THEN
-            WRITE(*,*) "Invalid ibocd: ", ibocd
-            WRITE(*,*) "nbocd: ", nbocd
-            WRITE(*,*) "igrid: ", igrid
-            WRITE(*,*) "iface: ", iface
+            WRITE(*, *) "Invalid ibocd: ", ibocd
+            WRITE(*, *) "nbocd: ", nbocd
+            WRITE(*, *) "igrid: ", igrid
+            WRITE(*, *) "iface: ", iface
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -571,10 +571,10 @@ CONTAINS
         END SELECT
 
         IF (length /= nparams) THEN
-            WRITE(*,*) "Invalid length: ", length
-            WRITE(*,*) "nparams: ", nparams
-            WRITE(*,*) "igrid: ", igrid
-            WRITE(*,*) "iface: ", iface
+            WRITE(*, *) "Invalid length: ", length
+            WRITE(*, *) "nparams: ", nparams
+            WRITE(*, *) "igrid: ", igrid
+            WRITE(*, *) "iface: ", iface
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -583,10 +583,10 @@ CONTAINS
         IF (length == 0) RETURN
 
         IF (offset < 1 .OR. offset+length-1 > nparams_tot) THEN
-            WRITE(*,*) "Invalid offset, length: ", offset, length
-            WRITE(*,*) "nparams_tot: ", nparams_tot
-            WRITE(*,*) "igrid: ", igrid
-            WRITE(*,*) "iface: ", iface
+            WRITE(*, *) "Invalid offset, length: ", offset, length
+            WRITE(*, *) "nparams_tot: ", nparams_tot
+            WRITE(*, *) "igrid: ", igrid
+            WRITE(*, *) "iface: ", iface
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -615,14 +615,14 @@ CONTAINS
 
         ngrid = SIZE(gridinfo)
         IF (igrid > ngrid) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 
         IF (ibocd > maxboconds) THEN
-            WRITE(*,*) "Invalid ibocd: ", ibocd
-            WRITE(*,*) "maxboconds: ", maxboconds
+            WRITE(*, *) "Invalid ibocd: ", ibocd
+            WRITE(*, *) "maxboconds: ", maxboconds
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -645,10 +645,10 @@ CONTAINS
 
         nbocd = facearr(igrid)%nbocd
         IF (ibocd > nbocd) THEN
-            WRITE(*,*) "Invalid ibocd: ", ibocd
-            WRITE(*,*) "nbocd: ", nbocd
-            WRITE(*,*) "igrid: ", igrid
-            WRITE(*,*) "iface: ", iface
+            WRITE(*, *) "Invalid ibocd: ", ibocd
+            WRITE(*, *) "nbocd: ", nbocd
+            WRITE(*, *) "igrid: ", igrid
+            WRITE(*, *) "iface: ", iface
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -668,8 +668,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -683,8 +683,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -698,8 +698,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -713,8 +713,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -728,8 +728,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -743,8 +743,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -759,8 +759,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -775,8 +775,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -791,8 +791,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -807,8 +807,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -823,8 +823,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -844,8 +844,8 @@ CONTAINS
 
 #ifdef _MGLET_DEBUG_
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
@@ -873,19 +873,19 @@ CONTAINS
         ctyp = ''
 
         IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*,*) "Invalid igrid: ", igrid
-            WRITE(*,*) "ngrid: ", ngrid
+            WRITE(*, *) "Invalid igrid: ", igrid
+            WRITE(*, *) "ngrid: ", ngrid
             CALL errr(__FILE__, __LINE__)
         END IF
 
         IF (iface > 6 .OR. iface < 0) THEN
-            WRITE(*,*) "Invalid iface: ", iface
+            WRITE(*, *) "Invalid iface: ", iface
             CALL errr(__FILE__, __LINE__)
         END IF
 
         IF (ibocd > nboconds(iface, igrid) .OR. ibocd < 0) THEN
-            WRITE(*,*) "Invalid ibocd: ", ibocd
-            WRITE(*,*) "nboconds: ", nboconds(iface, igrid)
+            WRITE(*, *) "Invalid ibocd: ", ibocd
+            WRITE(*, *) "nboconds: ", nboconds(iface, igrid)
             CALL errr(__FILE__, __LINE__)
         END IF
 

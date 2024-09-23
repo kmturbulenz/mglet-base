@@ -196,7 +196,7 @@ CONTAINS
 
     SUBROUTINE fluxcorrection(igrid, kk, jj, ii, ddx, ddy, ddz, &
             bp, bu, bv, bw, au, av, aw, bzelltyp, icells, ucell)
-        !----------------------------------------------------------------------
+        ! ---------------------------------------------------------------------
         ! SUBROUTINE FLUXCORRECTION
         !
         !    description:
@@ -227,7 +227,7 @@ CONTAINS
         !
         !       acoeffstc = Fluss durch die Flaechen komplett im Koerper
         !
-        !----------------------------------------------------------------------
+        ! ---------------------------------------------------------------------
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid
@@ -299,7 +299,7 @@ CONTAINS
                     dz = ddz(k)
 
                     ! found = 1 wenn Geschw. geblockt, aber Nachbargeschw. offen
-                    CALL findinterface2(k, j, i-1, kk, jj, ii , bu, found_dum)
+                    CALL findinterface2(k, j, i-1, kk, jj, ii, bu, found_dum)
                     cx2 = REAL(found_dum)
 
                     CALL findinterface2(k, j, i, kk, jj, ii, bu, found_dum)
@@ -483,7 +483,7 @@ CONTAINS
                     END IF
 
                     sarea = ax1*au(k, j, i)*ddy(j)*ddz(k) &
-                        + ax2*au(k, j  , i-1)*ddy(j)*ddz(k) &
+                        + ax2*au(k, j, i-1)*ddy(j)*ddz(k) &
                         + ay1*av(k, j, i)*ddx(i)*ddz(k) &
                         + ay2*av(k, j-1, i)*ddx(i)*ddz(k) &
                         + az1*aw(k, j, i)*ddx(i)*ddy(j) &
@@ -1751,7 +1751,7 @@ CONTAINS
             pntxpoli = 1
             DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
@@ -1792,7 +1792,7 @@ CONTAINS
             END DO
 
             ! Write cells
-            WRITE(unit,'("CELLS ", I0, 1X, I0)') nblgcells + nstencils*2, &
+            WRITE(unit, '("CELLS ", I0, 1X, I0)') nblgcells + nstencils*2, &
                 (nblgcells + nstencils)*2 + nstencils*3
 
             ! Points
@@ -1805,7 +1805,7 @@ CONTAINS
             pntxpoli = 1
             DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
@@ -1828,14 +1828,14 @@ CONTAINS
             END DO
 
             ! Write cell data stencils
-            WRITE(unit,'("CELL_DATA ", I0)') nblgcells+nstencils*2
-            WRITE(unit,'("SCALARS stencils int 1")')
-            WRITE(unit,'("LOOKUP_TABLE default")')
+            WRITE(unit, '("CELL_DATA ", I0)') nblgcells+nstencils*2
+            WRITE(unit, '("SCALARS stencils int 1")')
+            WRITE(unit, '("LOOKUP_TABLE default")')
 
             pntxpoli = 1
             DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
@@ -1849,9 +1849,9 @@ CONTAINS
             END DO
 
             pntxpoli = 1
-            DO cellcount = 1,nblgcells
+            DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
@@ -1864,14 +1864,14 @@ CONTAINS
             END DO
 
             ! Write cell data coefficient
-            WRITE(unit,'("SCALARS coefficient float 1")')
-            WRITE(unit,'("LOOKUP_TABLE default")')
+            WRITE(unit, '("SCALARS coefficient float 1")')
+            WRITE(unit, '("LOOKUP_TABLE default")')
 
             pntxpoli = 1
             pntxpolr = 1
             DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
@@ -1881,16 +1881,16 @@ CONTAINS
                 WRITE(unit, '(G0)') xpolr(pntxpolr+stencils)
 
                 DO n = 1, stencils
-                    !stcell = xpoli(pntxpoli)
+                    ! stcell = xpoli(pntxpoli)
                     pntxpoli = pntxpoli + 1
 
-                    !coeff = xpolr(pntxpolr)
+                    ! coeff = xpolr(pntxpolr)
                     ! stencil cell
                     WRITE(unit, '(G0)') xpolr(pntxpolr)
                     pntxpolr = pntxpolr + 1
                 END DO
 
-                !coeff = xpolr(pntxpolr)
+                ! coeff = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
             END DO
 
@@ -1898,23 +1898,23 @@ CONTAINS
             pntxpolr = 1
             DO cellcount = 1, nblgcells
                 ! not needing this one
-                !intcell = xpoli(pntxpoli)
+                ! intcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 stencils = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
                 DO n = 1, stencils
-                    !stcell = xpoli(pntxpoli)
+                    ! stcell = xpoli(pntxpoli)
                     pntxpoli = pntxpoli + 1
 
-                    !coeff = xpolr(pntxpolr)
+                    ! coeff = xpolr(pntxpolr)
                     ! >>> stencil cell
                     WRITE(unit, '(G0)') xpolr(pntxpolr)
                     pntxpolr = pntxpolr + 1
                 END DO
 
-                !coeff = xpolr(pntxpolr)
+                ! coeff = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
             END DO
 
@@ -1933,7 +1933,7 @@ CONTAINS
             END DO
 
             ! Write cells
-            WRITE(unit,'("CELLS ", I0, 1X, I0)') nblgcells, nblgcells*2
+            WRITE(unit, '("CELLS ", I0, 1X, I0)') nblgcells, nblgcells*2
 
             ! Points
             DO n = 1, nblgcells
@@ -1945,25 +1945,25 @@ CONTAINS
                 WRITE(unit, '("1")')
             END DO
 
-            WRITE(unit,'("CELL_DATA ", I0)') nblgcells
-            WRITE(unit,'(A)') 'SCALARS fluxsource float 1'
-            WRITE(unit,'(A)') 'LOOKUP_TABLE default'
+            WRITE(unit, '("CELL_DATA ", I0)') nblgcells
+            WRITE(unit, '(A)') 'SCALARS fluxsource float 1'
+            WRITE(unit, '(A)') 'LOOKUP_TABLE default'
             pntxpolr = 1
             DO n = 1, nblgcells
-                !ax1 = xpolr(pntxpolr)
+                ! ax1 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
-                !ax2 = xpolr(pntxpolr)
+                ! ax2 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
-                !ay1 = xpolr(pntxpolr)
+                ! ay1 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
-                !ay2 = xpolr(pntxpolr)
+                ! ay2 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
-                !az1 = xpolr(pntxpolr)
+                ! az1 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
-                !az2 = xpolr(pntxpolr)
+                ! az2 = xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
 
-                !acoeffstc = xpolr(pntxpolr)
+                ! acoeffstc = xpolr(pntxpolr)
                 WRITE(unit, '(G0)') xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
             END DO

@@ -66,7 +66,7 @@ CONTAINS
         IF (nbot == 7 .OR. nbot == 99) nzm = 0
         IF (ntop == 7 .OR. ntop == 99) nzp = 0
 
-        !!! NIX boundary: no open cells allowed
+        ! NIX boundary: no open cells allowed
         IF (nfro == 99) THEN
             DO i = 1, 2
                 DO j = 3, jj-2

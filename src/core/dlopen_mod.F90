@@ -109,8 +109,8 @@ CONTAINS
             CALL C_F_POINTER(c_string, f_string)
             str_len = MIN(INDEX(f_string, C_NULL_CHAR), 1024)
 
-            WRITE(*,*) 'shlib_load: Error loading ', soname
-            WRITE(*,*) 'shlib_load: dlerror said: ', f_string(1:str_len)
+            WRITE(*, *) 'shlib_load: Error loading ', soname
+            WRITE(*, *) 'shlib_load: dlerror said: ', f_string(1:str_len)
             CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE shlib_load
@@ -138,7 +138,7 @@ CONTAINS
 
         IF (.NOT. success .AND. PRESENT(required)) THEN
             IF (required) THEN
-                WRITE(*,*) "Could not find: ", name
+                WRITE(*, *) "Could not find: ", name
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF
@@ -153,7 +153,7 @@ CONTAINS
         DO i = 1, shlib_idx
             ierror = dlclose(handle(i))
             IF (ierror /= 0) then
-                WRITE(*,*) 'shlib_close: Error closing library idx = ', i
+                WRITE(*, *) 'shlib_close: Error closing library idx = ', i
             END IF
         END DO
     END SUBROUTINE finish_dlopen

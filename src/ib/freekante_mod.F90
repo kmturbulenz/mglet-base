@@ -250,7 +250,7 @@ CONTAINS
                 + MAX(0.0_realk, kanteu(k, j, i+1)) &
                 + MAX(0.0_realk, kantew(k, j, i)) &
                 + MAX(0.0_realk, kantew(k+1, j, i))
-            node2 = node2 + MAX(0.0_realk,kantev(k, j-1, i)) &
+            node2 = node2 + MAX(0.0_realk, kantev(k, j-1, i)) &
                 + MAX(0.0_realk, kanteu(k, j-1, i)) &
                 + MAX(0.0_realk, kanteu(k, j-1, i+1)) &
                 + MAX(0.0_realk, kantew(k, j-1, i)) &

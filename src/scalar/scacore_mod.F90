@@ -91,7 +91,7 @@ CONTAINS
             CALL sc%get_value("/prmol", scalar(l)%prmol)
 
             ! Retrieving the scalar units (noisy output for test)
-            IF ( sc%exists("/units") ) THEN
+            IF (sc%exists("/units")) THEN
                 CALL sc%get_array("/units", scalar(l)%units)
             ELSE
                 scalar(l)%units = 0
@@ -117,7 +117,7 @@ CONTAINS
                     CASE("flux")
                         itype = 1
                     CASE DEFAULT
-                        WRITE(*,*) "Invalid type: ", type
+                        WRITE(*, *) "Invalid type: ", type
                         CALL errr(__FILE__, __LINE__)
                     END SELECT
                     scalar(l)%geometries(n)%flag = itype
@@ -159,7 +159,8 @@ CONTAINS
             CALL set_field(TRIM(scalar(l)%name)//"_OLD")
 
             IF (myid == 0) THEN
-                WRITE(*, '(2X, "Scalar:               ", A, " prmol: ", G0, "   unit: [", 7I3, " ]")') &
+                WRITE(*, '(2X, "Scalar:               ", A, " prmol: ", G0, ' &
+                    //'"   unit: [", 7I3, " ]")') &
                     scalar(l)%name, scalar(l)%prmol, scalar(l)%units
             END IF
         END DO
@@ -207,7 +208,7 @@ CONTAINS
                     - 0.0441*gtgmol**2*(1.0 - exp(-5.165/gtgmol))
             ELSE
                 kayscrawford = this%prmol
-            ENDIF
+            END IF
             prt = kayscrawford
         END IF
     END FUNCTION prt

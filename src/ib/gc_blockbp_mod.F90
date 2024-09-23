@@ -88,7 +88,7 @@ CONTAINS
         CALL knoten%init("KNOTEN", istag=1, jstag=1, kstag=1)
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'FIND CELLS INTERSECTED BY TRIANGLES', MPI_Wtime() - this%time0
         END IF
 
@@ -97,7 +97,7 @@ CONTAINS
         CALL blocknodes(kanteu, kantev, kantew, knoten)
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'FILLING OF FLUID CELLS', MPI_Wtime() - this%time0
         END IF
 
@@ -105,14 +105,14 @@ CONTAINS
 
         IF (this%nnofluidpoints > 0) THEN
             IF (myid == 0) THEN
-               WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+               WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                    'FILLFOLLOWER', MPI_Wtime() - this%time0
             END IF
             CALL fillfollower(knoten, this%nofluidpoints)
         END IF
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'FINISHING INTERSECTED CORNERS', MPI_Wtime() - this%time0
         END IF
 
@@ -148,7 +148,7 @@ CONTAINS
         CALL blockluecken_closetoboundary(bp)
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'REMOVING DEAD WATER ZONES', MPI_Wtime() - this%time0
         END IF
 
@@ -172,7 +172,7 @@ CONTAINS
             DEALLOCATE(bzelltyp)
 
             IF (myid == 0) THEN
-                WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                     'CHECKBLOCK', MPI_Wtime() - this%time0
             END IF
             CALL checkblock(bp, this%outfile)
@@ -186,7 +186,7 @@ CONTAINS
 
         ! BP field is now finished
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'WRITE GEOMETRY DATA, CREATE STENCILS', MPI_Wtime() - this%time0
         END IF
 
@@ -230,7 +230,7 @@ CONTAINS
             bodyid, xpsw, ucell, bzelltyp)
 
         IF (myid == 0) THEN
-            WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                 'WRITE STENCILS', MPI_Wtime() - this%time0
         END IF
 
@@ -248,7 +248,7 @@ CONTAINS
         CALL aw%finish()
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'BLOCKING COMPLETE', MPI_Wtime() - this%time0
         END IF
 

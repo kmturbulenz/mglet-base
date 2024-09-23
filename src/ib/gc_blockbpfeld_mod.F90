@@ -43,7 +43,7 @@ CONTAINS
             DO j = 2, jj-1
                 DO k = 2, kk-1
                     bp(k, j, i) = MIN( &
-                        bu(k, j, i-1) + bu(k,j,i), &
+                        bu(k, j, i-1) + bu(k, j, i), &
                         bv(k, j-1, i) + bv(k, j, i), &
                         bw(k-1, j, i) + bw(k, j, i), &
                         1.0_realk)

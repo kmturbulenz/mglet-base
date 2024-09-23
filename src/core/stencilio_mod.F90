@@ -79,7 +79,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: stencilInfo(:, :), &
-            grpStencilInfo(:,:), totStencilInfo(:,:)
+            grpStencilInfo(:, :), totStencilInfo(:, :)
         INTEGER(kind=int64), ALLOCATABLE :: grdOffsets(:)
         INTEGER(kind=int64), ALLOCATABLE :: idx64(:)
         INTEGER(kind=intk), ALLOCATABLE :: idx(:)
@@ -228,7 +228,7 @@ CONTAINS
 
         IF (MINVAL(array_of_displacements) < 0) THEN
             ! check the preceding summation loop (possible source of overflow)
-            WRITE(*,*) "Probably integer overflow in array_of_displacements(:)"
+            WRITE(*, *) "Probably integer overflow in array_of_displacements(:)"
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -334,7 +334,7 @@ CONTAINS
 
         IF (my_len < 0) THEN
             ! check the preceding summation loop (possible source of overflow)
-            WRITE(*,*) "Probably integer overflow in my_len"
+            WRITE(*, *) "Probably integer overflow in my_len"
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -395,9 +395,9 @@ CONTAINS
                 ! offset(1) is of kind HSIZE_T, which on all MGLET-relevant
                 ! platforms is 64-bit
                 IF (offset2(1) > HUGE(1_intk)) THEN
-                    WRITE(*,*) "Integer overflow:"
-                    WRITE(*,*) "Offset of stencils: ", offset2(1)
-                    WRITE(*,*) "Exceed: ", HUGE(1_int32)
+                    WRITE(*, *) "Integer overflow:"
+                    WRITE(*, *) "Offset of stencils: ", offset2(1)
+                    WRITE(*, *) "Exceed: ", HUGE(1_int32)
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END DO
@@ -453,8 +453,8 @@ CONTAINS
         ! send-call to do and nothing else to do afterwards.
         IF (my_len > 0) THEN
             IF (my_len > HUGE(1_int32)) THEN
-                write(*,*) "my_len: ", my_len
-                write(*,*) "exceed: ", HUGE(1_int32)
+                write(*, *) "my_len: ", my_len
+                write(*, *) "exceed: ", HUGE(1_int32)
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -531,7 +531,7 @@ CONTAINS
         ncmp2 = 1
         IF (PRESENT(ncmp)) THEN
             IF (MOD(total_len, INT(ncmp, int64)) > 0) THEN
-                WRITE(*,*) total_len, ncmp
+                WRITE(*, *) total_len, ncmp
                 CALL errr(__FILE__, __LINE__)
             END IF
             IF (ncmp > 1) THEN
@@ -640,7 +640,7 @@ CONTAINS
 
         IF (MINVAL(grdOffsets) < 0) THEN
             ! check the preceding summation loop (possible source of overflow)
-            WRITE(*,*) "Probably integer overflow in grdOffsets(:)"
+            WRITE(*, *) "Probably integer overflow in grdOffsets(:)"
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -674,13 +674,13 @@ CONTAINS
             END IF
 
             ! Define hyperslab
-            IF ( finishBlock ) THEN
-                IF ( count2(r) < 0 ) THEN
-                    WRITE(*,*) "Probably integer overflow in count(1)"
+            IF (finishBlock) THEN
+                IF (count2(r) < 0) THEN
+                    WRITE(*, *) "Probably integer overflow in count(1)"
                     CALL errr(__FILE__, __LINE__)
                 END IF
-                IF ( offset2(r) < 0 ) THEN
-                    WRITE(*,*) "Probably integer overflow in offset(1)"
+                IF (offset2(r) < 0) THEN
+                    WRITE(*, *) "Probably integer overflow in offset(1)"
                     CALL errr(__FILE__, __LINE__)
                 END IF
                 IF (count2(r) > 0) THEN
@@ -756,7 +756,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: stencilInfo(:, :), &
-            grpStencilInfo(:,:)
+            grpStencilInfo(:, :)
         INTEGER(kind=int64), ALLOCATABLE :: file_offset(:)
         INTEGER(kind=intk), ALLOCATABLE :: file_length(:)
         INTEGER(kind=intk), ALLOCATABLE :: idx(:), nGridsProc(:), displ(:), &
@@ -1463,7 +1463,8 @@ CONTAINS
     ! the offset and count of a grid.
     !
     ! The arrays offset and length must be allocated a priori.
-    SUBROUTINE stencilio_read_indexlist(group_id, name, file_offset, file_length)
+    SUBROUTINE stencilio_read_indexlist(group_id, name, file_offset, &
+            file_length)
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
@@ -1535,11 +1536,11 @@ CONTAINS
         CALL hdf5common_dataset_open(name, shape, group_id, dset_id, filespace)
 
         IF (shape(1) /= nElemsTot) THEN
-            WRITE(*,*) "Reading list, got wrong dimensions"
-            WRITE(*,*) "  myid = ", myid
-            WRITE(*,*) "  ioid = ", ioid
-            WRITE(*,*) "  Length of dataset in file:", shape(1)
-            WRITE(*,*) "  Length of allocated memory:", nElemsTot
+            WRITE(*, *) "Reading list, got wrong dimensions"
+            WRITE(*, *) "  myid = ", myid
+            WRITE(*, *) "  ioid = ", ioid
+            WRITE(*, *) "  Length of dataset in file:", shape(1)
+            WRITE(*, *) "  Length of allocated memory:", nElemsTot
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -1646,7 +1647,7 @@ CONTAINS
 
         rank = SIZE(shape)
         IF (rank > maxrank .AND. ioid == 0) THEN
-            WRITE(*,*) "rank, maxrank", rank, maxrank
+            WRITE(*, *) "rank, maxrank", rank, maxrank
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -1656,7 +1657,7 @@ CONTAINS
 
         DO i = 1, rank
             IF (dsetshape(i) /= shape(i) .AND. ioid == 0) THEN
-                WRITE(*,*) "i, dsetshape(i), shape(i)", i, &
+                WRITE(*, *) "i, dsetshape(i), shape(i)", i, &
                     dsetshape(i), shape(i)
                 CALL errr(__FILE__, __LINE__)
             END IF
@@ -1776,7 +1777,7 @@ CONTAINS
 
         rank = SIZE(shape)
         IF (rank > maxrank) THEN
-            WRITE(*,*) "rank, maxrank", rank, maxrank
+            WRITE(*, *) "rank, maxrank", rank, maxrank
             CALL errr(__FILE__, __LINE__)
         END IF
 

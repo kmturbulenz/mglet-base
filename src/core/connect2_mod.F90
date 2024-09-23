@@ -35,7 +35,7 @@ MODULE connect2_mod
     !   Field 6: Which face (1..26) to send
     !   Field 7: Message tag (for MPI)
     !   Field 8: Geometry exchange flag
-    INTEGER(intk), ALLOCATABLE :: sendConns(:,:), recvConns(:,:)
+    INTEGER(intk), ALLOCATABLE :: sendConns(:, :), recvConns(:, :)
 
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendReqs(:), recvReqs(:)
@@ -43,7 +43,7 @@ MODULE connect2_mod
     ! Lists that hold the messages that are ACTUALLY sendt and received
     INTEGER(intk) :: nSend, nRecv, nRecvFaces
     INTEGER(int32), ALLOCATABLE :: sendList(:), recvList(:)
-    INTEGER(intk), ALLOCATABLE :: recvIdxList(:,:)
+    INTEGER(intk), ALLOCATABLE :: recvIdxList(:, :)
 
     ! Number of send and receive connections
     INTEGER(intk) :: iSend = 0, iRecv = 0
@@ -93,7 +93,7 @@ MODULE connect2_mod
     CLASS(basefield_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
         p1 => NULL(), p2 => NULL(), p3 => NULL()
 
-    INTEGER(intk), PARAMETER :: facelist(4,26) = RESHAPE((/ &
+    INTEGER(intk), PARAMETER :: facelist(4, 26) = RESHAPE((/ &
         1, 1, 0, 0, &
         1, 2, 0, 0, &
         1, 3, 0, 0, &
@@ -363,20 +363,20 @@ CONTAINS
 
         ! Check if the connection information has been created
         IF (isInit .EQV. .FALSE.) THEN
-            WRITE(*,*) "'connect' not initialized"
+            WRITE(*, *) "'connect' not initialized"
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Check that no other transfers are in progress
         IF (nSend > 0 .OR. nRecv > 0) THEN
-            WRITE(*,*) "Other transfer in progress."
+            WRITE(*, *) "Other transfer in progress."
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! Check that number of connect layers are either 1 or 2
         IF (PRESENT(layers)) THEN
-            IF ( .NOT. (layers  ==  1 .OR. layers  ==  2)) THEN
-                WRITE(*,*) "Invalid layers=", layers
+            IF (.NOT. (layers  ==  1 .OR. layers  ==  2)) THEN
+                WRITE(*, *) "Invalid layers=", layers
                 CALL errr(__FILE__, __LINE__)
             END IF
             nplane = layers
@@ -388,12 +388,14 @@ CONTAINS
         nVars = 0
         IF (has_v1) THEN
             IF (.NOT. (has_v2 .AND. has_v3)) THEN
-                WRITE(*,*) "If one vector arg is present, all three must be present."
+                WRITE(*, *) "If one vector arg is present, all three " &
+                    // "must be present."
                 CALL errr(__FILE__, __LINE__)
             END IF
             nVars = nVars + 3
         ELSE IF (has_v2 .OR. has_v3) THEN
-            WRITE(*,*) "If one vector arg is present, all three must be present."
+             WRITE(*, *) "If one vector arg is present, all three " &
+                // "must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -446,7 +448,7 @@ CONTAINS
                     nVars = nVars - 2
                     sn = .TRUE.
                 ELSE
-                    WRITE(*,*) "normal=.TRUE. require a vector v1, v2, v3."
+                    WRITE(*, *) "normal=.TRUE. require a vector v1, v2, v3."
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END IF
@@ -458,7 +460,7 @@ CONTAINS
             IF ((ityp == 'W') .OR. (ityp == 'Y')) THEN
                 flag = ityp
             ELSE
-                write(*,*) "Invalid ITYP=", ityp
+                write(*, *) "Invalid ITYP=", ityp
                 CALL errr(__FILE__, __LINE__)
             END IF
         END IF
@@ -476,7 +478,7 @@ CONTAINS
 
         ! Not specifying any fields would be very strange
         IF (nVars == 0) THEN
-            WRITE(*,*) "You have not specified any fields to exchange."
+            WRITE(*, *) "You have not specified any fields to exchange."
             CALL errr(__FILE__, __LINE__)
         END IF
         ! TODO: Check why? Maybe because of buffer limitations?
@@ -539,7 +541,7 @@ CONTAINS
 
     FUNCTION decide(i, list) RESULT(exchange)
         INTEGER(intk), INTENT(in) :: i
-        INTEGER(intk), INTENT(in) :: list(:,:)
+        INTEGER(intk), INTENT(in) :: list(:, :)
 
         INTEGER(intk) :: ifacerecv, ilevel
         LOGICAL :: exchange
@@ -642,14 +644,14 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
 
-            CALL MPI_Irecv(irecvbuf(recvcounter+1) , messagelength, &
+            CALL MPI_Irecv(irecvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_ifk, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
         ELSE
             IF (recvcounter + messagelength > SIZE(recvbuf)) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
 
-            CALL MPI_Irecv(recvbuf(recvcounter+1) , messagelength, &
+            CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
         END IF
 
@@ -826,7 +828,7 @@ CONTAINS
 
         ! Check that message length was calculated correctly
         IF (thismessagelength /= (icount - offset)) THEN
-            write(*,*) "thismessagelength:", thismessagelength, &
+            write(*, *) "thismessagelength:", thismessagelength, &
                 "icount:", icount
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -990,7 +992,7 @@ CONTAINS
 
         ! Check that message length is calculated correctly
         IF ((icount - offset) /= recvidxlist(2, recvid)) THEN
-            WRITE(*,*) "icount:", icount, &
+            WRITE(*, *) "icount:", icount, &
                 "recvidxlist(2, recvid):", recvidxlist(2, recvid)
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -1492,10 +1494,10 @@ CONTAINS
         iRecv = nRecv
 
         ! Sort recvConns by process ID
-        CALL sort_conns(recvConns(:,1:nRecv))
+        CALL sort_conns(recvConns(:, 1:nRecv))
 
         ! Calculate sdispl offset
-        DO i=1,numprocs-1
+        DO i=1, numprocs-1
             sdispls(i) = sdispls(i-1) + sendcounts(i-1)
         END DO
 
@@ -1505,15 +1507,16 @@ CONTAINS
             MPI_INTEGER, MPI_COMM_WORLD)
 
         ! Calculate rdispl offset
-        DO i=1,numprocs-1
+        DO i=1, numprocs-1
             rdispls(i) = rdispls(i-1) + recvcounts(i-1)
         END DO
 
         ! Check that number of connections fit in array
-        iSend = (rdispls(numprocs-1) + recvcounts(numprocs-1))/SIZE(sendConns, 1)
+        iSend = (rdispls(numprocs-1) + recvcounts(numprocs-1)) &
+            /SIZE(sendConns, 1)
         IF (iSend > maxConns) THEN
-            write(*,*) "Number of connections exceeded on process ", myid
-            write(*,*) "maxConns =", maxConns, "nMyGrids =", nMyGrids, &
+            write(*, *) "Number of connections exceeded on process ", myid
+            write(*, *) "maxConns =", maxConns, "nMyGrids =", nMyGrids, &
                 "iSend = ", iSend
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -1641,9 +1644,9 @@ CONTAINS
 
     SUBROUTINE sort_conns(list)
         ! Input array to be sorted
-        INTEGER(int32), INTENT(inout) :: list(:,:)
+        INTEGER(int32), INTENT(inout) :: list(:, :)
 
-        INTEGER(intk) :: i,j
+        INTEGER(intk) :: i, j
 
         ! Temporary storage
         INTEGER(int32) :: temp(8)
@@ -1655,16 +1658,16 @@ CONTAINS
         ! Sort by sending processor number (field 2)
         DO i = 2, SIZE(list, 2)
             j = i - 1
-            temp(:) = list(:,i)
+            temp(:) = list(:, i)
             DO WHILE (j >= 1)
-                IF (list(2,j) > temp(2)) THEN
-                    list(:,j+1) = list(:,j)
+                IF (list(2, j) > temp(2)) THEN
+                    list(:, j+1) = list(:, j)
                     j = j - 1
                 ELSE
                     EXIT
                 END IF
             END DO
-            list(:,j+1) = temp(:)
+            list(:, j+1) = temp(:)
         END DO
 
     END SUBROUTINE sort_conns

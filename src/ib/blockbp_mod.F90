@@ -84,7 +84,7 @@ CONTAINS
         END IF
 
         IF (myid == 0) THEN
-           WRITE (*,'("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
                'READING GEOMETRIES', MPI_Wtime() - this%time0
         END IF
 

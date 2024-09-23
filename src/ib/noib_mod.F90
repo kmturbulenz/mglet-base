@@ -152,11 +152,11 @@ CONTAINS
                     DO k = 3, kk-2
                         ap(k, j, i) = ap(k, j, i) &
                             + aw(i)*(1.0-bp(k, j, i-1)*bp(k, j, i)) &
-                            + ae(i)*(1.0-bp(k, j, i  )*bp(k, j, i+1)) &
-                            + as(j)*(1.0-bp(k, j-1, i)*bp(k, j  , i)) &
-                            + an(j)*(1.0-bp(k, j  , i)*bp(k, j+1, i)) &
-                            + ab(k)*(1.0-bp(k-1, j, i)*bp(k  , j, i)) &
-                            + at(k)*(1.0-bp(k  , j, i)*bp(k+1, j, i))
+                            + ae(i)*(1.0-bp(k, j, i)*bp(k, j, i+1)) &
+                            + as(j)*(1.0-bp(k, j-1, i)*bp(k, j, i)) &
+                            + an(j)*(1.0-bp(k, j, i)*bp(k, j+1, i)) &
+                            + ab(k)*(1.0-bp(k-1, j, i)*bp(k, j, i)) &
+                            + at(k)*(1.0-bp(k, j, i)*bp(k+1, j, i))
                     END DO
                 END DO
             END DO
@@ -306,7 +306,7 @@ CONTAINS
                 DO k = 3, kk-2
                     div(k, j, i) = fak*((u(k, j, i) - u(k, j, i-1))*rddx(i) &
                         + (v(k, j, i) - v(k, j-1, i))*rddy(j) &
-                        + (w(k, j, i) - w(k-1, j, i) )*rddz(k))
+                        + (w(k, j, i) - w(k-1, j, i))*rddz(k))
                 END DO
             END DO
         END DO

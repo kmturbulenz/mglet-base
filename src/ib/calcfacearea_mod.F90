@@ -80,7 +80,7 @@ CONTAINS
         END IF
 
         IF (s2 < ymin .OR. s2 > ymax) THEN
-            WRITE(*, *) 'warn calcfacedata k,j,i', k, j, i
+            WRITE(*, *) 'warn calcfacedata k, j, i: ', k, j, i
             WRITE(*, *) 'warn calcfacedata s2, ymin, ymax', s2, ymin, ymax
         END IF
     END SUBROUTINE calcfacedata

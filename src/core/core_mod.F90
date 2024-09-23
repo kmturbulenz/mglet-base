@@ -230,7 +230,7 @@ CONTAINS
             CALL IEEE_SET_UNDERFLOW_MODE(.FALSE.)
 #endif
         CASE DEFAULT
-            WRITE(*,*) "Invalid value for MGLET_UNDERFLOW: ", &
+            WRITE(*, *) "Invalid value for MGLET_UNDERFLOW: ", &
                 TRIM(mglet_underflow)
             CALL errr(__FILE__, __LINE__)
         END SELECT

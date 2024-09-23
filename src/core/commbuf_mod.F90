@@ -55,7 +55,7 @@ CONTAINS
 
         ! Max memory requirement for bigbuf: All 3D fields at once,
         ! rounded up to a number dividable by two
-        bigbuflen = idim3d + MOD(idim3d,2) + 2
+        bigbuflen = idim3d + MOD(idim3d, 2) + 2
 
         ! All processes allocate the same buffer
         bigbuflen = MAX(bigbuflen, 2*commbuflen)

@@ -94,7 +94,7 @@ CONTAINS
         DO i = 1, ngrids
             igrid = lofgrids(i)
             ipar = iparent(igrid)
-            IF (ipar /= 0 ) THEN
+            IF (ipar /= 0) THEN
                 iprocf = idprocofgrd(igrid)
 
                 IF (myid == iprocf) THEN
@@ -109,7 +109,7 @@ CONTAINS
         DO i = 1, ngrids
             igrid = lofgrids(i)
             ipar = iparent(igrid)
-            IF (ipar /= 0 ) THEN
+            IF (ipar /= 0) THEN
                 iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocc) THEN
@@ -270,7 +270,7 @@ CONTAINS
         ! Make all Send- and Recv-types
         DO igrid = 1, ngrid
             ipar = iparent(igrid)
-            IF (ipar /= 0 ) THEN
+            IF (ipar /= 0) THEN
                 iprocf = idprocofgrd(igrid)
                 iprocc = idprocofgrd(ipar)
 

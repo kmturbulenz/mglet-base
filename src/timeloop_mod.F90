@@ -343,7 +343,7 @@ CONTAINS
 
         IF (myid == 0) THEN
             ! CLI print
-            WRITE(*,'("ITSTEP, WTIME, DELTA: ", I8, F16.3, F16.3)') &
+            WRITE(*, '("ITSTEP, WTIME, DELTA: ", I8, F16.3, F16.3)') &
                 itstep, wtime - wtime0, delta
             WRITE(*, '("ITTOT, TIME, DT: ", I13, F16.8, ES16.4)') &
                 ittot, timeph, dt
