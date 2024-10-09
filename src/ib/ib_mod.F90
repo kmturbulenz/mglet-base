@@ -22,6 +22,7 @@ MODULE ib_mod
     USE knotenundkanten_mod
     USE openbubvbw_mod, ONLY: openbubvbw
     USE parent_mod
+    USE par_ftoc_mod
     USE punktekoordinaten_mod
     USE topol_mod
     USE gc_mod, gc_constructor => constructor
@@ -43,6 +44,7 @@ CONTAINS
         CALL init_ctof()
         CALL init_ftoc()
         CALL init_parent()
+        CALL init_par_ftoc()
 
         CALL set_finecell()
 
@@ -51,6 +53,7 @@ CONTAINS
 
 
     SUBROUTINE finish_ib()
+        CALL finish_par_ftoc()
         CALL finish_parent()
         CALL finish_ftoc()
         CALL finish_ctof()
