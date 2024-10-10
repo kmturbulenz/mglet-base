@@ -2,7 +2,8 @@ MODULE gc_flowstencils_mod
     USE bound_flow_mod
     USE core_mod
     USE ib_mod, ONLY: gc_t, parent, ftoc, wmindexlistn, findinterface2, &
-        maccur, wmcheckneighbor, choosestencil, wmmultimatrix, wmaddcoefflist
+        maccur, wmcheckneighbor, choosestencil, wmmultimatrix, wmaddcoefflist, &
+        par_ftoc_norm
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -1396,7 +1397,7 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: u, v, w
 
         ! Local variables
-        INTEGER(intk) :: ilevel, irepeat
+        INTEGER(intk) :: ilevel
 
         CALL start_timer(340)
 
@@ -1416,24 +1417,11 @@ CONTAINS
             CALL connect(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
         END DO
 
-        DO ilevel = maxlevel, minlevel, -1
-            DO irepeat = 1, 2
-                CALL ftoc(ilevel, u%arr, u%arr, 'U')
-                CALL ftoc(ilevel, v%arr, v%arr, 'V')
-                CALL ftoc(ilevel, w%arr, w%arr, 'W')
-
-                IF (ilevel > minlevel) THEN
-                    IF (irepeat == 1) THEN
-                        CALL connect(ilevel-1, 1, v1=u, v2=v, &
-                            v3=w, normal=.TRUE., forward=-1, ityp='Y')
-                    ELSE IF (irepeat == 2) THEN
-                        CALL connect(ilevel-1, 1, v1=u, v2=v, &
-                            v3=w, corners=.TRUE.)
-                    ELSE
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-                END IF
-            END DO
+        DO ilevel = maxlevel, minlevel+1, -1
+            CALL ftoc(ilevel, u%arr, u%arr, 'U')
+            CALL ftoc(ilevel, v%arr, v%arr, 'V')
+            CALL ftoc(ilevel, w%arr, w%arr, 'W')
+            CALL par_ftoc_norm(ilevel, u, v, w)
         END DO
 
         DO ilevel = minlevel, maxlevel
