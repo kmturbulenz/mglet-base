@@ -192,7 +192,7 @@
                 "CMAKE_Fortran_COMPILER": "flang-new",
 
                 "MGLET_C_FLAGS": "",
-                "MGLET_CXX_FLAGS": "-Wno-missing-template-arg-list-after-template-kw",
+                "MGLET_CXX_FLAGS": "",
                 "MGLET_Fortran_FLAGS": "-fimplicit-none",
 
                 "MGLET_C_FLAGS_RELEASE": "-g",
