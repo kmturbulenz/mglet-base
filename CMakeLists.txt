@@ -116,7 +116,7 @@ FetchContent_MakeAvailable(json)
 # Exprtk expression parser
 FetchContent_Declare(exprtk
     GIT_REPOSITORY https://github.com/kmturbulenz/exprtk
-    GIT_TAG 699c1c172b0e28704c2483fc9b3975763691bcd1
+    GIT_TAG 48390febb53664cc3577d2329b63b45231037cb3
 )
 FetchContent_MakeAvailable(exprtk)
 
