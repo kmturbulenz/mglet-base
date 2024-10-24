@@ -127,38 +127,41 @@ Since version 7.2 build 7213, the
 working binary that runs all testcases successfully. This is only tested on
 x64 Linux systems.
 
+The LLVM `flang` compiler (together with `clang` and `clang++`), built from
+[Github sources](https://github.com/llvm/llvm-project), also works. Released
+versions prior to version 20 (expected released in spring 2025) will
+probably not work.
+
 ### Dependencies
 
 * An MPI implementation of your choice that provides the `MPI_f08` Fortran
-bindings
+bindings. Intel MPI, OpenMPI and MPICH >= 4.2.2 are known to work well.
 * HDF5: https://github.com/HDFGroup/hdf5
 * CMake: https://cmake.org/download/
 
 The following dependencies are fetched and built automatically by CMake:
 
 * Nlohman JSON: https://github.com/nlohmann/json
-* Exprtk: https://github.com/ArashPartow/exprtk
+* Exprtk: https://www.partow.net/programming/exprtk/
 
 ### Build instructions
 
 MGLET-base make use of
 [CMake presets](https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html)
 to store a default set of build settings for the most common environments.
-There are currently four pre-defined presets:
+There are currently pre-defined presets for the following compilers/toolchains:
 
-* `gnu-debug`: GNU compilers `gcc`, `g++` and `gfortran` with common debug flags
-* `gnu-release`: GNU compilers `gcc`, `g++` and `gfortran` with flags
-for release (performance-optimized) builds
-* `intel-debug`: Intel compilers `icx`, `icpx` and `ifx` with common debug flags
-* `intel-release`: Intel compilers `icx`, `icpx` and `ifx` with flags for
-release (performance-optimized) builds
-* `nag-debug`: NAG Fortran compiler `nagfor` with GNU C and C++ compilers `gcc`
-and `g++` with debug flags. This configuration is very effective of discovering
-errors that the Intel and GNU compilers cannot detect.
-* `nag-release`: NAG Fortran compiler `nagfor` with GNU C and C++ compilers
-`gcc` and `g++` with flags for release (performance-optimized) builds.
+* `gnu-debug` and  `gnu-release`: GNU compilers `gcc`, `g++` and `gfortran`.
+* `intel-debug` and `intel-release`: Intel compilers `icx`, `icpx` and `ifx`.
+* `nag-debug` and `nag-release`: NAG Fortran compiler `nagfor` with GNU C
+  and C++ compilers `gcc` and `g++`. The debug configuration `nag-debug` is
+  very effective of discovering errors that the Intel and GNU compilers cannot
+  detect.
+* `llvm-debug` and  `llvm-release`: LLVM compilers `clang`, `clang++` and
+  `flang` (formerly known as `flang-new`).
+* `cray-debug` and  `cray-release`: Cray compilers `cc`, `CC` and `ftn`.
 
-In order to build MGLET there is a few simple steps to follow:
+In order to build MGLET there are a few simple steps to follow:
 
 1. Check out the source code
 
