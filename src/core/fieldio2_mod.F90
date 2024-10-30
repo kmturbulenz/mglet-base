@@ -345,7 +345,14 @@ CONTAINS
             ! 3D fields are "connected" to ensure that all ghost cell locations
             ! are updated before writing data to file to ease postprocessing
             IF (field%ndim == 3) THEN
-                CALL connect(ilevel, 2, s1=field, corners=.TRUE.)
+                SELECT TYPE (field)
+                TYPE IS (field_t)
+                    CALL connect(ilevel, 2, s1=field, corners=.TRUE.)
+                TYPE IS (intfield_t)
+                    CALL connect_int(ilevel, 2, s1=field, corners=.TRUE.)
+                CLASS DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+                END SELECT
             END IF
         END DO
 

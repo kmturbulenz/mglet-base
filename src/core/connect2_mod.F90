@@ -216,17 +216,16 @@ MODULE connect2_mod
         20, 19, 22, 24, 21, 23, 26, &
         19, 20, 21, 23, 22, 24, 25 /), SHAPE(rescue_nbr))
 
-    PUBLIC :: connect, init_connect2, finish_connect2
+    PUBLIC :: connect, connect_int, init_connect2, finish_connect2
 
 CONTAINS
 
-    ! Main connect functions
     SUBROUTINE connect(ilevel, layers, v1, v2, v3, &
             s1, s2, s3, geom, corners, normal, forward, ityp, minlvl, maxlvl)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
-        CLASS(basefield_t), TARGET, OPTIONAL, INTENT(inout) :: &
+        TYPE(field_t), TARGET, OPTIONAL, INTENT(inout) :: &
             v1, v2, v3, s1, s2, s3
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
@@ -235,7 +234,6 @@ CONTAINS
 
         ! Local variables
         LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
-        LOGICAL :: has_real_arg, has_int_arg
 
         has_v1 = .FALSE.
         has_v2 = .FALSE.
@@ -243,9 +241,6 @@ CONTAINS
         has_s1 = .FALSE.
         has_s2 = .FALSE.
         has_s3 = .FALSE.
-
-        has_real_arg = .FALSE.
-        has_int_arg = .FALSE.
 
         NULLIFY(u)
         NULLIFY(v)
@@ -257,88 +252,104 @@ CONTAINS
         IF (PRESENT(v1)) THEN
             has_v1 = .TRUE.
             u => v1
-
-            SELECT TYPE(v1)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
         END IF
 
         IF (PRESENT(v2)) THEN
             has_v2 = .TRUE.
             v => v2
-
-            SELECT TYPE(v2)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
         END IF
 
         IF (PRESENT(v3)) THEN
             has_v3 = .TRUE.
             w => v3
-
-            SELECT TYPE(v3)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
         END IF
 
         IF (PRESENT(s1)) THEN
             has_s1 = .TRUE.
             p1 => s1
-
-            SELECT TYPE(s1)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
         END IF
 
         IF (PRESENT(s2)) THEN
             has_s2 = .TRUE.
             p2 => s2
-
-            SELECT TYPE(s2)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
         END IF
 
         IF (PRESENT(s3)) THEN
             has_s3 = .TRUE.
             p3 => s3
-
-            SELECT TYPE(s3)
-            TYPE IS (field_t)
-                has_real_arg = .TRUE.
-            TYPE IS (intfield_t)
-                has_int_arg = .TRUE.
-            END SELECT
-        END IF
-
-        ! Sanity check if integers/realk
-        ! can only connect either INTEGER _or_ REAL
-        IF (has_real_arg .EQV. has_int_arg) THEN
-            CALL errr(__FILE__, __LINE__)
         END IF
 
         connect_integer = .FALSE.
-        IF (has_int_arg) connect_integer = .TRUE.
-
         CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
             has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp, &
             minlvl, maxlvl)
     END SUBROUTINE connect
+
+
+    SUBROUTINE connect_int(ilevel, layers, v1, v2, v3, &
+            s1, s2, s3, geom, corners, normal, forward, ityp, minlvl, maxlvl)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
+        TYPE(intfield_t), TARGET, OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal
+        INTEGER(intk), OPTIONAL, INTENT(in) :: forward
+        CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+        INTEGER(intk), INTENT(in), OPTIONAL :: minlvl, maxlvl
+
+        ! Local variables
+        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
+
+        has_v1 = .FALSE.
+        has_v2 = .FALSE.
+        has_v3 = .FALSE.
+        has_s1 = .FALSE.
+        has_s2 = .FALSE.
+        has_s3 = .FALSE.
+
+        NULLIFY(u)
+        NULLIFY(v)
+        NULLIFY(w)
+        NULLIFY(p1)
+        NULLIFY(p2)
+        NULLIFY(p3)
+
+        IF (PRESENT(v1)) THEN
+            has_v1 = .TRUE.
+            u => v1
+        END IF
+
+        IF (PRESENT(v2)) THEN
+            has_v2 = .TRUE.
+            v => v2
+        END IF
+
+        IF (PRESENT(v3)) THEN
+            has_v3 = .TRUE.
+            w => v3
+        END IF
+
+        IF (PRESENT(s1)) THEN
+            has_s1 = .TRUE.
+            p1 => s1
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            has_s2 = .TRUE.
+            p2 => s2
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            has_s3 = .TRUE.
+            p3 => s3
+        END IF
+
+        connect_integer = .TRUE.
+        CALL connect_impl(ilevel, layers, has_v1, has_v2, has_v3, &
+            has_s1, has_s2, has_s3, geom, corners, normal, forward, ityp, &
+            minlvl, maxlvl)
+    END SUBROUTINE connect_int
 
 
     ! Main connect function
