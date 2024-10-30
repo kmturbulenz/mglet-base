@@ -150,7 +150,7 @@
 
                 "MGLET_C_FLAGS": "",
                 "MGLET_CXX_FLAGS": "",
-                "MGLET_Fortran_FLAGS": "-M;878,969",
+                "MGLET_Fortran_FLAGS": "-M;878,969,7206,7212",
 
                 "MGLET_C_FLAGS_RELEASE": "-O2",
                 "MGLET_CXX_FLAGS_RELEASE": "-O2",
