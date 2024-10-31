@@ -56,7 +56,7 @@ extern "C" {
 
         // Number of vertices that was read and number of triangles from this
         const size_t nverts = vertices.size();
-        const int ntri = nverts/9;
+        const size_t ntri = nverts/9;
 
         const std::string type = (is_binary == 0) ? "ASCII" : "binary";
         std::cout << " STL: " << fname << " is " << type
@@ -67,7 +67,8 @@ extern "C" {
 
         // Allocate the Fortran array
         const CFI_index_t lower_bounds[3] = {1, 1, 1};
-        const CFI_index_t upper_bounds[3] = {3, 3, ntri};
+        const CFI_index_t upper_bounds[3] =
+            {3, 3, static_cast<CFI_index_t>(ntri)};
         *ierr = CFI_allocate(data, lower_bounds, upper_bounds, 0);
         if (*ierr) {
             std::cerr << "Error allocating ntri: " << ntri << std::endl;
