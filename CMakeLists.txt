@@ -56,6 +56,12 @@ else()
     message(STATUS "Compiling MGLET with 32 bit integers")
 endif()
 
+option(MGLET_OPENMP "Enable OpenMP (experimental)" OFF)
+if(MGLET_OPENMP)
+    message(STATUS "Enabling OpenMP")
+    find_package(OpenMP REQUIRED)
+endif()
+
 # CMake build options
 set(MGLET_ENVPREFIX "" CACHE STRING "Prefix for all MGLET environment variables")
 if(NOT MGLET_ENVPREFIX STREQUAL "")
@@ -104,6 +110,13 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},GNU>>:-ffree-line-length-none>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
 )
+
+if (MGLET_OPENMP)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
+    )
+endif()
 
 # nlohman JSON parser library
 include(FetchContent)

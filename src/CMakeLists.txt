@@ -37,6 +37,7 @@ target_link_libraries(mglet
     PUBLIC mgletlib
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ${MPI_Fortran_LIBRARIES}
+    PRIVATE $<IF:$<BOOL:${MGLET_OPENMP}>,OpenMP::OpenMP_Fortran,>
 )
 
 set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)

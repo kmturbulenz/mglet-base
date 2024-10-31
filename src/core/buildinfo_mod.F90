@@ -40,6 +40,11 @@ CONTAINS
 #endif
         WRITE(*, '("    Compiler:      ", A)') COMPILER_VERSION()
         WRITE(*, '("    Options:       ", A)') COMPILER_OPTIONS()
+#ifdef _OPENMP
+        WRITE(*, '("    OpenMP:        ", I0)') _OPENMP
+#else
+        WRITE(*, '("    OpenMP:        ", A)') "disabled"
+#endif
         WRITE(*, '()')
 
         WRITE(*, '("COMPILED PRECISION:")')
