@@ -15,7 +15,7 @@ jobs:
 
     strategy:
       matrix:
-        image: ["intel-impi-image:sha-f052b7b", "gnu-ompi-image:sha-f052b7b", "llvm-mpich-image:date-20241024"]
+        image: ["intel-impi-image:sha-f052b7b", "gnu-ompi-image:date-20241106", "llvm-mpich-image:date-20241024"]
         build: ["release", "debug"]
         prec: ["Single", "Double"]
         exclude:
