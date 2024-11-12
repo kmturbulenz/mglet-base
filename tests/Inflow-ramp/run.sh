@@ -7,8 +7,8 @@ ACTION=$1
 
 if [[ "$ACTION" == "test" ]]; then
     MGLET_BIN=$2
-    mpirun -n 1 $MGLET_BIN parameters-ramp.json 2>&1 | tee mglet-ramp.OUT
-    mpirun -n 1 $MGLET_BIN parameters-ramp_inf.json 2>&1 | tee mglet-ramp_inf.OUT
+    $MGLET_BIN parameters-ramp.json 2>&1 | tee mglet-ramp.OUT
+    $MGLET_BIN parameters-ramp_inf.json 2>&1 | tee mglet-ramp_inf.OUT
 
     if python3 &> /dev/null
     then

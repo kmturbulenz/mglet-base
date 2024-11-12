@@ -150,7 +150,7 @@
 
                 "MGLET_C_FLAGS": "",
                 "MGLET_CXX_FLAGS": "",
-                "MGLET_Fortran_FLAGS": "-M;878,969",
+                "MGLET_Fortran_FLAGS": "-M;878,969,7206,7212",
 
                 "MGLET_C_FLAGS_RELEASE": "-O2",
                 "MGLET_CXX_FLAGS_RELEASE": "-O2",
@@ -184,15 +184,15 @@
         {
             "name": "llvm",
             "hidden": true,
-            "displayName": "LLVM compilers (clang, clang++, flang-new)",
+            "displayName": "LLVM compilers (clang, clang++, flang)",
             "description": "Default build options using the LLVM compilers",
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
-                "CMAKE_Fortran_COMPILER": "flang-new",
+                "CMAKE_Fortran_COMPILER": "flang",
 
                 "MGLET_C_FLAGS": "",
-                "MGLET_CXX_FLAGS": "-Wno-missing-template-arg-list-after-template-kw",
+                "MGLET_CXX_FLAGS": "",
                 "MGLET_Fortran_FLAGS": "-fimplicit-none",
 
                 "MGLET_C_FLAGS_RELEASE": "-g",
@@ -206,8 +206,8 @@
         },
         {
             "name": "llvm-release",
-            "displayName": "LLVM compilers (clang, clang++, flang-new) (release)",
-            "description": "Release configuration using the LLVM compilers (clang, clang++, flang-new)",
+            "displayName": "LLVM compilers (clang, clang++, flang) (release)",
+            "description": "Release configuration using the LLVM compilers (clang, clang++, flang)",
             "inherits": "llvm",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
@@ -216,8 +216,8 @@
         },
         {
             "name": "llvm-debug",
-            "displayName": "LLVM compilers (clang, clang++, flang-new) (debug)",
-            "description": "Debug configuration using the LLVM compilers (clang, clang++, flang-new)",
+            "displayName": "LLVM compilers (clang, clang++, flang) (debug)",
+            "description": "Debug configuration using the LLVM compilers (clang, clang++, flang)",
             "inherits": "llvm",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"

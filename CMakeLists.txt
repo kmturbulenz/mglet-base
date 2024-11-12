@@ -56,6 +56,12 @@ else()
     message(STATUS "Compiling MGLET with 32 bit integers")
 endif()
 
+option(MGLET_OPENMP "Enable OpenMP (experimental)" OFF)
+if(MGLET_OPENMP)
+    message(STATUS "Enabling OpenMP")
+    find_package(OpenMP REQUIRED)
+endif()
+
 # CMake build options
 set(MGLET_ENVPREFIX "" CACHE STRING "Prefix for all MGLET environment variables")
 if(NOT MGLET_ENVPREFIX STREQUAL "")
@@ -105,6 +111,13 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
 )
 
+if (MGLET_OPENMP)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
+    )
+endif()
+
 # nlohman JSON parser library
 include(FetchContent)
 FetchContent_Declare(json
@@ -116,7 +129,7 @@ FetchContent_MakeAvailable(json)
 # Exprtk expression parser
 FetchContent_Declare(exprtk
     GIT_REPOSITORY https://github.com/kmturbulenz/exprtk
-    GIT_TAG 699c1c172b0e28704c2483fc9b3975763691bcd1
+    GIT_TAG 48390febb53664cc3577d2329b63b45231037cb3
 )
 FetchContent_MakeAvailable(exprtk)
 

@@ -125,7 +125,7 @@ CONTAINS
         INTEGER(intk), PARAMETER :: ldofa = 20
 
         INTEGER(intk) :: i, j, k, it, jt, kt
-        INTEGER(intk) :: pntxpoli, pntxpolr, counter, ngeomnbr
+        INTEGER(intk) :: pntxpoli, pntxpolr, counter
         INTEGER(intk) :: found, found2, found3, foundnr
         INTEGER(intk) :: foundx1, foundx2, foundy1, foundy2, foundz1, foundz2
         INTEGER(intk) :: xpolisize, xpolrsize, imygrid
@@ -188,74 +188,56 @@ CONTAINS
                             kt = k
                             found2 = 1
                         ELSE
-                            ! looking of neighboring cells have information
-                            ngeomnbr = 0
-                            if (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
-                            if (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) &
-                                ngeomnbr = ngeomnbr + 1
+                            body = 0
 
-                            IF (ngeomnbr > 0) THEN
-                                ! there is information in (at least) one
-                                ! neighboring cells. In case of multiple
-                                ! eligible cells, the biggest bodyid is
-                                ! selected.
-                                body = 0
-                                IF (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j, i+1)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j, i+1))
-                                        it = i+1
-                                        jt = j
-                                        kt = k
-                                    END IF
+                            ! In case of multiple eligible cells, the biggest
+                            ! bodyid is selected.
+                            IF (foundx1 == 1 .AND. bzelltyp(k, j, i+1) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j, i+1)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j, i+1))
+                                    it = i+1
+                                    jt = j
+                                    kt = k
                                 END IF
-                                IF (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j, i-1)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j, i-1))
-                                        it = i-1
-                                        jt = j
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundx2 == 1 .AND. bzelltyp(k, j, i-1) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j, i-1)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j, i-1))
+                                    it = i-1
+                                    jt = j
+                                    kt = k
                                 END IF
-                                IF (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j+1, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j+1, i))
-                                        it = i
-                                        jt = j+1
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundy1 == 1 .AND. bzelltyp(k, j+1, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j+1, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j+1, i))
+                                    it = i
+                                    jt = j+1
+                                    kt = k
                                 END IF
-                                IF (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k, j-1, i  )) > body) THEN
-                                        body = bodyid(-bzelltyp(k, j-1, i))
-                                        it = i
-                                        jt = j-1
-                                        kt = k
-                                    END IF
+                            END IF
+                            IF (foundy2 == 1 .AND. bzelltyp(k, j-1, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k, j-1, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k, j-1, i))
+                                    it = i
+                                    jt = j-1
+                                    kt = k
                                 END IF
-                                IF (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k+1, j, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k+1, j, i))
-                                        it = i
-                                        jt = j
-                                        kt = k+1
-                                    END IF
+                            END IF
+                            IF (foundz1 == 1 .AND. bzelltyp(k+1, j, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k+1, j, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k+1, j, i))
+                                    it = i
+                                    jt = j
+                                    kt = k+1
                                 END IF
-                                IF (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) THEN
-                                    IF (bodyid(-bzelltyp(k-1, j, i)) > body) THEN
-                                        body = bodyid(-bzelltyp(k-1, j, i))
-                                        it = i
-                                        jt = j
-                                        kt = k-1
-                                    END IF
+                            END IF
+                            IF (foundz2 == 1 .AND. bzelltyp(k-1, j, i) < 0) THEN
+                                IF (bodyid(-bzelltyp(k-1, j, i)) > body) THEN
+                                    body = bodyid(-bzelltyp(k-1, j, i))
+                                    it = i
+                                    jt = j
+                                    kt = k-1
                                 END IF
                             END IF
 
@@ -289,7 +271,7 @@ CONTAINS
                                     xpolrvel, areabyvol, body)
                             END IF
                         ELSE
-                           ! rescuestencil, because no triangle was found
+                            ! rescuestencil, because no triangle was found
                             ! (emergency solution)
                             areabyvol = 0.0
                             body = 0
@@ -621,7 +603,7 @@ CONTAINS
             END DO
         END DO
 
-        !!! --- Cell value stencil --- (comparable to flux stencil)
+        ! --- Cell value stencil --- (comparable to flux stencil)
         ! stencil is applied to set the mean value of the fluid-filled part
         ! of the cell as the cell value for proper statistics and
         ! postprocessing (masked with VOLP)
@@ -634,7 +616,7 @@ CONTAINS
             ! additive constant (=> fluid volume mean)
             ! IMPORTANT: this additive constant is NOT yet multiplied with
             ! the Dirichlet value
-            acoeffstc = ( acoeffstc * dvol / (cvol1 * dvol) )
+            acoeffstc = (acoeffstc * dvol / (cvol1 * dvol))
         ELSE
             ! multiplicative constants
             DO n = 1, velpts
@@ -676,7 +658,7 @@ CONTAINS
 
         ! test coeffient for NAN
         nanstenc = 0
-        DO n = 1,velpts
+        DO n = 1, velpts
             IF (ABS(coeffstctsca(n)) < 0.0) THEN
                 nanstenc = 1
             END IF
@@ -692,32 +674,32 @@ CONTAINS
         END IF
 
         IF (nanstenc == 1) THEN
-            WRITE(*,*) "-----------------------------------------------"
-            WRITE(*,*) "i, j, k", i, j, k
+            WRITE(*, *) "-----------------------------------------------"
+            WRITE(*, *) "i, j, k", i, j, k
             DO n = 1, velpts
-                WRITE(*,*) "dist(n)", n, dist(n)
+                WRITE(*, *) "dist(n)", n, dist(n)
             END DO
-            WRITE(*,*) "dall",dall
+            WRITE(*, *) "dall", dall
             DO n = 1, velpts
-                write(*,*) "ce(n)", n, ce(n)
+                write(*, *) "ce(n)", n, ce(n)
             END DO
-            WRITE(*,*) "cesum", cesum
-            WRITE(*,*) "velpts", velpts
-            WRITE(*,*) "a, b, c, dpl", a, b, c, dpl
-            WRITE(*,*) "dpoint", dpoint
-            WRITE(*,*)
+            WRITE(*, *) "cesum", cesum
+            WRITE(*, *) "velpts", velpts
+            WRITE(*, *) "a, b, c, dpl", a, b, c, dpl
+            WRITE(*, *) "dpoint", dpoint
+            WRITE(*, *)
             DO n = 1, velpts
-                write(*,*) "coeffstc(n)", n, coeffstc(n)
+                write(*, *) "coeffstc(n)", n, coeffstc(n)
             END DO
-            WRITE(*,*) "acoeffstc", acoeffstc
-            WRITE(*,*)
+            WRITE(*, *) "acoeffstc", acoeffstc
+            WRITE(*, *)
             DO n = 1, velpts
-                write(*,*) "coeffstctsca(n)", n, coeffstctsca(n)
+                write(*, *) "coeffstctsca(n)", n, coeffstctsca(n)
             END DO
-            WRITE(*,*) "acoeffstctsca", acoeffstctsca
-            WRITE(*,*) "sr calcfluxtsca: acoeffstc", acoeffstc
-            WRITE(*,*) "cvol1, cvol2", cvol1, cvol2
-            WRITE(*,*) "-----------------------------------------------"
+            WRITE(*, *) "acoeffstctsca", acoeffstctsca
+            WRITE(*, *) "sr calcfluxtsca: acoeffstc", acoeffstc
+            WRITE(*, *) "cvol1, cvol2", cvol1, cvol2
+            WRITE(*, *) "-----------------------------------------------"
 
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -752,7 +734,7 @@ CONTAINS
         IF (pntxpoli+velpts+3 > xpolisize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-        IF (pntxpolr+velpts+2.gt.xpolrsize) THEN
+        IF (pntxpolr+velpts+2 > xpolrsize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -1186,7 +1168,7 @@ CONTAINS
         END DO
 
         ! Write cells
-        WRITE(unit,'("CELLS ", I0, 1X, I0)') nblgcells + nstencils*2, &
+        WRITE(unit, '("CELLS ", I0, 1X, I0)') nblgcells + nstencils*2, &
             (nblgcells + nstencils)*2 + nstencils*3
 
         ! Points
@@ -1199,7 +1181,7 @@ CONTAINS
         pntxpoli = 1
         DO cellcount = 1, nblgcells
             ! not needing this one
-            !intcell = xpoli(pntxpoli)
+            ! intcell = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             ! body = xpoli(pntxpoli)
@@ -1225,14 +1207,14 @@ CONTAINS
         END DO
 
         ! Write cell data stencils
-        WRITE(unit,'("CELL_DATA ", I0)') nblgcells+nstencils*2
-        WRITE(unit,'("SCALARS stencils int 1")')
-        WRITE(unit,'("LOOKUP_TABLE default")')
+        WRITE(unit, '("CELL_DATA ", I0)') nblgcells+nstencils*2
+        WRITE(unit, '("SCALARS stencils int 1")')
+        WRITE(unit, '("LOOKUP_TABLE default")')
 
         pntxpoli = 1
         DO cellcount = 1, nblgcells
             ! not needing this one
-            !intcell = xpoli(pntxpoli)
+            ! intcell = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             ! body = xpoli(pntxpoli)
@@ -1249,9 +1231,9 @@ CONTAINS
         END DO
 
         pntxpoli = 1
-        DO cellcount = 1,nblgcells
+        DO cellcount = 1, nblgcells
             ! not needing this one
-            !intcell = xpoli(pntxpoli)
+            ! intcell = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             ! body = xpoli(pntxpoli)
@@ -1267,14 +1249,14 @@ CONTAINS
         END DO
 
         ! Write cell data coefficient
-        WRITE(unit,'("SCALARS coefficient float 1")')
-        WRITE(unit,'("LOOKUP_TABLE default")')
+        WRITE(unit, '("SCALARS coefficient float 1")')
+        WRITE(unit, '("LOOKUP_TABLE default")')
 
         pntxpoli = 1
         pntxpolr = 1
         DO cellcount = 1, nblgcells
             ! not needing this one
-            !intcell = xpoli(pntxpoli)
+            ! intcell = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             ! body = xpoli(pntxpoli)
@@ -1287,16 +1269,16 @@ CONTAINS
             WRITE(unit, '(G0)') xpolr(pntxpolr+stencils)
 
             DO n = 1, stencils
-                !stcell = xpoli(pntxpoli)
+                ! stcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
-                !coeff = xpolr(pntxpolr)
+                ! coeff = xpolr(pntxpolr)
                 ! stencil cell
                 WRITE(unit, '(G0)') xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
             END DO
 
-            !coeff = xpolr(pntxpolr)
+            ! coeff = xpolr(pntxpolr)
             pntxpolr = pntxpolr + 1
         END DO
 
@@ -1304,7 +1286,7 @@ CONTAINS
         pntxpolr = 1
         DO cellcount = 1, nblgcells
             ! not needing this one
-            !intcell = xpoli(pntxpoli)
+            ! intcell = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             ! body = xpoli(pntxpoli)
@@ -1314,16 +1296,16 @@ CONTAINS
             pntxpoli = pntxpoli + 1
 
             DO n = 1, stencils
-                !stcell = xpoli(pntxpoli)
+                ! stcell = xpoli(pntxpoli)
                 pntxpoli = pntxpoli + 1
 
-                !coeff = xpolr(pntxpolr)
+                ! coeff = xpolr(pntxpolr)
                 ! >>> stencil cell
                 WRITE(unit, '(G0)') xpolr(pntxpolr)
                 pntxpolr = pntxpolr + 1
             END DO
 
-            !coeff = xpolr(pntxpolr)
+            ! coeff = xpolr(pntxpolr)
             pntxpolr = pntxpolr + 1
         END DO
 

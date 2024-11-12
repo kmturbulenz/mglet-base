@@ -41,7 +41,7 @@ MODULE ftoc_mod
     !   Column 1: Offset in the send/recv buffer, first element has offset 0
     !   Column 2: Lengt of message, i.e. number of elements in the send/recv
     !             buffer
-    INTEGER(int32), ALLOCATABLE :: recvOffsetLength(:,:)
+    INTEGER(int32), ALLOCATABLE :: recvOffsetLength(:, :)
 
     ! Flag to indicate behaviour (A, B, C, D, E, F, L, N, P, R, S, U, V, W)
     CHARACTER(len=1) :: flag
@@ -144,7 +144,7 @@ CONTAINS
         DO i = 1, ngrids
             igrid = lofgrids(i)
             ipar = iparent(igrid)
-            IF (ipar /= 0 ) THEN
+            IF (ipar /= 0) THEN
                 iprocf = idprocofgrd(igrid)
                 iprocc = idprocofgrd(ipar)
 
@@ -305,7 +305,7 @@ CONTAINS
         ! Make all Send- and Recv-types
         DO igrid = 1, ngrid
             ipar = iparent(igrid)
-            IF (ipar /= 0 ) THEN
+            IF (ipar /= 0) THEN
                 iprocc = idprocofgrd(ipar)
 
                 IF (myid == iprocc) THEN

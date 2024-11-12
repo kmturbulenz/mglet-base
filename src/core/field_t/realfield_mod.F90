@@ -486,7 +486,7 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii, ibb
 
         IF (.NOT. this%is_init) THEN
-            WRITE(*,*) "Buffers not initialized"
+            WRITE(*, *) "Buffers not initialized"
             CALL errr(__FILE__, __LINE__)
         END IF
 

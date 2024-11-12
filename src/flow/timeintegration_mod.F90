@@ -334,7 +334,7 @@ CONTAINS
                         + ABS(w(k-1, j, i) + w(k-1, j, i+1))/ddz(k)
                     cflu = cflu*bp(k, j, i)*bp(k, j, i+1)
 
-                    cflv = ABS(u(k, j, i ) + u(k, j+1, i))/ddx(i) &
+                    cflv = ABS(u(k, j, i) + u(k, j+1, i))/ddx(i) &
                         + ABS(u(k, j, i-1) + u(k, j+1, i-1))/ddx(i) &
                         + ABS(2.0*v(k, j-1, i) + (v(k, j, i) &
                             - v(k, j-1, i))*dy(j-1)/ddy(j))/ddy(j) &
@@ -346,7 +346,7 @@ CONTAINS
 
                     cflw = ABS(u(k, j, i) + u(k+1, j, i))/ddx(i) &
                         + ABS(u(k, j, i-1) + u(k+1, j, i-1))/ddx(i) &
-                        + ABS(v(k, j, i) + v(k+1, j, i  ))/ddy(j) &
+                        + ABS(v(k, j, i) + v(k+1, j, i))/ddy(j) &
                         + ABS(v(k, j-1, i) + v(k+1, j-1, i))/ddy(j) &
                         + ABS(2.0*w(k-1, j, i) + (w(k, j, i) &
                             - w(k-1, j, i))*dz(k-1)/ddz(k))/ddz(k) &

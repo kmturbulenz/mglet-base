@@ -36,7 +36,7 @@ CONTAINS
                         bp(k, j, 4) = 0.0
                         bp(k+1, j, 4) = 0.0
                         bp(k, j+1, 4) = 0.0
-                        bp(k+1,j+1, 4) = 0.0
+                        bp(k+1, j+1, 4) = 0.0
                         bp(k, j, 3) = 0.0
                         bp(k+1, j, 3) = 0.0
                         bp(k, j+1, 3) = 0.0
@@ -267,7 +267,7 @@ CONTAINS
                     bpca = bp(k2, j, i)
                     bui = MIN(1.0_realk, bp(k2, j, i)*bp(k3, j, i) &
                         + bp(k2, j+1, i)*bp(k3, j+1, i) &
-                        + bp(k2, j  , i+1)*bp(k3, j  , i+1) &
+                        + bp(k2, j, i+1)*bp(k3, j, i+1) &
                         + bp(k2, j+1, i+1)*bp(k3, j+1, i+1))
 
                     ! flag = 0 wenn bpca=1 und bui=0
@@ -290,7 +290,7 @@ CONTAINS
                     bpca = bp(k2, j, i)
                     bui = MIN(1.0_realk, bp(k2, j, i)*bp(k3, j, i) &
                         + bp(k2, j+1, i)*bp(k3, j+1, i) &
-                        + bp(k2, j  , i+1)*bp(k3, j  , i+1) &
+                        + bp(k2, j, i+1)*bp(k3, j, i+1) &
                         + bp(k2, j+1, i+1)*bp(k3, j+1, i+1))
 
                     ! flag = 0 wenn bpca=1 und bui=0

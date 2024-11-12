@@ -43,7 +43,8 @@
         "scalars": [
             {
                 "name": "SCA",
-                "prmol": 1.0
+                "prmol": 1.0,
+                "units": [1,-3,0,1,0,0,0]
             }
         ]
     },

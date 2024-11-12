@@ -37,7 +37,7 @@ CONTAINS
         found2 = .FALSE.
 
         IF (LEN(envprefix) + LEN(varname) > maxlength) THEN
-            WRITE(*,*) "Too long variable name: ", varname
+            WRITE(*, *) "Too long variable name: ", varname
             CALL errr(__FILE__, __LINE__)
         END IF
         prefixname = envprefix//varname
@@ -56,11 +56,11 @@ CONTAINS
         ELSE IF (status == -1) THEN
             ! Variable contents did not fit into "envvalue"
             found2 = .TRUE.
-            WRITE(*,*) "Error reading: ", varname
-            WRITE(*,*) "Has length: ", length
+            WRITE(*, *) "Error reading: ", varname
+            WRITE(*, *) "Has length: ", length
             CALL errr(__FILE__, __LINE__)
         ELSE
-            WRITE(*,*) "Unknown error, got status: ", status
+            WRITE(*, *) "Unknown error, got status: ", status
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -164,7 +164,7 @@ CONTAINS
                 TRIM(upperval) == "0" .OR. TRIM(upperval) == "F") THEN
             envvalue = .FALSE.
         ELSE
-            WRITE(*,*) "Unknown bool, got: ", charval
+            WRITE(*, *) "Unknown bool, got: ", charval
             CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE getenv_bool

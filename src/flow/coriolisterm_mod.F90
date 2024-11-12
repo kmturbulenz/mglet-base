@@ -18,7 +18,7 @@ CONTAINS
 
         ! leaving inactive if no parameters specified
         has_coriolis = .FALSE.
-        IF ( .NOT. fort7%exists("/flow/coriolis") ) RETURN
+        IF (.NOT. fort7%exists("/flow/coriolis")) RETURN
 
         ! retrieving rotation rate vector from parameters.json
         CALL fort7%get_array("/flow/coriolis/omega", omega)
@@ -59,7 +59,7 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: u, v, w
 
         ! checking activity
-        IF ( .NOT. has_coriolis ) RETURN
+        IF (.NOT. has_coriolis) RETURN
 
         CALL start_timer(370)
 
@@ -133,19 +133,19 @@ CONTAINS
         ! comment: Not yet implemented with a linear
         ! interploation to the exact position
 
-        IF ( ABS(omega(2)) + ABS(omega(3)) > 0.0 ) THEN
+        IF (ABS(omega(2)) + ABS(omega(3)) > 0.0) THEN
             DO i = 3-nfu, ii-3+nbu
                 DO j = 3, jj-2
                     DO k = 3, kk-2
                         ! averaging to U-velocity point (stag=1,0,0)
                         vlocal(1) = u(k, j, i)
-                        vlocal(2) = 0.25 * ( v(k, j-1, i) + &
-                            v(k, j-1, i+1) + v(k, j, i) + v(k, j, i+1) )
-                        vlocal(3) = 0.25 * ( w(k-1, j, i) + &
-                            w(k-1, j, i+1) + w(k, j, i) + w(k, j, i+1) )
+                        vlocal(2) = 0.25 * (v(k, j-1, i) + &
+                            v(k, j-1, i+1) + v(k, j, i) + v(k, j, i+1))
+                        vlocal(3) = 0.25 * (w(k-1, j, i) + &
+                            w(k-1, j, i+1) + w(k, j, i) + w(k, j, i+1))
                         ! computing the cross product
-                        cterm = -2.0 * ( omega(2) * vlocal(3) - &
-                            omega(3) * vlocal(2) )
+                        cterm = -2.0 * (omega(2) * vlocal(3) - &
+                            omega(3) * vlocal(2))
                         ! adding to the momentum balance
                         uo(k, j, i) = uo(k, j, i) + cterm
                     END DO
@@ -153,19 +153,19 @@ CONTAINS
             END DO
         END IF
 
-        IF ( ABS(omega(1)) + ABS(omega(3)) > 0.0 ) THEN
+        IF (ABS(omega(1)) + ABS(omega(3)) > 0.0) THEN
             DO i = 3, ii-2
                 DO j = 3-nrv, jj-3+nlv
                     DO k = 3, kk-2
                         ! averaging to V-velocity point (stag=0,1,0)
-                        vlocal(1) = 0.25 * ( u(k, j, i-1) + &
-                            u(k, j+1, i-1) + u(k, j, i) + u(k, j+1, i) )
+                        vlocal(1) = 0.25 * (u(k, j, i-1) + &
+                            u(k, j+1, i-1) + u(k, j, i) + u(k, j+1, i))
                         vlocal(2) = v(k, j, i)
-                        vlocal(3) = 0.25 * ( w(k-1, j, i) + &
-                            w(k-1, j+1, i) + w(k, j, i) + w(k, j+1, i) )
+                        vlocal(3) = 0.25 * (w(k-1, j, i) + &
+                            w(k-1, j+1, i) + w(k, j, i) + w(k, j+1, i))
                         ! computing the cross product
-                        cterm = -2.0 * ( omega(3) * vlocal(1) - &
-                            omega(1) * vlocal(3) )
+                        cterm = -2.0 * (omega(3) * vlocal(1) - &
+                            omega(1) * vlocal(3))
                         ! adding to the momentum balance
                         vo(k, j, i) = vo(k, j, i) + cterm
                     END DO
@@ -173,19 +173,19 @@ CONTAINS
             END DO
         END IF
 
-        IF ( ABS(omega(1)) + ABS(omega(2)) > 0.0 ) THEN
+        IF (ABS(omega(1)) + ABS(omega(2)) > 0.0) THEN
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     DO k = 3-nbw, kk-3+ntw
                         ! averaging to W-velocity point (stag=0,0,1)
-                        vlocal(1) = 0.25 * ( u(k, j, i-1) + &
-                            u(k+1, j, i-1) + u(k, j, i) + u(k+1, j, i) )
-                        vlocal(2) = 0.25 * ( v(k, j-1, i) + &
-                            v(k+1, j-1, i) + v(k, j, i) + v(k+1, j, i) )
+                        vlocal(1) = 0.25 * (u(k, j, i-1) + &
+                            u(k+1, j, i-1) + u(k, j, i) + u(k+1, j, i))
+                        vlocal(2) = 0.25 * (v(k, j-1, i) + &
+                            v(k+1, j-1, i) + v(k, j, i) + v(k+1, j, i))
                         vlocal(3) = w(k, j, i)
                         ! computing the cross product
-                        cterm = -2.0 * ( omega(1) * vlocal(2) - &
-                            omega(2) * vlocal(1) )
+                        cterm = -2.0 * (omega(1) * vlocal(2) - &
+                            omega(2) * vlocal(1))
                         ! adding to the momentum balance
                         wo(k, j, i) = wo(k, j, i) + cterm
                     END DO

@@ -84,7 +84,7 @@ CONTAINS
 
         ! Local Variables
         INTEGER(intk), PARAMETER :: units_dx(*) = [0, -1, 0, 0, 0, 0, 0]
-        INTEGER(intk) :: units(7), units_tx(7)
+        INTEGER(intk) :: units_tx(7), units_txtx(7)
         TYPE(field_t) :: tx_f  ! derivative of a scalar in any direction
         TYPE(field_t), POINTER :: t_f
         INTEGER(intk) :: istag, jstag, kstag
@@ -114,15 +114,14 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        ! units_dx = [0, -1, 0, 0, 0, 0, 0] = 1/m -> the differentiate operator
-        ! units_tx -> the units of Tx
+        ! unit of spatial derivative of scalar
         units_tx = t_f%units + units_dx
 
-        ! units -> units of TxTx
-        units = 2*units_tx
+        ! units of square of spatial derivative, i.e. TxTx
+        units_txtx = 2*units_tx
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units)
+            units=units_txtx)
         CALL tx_f%init('tmp', istag=istag, jstag=jstag, kstag=kstag, &
             units=units_tx)
 
@@ -144,7 +143,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local variables
-        INTEGER(intk) :: units(7)
+        INTEGER(intk) :: units_ut(7)
         TYPE(field_t), POINTER :: u_f, t_f
         INTEGER(intk) :: istag, jstag, kstag
         INTEGER(intk) :: sca_name_length
@@ -179,10 +178,10 @@ CONTAINS
 
         ! Units of the result
         ! velocity * scalar
-        units = u_f%units + t_f%units
+        units_ut = u_f%units + t_f%units
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units)
+            units=units_ut)
 
         ! multiplication at staggered positions
         CALL field%multiply(u_f, t_f)
@@ -199,7 +198,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local variables
-        INTEGER(intk) :: units(7)
+        INTEGER(intk) :: units_utt(7)
         TYPE(field_t), POINTER :: u_f, t_f
         INTEGER(intk) :: istag, jstag, kstag
         INTEGER(intk) :: sca_name_length
@@ -237,10 +236,10 @@ CONTAINS
 
         ! Units of the result
         ! velocity * 2*scalar
-        units = u_f%units + 2*t_f%units
+        units_utt = u_f%units + 2*t_f%units
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units)
+            units=units_utt)
 
         ! multiplication at staggered positions
         CALL field%multiply(u_f, t_f, t_f)

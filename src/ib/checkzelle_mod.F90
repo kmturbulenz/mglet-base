@@ -136,7 +136,7 @@ CONTAINS
                                     ! n: Knotenindex, Nummerierung nicht wie in
                                     ! CHECKVERB
                                     n = n + 1
-                                    knotenzelle(n) =  NINT(knoten(kn,jn,in))
+                                    knotenzelle(n) =  NINT(knoten(kn, jn, in))
 
                                     ! volk: jedem Knoten zugeordnetes Volumen
                                     IF (knotenzelle(n) == 0) THEN
@@ -152,8 +152,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         lx = xstag(in) - x2
                                     ELSE
@@ -166,8 +166,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         lx = lx + x1 - xstag(in)
                                     ELSE
@@ -182,8 +182,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         ly = ystag(jn) - x2
                                     ELSE
@@ -196,8 +196,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         ly = ly + x1 - ystag(jn)
                                     ELSE
@@ -213,8 +213,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         lz = zstag(kn) - x2
                                     ELSE
@@ -227,8 +227,8 @@ CONTAINS
                                             xstag, ystag, zstag, &
                                             ddx, ddy, ddz, &
                                             ntrimax, ntopol, topol, &
-                                            kanteu, kantev, kantew,&
-                                            triau, triav ,triaw, &
+                                            kanteu, kantev, kantew, &
+                                            triau, triav, triaw, &
                                             direction, x1, x2)
                                         lz = lz + x1 - zstag(kn)
                                     ELSE
@@ -366,7 +366,7 @@ CONTAINS
 
         nkanten0 = 0
         nkanten1 = 0
-        DO ii = 1,12
+        DO ii = 1, 12
             IF (knotenzelle(kantenenden(1, ii)) == &
                     knotenzelle(kantenenden(2, ii))) THEN
                 IF (knotenzelle(kantenenden(1, ii)) == 1) THEN

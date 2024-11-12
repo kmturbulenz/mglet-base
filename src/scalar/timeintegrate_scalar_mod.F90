@@ -286,7 +286,7 @@ CONTAINS
                             + (g(k, j, i+1) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
-                        ! Limit gsca here MAX(...,0): no negative diffusion!
+                        ! Limit gsca here MAX(..., 0): no negative diffusion!
                         gsca(k) = MAX(gscamol, gsca(k))
                     END DO
                 ELSE
@@ -330,7 +330,7 @@ CONTAINS
                             + (g(k, j+1, i) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
-                        ! Limit gsca here MAX(...,0): no negative diffusion!
+                        ! Limit gsca here MAX(..., 0): no negative diffusion!
                         gsca(k) = MAX(gscamol, gsca(k))
                     END DO
                 ELSE
@@ -374,7 +374,7 @@ CONTAINS
                             + (g(k+1, j, i) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
-                        ! Limit gsca here MAX(...,0): no negative diffusion!
+                        ! Limit gsca here MAX(..., 0): no negative diffusion!
                         gsca(k) = MAX(gscamol, gsca(k))
                     END DO
                 ELSE
@@ -434,7 +434,7 @@ CONTAINS
                 j = 3
                 DO k = 3, kk-2
                     adv = (ddx(i)*ddz(k)) * (v(k, j, i) - ABS(v(k, j, i))) &
-                        * 0.5 * 0.5 * (-t(k, j, i) + t(k, j+1, i) )
+                        * 0.5 * 0.5 * (-t(k, j, i) + t(k, j+1, i))
                     qtv(k, j, i) = qtv(k, j, i) + adv
                 END DO
             END DO

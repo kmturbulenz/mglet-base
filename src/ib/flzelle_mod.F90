@@ -203,7 +203,7 @@ CONTAINS
             connectkn(idx, ifl) =  indknoten(connectknfl(idx))
         END DO
 
-        !!! bac (x+)
+        ! bac (x+)
         ifl = 2
 
         indkanten(1) = 10
@@ -255,7 +255,7 @@ CONTAINS
             connectkn(idx, ifl) =  indknoten(connectknfl(idx))
         END DO
 
-        !!! rgt (y-)
+        ! !! rgt (y-)
         ifl = 3
 
         indkanten(1) = 1
@@ -268,7 +268,7 @@ CONTAINS
         indknoten(3) = 3
         indknoten(4) = 4
 
-        DO idx = 1,4
+        DO idx = 1, 4
             kantenfl(idx) = kanten(indkanten(idx))
             knotenfl(idx) = knotenzelle(indknoten(idx))
         END DO
@@ -307,7 +307,7 @@ CONTAINS
             connectkn(idx, ifl) =  indknoten(connectknfl(idx))
         END DO
 
-        !!! lft (y+)
+        ! !! lft (y+)
         ifl = 4
 
         indkanten(1) = 8
@@ -359,7 +359,7 @@ CONTAINS
             connectkn(idx, ifl) =  indknoten(connectknfl(idx))
         END DO
 
-        !!! bot (z-)
+        ! !! bot (z-)
         ifl = 5
 
         indkanten(1) = 9
@@ -407,11 +407,11 @@ CONTAINS
         DO idx = 1, nkafl
             connectka(idx, ifl) =  indkanten(connectkafl(idx))
         END DO
-        DO idx = 1,nknfl
+        DO idx = 1, nknfl
             connectkn(idx, ifl) =  indknoten(connectknfl(idx))
         END DO
 
-        !!! top (z+)
+        ! !! top (z+)
         ifl = 6
 
         indkanten(1) = 11
@@ -424,7 +424,7 @@ CONTAINS
         indknoten(3) = 8
         indknoten(4) = 4
 
-        DO idx = 1,4
+        DO idx = 1, 4
             kantenfl(idx) = kanten(indkanten(idx))
             knotenfl(idx) = knotenzelle(indknoten(idx))
         END DO
@@ -471,7 +471,7 @@ CONTAINS
                 nwa = 0
             ELSE IF (MIN(1, MAX(0, MIN(k-2, kk-1-k))) &
                     + MIN(1, MAX(0, MIN(j-2, jj-1-j))) &
-                    + MIN(1, MAX(0, MIN(i-2, ii-1-i))) <=1 ) THEN
+                    + MIN(1, MAX(0, MIN(i-2, ii-1-i))) <=1) THEN
                 ! in corner gost layer not relevant
                 nwa = 0
             ELSE IF (icheck == 0 .AND. &
@@ -610,7 +610,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nka(6)
-        INTEGER(intk), INTENT(in) :: connectka(2,6)
+        INTEGER(intk), INTENT(in) :: connectka(2, 6)
         INTEGER(intk), INTENT(out) :: nwa
         INTEGER(intk), INTENT(out) :: connectwa(7)
         INTEGER(intk), INTENT(out) :: ierr
@@ -624,7 +624,7 @@ CONTAINS
         ierr = 0
 
         istart = 0
-        DO ii = 1,6
+        DO ii = 1, 6
             IF (nka(ii) == 2) THEN
                 istart = ii
                 EXIT
@@ -657,7 +657,7 @@ CONTAINS
                                 iii, connectwa(iii)
                         END DO
                         DO iii = 1, 6
-                            WRITE(*, *) 'flwandcon, i, connectka(1:2,i)', &
+                            WRITE(*, *) 'flwandcon, i, connectka(1:2, i)', &
                                 iii, connectka(1:2, iii)
                         END DO
                         CALL errr(__FILE__, __LINE__)

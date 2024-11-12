@@ -126,7 +126,7 @@ CONTAINS
                     END IF
                 ELSE
                     EXIT
-                ENDIF
+                END IF
             END DO
 
             ! Here always prefer the biggest if they are equal
@@ -217,7 +217,7 @@ CONTAINS
         ! Print sensible message if file does not exist
         INQUIRE(file=filename, EXIST=fileexist)
         IF (.NOT. fileexist) THEN
-            WRITE(*,*) "File does not exist: ", filename
+            WRITE(*, *) "File does not exist: ", filename
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -263,7 +263,7 @@ CONTAINS
         ! Rewind to read from start, allocate array and read into it
         REWIND(unit)
         ALLOCATE(array(ncol, nrow))
-        READ(unit, *, iostat=ierr) ((array(i, j), i=1,ncol), j=1,nrow)
+        READ(unit, *, iostat=ierr) ((array(i, j), i=1, ncol), j=1, nrow)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CLOSE(unit)

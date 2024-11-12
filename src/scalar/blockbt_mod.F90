@@ -52,7 +52,7 @@ CONTAINS
             CALL ctof(ilevel, hilf_f%arr, bt_f%arr)
 
             DO i = 1, nmygridslvl(ilevel)
-                igrid = mygridslvl(i,ilevel)
+                igrid = mygridslvl(i, ilevel)
 
                 CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
                 CALL get_mgdims(kk, jj, ii, igrid)
@@ -82,8 +82,9 @@ CONTAINS
         DO i = 2, ii-1
             DO j = 2, jj-1
                 DO k = 2, kk-1
-                    bt(k, j, i) = MAX(bp(k,j,i), bp(k,j,i+1), bp(k,j,i-1), &
-                        bp(k,j+1,i), bp(k,j-1,i), bp(k+1,j,i), bp(k-1,j,i))
+                    bt(k, j, i) = MAX(bp(k, j, i), bp(k, j, i+1), &
+                        bp(k, j, i-1), bp(k, j+1, i), bp(k, j-1, i), &
+                        bp(k+1, j, i), bp(k-1, j, i))
                 END DO
             END DO
         END DO

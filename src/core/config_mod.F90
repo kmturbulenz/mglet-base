@@ -208,7 +208,7 @@ MODULE config_mod
             IMPORT :: c_ptr, c_char, c_int, c_float, c_size_t
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), INTENT(IN) :: key(*)
-            !REAL(C_FLOAT), INTENT(INOUT) :: arr(:)
+            ! REAL(C_FLOAT), INTENT(INOUT) :: arr(:)
             TYPE(C_PTR), VALUE :: arr
             INTEGER(C_SIZE_T), INTENT(IN), VALUE :: length
             INTEGER(C_INT), INTENT(OUT) :: ierr
@@ -219,7 +219,7 @@ MODULE config_mod
             IMPORT :: c_ptr, c_char, c_int, c_float, c_size_t
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), INTENT(IN) :: key(*)
-            !REAL(C_INT64_T), INTENT(INOUT) :: arr(:)
+            ! REAL(C_INT64_T), INTENT(INOUT) :: arr(:)
             TYPE(C_PTR), VALUE :: arr
             INTEGER(C_SIZE_T), INTENT(IN), VALUE :: length
             INTEGER(C_INT), INTENT(OUT) :: ierr
@@ -230,7 +230,7 @@ MODULE config_mod
             IMPORT :: c_ptr, c_char, c_int, c_float, c_size_t
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), INTENT(IN) :: key(*)
-            !REAL(C_FLOAT), INTENT(INOUT) :: arr(:)
+            ! REAL(C_FLOAT), INTENT(INOUT) :: arr(:)
             TYPE(C_PTR), VALUE :: arr
             INTEGER(C_SIZE_T), INTENT(IN), VALUE :: length
             INTEGER(C_INT), INTENT(OUT) :: ierr
@@ -241,7 +241,7 @@ MODULE config_mod
             IMPORT :: c_ptr, c_char, c_int, c_double, c_size_t
             TYPE(C_PTR), VALUE :: handle
             CHARACTER(C_CHAR), INTENT(IN) :: key(*)
-            !REAL(C_DOUBLE), INTENT(INOUT) :: arr(:)
+            ! REAL(C_DOUBLE), INTENT(INOUT) :: arr(:)
             TYPE(C_PTR), VALUE :: arr
             INTEGER(C_SIZE_T), INTENT(IN), VALUE :: length
             INTEGER(C_INT), INTENT(OUT) :: ierr
@@ -758,7 +758,8 @@ CONTAINS
         CHARACTER(len=*), INTENT(in) :: key
 
         ! https://github.com/nlohmann/json/blob/develop/include/nlohmann/detail/value_t.hpp
-        is_int = this%is_type(key, 6)
+        is_int = this%is_type(key, 5) ! = signed int
+        ! is_int = this%is_type(key, 6) ! = unsigned int
     END FUNCTION is_int
 
 

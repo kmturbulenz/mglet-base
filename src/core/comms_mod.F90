@@ -205,27 +205,27 @@ CONTAINS
         INTEGER(int32) :: error_class, msglen
         CHARACTER(LEN=MPI_MAX_ERROR_STRING) :: msg
 
-        WRITE(*,*) "MGLET MPI ERROR occured in rank = ", myid
-        WRITE(unit,*) "MGLET MPI ERROR"
-        WRITE(unit,*) "MPI rank = ", myid
-        WRITE(unit,*) ""
+        WRITE(*, *) "MGLET MPI ERROR occured in rank = ", myid
+        WRITE(unit, *) "MGLET MPI ERROR"
+        WRITE(unit, *) "MPI rank = ", myid
+        WRITE(unit, *) ""
 
         CALL MPI_Error_class(error_code, error_class)
-        WRITE(unit,*) "error_class = ", error_class
+        WRITE(unit, *) "error_class = ", error_class
 
         CALL MPI_Error_string(error_class, msg, msglen)
 
-        WRITE(unit,*) "Error class type: ", msg(1:msglen)
-        WRITE(unit,*) ""
-        WRITE(unit,*) "error_code = ", error_code
-        WRITE(unit,*) ""
+        WRITE(unit, *) "Error class type: ", msg(1:msglen)
+        WRITE(unit, *) ""
+        WRITE(unit, *) "error_code = ", error_code
+        WRITE(unit, *) ""
 
         CALL MPI_Error_string(error_code, msg, msglen)
-        WRITE(unit,*) "Full error message:"
-        WRITE(unit,*) msg(1:msglen)
-        WRITE(unit,*) ""
+        WRITE(unit, *) "Full error message:"
+        WRITE(unit, *) msg(1:msglen)
+        WRITE(unit, *) ""
 
-        WRITE(unit,*) "Full backtrace of process:"
+        WRITE(unit, *) "Full backtrace of process:"
 #   if defined __INTEL_COMPILER
         CALL TRACEBACKQQ(user_exit_code=-1)
 #   endif

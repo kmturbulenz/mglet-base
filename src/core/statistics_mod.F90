@@ -155,7 +155,7 @@ CONTAINS
             END IF
         END DO
 
-        WRITE(*,*) "Could not find statfield: ", TRIM(statname)
+        WRITE(*, *) "Could not find statfield: ", TRIM(statname)
         CALL errr(__FILE__, __LINE__)
     END SUBROUTINE get_statidx
 
@@ -288,7 +288,7 @@ CONTAINS
 
         ! Local Variables
         INTEGER(intk) :: igr, igrid
-        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: k, j, i, n
         INTEGER(intk) :: kk, jj, ii
         TYPE(field_t), POINTER :: rdxyz
         ! (usage of different pointers for readability)
@@ -297,84 +297,97 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
         REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), phi(:, :, :)
 
+        ! checking for dimensional consistency
+        DO n = 1, 7
+            IF (n == 2) THEN
+                IF (field%units(n) /= a%units(n)-1) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            ELSE
+                IF (field%units(n) /= a%units(n)) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+        END DO
+
         SELECT CASE (ivar)
         CASE ("DXS")
             ! non-x-staggered variable in x
-            IF ( a%istag == 0 .AND. field%istag == 1 .AND. &
-                 a%jstag == field%jstag .AND. &
-                 a%kstag == field%kstag ) THEN
+            IF (a%istag == 0 .AND. field%istag == 1 .AND. &
+                    a%jstag == field%jstag .AND. &
+                    a%kstag == field%kstag) THEN
                 CALL get_field(rdxyz, "RDX")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DYS")
             ! non-y-staggered variable in y
-            IF ( a%istag == field%istag .AND. &
-                 a%jstag == 0 .AND. field%jstag == 1 .AND. &
-                 a%kstag == field%kstag ) THEN
+            IF (a%istag == field%istag .AND. &
+                    a%jstag == 0 .AND. field%jstag == 1 .AND. &
+                    a%kstag == field%kstag) THEN
                 CALL get_field(rdxyz, "RDY")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DZS")
             ! non-z-staggered variable in z
-            IF ( a%istag == field%istag .AND. &
-                 a%jstag == field%jstag .AND. &
-                 a%kstag == 0 .AND. field%kstag == 1 ) THEN
+            IF (a%istag == field%istag .AND. &
+                    a%jstag == field%jstag .AND. &
+                    a%kstag == 0 .AND. field%kstag == 1) THEN
                 CALL get_field(rdxyz, "RDZ")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DXT")
             ! scalar (non-staggered) in x
-            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
-                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 0 .AND. field%istag == 0 .AND. &
+                    a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 0 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "DX")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DYT")
             ! scalar (non-staggered) in y
-            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
-                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 0 .AND. field%istag == 0 .AND. &
+                    a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 0 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "DY")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DZT")
             ! scalar (non-staggered) in z
-            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
-                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 0 .AND. field%istag == 0 .AND. &
+                    a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 0 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "DZ")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DDX")
             ! x-staggered variable in x
-            IF ( a%istag == 1 .AND. field%istag == 0 .AND. &
-                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 1 .AND. field%istag == 0 .AND. &
+                    a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 0 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "RDDX")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DDY")
             ! y-staggered variable in y
-            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
-                 a%jstag == 1 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 0 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 0 .AND. field%istag == 0 .AND. &
+                    a%jstag == 1 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 0 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "RDDY")
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
         CASE ("DDZ")
             ! z-staggered variable in z
-            IF ( a%istag == 0 .AND. field%istag == 0 .AND. &
-                 a%jstag == 0 .AND. field%jstag == 0 .AND. &
-                 a%kstag == 1 .AND. field%kstag == 0 ) THEN
+            IF (a%istag == 0 .AND. field%istag == 0 .AND. &
+                    a%jstag == 0 .AND. field%jstag == 0 .AND. &
+                    a%kstag == 1 .AND. field%kstag == 0) THEN
                 CALL get_field(rdxyz, "RDDZ")
             ELSE
                 CALL errr(__FILE__, __LINE__)

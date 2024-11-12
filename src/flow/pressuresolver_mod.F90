@@ -201,7 +201,7 @@ CONTAINS
                         ls(k, j, i) = as(j)*bv(k, j-1, i) &
                             /(1.0 + alfa*(ue(k, j-1, i) + ut(k, j-1, i)))
 
-                        lb(k,j,i) = ab(k)*bw(k-1, j, i) &
+                        lb(k, j, i) = ab(k)*bw(k-1, j, i) &
                             /(1.0 + alfa*(un(k-1, j, i) + ue(k-1, j, i)))
 
                         p1 = alfa*(lb(k, j, i)*ue(k-1, j, i) &
@@ -918,12 +918,12 @@ CONTAINS
                             ! ab = bp(k-1, j, i)*bp(k  , j, i)/(dz(k-1)*dz(k))
                             ! at = bp(k  , j, i)*bp(k+1, j, i)/(dz(k  )*dz(k))
 
-                            aw = bp(k, j, i-1)*bp(k, j, i  )*gsaw(i)
-                            ae = bp(k, j, i  )*bp(k, j, i+1)*gsae(i)
-                            as = bp(k, j-1, i)*bp(k, j  , i)*gsas(j)
-                            an = bp(k, j  , i)*bp(k, j+1, i)*gsan(j)
-                            ab = bp(k-1, j, i)*bp(k  , j, i)*gsab(k)
-                            at = bp(k  , j, i)*bp(k+1, j, i)*gsat(k)
+                            aw = bp(k, j, i-1)*bp(k, j, i)*gsaw(i)
+                            ae = bp(k, j, i)*bp(k, j, i+1)*gsae(i)
+                            as = bp(k, j-1, i)*bp(k, j, i)*gsas(j)
+                            an = bp(k, j, i)*bp(k, j+1, i)*gsan(j)
+                            ab = bp(k-1, j, i)*bp(k, j, i)*gsab(k)
+                            at = bp(k, j, i)*bp(k+1, j, i)*gsat(k)
                             rap = gsrap(k, j, i)
 
                             res = (aw * dp(k, j, i-1) &
