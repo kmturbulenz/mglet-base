@@ -230,13 +230,13 @@ CONTAINS
 
         ! The resulting values for the complete grid is casted back to working
         ! precision
-        uvwbulk%ubulk = REAL(ubulk/volu, realk)
-        uvwbulk%vbulk = REAL(vbulk/volv, realk)
-        uvwbulk%wbulk = REAL(wbulk/volw, realk)
+        uvwbulk%ubulk = REAL(divide0(ubulk, volu), realk)
+        uvwbulk%vbulk = REAL(divide0(vbulk, volv), realk)
+        uvwbulk%wbulk = REAL(divide0(wbulk, volw), realk)
 
-        uvwbulk%uubulk = REAL(uubulk/volu, realk)
-        uvwbulk%vvbulk = REAL(vvbulk/volv, realk)
-        uvwbulk%wwbulk = REAL(wwbulk/volw, realk)
+        uvwbulk%uubulk = REAL(divide0(uubulk, volu), realk)
+        uvwbulk%vvbulk = REAL(divide0(vvbulk, volv), realk)
+        uvwbulk%wwbulk = REAL(divide0(wwbulk, volw), realk)
 
         uvwbulk%volu = REAL(volu, realk)
         uvwbulk%volv = REAL(volv, realk)
@@ -260,19 +260,22 @@ CONTAINS
         CALL C_F_POINTER(inoutvec, iodata, [length])
 
         DO i = 1, length
-            iodata(i)%ubulk = (iodata(i)%ubulk*iodata(i)%volu + &
-                idata(i)%ubulk*idata(i)%volu)/(iodata(i)%volu + idata(i)%volu)
-            iodata(i)%vbulk = (iodata(i)%vbulk*iodata(i)%volv + &
-                idata(i)%vbulk*idata(i)%volv)/(iodata(i)%volv + idata(i)%volv)
-            iodata(i)%wbulk = (iodata(i)%wbulk*iodata(i)%volw + &
-                idata(i)%wbulk*idata(i)%volw)/(iodata(i)%volw + idata(i)%volw)
+            iodata(i)%ubulk = divide0((iodata(i)%ubulk*iodata(i)%volu + &
+                idata(i)%ubulk*idata(i)%volu), (iodata(i)%volu + idata(i)%volu))
+            iodata(i)%vbulk = divide0((iodata(i)%vbulk*iodata(i)%volv + &
+                idata(i)%vbulk*idata(i)%volv), (iodata(i)%volv + idata(i)%volv))
+            iodata(i)%wbulk = divide0((iodata(i)%wbulk*iodata(i)%volw + &
+                idata(i)%wbulk*idata(i)%volw), (iodata(i)%volw + idata(i)%volw))
 
-            iodata(i)%uubulk = (iodata(i)%uubulk*iodata(i)%volu + &
-                idata(i)%uubulk*idata(i)%volu)/(iodata(i)%volu + idata(i)%volu)
-            iodata(i)%vvbulk = (iodata(i)%vvbulk*iodata(i)%volv + &
-                idata(i)%vvbulk*idata(i)%volv)/(iodata(i)%volv + idata(i)%volv)
-            iodata(i)%wwbulk = (iodata(i)%wwbulk*iodata(i)%volw + &
-                idata(i)%wwbulk*idata(i)%volw)/(iodata(i)%volw + idata(i)%volw)
+            iodata(i)%uubulk = divide0((iodata(i)%uubulk*iodata(i)%volu + &
+                idata(i)%uubulk*idata(i)%volu), &
+                (iodata(i)%volu + idata(i)%volu))
+            iodata(i)%vvbulk = divide0((iodata(i)%vvbulk*iodata(i)%volv + &
+                idata(i)%vvbulk*idata(i)%volv), &
+                (iodata(i)%volv + idata(i)%volv))
+            iodata(i)%wwbulk = divide0((iodata(i)%wwbulk*iodata(i)%volw + &
+                idata(i)%wwbulk*idata(i)%volw), &
+                (iodata(i)%volw + idata(i)%volw))
 
             iodata(i)%volu = iodata(i)%volu + idata(i)%volu
             iodata(i)%volv = iodata(i)%volv + idata(i)%volv
