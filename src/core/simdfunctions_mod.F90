@@ -13,31 +13,61 @@ MODULE simdfunctions_mod
         MODULE PROCEDURE :: cross_sp, cross_dp
     END INTERFACE cross
 
+    INTERFACE divide0
+        MODULE PROCEDURE :: divide0_sp, divide0_dp
+    END INTERFACE divide0
+
+    INTERFACE divide00
+        MODULE PROCEDURE :: divide00_sp, divide00_dp
+    END INTERFACE divide00
+
     PUBLIC :: divide00, divide0, l_to_i, i_to_l, lcm, gcd, cube_root, cross
 CONTAINS
 
-    PURE ELEMENTAL REAL(realk) FUNCTION divide00(a, b, bp) RESULT(res)
-    !$omp declare simd(divide00)
-        REAL(realk), INTENT(in) :: a, b, bp
+    PURE ELEMENTAL REAL(real32) FUNCTION divide00_sp(a, b, bp) RESULT(res)
+    !$omp declare simd(divide00_sp)
+        REAL(real32), INTENT(in) :: a, b, bp
 
-        IF (bp == 0.0_realk) THEN
-            res = 0.0_realk
+        IF (bp == 0.0_real32) THEN
+            res = 0.0_real32
         ELSE
             res = a/b
         END IF
-    END FUNCTION divide00
+    END FUNCTION divide00_sp
 
+    PURE ELEMENTAL REAL(real64) FUNCTION divide00_dp(a, b, bp) RESULT(res)
+    !$omp declare simd(divide00_dp)
+        REAL(real64), INTENT(in) :: a, b, bp
 
-    PURE ELEMENTAL REAL(realk) FUNCTION divide0(a, b) RESULT(res)
-    !$omp declare simd(divide0)
-        REAL(realk), INTENT(in) :: a, b
-
-        IF (b == 0.0_realk) THEN
-            res = 0.0
+        IF (bp == 0.0_real64) THEN
+            res = 0.0_real64
         ELSE
             res = a/b
         END IF
-    END FUNCTION divide0
+    END FUNCTION divide00_dp
+
+
+    PURE ELEMENTAL REAL(real32) FUNCTION divide0_sp(a, b) RESULT(res)
+    !$omp declare simd(divide0_sp)
+        REAL(real32), INTENT(in) :: a, b
+
+        IF (b == 0.0_real32) THEN
+            res = 0.0_real32
+        ELSE
+            res = a/b
+        END IF
+    END FUNCTION divide0_sp
+
+    PURE ELEMENTAL REAL(real64) FUNCTION divide0_dp(a, b) RESULT(res)
+    !$omp declare simd(divide0_dp)
+        REAL(real64), INTENT(in) :: a, b
+
+        IF (b == 0.0_real64) THEN
+            res = 0.0_real64
+        ELSE
+            res = a/b
+        END IF
+    END FUNCTION divide0_dp
 
 
     PURE ELEMENTAL INTEGER(intk) FUNCTION l_to_i(l) RESULT(i)
