@@ -6,10 +6,10 @@ MODULE ibcore_mod
     PRIVATE
 
     ABSTRACT INTERFACE
-        FUNCTION constructor_i() RESULT(ib)
+        SUBROUTINE constructor_i(ib)
             IMPORT :: ibmodel_t
-            CLASS(ibmodel_t), ALLOCATABLE :: ib
-        END FUNCTION constructor_i
+            CLASS(ibmodel_t), ALLOCATABLE, INTENT(out) :: ib
+        END SUBROUTINE constructor_i
     END INTERFACE
 
     ! For storing IB type plugins
@@ -42,7 +42,7 @@ CONTAINS
         found_ib = .FALSE.
         DO i = 1, n_ib_ext
             IF (ctyp == TRIM(ib_ext(i)%name)) THEN
-                ib = ib_ext(i)%constructor()
+                CALL ib_ext(i)%constructor(ib)
                 found_ib = .TRUE.
             END IF
         END DO
