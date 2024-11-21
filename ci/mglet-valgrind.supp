@@ -1,0 +1,43 @@
+{
+   hwloc-1
+   Memcheck:Leak
+   ...
+   obj:*libhwloc.so*
+}
+{
+   mpi-1
+   Memcheck:Leak
+   ...
+   fun:PMPI_Init
+}
+{
+   mpi-2
+   Memcheck:Leak
+   ...
+   fun:ompi_mpi_finalize
+}
+{
+   dlopen-1
+   Memcheck:Leak
+   ...
+   fun:_dl_open
+}
+{
+   opencl-1
+   Memcheck:Leak
+   ...
+   obj:*libOpenCL.so*
+}
+{
+   libevent-1
+   Memcheck:Leak
+   ...
+   obj:*libevent_core*
+}
+{
+   libevent-2
+   Memcheck:Param
+   writev(vector[1])
+   ...
+   obj:*libevent_core*
+}
