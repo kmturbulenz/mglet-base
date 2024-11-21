@@ -33,16 +33,12 @@ MODULE gc_mod
         FINAL :: destructor
     END TYPE gc_t
 
-    INTERFACE gc_t
-        MODULE PROCEDURE :: constructor
-    END INTERFACE gc_t
-
     PUBLIC :: gc_t, constructor
 
 CONTAINS
-    FUNCTION constructor() RESULT(ib)
+    SUBROUTINE constructor(ib)
         ! Subroutine arguments
-        CLASS(ibmodel_t), ALLOCATABLE :: ib
+        CLASS(ibmodel_t), ALLOCATABLE, INTENT(out) :: ib
 
         ! Local variables
         REAL(realk), POINTER, CONTIGUOUS :: bp(:), bu(:), bv(:), bw(:)
@@ -100,13 +96,18 @@ CONTAINS
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
-    END FUNCTION constructor
+    END SUBROUTINE constructor
 
 
     SUBROUTINE destructor(this)
         TYPE(gc_t), INTENT(inout) :: this
+
         IF (ALLOCATED(this%restrict_op)) THEN
             DEALLOCATE(this%restrict_op)
+        END IF
+
+        IF (ALLOCATED(this%blockbp_op)) THEN
+            DEALLOCATE(this%blockbp_op)
         END IF
     END SUBROUTINE destructor
 
