@@ -159,8 +159,9 @@ CONTAINS
 
         ! Reduce and print
         nlevels = maxlevel - minlevel + 1
-        CALL MPI_Reduce(MPI_IN_PLACE, force, nlevels, &
-            mpitype, mpiop, 0, MPI_COMM_WORLD)
+        ! MPI_Reduce fail with MPI_IN_PLACE... Allreduce works.
+        CALL MPI_Allreduce(MPI_IN_PLACE, force, nlevels, &
+            mpitype, mpiop, MPI_COMM_WORLD)
 
         CALL bodyforce_print_logs(force, ittot, time)
 
