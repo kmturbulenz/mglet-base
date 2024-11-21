@@ -186,22 +186,23 @@ CONTAINS
         INTEGER(intk) :: iarr, i, lb, ub
 
         IF (.NOT. has_probes) RETURN
-        IF (.NOT. isinit_buffers) RETURN
 
-        ! Flush leftover data to disk
-        CALL write_probes()
+        IF (isinit_buffers) THEN
+            ! Flush leftover data to disk
+            CALL write_probes()
 
-        ! Free MPI types
-        DO iarr = 1, narrays
-            IF (ALLOCATED(arr(iarr)%mpitype)) THEN
-                lb = LBOUND(arr(iarr)%mpitype, dim=1)
-                ub = UBOUND(arr(iarr)%mpitype, dim=1)
-                DO i = lb, ub
-                    CALL MPI_Type_free(arr(iarr)%mpitype(i))
-                END DO
-                DEALLOCATE(arr(iarr)%mpitype)
-            END IF
-        END DO
+            ! Free MPI types
+            DO iarr = 1, narrays
+                IF (ALLOCATED(arr(iarr)%mpitype)) THEN
+                    lb = LBOUND(arr(iarr)%mpitype, dim=1)
+                    ub = UBOUND(arr(iarr)%mpitype, dim=1)
+                    DO i = lb, ub
+                        CALL MPI_Type_free(arr(iarr)%mpitype(i))
+                    END DO
+                    DEALLOCATE(arr(iarr)%mpitype)
+                END IF
+            END DO
+        END IF
 
         ! Deallocate module-wide data
         DEALLOCATE(arr)

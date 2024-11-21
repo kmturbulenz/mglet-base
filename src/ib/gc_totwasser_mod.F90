@@ -44,6 +44,7 @@ CONTAINS
 
         converged = .FALSE.
         nfilled_old = 0
+        nfilled_tot = 0
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, bp%arr, bp%arr, 'F')

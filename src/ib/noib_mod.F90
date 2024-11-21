@@ -16,16 +16,12 @@ MODULE noib_mod
         FINAL :: destructor
     END TYPE noib_t
 
-    INTERFACE noib_t
-        MODULE PROCEDURE :: constructor
-    END INTERFACE noib_t
-
     PUBLIC :: noib_t, constructor
 
 CONTAINS
-    FUNCTION constructor() RESULT(ib)
+    SUBROUTINE constructor(ib)
         ! Subroutine arguments
-        CLASS(ibmodel_t), ALLOCATABLE :: ib
+        CLASS(ibmodel_t), ALLOCATABLE, INTENT(out) :: ib
 
         ! Local variables
         REAL(realk), POINTER, CONTIGUOUS :: bp(:), sdiv(:)
@@ -51,11 +47,12 @@ CONTAINS
         CALL set_field("SDIV")
         CALL get_fieldptr(sdiv, "SDIV")
         sdiv = 0.0
-    END FUNCTION constructor
+    END SUBROUTINE constructor
 
 
     SUBROUTINE destructor(this)
         TYPE(noib_t), INTENT(inout) :: this
+
         IF (ALLOCATED(this%restrict_op)) THEN
             DEALLOCATE(this%restrict_op)
         END IF
