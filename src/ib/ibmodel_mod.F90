@@ -1,6 +1,5 @@
 MODULE ibmodel_mod
     USE core_mod, ONLY: realk, intk, field_t
-    USE blockbp_mod, ONLY: blockbp_t
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -15,7 +14,6 @@ MODULE ibmodel_mod
     TYPE, ABSTRACT :: ibmodel_t
         CHARACTER(len=16) :: type
         CLASS(restrict_t), ALLOCATABLE :: restrict_op
-        CLASS(blockbp_t), ALLOCATABLE :: blockbp_op
     CONTAINS
         PROCEDURE(blockbp_i), DEFERRED :: blockbp
         PROCEDURE(read_stencils_i), DEFERRED :: read_stencils
