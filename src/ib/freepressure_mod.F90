@@ -1,6 +1,6 @@
 MODULE freepressure_mod
     USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, minlevel, &
-        maxlevel, field_t, get_mgdims, get_ip3, connect
+        maxlevel, field_t, get_mgdims, connect
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -33,22 +33,28 @@ CONTAINS
     END SUBROUTINE freepressure
 
 
-    SUBROUTINE freepressure_level(ilevel, kanteu, kantev, kantew, knoten)
+    SUBROUTINE freepressure_level(ilevel, kanteu_f, kantev_f, kantew_f, &
+            knoten_f)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(in) :: kanteu, kantev, kantew
-        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(in) :: kanteu_f, kantev_f, kantew_f
+        TYPE(field_t), INTENT(inout) :: knoten_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: kanteu(:, :, :), kantev(:, :, :), &
+            kantew(:, :, :), knoten(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
-
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL freepressure_grid(kk, jj, ii, kanteu%arr(ip3), &
-                kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3))
+
+            CALL kanteu_f%get_ptr(kanteu, igrid)
+            CALL kantev_f%get_ptr(kantev, igrid)
+            CALL kantew_f%get_ptr(kantew, igrid)
+            CALL knoten_f%get_ptr(knoten, igrid)
+
+            CALL freepressure_grid(kk, jj, ii, kanteu, kantev, kantew, knoten)
         END DO
     END SUBROUTINE freepressure_level
 
@@ -118,20 +124,21 @@ CONTAINS
     END SUBROUTINE freepressure_grid
 
 
-    SUBROUTINE correct_knoten_level(ilevel, knoten)
+    SUBROUTINE correct_knoten_level(ilevel, knoten_f)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: knoten
+        TYPE(field_t), INTENT(inout) :: knoten_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: knoten(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
 
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL correct_knoten_grid(kk, jj, ii, knoten%arr(ip3))
+            CALL knoten_f%get_ptr(knoten, igrid)
+            CALL correct_knoten_grid(kk, jj, ii, knoten)
         END DO
     END SUBROUTINE correct_knoten_level
 
