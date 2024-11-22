@@ -1,6 +1,6 @@
 MODULE blockcheck_mod
     USE core_mod, ONLY: realk, intk, mygridslvl, nmygridslvl, &
-        minlevel, maxlevel, errr, field_t, get_mgdims, get_ip3
+        minlevel, maxlevel, errr, field_t, get_mgdims
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -23,23 +23,30 @@ CONTAINS
     END SUBROUTINE blockcheck
 
 
-    SUBROUTINE blockcheck_level(ilevel, kanteu, kantev, kantew, knoten, flag)
+    SUBROUTINE blockcheck_level(ilevel, kanteu_f, kantev_f, kantew_f, &
+            knoten_f, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: kanteu, kantev, kantew
-        TYPE(field_t), INTENT(in) :: knoten
+        TYPE(field_t), INTENT(inout) :: kanteu_f, kantev_f, kantew_f
+        TYPE(field_t), INTENT(in) :: knoten_f
         INTEGER(intk), INTENT(in) :: flag
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: kanteu(:, :, :), kantev(:, :, :), &
+            kantew(:, :, :), knoten(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
-
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL blockcheck_grid(kk, jj, ii, kanteu%arr(ip3), &
-                kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3), flag)
+
+            CALL kanteu_f%get_ptr(kanteu, igrid)
+            CALL kantev_f%get_ptr(kantev, igrid)
+            CALL kantew_f%get_ptr(kantew, igrid)
+            CALL knoten_f%get_ptr(knoten, igrid)
+
+            CALL blockcheck_grid(kk, jj, ii, kanteu, kantev, kantew, &
+                knoten, flag)
         END DO
     END SUBROUTINE blockcheck_level
 

@@ -6,14 +6,15 @@ MODULE gc_zelltyp_mod
 
     PUBLIC :: zelltyp, zelltyp_grid
 CONTAINS
-    SUBROUTINE zelltyp(knoten, bzelltyp, icells)
+    SUBROUTINE zelltyp(knoten_f, bzelltyp, icells)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(in) :: knoten
+        TYPE(field_t), INTENT(in) :: knoten_f
         INTEGER(intk), INTENT(out) :: bzelltyp(*)
         INTEGER(intk), INTENT(out), OPTIONAL :: icells(:)
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, icells2
+        REAL(realk), POINTER, CONTIGUOUS :: knoten(:, :, :)
 
         ! Sanity check
         IF (PRESENT(icells)) THEN
@@ -23,11 +24,10 @@ CONTAINS
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
-
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL zelltyp_grid(kk, jj, ii, knoten%arr(ip3), &
-                bzelltyp(ip3), icells2)
+            CALL knoten_f%get_ptr(knoten, igrid)
+            CALL zelltyp_grid(kk, jj, ii, knoten, bzelltyp(ip3), icells2)
 
             IF (PRESENT(icells)) icells(igrid) = icells2
         END DO

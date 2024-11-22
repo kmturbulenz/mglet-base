@@ -51,7 +51,6 @@ CONTAINS
 
         ALLOCATE(gc_t :: ib)
         ALLOCATE(gc_restrict_t :: ib%restrict_op)
-        ALLOCATE(gc_blockbp_t :: ib%blockbp_op)
 
         ib%type = "GHOSTCELL"
 
@@ -105,10 +104,6 @@ CONTAINS
         IF (ALLOCATED(this%restrict_op)) THEN
             DEALLOCATE(this%restrict_op)
         END IF
-
-        IF (ALLOCATED(this%blockbp_op)) THEN
-            DEALLOCATE(this%blockbp_op)
-        END IF
     END SUBROUTINE destructor
 
 
@@ -117,13 +112,11 @@ CONTAINS
         CLASS(gc_t), INTENT(inout) :: this
         LOGICAL, INTENT(out) :: stop_now
 
-        SELECT TYPE(blockbp_op => this%blockbp_op)
-        TYPE IS (gc_blockbp_t)
-            CALL blockbp_op%blockbp(this%icells, this%icellspointer, &
-                this%stencils, stop_now)
-        CLASS DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
+        ! Local variables
+        TYPE(gc_blockbp_t) :: blockbp_op
+
+        CALL blockbp_op%blockbp(this%icells, this%icellspointer, &
+            this%stencils, stop_now)
     END SUBROUTINE blockbp
 
 
@@ -134,6 +127,7 @@ CONTAINS
         ! Local variables
         TYPE(field_t), POINTER :: bp, bu, bv, bw
         TYPE(field_t), POINTER :: au, av, aw
+        TYPE(gc_blockbp_t) :: blockbp_op
 
         CALL this%stencils%read()
 
@@ -151,7 +145,7 @@ CONTAINS
         CALL this%stencils%get_auavaw(bu, bv, bw, au, av, aw)
 
         CALL this%stencils%get_icells(this%icells)
-        CALL this%blockbp_op%set_icellspointer(this%icells, this%icellspointer)
+        CALL blockbp_op%set_icellspointer(this%icells, this%icellspointer)
 
         this%ncells = SUM(this%icells)
         ALLOCATE(this%xpsw(3, this%ncells))
