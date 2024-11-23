@@ -1,7 +1,6 @@
 MODULE checkzelle_mod
-    USE core_mod, ONLY: realk, intk, mygrids, nmygrids, &
-        errr, field_t, get_mgdims, get_ip3, get_ip3n, get_fieldptr, &
-        ind2sub
+    USE core_mod, ONLY: realk, intk, mygrids, nmygrids, errr, field_t, &
+        get_mgdims, get_ip3n, get_fieldptr, ind2sub
     USE blockcheck_mod, ONLY: blockcheck_grid
     USE punktekoordinaten_mod, ONLY: punkteeinekante2
     USE topol_mod, ONLY: topol_t
@@ -12,27 +11,30 @@ MODULE checkzelle_mod
     PUBLIC :: checkzelle, checkzelle_grid
 
 CONTAINS
-    SUBROUTINE checkzelle(topol, ntrimax, knoten, kanteu, kantev, &
-        kantew, triau, triav, triaw)
+    SUBROUTINE checkzelle(topol, ntrimax, knoten_f, kanteu_f, kantev_f, &
+            kantew_f, triau, triav, triaw)
 
         ! Subroutine arguments
         TYPE(topol_t), INTENT(in) :: topol
         INTEGER(intk), INTENT(in) :: ntrimax
-        TYPE(field_t), INTENT(inout) :: knoten
-        TYPE(field_t), INTENT(inout) :: kanteu
-        TYPE(field_t), INTENT(inout) :: kantev
-        TYPE(field_t), INTENT(inout) :: kantew
+        TYPE(field_t), INTENT(inout) :: knoten_f
+        TYPE(field_t), INTENT(inout) :: kanteu_f
+        TYPE(field_t), INTENT(inout) :: kantev_f
+        TYPE(field_t), INTENT(inout) :: kantew_f
         INTEGER(intk), INTENT(in) :: triau(*)
         INTEGER(intk), INTENT(in) :: triav(*)
         INTEGER(intk), INTENT(in) :: triaw(*)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip3n, iloop, suminfo
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3n, iloop, suminfo
         REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:), &
             ddx(:), ddy(:), ddz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: kanteu(:, :, :), kantev(:, :, :), &
+            kantew(:, :, :), knoten(:, :, :)
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
             CALL get_fieldptr(xstag, "XSTAG", igrid)
             CALL get_fieldptr(ystag, "YSTAG", igrid)
@@ -42,14 +44,16 @@ CONTAINS
             CALL get_fieldptr(ddy, "DDY", igrid)
             CALL get_fieldptr(ddz, "DDZ", igrid)
 
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
+            CALL kanteu_f%get_ptr(kanteu, igrid)
+            CALL kantev_f%get_ptr(kantev, igrid)
+            CALL kantew_f%get_ptr(kantew, igrid)
+            CALL knoten_f%get_ptr(knoten, igrid)
+
             CALL get_ip3n(ip3n, ntrimax, igrid)
 
             DO iloop = 1, 20
-                CALL checkzelle_grid(kk, jj, ii, kanteu%arr(ip3), &
-                    kantev%arr(ip3), kantew%arr(ip3), knoten%arr(ip3), &
-                    ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
+                CALL checkzelle_grid(kk, jj, ii, kanteu, kantev, kantew, &
+                    knoten, ntrimax, triau(ip3n), triav(ip3n), triaw(ip3n), &
                     xstag, ystag, zstag, ddx, ddy, ddz, topol%n, &
                     topol%topol, suminfo)
                 IF (suminfo == 0) EXIT

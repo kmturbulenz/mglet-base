@@ -269,7 +269,7 @@ CONTAINS
         ! TODO: Maybe move to  gc_mod.F90 where BP is initialized
         CALL bp%init_buffers()
 
-        CALL blockluecken(.FALSE., bp%arr)
+        CALL blockluecken(bp, .FALSE.)
 
         ! TODO: change - variable loop iterations and check for convergence
         DO iloop = 1, 3

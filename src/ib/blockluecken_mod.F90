@@ -1,6 +1,6 @@
 MODULE blockluecken_mod
-    USE core_mod, ONLY: realk, intk, idim3d, mygrids, nmygrids, &
-        get_mgdims, get_ip3, get_mgbasb, errr
+    USE core_mod, ONLY: realk, intk, mygrids, nmygrids, &
+        get_mgdims, get_mgbasb, errr, field_t
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -8,20 +8,20 @@ MODULE blockluecken_mod
     PUBLIC :: blockluecken, blockluecken_grid
 
 CONTAINS
-    SUBROUTINE blockluecken(use_bc, bp)
+    SUBROUTINE blockluecken(bp_f, use_bc)
         ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: bp_f
         LOGICAL, INTENT(in) :: use_bc
-        REAL(realk), INTENT(inout) :: bp(idim3d)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, igrid, kk, jj, ii
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
+        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
-
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
+
             IF (use_bc) THEN
                 CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
             ELSE
@@ -32,8 +32,9 @@ CONTAINS
                 nbot = 0
                 ntop = 0
             END IF
+            CALL bp_f%get_ptr(bp, igrid)
             CALL blockluecken_grid(kk, jj, ii, nfro, nbac, nrgt, nlft, &
-                nbot, ntop, bp(ip3))
+                nbot, ntop, bp)
         END DO
     END SUBROUTINE blockluecken
 

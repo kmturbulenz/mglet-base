@@ -56,8 +56,6 @@ CONTAINS
 
 
     SUBROUTINE restrict_p(this, kk, jj, ii, ff, sendbuf, ctyp, igrid)
-        USE core_mod, ONLY: divide0
-
         ! Subroutine arguments
         CLASS(gc_restrict_t), INTENT(inout) :: this
         INTEGER(intk), INTENT(IN) :: kk, jj, ii
