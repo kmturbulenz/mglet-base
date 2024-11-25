@@ -3,6 +3,7 @@ name: tum-mglet-build
 on:
   push:
     branches:
+      - 'master'
       - 'michael/**'
       - 'lukas/**'
       - 'yoshi/**'
