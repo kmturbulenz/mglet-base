@@ -15,3 +15,11 @@ include(TestDataPtrC.cmake)
 include(TestFunctionPtrC.cmake)
 
 include(TestSelectRank.cmake)
+
+# Test C++ headers
+include(CheckIncludeFileCXX)
+CHECK_INCLUDE_FILE_CXX("charconv" HAVE_CHARCONV)
+if(NOT HAVE_CHARCONV)
+    message(WARNING "C++17 include charconv not available")
+endif()
+

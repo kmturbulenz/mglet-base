@@ -3,12 +3,16 @@
 #include <algorithm>    // std::min
 #include <cassert>      // assert
 #include <cerrno>       // errno
-#include <charconv>     // std::from_chars (C++17)
-#include <cstdio>       // std::sscanf
 #include <fstream>      // std::ifstream
 #include <iostream>     // std::cerr, std::cout
 #include <string>       // std::string
 #include <vector>       // std::vector
+
+#ifdef HAVE_CHARCONV
+#   include <charconv>     // std::from_chars (C++17)
+#else
+#   include <cstdio>       // std::sscanf
+#endif
 
 #include <sys/stat.h>   // stat
 extern "C" {

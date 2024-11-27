@@ -69,7 +69,7 @@ set_source_files_properties(jsoncpp_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
     ${json_SOURCE_DIR}/include
 )
 
-set_property(TARGET core PROPERTY CXX_STANDARD 14)
+set_property(TARGET core PROPERTY CXX_STANDARD 17)
 
 # Other neccesary compile flags
 set_source_files_properties(exprtk_wrapper.cxx PROPERTIES COMPILE_FLAGS
@@ -94,4 +94,8 @@ set_source_files_properties(simdfunctions_mod.F90 PROPERTIES COMPILE_FLAGS
 
 set_source_files_properties(utils_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","IntelLLVM">:"-nostand -warn nostderrors">
+)
+
+set_source_files_properties(readstl.cxx PROPERTIES COMPILE_DEFINITIONS
+    $<$<BOOL:${HAVE_CHARCONV}>:HAVE_CHARCONV=1>
 )
