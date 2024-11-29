@@ -37,8 +37,8 @@ MODULE realfield_mod
         GENERIC, PUBLIC :: get_ptr => get_grid1, get_grid3
         GENERIC, PUBLIC :: multiply => multiply2, multiply3
 
-        PROCEDURE, PRIVATE :: get_grid1, get_grid3
-        PROCEDURE, PRIVATE :: multiply2, multiply3
+        PROCEDURE, PRIVATE, NON_OVERRIDABLE :: get_grid1, get_grid3
+        PROCEDURE, PRIVATE, NON_OVERRIDABLE :: multiply2, multiply3
 
         PROCEDURE :: copy_from
         PROCEDURE :: shift

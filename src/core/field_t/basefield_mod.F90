@@ -72,7 +72,7 @@ MODULE basefield_mod
         GENERIC, PUBLIC :: set_attr => set_rattr, set_iattr
         PROCEDURE, PRIVATE :: set_rattr, set_iattr
 
-        PROCEDURE :: get_ip
+        PROCEDURE, NON_OVERRIDABLE :: get_ip
 
         PROCEDURE :: finish_corefield
     END TYPE basefield_t
