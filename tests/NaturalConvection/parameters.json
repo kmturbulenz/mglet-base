@@ -40,7 +40,8 @@
             },
             {
                 "name": "SCA2",
-                "prmol": 1.0
+                "prmol": 1.0,
+                "initial_value": "0.5*x"
             }
         ]
     },
