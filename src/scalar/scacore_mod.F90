@@ -46,10 +46,11 @@ CONTAINS
 
         ! Local variables
         TYPE(config_t) :: scaconf, sc
-        TYPE(field_t), POINTER :: t, bt
+        TYPE(field_t), POINTER :: t, t_old, bt
         INTEGER(intk) :: l, n, nstl, itype
         CHARACTER(len=mglet_filename_max + 64) :: jsonptr
         CHARACTER(len=16) :: type
+        CHARACTER(len=10240) :: initial_expr
         LOGICAL :: kayscrawford
         REAL(realk) :: rvalue
 
@@ -158,6 +159,23 @@ CONTAINS
             ! To store previous time value
             CALL set_field(TRIM(scalar(l)%name)//"_OLD")
 
+            ! Scalar initial condition
+            WRITE(jsonptr, '("/scalars/", I0, "/initial_value")') l-1
+            IF (scaconf%exists(jsonptr)) THEN
+                IF (scaconf%is_char(jsonptr)) THEN
+                    CALL scaconf%get_value(jsonptr, initial_expr)
+                    CALL set_initial_expr(t, initial_expr)
+                ELSE
+                    CALL scaconf%get_value(jsonptr, rvalue)
+                    CALL set_initial_value(t, rvalue)
+                END IF
+
+                CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
+                t_old%arr = t%arr
+            ELSE
+                CALL scaconf%set_value(jsonptr, 0.0_realk)
+            END IF
+
             IF (myid == 0) THEN
                 WRITE(*, '(2X, "Scalar:               ", A, " prmol: ", G0, ' &
                     //'"   unit: [", 7I3, " ]")') &
@@ -256,4 +274,60 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE maskbt_grid
+
+
+    SUBROUTINE set_initial_value(sca_f, val)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: sca_f
+        REAL(realk), INTENT(in) :: val
+
+        ! Local variables
+        INTEGER(intk) :: igrid
+        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
+
+        DO igrid = 1, nmygrids
+            CALL sca_f%get_ptr(t, igrid)
+            t = val
+        END DO
+    END SUBROUTINE set_initial_value
+
+
+    SUBROUTINE set_initial_expr(sca_f, expr)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: sca_f
+        CHARACTER(LEN=*), INTENT(IN) :: expr
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        REAL(realk), PARAMETER :: zero = 0.0_realk
+        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
+        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL sca_f%get_ptr(t, igrid)
+
+            CALL get_fieldptr(x, "X", igrid)
+            CALL get_fieldptr(y, "Y", igrid)
+            CALL get_fieldptr(z, "Z", igrid)
+
+            CALL get_fieldptr(dx, "DX", igrid)
+            CALL get_fieldptr(dy, "DY", igrid)
+            CALL get_fieldptr(dz, "DZ", igrid)
+
+            CALL get_fieldptr(ddx, "DDX", igrid)
+            CALL get_fieldptr(ddy, "DDY", igrid)
+            CALL get_fieldptr(ddz, "DDZ", igrid)
+
+            ! rho, gmol, tu_level, timeph are zero
+            ! This allows the "t" field to be set as an expression of spatial
+            ! coordinates only - not other fields.
+            CALL initial_condition(t, "t", expr, zero, zero, zero, zero, &
+                x, y, z, dx, dy, dz, ddx, ddy, ddz)
+        END DO
+    END SUBROUTINE set_initial_expr
+
 END MODULE scacore_mod
