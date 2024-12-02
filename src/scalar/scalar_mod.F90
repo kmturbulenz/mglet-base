@@ -25,6 +25,7 @@ CONTAINS
         CALL set_timer(410, "SCA_TSTSCA4")
         CALL set_timer(411, "SCA_FLUXBALANCE")
         CALL set_timer(412, "SCA_STENCILS")
+        CALL set_timer(413, "SCA_SOURCES")
         CALL set_timer(420, "SCA_ITINFO")
 
         CALL init_itinfo_scalar(dcont)

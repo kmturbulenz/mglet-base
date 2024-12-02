@@ -16,12 +16,22 @@ MODULE scacore_mod
         REAL(realk) :: value
     END TYPE scalar_bc_t
 
+    TYPE :: scalar_source_t
+        ! Actual value or sourceterm, either as absolute value or
+        ! proportionality factor
+        REAL(realk) :: value
+
+        ! Fieldname for proportionality factor
+        CHARACTER(len=nchar_name) :: field
+    END TYPE scalar_source_t
+
     TYPE :: scalar_t
         CHARACTER(len=nchar_name) :: name
         REAL(realk) :: prmol
         INTEGER(intk) :: units(7)
         INTEGER(intk) :: kayscrawford
         TYPE(scalar_bc_t), ALLOCATABLE :: geometries(:)
+        TYPE(scalar_source_t), ALLOCATABLE :: sources(:)
     CONTAINS
         PROCEDURE :: prt
     END TYPE scalar_t
@@ -36,7 +46,7 @@ MODULE scacore_mod
     TYPE(scalar_t), ALLOCATABLE, PROTECTED :: scalar(:)
 
     PUBLIC :: init_scacore, finish_scacore, scalar_t, scalar, nsca, prturb, &
-      has_scalar, solve_scalar, maskbt
+        has_scalar, solve_scalar, maskbt, scalar_source_t
 
 CONTAINS
     SUBROUTINE init_scacore()
@@ -45,9 +55,9 @@ CONTAINS
         ! None...
 
         ! Local variables
-        TYPE(config_t) :: scaconf, sc
+        TYPE(config_t) :: scaconf, sc, source
         TYPE(field_t), POINTER :: t, t_old, bt
-        INTEGER(intk) :: l, n, nstl, itype
+        INTEGER(intk) :: l, n, nstl, itype, nsource
         CHARACTER(len=mglet_filename_max + 64) :: jsonptr
         CHARACTER(len=16) :: type
         CHARACTER(len=10240) :: initial_expr
@@ -129,6 +139,23 @@ CONTAINS
                     scalar(l)%geometries(n)%value = rvalue
                 END DO
             END SELECT
+
+            ! Read source terms
+            IF (sc%exists("/sources")) THEN
+                CALL sc%get_size("/sources", nsource)
+            ELSE
+                nsource = 0
+            END IF
+            ALLOCATE(scalar(l)%sources(nsource))
+            DO n = 1, nsource
+                WRITE(jsonptr, '("/sources/", I0)') n-1
+                CALL sc%get(source, jsonptr)
+
+                CALL source%get_value("/value", scalar(l)%sources(n)%value)
+                CALL source%get_value("/field", scalar(l)%sources(n)%field, "")
+
+                CALL source%finish()
+            END DO
 
             CALL sc%finish()
         END DO
