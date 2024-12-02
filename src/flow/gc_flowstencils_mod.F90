@@ -42,16 +42,16 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: ilevel
         REAL(realk), POINTER, CONTIGUOUS :: bp(:), bu(:), bv(:), bw(:)
-        REAL(realk), POINTER, CONTIGUOUS :: au(:), av(:), aw(:)
+        REAL(realk), POINTER, CONTIGUOUS :: areau(:), areav(:), areaw(:)
 
         CALL get_fieldptr(bp, "BP")
         CALL get_fieldptr(bu, "BU")
         CALL get_fieldptr(bv, "BV")
         CALL get_fieldptr(bw, "BW")
 
-        CALL get_fieldptr(au, "AU")
-        CALL get_fieldptr(av, "AV")
-        CALL get_fieldptr(aw, "AW")
+        CALL get_fieldptr(areau, "AREAU")
+        CALL get_fieldptr(areav, "AREAV")
+        CALL get_fieldptr(areaw, "AREAW")
 
         ! Always allocate - createstencils should be called only once.
         ALLOCATE(fxpoli(nmygrids))
@@ -86,9 +86,9 @@ CONTAINS
         ALLOCATE(woldsolvel(nmygrids))
 
         DO ilevel = minlevel, maxlevel
-            CALL createstencils_level(ilevel, bp, bu, bv, bw, au, av, aw, &
-                gc%bzelltyp, gc%icells, gc%icellspointer, gc%bodyid, &
-                gc%nvecs, gc%ucell)
+            CALL createstencils_level(ilevel, bp, bu, bv, bw, &
+                areau, areav, areaw, gc%bzelltyp, gc%icells, &
+                gc%icellspointer, gc%bodyid, gc%nvecs, gc%ucell)
         END DO
 
         CALL setsdivfield()
@@ -134,13 +134,14 @@ CONTAINS
     END SUBROUTINE finish_flowstencils
 
 
-    SUBROUTINE createstencils_level(ilevel, bp, bu, bv, bw, au, av, aw, &
-            bzelltyp, icells, icellspointer, bodyid, nvecs, ucell)
+    SUBROUTINE createstencils_level(ilevel, bp, bu, bv, bw, &
+            areau, areav, areaw, bzelltyp, icells, &
+            icellspointer, bodyid, nvecs, ucell)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         REAL(realk), INTENT(in) :: bp(*), bu(*), bv(*), bw(*), &
-            au(*), av(*), aw(*)
+            areau(*), areav(*), areaw(*)
         INTEGER(intk), INTENT(in) :: bzelltyp(*)
         INTEGER(intk), CONTIGUOUS, INTENT(in) :: icells(:)
         INTEGER(intk), CONTIGUOUS, INTENT(in) :: icellspointer(:)
@@ -178,8 +179,8 @@ CONTAINS
             CALL get_mgbasb(bconds, igrid)
 
             CALL fluxcorrection(igrid, kk, jj, ii, ddx, ddy, ddz, &
-                bp(ip3), bu(ip3), bv(ip3), bw(ip3), au(ip3), av(ip3), &
-                aw(ip3), bzelltyp(ip3), icells(igrid), &
+                bp(ip3), bu(ip3), bv(ip3), bw(ip3), areau(ip3), areav(ip3), &
+                areaw(ip3), bzelltyp(ip3), icells(igrid), &
                 ucell(:, ipp:ipp+ncells-1))
 
             CALL fluxstencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, &
@@ -196,7 +197,7 @@ CONTAINS
 
 
     SUBROUTINE fluxcorrection(igrid, kk, jj, ii, ddx, ddy, ddz, &
-            bp, bu, bv, bw, au, av, aw, bzelltyp, icells, ucell)
+            bp, bu, bv, bw, areau, areav, areaw, bzelltyp, icells, ucell)
         ! ---------------------------------------------------------------------
         ! SUBROUTINE FLUXCORRECTION
         !
@@ -237,8 +238,8 @@ CONTAINS
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(in) :: bu(kk, jj, ii), bv(kk, jj, ii), &
             bw(kk, jj, ii)
-        REAL(realk), INTENT(in) :: au(kk, jj, ii), av(kk, jj, ii), &
-            aw(kk, jj, ii)
+        REAL(realk), INTENT(in) :: areau(kk, jj, ii), areav(kk, jj, ii), &
+            areaw(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: bzelltyp(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: icells
         REAL(realk), CONTIGUOUS, INTENT(in) :: ucell(:, :)
@@ -483,24 +484,21 @@ CONTAINS
                         END IF
                     END IF
 
-                    sarea = ax1*au(k, j, i)*ddy(j)*ddz(k) &
-                        + ax2*au(k, j, i-1)*ddy(j)*ddz(k) &
-                        + ay1*av(k, j, i)*ddx(i)*ddz(k) &
-                        + ay2*av(k, j-1, i)*ddx(i)*ddz(k) &
-                        + az1*aw(k, j, i)*ddx(i)*ddy(j) &
-                        + az2*aw(k-1, j, i)*ddx(i)*ddy(j)
+                    sarea = ax1*areau(k, j, i) + ax2*areau(k, j, i-1) &
+                          + ay1*areav(k, j, i) + ay2*areav(k, j-1, i) &
+                          + az1*areaw(k, j, i) + az2*areaw(k-1, j, i)
 
                     refarea = ((dx + dy + dz)/3.0)**2
                     ! Nur wenn seara > 0 werden die ax... mit den
                     ! tatsaechlichen Flächen belegt ansonsten sind sie
                     ! weiterhin 0 oder 1
                     IF (sarea > refarea*maccur) THEN
-                        ax1 = ax1*au(k, j, i)*ddy(j)*ddz(k)
-                        ax2 = ax2*au(k, j, i-1)*ddy(j)*ddz(k)
-                        ay1 = ay1*av(k, j, i)*ddx(i)*ddz(k)
-                        ay2 = ay2*av(k, j-1, i)*ddx(i)*ddz(k)
-                        az1 = az1*aw(k, j, i)*ddx(i)*ddy(j)
-                        az2 = az2*aw(k-1, j, i)*ddx(i)*ddy(j)
+                        ax1 = ax1*areau(k, j, i)
+                        ax2 = ax2*areau(k, j, i-1)
+                        ay1 = ay1*areav(k, j, i)
+                        ay2 = ay2*areav(k, j-1, i)
+                        az1 = az1*areaw(k, j, i)
+                        az2 = az2*areaw(k-1, j, i)
                     END IF
 
                     IF (pntxpoli + 2 > xpolisize) THEN
