@@ -9,16 +9,22 @@ MODULE tensormath_mod
     CONTAINS
         PRIVATE
 
-        PROCEDURE, PUBLIC :: abst
-        PROCEDURE, PUBLIC :: t
-        PROCEDURE, PUBLIC :: sqr
-        PROCEDURE, PUBLIC :: trace
-        PROCEDURE, PUBLIC :: det
-        PROCEDURE, PUBLIC :: eig_a, eig_b
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: abst
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: t
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: sqr
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: trace
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: det
+        PROCEDURE, PUBLIC, NON_OVERRIDABLE :: eig_a, eig_b
 
+#if defined __GNUC__
         PROCEDURE :: add
         PROCEDURE :: subtract
         PROCEDURE :: multiply
+#else
+        PROCEDURE, NON_OVERRIDABLE :: add
+        PROCEDURE, NON_OVERRIDABLE :: subtract
+        PROCEDURE, NON_OVERRIDABLE :: multiply
+#endif
 
         GENERIC, PUBLIC :: OPERATOR(+) => add
         GENERIC, PUBLIC :: OPERATOR(-) => subtract

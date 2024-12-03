@@ -66,6 +66,9 @@ CONTAINS
             ! fluxbalance zeroize qtt before use internally
             CALL fluxbalance(qtt, qtu, qtv, qtw)
 
+            ! Additional source terms
+            CALL sourceterm(qtt, scalar(l))
+
             ! Ghost cell "flux" boundary condition applied to qtt field
             IF (ib%type == "GHOSTCELL") THEN
                 CALL set_scastencils("P", scalar(l), qtt=qtt)
@@ -543,6 +546,94 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE fluxbalance_grid
+
+
+    SUBROUTINE sourceterm(qtt_f, sca)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: qtt_f
+        TYPE(scalar_t), INTENT(in), TARGET :: sca
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, isource, nsource
+        INTEGER(intk) :: kk, jj, ii
+        TYPE(scalar_source_t), POINTER :: source
+        TYPE(field_t), POINTER :: field_f
+        REAL(realk), POINTER, CONTIGUOUS :: qtt(:, :, :), field(:, :, :)
+
+        CALL start_timer(413)
+
+        nsource = SIZE(sca%sources)
+
+        DO isource = 1, nsource
+            source => sca%sources(isource)
+
+            IF (LEN_TRIM(source%field) == 0) THEN
+                DO i = 1, nmygrids
+                    igrid = mygrids(i)
+                    CALL get_mgdims(kk, jj, ii, igrid)
+                    CALL qtt_f%get_ptr(qtt, igrid)
+
+                    CALL sourceterm_const(kk, jj, ii, qtt, source%value)
+                END DO
+            ELSE
+                CALL get_field(field_f, source%field)
+                IF (field_f%istag /= 0 .OR. field_f%jstag /= 0 .OR. &
+                        field_f%kstag /= 0) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+
+                DO i = 1, nmygrids
+                    igrid = mygrids(i)
+                    CALL get_mgdims(kk, jj, ii, igrid)
+                    CALL qtt_f%get_ptr(qtt, igrid)
+                    CALL field_f%get_ptr(field, igrid)
+
+                    CALL sourceterm_field(kk, jj, ii, qtt, field, source%value)
+                END DO
+            END IF
+        END DO
+
+        CALL stop_timer(413)
+    END SUBROUTINE sourceterm
+
+
+    PURE SUBROUTINE sourceterm_const(kk, jj, ii, qtt, sourceval)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(IN) :: kk, jj, ii
+        REAL(realk), INTENT(INOUT), DIMENSION(kk, jj, ii) :: qtt
+        REAL(realk), INTENT(IN) :: sourceval
+
+        ! Local variables
+        INTEGER(intk) :: i, j, k
+
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    qtt(k, j, i) = qtt(k, j, i) + sourceval
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE sourceterm_const
+
+
+    PURE SUBROUTINE sourceterm_field(kk, jj, ii, qtt, field, sourceval)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(IN) :: kk, jj, ii
+        REAL(realk), INTENT(INOUT) :: qtt(kk, jj, ii)
+        REAL(realk), INTENT(IN) :: field(kk, jj, ii)
+        REAL(realk), INTENT(IN) :: sourceval
+
+        ! Local variables
+        INTEGER(intk) :: i, j, k
+
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    qtt(k, j, i) = qtt(k, j, i) + sourceval*field(k, j, i)
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE sourceterm_field
 
 
     SUBROUTINE comp_tmean(tmean, tmeansqr, kk, jj, ii, t, ddx, ddy, ddz)

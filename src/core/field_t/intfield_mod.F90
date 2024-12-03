@@ -13,7 +13,7 @@ MODULE intfield_mod
         PROCEDURE :: init
 
         GENERIC, PUBLIC :: get_ptr => get_grid1, get_grid3
-        PROCEDURE, PRIVATE :: get_grid1, get_grid3
+        PROCEDURE, PRIVATE, NON_OVERRIDABLE :: get_grid1, get_grid3
 
         PROCEDURE :: finish
         FINAL :: destructor
