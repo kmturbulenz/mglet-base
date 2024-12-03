@@ -1,0 +1,63 @@
+{
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "noib"
+    },
+    "time": {
+        "mtstep": 10,
+        "dt": 1.0,
+        "itinfo": 10,
+        "tstat": 0.0,
+        "read": false,
+        "write": false,
+        "continue": true,
+        "tend": 10.0,
+        "itsamp": 1,
+        "rkmethod": "williamson"
+    },
+    "flow": {
+        "tu_level": 0.01,
+        "uinf": [0.0, 0.0, 0.0],
+        "lesmodel": {
+            "model": "none"
+        },
+        "rho": 1.0,
+        "gmol": 1.0,
+        "solve": false
+    },
+    "statistics": [],
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "PHI",
+                "prmol": 1.0,
+                "initial_value": 1.0,
+                "sources": [
+                    {
+                        "value": -1.0,
+                        "field": "PHI"
+                    }
+                ]
+            }
+        ]
+    },
+    "probes": {
+        "itsamp": 1,
+        "tstart": 0.0,
+        "file": "probes-1.h5",
+        "arrays": [
+            {
+                "name": "point",
+                "variables": ["PHI"],
+                "positions": [
+                    [ 0.0, 0.0, 0.0 ]
+                ]
+            }
+        ]
+    }
+}
