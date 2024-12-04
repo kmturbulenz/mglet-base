@@ -169,9 +169,55 @@ CONTAINS
         ! DOI: 10.1016/j.jcp.2009.02.032
         !
         ! Coefficients from table 4
+        !
+        ! NOTE, hakostra, 2024-12:
+        ! The coefficients in the paper are given with way too few digits for
+        ! this method to be usable, 5 digits is not even for single precision.
+        ! This is fixed in the following way:
+        !
+        ! The given coefficients are used as a basis, but with an added
+        ! small correction:
+        !
+        !     A = [0.0, -1.0, -1.55798+eps1, -1.0, -0.45031+eps2]
+        !     B = [0.2, 0.83204+eps3, 0.6, 0.35394+eps4, 0.2]
+        !
+        ! From this, the Butcher tableau is computed, and the order constrains
+        ! for the RK-method are set up symbolically. It is found that the 1st
+        ! order properties are always satisfied independent on the corrections,
+        ! but the 2nd order criterion are not. The resulting symbolic equation
+        ! for the 2nd order criterion is:
+        !
+        !     0.12*eps2 + 0.2*eps3 + 0.6*eps4 + 0.2*(eps1 - 1.55798)*(-0.2*eps2 - 1.0*eps4 + 0.336122) + 0.6047348 = 1/2
+        !
+        ! From this we can solve for eps1, eps2, eps3, and eps4 in various ways.
+        ! First attempts are to set eps2 = eps3 = eps4 = 0.0 and solve for
+        ! eps1. Then we can do this for eps2, eps3 and eps4, always assuming
+        ! the others coefficients to be zero. This gives four different
+        ! correction values:
+        !
+        !   eps1: -7.87345071152500e-6, eps2 = eps3 = eps4 = 0.0
+        !   eps2: -2.90308426107531e-6, eps1 = eps3 = eps4 = 0.0
+        !   eps3: -2.64644000005921e-6, eps1 = eps2 = eps4 = 0.0
+        !   eps4: -5.80616852215061e-7, eps1 = eps2 = eps3 = 0.0
+        !
+        ! Another approach is to set eps1 = eps2 = eps3 = eps4 = eps and solve
+        ! for a common eps. This gives:
+        !
+        !   eps: -3.88856487394645e-7
+        !
+        ! This is the value that is used in the following implementation. All
+        ! variations are checked, and they perform equally well. The method
+        ! with the lowerst overall correction value are chosen, which is the
+        ! common eps approach.
+        !
+        ! Footnote: solving for eps1 = eps2 = eps3 = eps4 = eps gives another
+        ! solution (the system is quadratic), which is eps = 5.67141538885649
+        ! This is not used here, since it is not a small pertubation to the
+        ! original coefficients and give a completely different scheme.
 
         ! Subroutine arguments
         CLASS(rk_2n_t), INTENT(out) :: rk
+        REAL(realk), PARAMETER :: eps = -3.88856487394645e-7_realk
 
         ! Set to zero
         rk%a = 0.0
@@ -180,10 +226,11 @@ CONTAINS
         ! Used coefficients
         rk%nrk = 5
         rk%cflmax = 3.47 - 0.01  ! 3.47 given in paper, 0.01 round off margin
-        rk%a(1:rk%nrk) = [0.0_realk, -1.0_realk, -1.55798_realk, &
-            -1.0_realk, -0.45031_realk]
-        rk%b(1:rk%nrk) = [0.2_realk, 0.83204_realk, 0.6_realk, &
-            0.35394_realk, 0.2_realk]
+
+        rk%a(1:rk%nrk) = [0.0_realk, -1.0_realk, -1.55798_realk+eps, &
+            -1.0_realk, -0.45031_realk+eps]
+        rk%b(1:rk%nrk) = [0.2_realk, 0.83204_realk+eps, &
+            0.6_realk, 0.35394_realk+eps, 0.2_realk]
 
         ! Compute C from A and B
         CALL rk%comp_c()
