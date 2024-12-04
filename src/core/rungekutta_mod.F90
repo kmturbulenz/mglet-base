@@ -141,10 +141,20 @@ CONTAINS
         ! Used coefficients
         rk%nrk = 5
         rk%cflmax = 3.34 - 0.01  ! 3.34 given in paper, 0.01 round off margin
-        rk%a(1:rk%nrk) = [0.0_realk, -0.4178904745_realk, &
-            -1.192151694643_realk, -1.697784692471_realk, -1.514183444257_realk]
-        rk%b(1:rk%nrk) = [0.1496590219993_realk, 0.3792103129999_realk, &
-            0.8229550293869_realk, 0.6994504559488_realk, 0.1530572479681_realk]
+        ! rk%a(1:rk%nrk) = [0.0_realk, -0.4178904745_realk, &
+        !     -1.192151694643_realk, -1.697784692471_realk, -1.514183444257_realk]
+        ! rk%b(1:rk%nrk) = [0.1496590219993_realk, 0.3792103129999_realk, &
+        !     0.8229550293869_realk, 0.6994504559488_realk, 0.1530572479681_realk]
+        rk%a(1:rk%nrk) = [0.0_realk, &
+            -567301805773.0_realk/1357537059087.0_realk, &
+            -2404267990393.0_realk/2016746695238.0_realk, &
+            -3550918686646.0_realk/2091501179385.0_realk, &
+            -1275806237668.0_realk/842570457699.0_realk]
+        rk%b(1:rk%nrk) = [1432997174477.0_realk/9575080441755.0_realk, &
+            5161836677717.0_realk/13612068292357.0_realk, &
+            1720146321549.0_realk/2090206949498.0_realk, &
+            3134564353537.0_realk/4481467310338.0_realk, &
+            2277821191437.0_realk/14882151754819.0_realk]
 
         ! Compute C from A and B
         CALL rk%comp_c()
