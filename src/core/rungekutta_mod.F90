@@ -98,7 +98,7 @@ CONTAINS
     SUBROUTINE init_berland(rk)
         ! 4th order 6-stage low disipation scheme
         ! From: Berland, Bogey and Bailly, Low-dissipation and low-dispersion
-        ! fourth-order Runge–Kutta algorithm, Computers & Fluids 35 (2006),
+        ! fourth-order Runge-Kutta algorithm, Computers & Fluids 35 (2006),
         ! DOI: 10.1016/j.compfluid.2005.04.003
 
         ! Subroutine arguments
@@ -164,7 +164,7 @@ CONTAINS
     SUBROUTINE init_bernardini(rk)
         ! 2nd order 5-stage scheme
         ! From: Matteo Bernardini and Sergio Pirozzoli, A general strategy for
-        ! the optimization of Runge–Kutta schemes for wave propagation
+        ! the optimization of Runge-Kutta schemes for wave propagation
         ! phenomena, Journal of Computational Physics 228 (2009)
         ! DOI: 10.1016/j.jcp.2009.02.032
         !

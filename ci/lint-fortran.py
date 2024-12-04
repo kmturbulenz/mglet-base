@@ -27,6 +27,12 @@ _pre_rules = [
         "pattern": r"[ \t]+$",
         "replace": "",
     },
+    {
+        "name": "non_ascii",
+        "description": "Source code shall not contain non-ASCII characters",
+        "pattern": r"[^\x00-\x7F]",
+        "replace": None,
+    },
 ]
 
 
