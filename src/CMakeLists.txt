@@ -40,4 +40,10 @@ target_link_libraries(mglet
     PRIVATE $<IF:$<BOOL:${MGLET_OPENMP}>,OpenMP::OpenMP_Fortran,>
 )
 
-set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)
+# When using the NAG Fortran compiler, use the CXX linker (usually GCC),
+# otherwise link with Fortran compiler
+if (CMAKE_Fortran_COMPILER_ID STREQUAL "NAG")
+    set_property(TARGET mglet PROPERTY LINKER_LANGUAGE CXX)
+else ()
+    set_property(TARGET mglet PROPERTY LINKER_LANGUAGE Fortran)
+endif()
