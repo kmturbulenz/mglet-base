@@ -249,7 +249,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
             itypboconds(ibocond, idir, igrid) = 19
-        ELSEIF (CTYP .EQ. 'NIX') THEN
+        ELSEIF (CTYP == 'NIX') THEN
             itypboconds(ibocond, idir, igrid) = 99
         ELSE
             itypboconds(ibocond, idir, igrid) = -HUGE(1_intk)
