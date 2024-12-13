@@ -362,7 +362,7 @@ CONTAINS
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
 
         ! I am surprised this is allowed as these are not optional...
-        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
+        LOGICAL, INTENT(in) :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
 
         ! Optional parameters to control special behaviour
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal

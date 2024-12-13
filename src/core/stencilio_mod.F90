@@ -72,10 +72,10 @@ CONTAINS
         END INTERFACE
         OPTIONAL :: get_ptr, get_len
 
-        LOGICAL, OPTIONAL :: indexlist
-        LOGICAL, OPTIONAL :: extend
-        INTEGER(intk), OPTIONAL :: ncmp
-        LOGICAL, OPTIONAL :: same_kind
+        LOGICAL, INTENT(in), OPTIONAL :: indexlist
+        LOGICAL, INTENT(in), OPTIONAL :: extend
+        INTEGER(intk), INTENT(in), OPTIONAL :: ncmp
+        LOGICAL, INTENT(in), OPTIONAL :: same_kind
 
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: stencilInfo(:, :), &
