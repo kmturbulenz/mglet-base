@@ -34,7 +34,6 @@ MODULE core_mod
     USE simdfunctions_mod
     USE statistics_mod
     USE stencilio_mod
-    USE sym_name_mod
     USE tensormath_mod
     USE timekeeper_mod
     USE timer_mod
