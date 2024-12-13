@@ -440,8 +440,8 @@ CONTAINS
 
 #if 0
         ! Alternative and slightly less performant implementation
-        gij%g = RESHAPE((/dudx, dudy, dudz, dvdx, dvdy, dvdz, &
-            dwdx, dwdy, dwdz/), (/3, 3/))
+        gij%g = RESHAPE([dudx, dudy, dudz, dvdx, dvdy, dvdz, &
+            dwdx, dwdy, dwdz], [3, 3])
 
         ! gg = g_ik*g_kj
         gg = gij%sqr()
@@ -495,8 +495,8 @@ CONTAINS
         REAL(realk) :: eig1, eig2, eig3
         REAL(realk) :: sigma1, sigma2, sigma3
 
-        gij%g = RESHAPE((/dudx, dudy, dudz, dvdx, dvdy, dvdz, &
-            dwdx, dwdy, dwdz/), (/3, 3/))
+        gij%g = RESHAPE([dudx, dudy, dudz, dvdx, dvdy, dvdz, &
+            dwdx, dwdy, dwdz], [3, 3])
 
         G = gij%t()*gij
         CALL G%eig_b(eig1, eig2, eig3)

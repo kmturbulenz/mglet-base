@@ -143,27 +143,27 @@ CONTAINS
 
             ! If triangle is outisde grid, skip triangle
             xmin = MIN(x1, x2, x3)
-            IF (xmin > xmax_grid) CYCLE
+            IF (xmin > xmax_grid) CYCLE triangles
 
             xmax = MAX(x1, x2, x3)
-            IF (xmax < xmin_grid) CYCLE
+            IF (xmax < xmin_grid) CYCLE triangles
 
             ymin = MIN(y1, y2, y3)
-            IF (ymin > ymax_grid) CYCLE
+            IF (ymin > ymax_grid) CYCLE triangles
 
             ymax = MAX(y1, y2, y3)
-            IF (ymax < ymin_grid) CYCLE
+            IF (ymax < ymin_grid) CYCLE triangles
 
             zmin = MIN(z1, z2, z3)
-            IF (zmin > zmax_grid) CYCLE
+            IF (zmin > zmax_grid) CYCLE triangles
 
             zmax = MAX(z1, z2, z3)
-            IF (zmax < zmin_grid) CYCLE
+            IF (zmax < zmin_grid) CYCLE triangles
 
             ! Check if trinagle is valid and compute area.
             CALL valid_triangle(valid, betrag, x1, y1, z1, x2, y2, z2, &
                 x3, y3, z3)
-            IF (.NOT. valid) CYCLE
+            IF (.NOT. valid) CYCLE triangles
 
             ! Triangle normal vector
             a = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1)

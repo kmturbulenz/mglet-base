@@ -126,7 +126,7 @@ CONTAINS
                         ! info = 2 : geschlossene Knoten nicht zusammenhaengend
                         ! info = 3 : offene und geschlossene Knoten nicht
                         !            zusammenhaengend
-                        IF (info == 0) EXIT
+                        IF (info == 0) EXIT innerloop
 
                         ! offene Knoten nicht zusammenhaengend
                         ! geschlossene Knoten zusammenhaengend oder auch nicht
