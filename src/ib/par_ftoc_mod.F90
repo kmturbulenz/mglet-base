@@ -637,12 +637,12 @@ CONTAINS
                     CALL errr(__FILE__, __LINE__)
                 END IF
 
-                sendconns(1, nsend) = myid      ! Sending process (this process)
-                sendconns(2, nsend) = iprocnbr  ! Receiving process (neighbour process)
-                sendconns(3, nsend) = igrid     ! Sending grid grid (on current process)
-                sendconns(4, nsend) = inbr      ! Receiving grid (on neighbour process)
-                sendconns(5, nsend) = iface     ! Which face is sent (1..6)
-                sendconns(6, nsend) = ifacerecv ! Which face is received (1..6), -1 for internal
+                sendconns(1, nsend) = myid       ! Sending process (this process)
+                sendconns(2, nsend) = iprocnbr   ! Receiving process (neighbour process)
+                sendconns(3, nsend) = igrid      ! Sending grid grid (on current process)
+                sendconns(4, nsend) = inbr       ! Receiving grid (on neighbour process)
+                sendconns(5, nsend) = iface      ! Which face is sent (1..6)
+                sendconns(6, nsend) = ifacerecv  ! Which face is received (1..6), -1 for internal
 
                 sendcounts(iprocnbr) = sendcounts(iprocnbr) + ncols
 
@@ -686,12 +686,12 @@ CONTAINS
                     CALL errr(__FILE__, __LINE__)
                 END IF
 
-                sendconns(1, nsend) = myid      ! Sending process (this process)
-                sendconns(2, nsend) = iprocnbr  ! Receiving process (neighbour process)
-                sendconns(3, nsend) = igrid     ! Sending grid (on current process)
-                sendconns(4, nsend) = inbr      ! Receiving grid (on neighbour process)
-                sendconns(5, nsend) = iface     ! Which face is sent (1..6)
-                sendconns(6, nsend) = ifacerecv ! Which face is received (1..6), -1 for internal
+                sendconns(1, nsend) = myid       ! Sending process (this process)
+                sendconns(2, nsend) = iprocnbr   ! Receiving process (neighbour process)
+                sendconns(3, nsend) = igrid      ! Sending grid (on current process)
+                sendconns(4, nsend) = inbr       ! Receiving grid (on neighbour process)
+                sendconns(5, nsend) = iface      ! Which face is sent (1..6)
+                sendconns(6, nsend) = ifacerecv  ! Which face is received (1..6), -1 for internal
 
                 sendcounts(iprocnbr) = sendcounts(iprocnbr) + ncols
             END DO

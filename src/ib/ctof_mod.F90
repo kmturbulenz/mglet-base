@@ -136,7 +136,7 @@ CONTAINS
         ! USE copy_pbufs_mod, ONLY: copy_pbufs
 
         ! Subroutine arguments
-        LOGICAL, OPTIONAL :: pbufs
+        LOGICAL, OPTIONAL, INTENT(in) :: pbufs
 
         ! Local variables
         INTEGER(int32) :: idx

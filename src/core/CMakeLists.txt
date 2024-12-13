@@ -41,7 +41,6 @@ add_library(core STATIC
     sort_wrapper.cxx
     statistics_mod.F90
     stencilio_mod.F90
-    sym_name_mod.F90
     tensormath_mod.F90
     timekeeper_mod.F90
     timer_mod.F90

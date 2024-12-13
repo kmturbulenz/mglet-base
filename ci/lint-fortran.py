@@ -184,7 +184,7 @@ def lint_line(fname, lineno, line):
     # First pass is the rules we apply before stripping comments
     for rule in _pre_rules:
         pattern = rule["pattern"]
-        if re.search(pattern, line):
+        if re.search(pattern, line, re.IGNORECASE):
             pass_one = False
             print(f"::error file={fname},line={lineno}::{rule['description']}")
 
@@ -197,7 +197,7 @@ def lint_line(fname, lineno, line):
     # Second pass is the rules we apply to the code after stripping comments
     for rule in _rules:
         pattern = rule["pattern"]
-        if re.search(pattern, line_wo_comments):
+        if re.search(pattern, line_wo_comments, re.IGNORECASE):
             pass_one = False
             print(f"::error file={fname},line={lineno}::{rule['description']}")
 
@@ -264,9 +264,9 @@ def fix_line(line):
     for rule in _pre_rules:
         pattern = rule["pattern"]
         replace = rule["replace"]
-        if re.search(pattern, line):
+        if re.search(pattern, line, re.IGNORECASE):
             if replace is not None:
-                line = re.sub(pattern, replace, line)
+                line = re.sub(pattern, replace, line, flags=re.IGNORECASE)
 
     # Then apply rules that apply to the code after stripping comments
     for rule in _rules:
@@ -274,9 +274,10 @@ def fix_line(line):
         pos = comment_pos(line)
         pattern = rule["pattern"]
         replace = rule["replace"]
-        if re.search(pattern, line[:pos]):
+        if re.search(pattern, line[:pos], re.IGNORECASE):
             if replace is not None:
-                line = re.sub(pattern, replace, line[:pos]) + line[pos:]
+                line = re.sub(pattern, replace, line[:pos],
+                              flags=re.IGNORECASE) + line[pos:]
 
     return line
 

@@ -288,7 +288,7 @@ CONTAINS
     SUBROUTINE comp_c(this)
         CLASS(rk_2n_t), INTENT(inout) :: this
 
-        INTEGER(intk) i, j, k
+        INTEGER(intk) :: i, j, k
         REAL(realk) :: fak
 
         ! Make sure C is zero

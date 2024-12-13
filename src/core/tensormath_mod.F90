@@ -35,8 +35,8 @@ MODULE tensormath_mod
         MODULE PROCEDURE scamul
     END INTERFACE
 
-    TYPE(tensor_t), PARAMETER :: ident = tensor_t(RESHAPE((/1.0, 0.0, 0.0, &
-        0.0, 1.0, 0.0, 0.0, 0.0, 1.0/), (/3, 3/)))
+    TYPE(tensor_t), PARAMETER :: ident = tensor_t(RESHAPE([1.0, 0.0, 0.0, &
+        0.0, 1.0, 0.0, 0.0, 0.0, 1.0], [3, 3]))
 
     PUBLIC :: tensor_t, OPERATOR(*)
 

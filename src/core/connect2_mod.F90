@@ -93,7 +93,7 @@ MODULE connect2_mod
     CLASS(basefield_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
         p1 => NULL(), p2 => NULL(), p3 => NULL()
 
-    INTEGER(intk), PARAMETER :: facelist(4, 26) = RESHAPE((/ &
+    INTEGER(intk), PARAMETER :: facelist(4, 26) = RESHAPE([ &
         1, 1, 0, 0, &
         1, 2, 0, 0, &
         1, 3, 0, 0, &
@@ -119,9 +119,9 @@ MODULE connect2_mod
         3, 2, 3, 5, &
         3, 2, 3, 6, &
         3, 2, 4, 5, &
-        3, 2, 4, 6 /), SHAPE(facelist))
+        3, 2, 4, 6], SHAPE(facelist))
 
-    INTEGER(intk), PARAMETER :: facenbr(26) = (/ &
+    INTEGER(intk), PARAMETER :: facenbr(26) = [ &
         2, &
         1, &
         4, &
@@ -147,7 +147,7 @@ MODULE connect2_mod
         22, &
         21, &
         20, &
-        19 /)
+        19]
 
     ! These patterns come from a Python program, however, it was discovered,
     ! that the GC fcorr-stencils need in inner corners a special rescue
@@ -160,7 +160,7 @@ MODULE connect2_mod
     !
     ! The original un-altered order of these faces are in the comment
     ! behind the adapted ones.
-    INTEGER(intk), PARAMETER :: rescue_dir(7, 26) = RESHAPE((/ &
+    INTEGER(intk), PARAMETER :: rescue_dir(7, 26) = RESHAPE([ &
         1, 0, 0, 0, 0, 0, 0, &
         2, 0, 0, 0, 0, 0, 0, &
         3, 0, 0, 0, 0, 0, 0, &
@@ -186,9 +186,9 @@ MODULE connect2_mod
         23, 11, 13, 15, 2, 3, 5, &
         24, 11, 14, 16, 2, 3, 6, &
         25, 12, 13, 17, 2, 4, 5, &
-        26, 12, 14, 18, 2, 4, 6 /), SHAPE(rescue_dir))
+        26, 12, 14, 18, 2, 4, 6], SHAPE(rescue_dir))
 
-    INTEGER(intk), PARAMETER :: rescue_nbr(7, 26) = RESHAPE((/ &
+    INTEGER(intk), PARAMETER :: rescue_nbr(7, 26) = RESHAPE([ &
         2, 0, 0, 0, 0, 0, 0, &
         1, 0, 0, 0, 0, 0, 0, &
         4, 0, 0, 0, 0, 0, 0, &
@@ -214,7 +214,7 @@ MODULE connect2_mod
         22, 21, 20, 26, 19, 25, 24, &
         21, 22, 19, 25, 20, 26, 23, &
         20, 19, 22, 24, 21, 23, 26, &
-        19, 20, 21, 23, 22, 24, 25 /), SHAPE(rescue_nbr))
+        19, 20, 21, 23, 22, 24, 25], SHAPE(rescue_nbr))
 
     PUBLIC :: connect, connect_int, init_connect2, finish_connect2
 
@@ -362,7 +362,7 @@ CONTAINS
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
 
         ! I am surprised this is allowed as these are not optional...
-        LOGICAL :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
+        LOGICAL, INTENT(in) :: has_v1, has_v2, has_v3, has_s1, has_s2, has_s3
 
         ! Optional parameters to control special behaviour
         LOGICAL, OPTIONAL, INTENT(in) :: geom, corners, normal

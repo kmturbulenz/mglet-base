@@ -120,7 +120,7 @@ CONTAINS
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(IN) :: name
         TYPE(C_FUNPTR), INTENT(OUT) :: funptr
-        LOGICAL, OPTIONAL :: required
+        LOGICAL, INTENT(in), OPTIONAL :: required
 
         ! Local variables
         INTEGER :: i
