@@ -67,10 +67,12 @@ CONTAINS
     ! Initialize communicator(s) and module constants
     SUBROUTINE init_comms()
         ! Local variables
-        INTEGER(int32) :: color = 1
+        INTEGER(int32) :: color
         CHARACTER(len=32) :: serial
         INTEGER :: length, status
         CHARACTER(LEN=MPI_MAX_LIBRARY_VERSION_STRING) :: version
+
+        color = 1
 
         ! Initialization for deterministic behaviour
         shmcomm = MPI_COMM_NULL

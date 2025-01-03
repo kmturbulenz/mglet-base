@@ -243,7 +243,7 @@ CONTAINS
         ! equipped with this
 
         ! Subroutine arguments
-        TYPE(config_t) :: geometries
+        TYPE(config_t), INTENT(inout) :: geometries
 
         ! Local variables
         INTEGER(intk) :: ngeom, last_id, this_id, i
