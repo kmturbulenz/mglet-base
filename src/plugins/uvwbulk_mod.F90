@@ -27,6 +27,14 @@ MODULE uvwbulk_mod
 
     CHARACTER(len=*), PARAMETER :: logfile = logdir//"/uvwbulk.log"
 
+#ifdef _MGLET_DOUBLE_PRECISION_
+    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A23)"
+    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES23.14)"
+#else
+    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A14)"
+    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES14.5)"
+#endif
+
     PUBLIC :: init_uvwbulk, itinfo_uvwbulk, finish_uvwbulk
 
 CONTAINS
@@ -56,7 +64,7 @@ CONTAINS
             INQUIRE(FILE=logfile, EXIST=exists)
             IF (.NOT. exists .OR. .NOT. dcont) THEN
                 OPEN(NEWUNIT=logunit, FILE=logfile)
-                WRITE(logunit, '(A9, A18, 6A14)') &
+                WRITE(logunit, head_fmt) &
                     "#  ITTOT", "TIME", "UBULK", "VBULK", "WBULK", "UUBULK", &
                     "VVBULK", "WWBULK"
                 CLOSE(logunit)
@@ -144,8 +152,8 @@ CONTAINS
         ! Write logfile
         IF (myid == 0) THEN
             OPEN(NEWUNIT=logunit, FILE=logfile, POSITION="APPEND")
-            WRITE(logunit, '(I9, ES18.10, 6ES14.5)') &
-                ittot, timeph, uvwbulk%ubulk, uvwbulk%vbulk, uvwbulk%wbulk, &
+            WRITE(logunit, num_fmt) ittot, timeph, &
+                uvwbulk%ubulk, uvwbulk%vbulk, uvwbulk%wbulk, &
                 uvwbulk%uubulk, uvwbulk%vvbulk, uvwbulk%wwbulk
             CLOSE(logunit)
         END IF
