@@ -40,6 +40,7 @@ MODULE realfield_mod
         PROCEDURE, PRIVATE, NON_OVERRIDABLE :: get_grid1, get_grid3
         PROCEDURE, PRIVATE, NON_OVERRIDABLE :: multiply2, multiply3
 
+        PROCEDURE, NON_OVERRIDABLE :: get_value
         PROCEDURE :: copy_from
         PROCEDURE :: shift
         PROCEDURE :: get_buffers
@@ -143,6 +144,45 @@ CONTAINS
 
         ptr(1:kk, 1:jj, 1:ii) => this%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3
+
+
+    REAL(realk) FUNCTION get_value(this, k, j, i, igrid)
+        ! Function arguments
+        CLASS(field_t), INTENT(in) :: this
+        INTEGER(intk), INTENT(in) :: k
+        INTEGER(intk), INTENT(in) :: j
+        INTEGER(intk), INTENT(in) :: i
+        INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        INTEGER(intk) :: ip
+        INTEGER(intk) :: kk, jj, ii
+
+        IF (.NOT. this%ndim == 3) THEN
+            WRITE(*, '("Field ", A, " is not 3D!")') TRIM(this%name)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL this%get_ip(ip, igrid)
+        CALL get_mgdims(kk, jj, ii, igrid)
+
+        IF (k < 1 .OR. k > kk) THEN
+            WRITE(*, *) "k out of bounds:", k, kk
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        IF (j < 1 .OR. j > jj) THEN
+            WRITE(*, *) "j out of bounds:", j, jj
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        IF (i < 1 .OR. i > ii) THEN
+            WRITE(*, *) "i out of bounds:", i, ii
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        get_value = this%arr(ip + (k-1) + (j-1)*kk + (i-1)*kk*jj)
+    END FUNCTION get_value
 
 
     ! Make a deep copy of another field
