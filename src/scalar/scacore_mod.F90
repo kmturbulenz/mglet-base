@@ -309,10 +309,12 @@ CONTAINS
         REAL(realk), INTENT(in) :: val
 
         ! Local variables
-        INTEGER(intk) :: igrid
+        INTEGER(intk) :: i, igrid
         REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
 
-        DO igrid = 1, nmygrids
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
             CALL sca_f%get_ptr(t, igrid)
             t = val
         END DO
