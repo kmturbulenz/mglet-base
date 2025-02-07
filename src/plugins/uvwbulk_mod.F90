@@ -28,11 +28,11 @@ MODULE uvwbulk_mod
     CHARACTER(len=*), PARAMETER :: logfile = logdir//"/uvwbulk.log"
 
 #ifdef _MGLET_DOUBLE_PRECISION_
-    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A23)"
-    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES23.14)"
+    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A25)"
+    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES25.16)"
 #else
-    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A14)"
-    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES14.5)"
+    CHARACTER(len=*), PARAMETER :: head_fmt = "(A9, A18, 6A17)"
+    CHARACTER(len=*), PARAMETER :: num_fmt = "(I9, ES18.10, 6ES17.8)"
 #endif
 
     PUBLIC :: init_uvwbulk, itinfo_uvwbulk, finish_uvwbulk
