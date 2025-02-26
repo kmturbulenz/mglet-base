@@ -56,9 +56,9 @@ CONTAINS
         ib%type = "GHOSTCELL"
 
         CALL set_field("BP", dwrite=.TRUE.)
-        CALL set_field("BU")
-        CALL set_field("BV")
-        CALL set_field("BW")
+        CALL set_field("BU", istag=1 )
+        CALL set_field("BV", jstag=1 )
+        CALL set_field("BW", kstag=1 )
 
         CALL set_field("AREAU", istag=1, units=[0, 2, 0, 0, 0, 0, 0])
         CALL set_field("AREAV", jstag=1, units=[0, 2, 0, 0, 0, 0, 0])
