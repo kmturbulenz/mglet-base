@@ -135,9 +135,9 @@ CONTAINS
         CALL get_field(dy_f, "DY")
         CALL get_field(dz_f, "DZ")
 
-        CALL get_field(ddx_f, "DX")
-        CALL get_field(ddy_f, "DY")
-        CALL get_field(ddz_f, "DZ")
+        CALL get_field(ddx_f, "DDX")
+        CALL get_field(ddy_f, "DDY")
+        CALL get_field(ddz_f, "DDZ")
 
         CALL get_field(rddx_f, "RDDX")
         CALL get_field(rddy_f, "RDDY")
