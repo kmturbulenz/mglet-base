@@ -49,17 +49,11 @@ CONTAINS
         LOGICAL :: is_collective
 
         ! Default value if no environment variable is set
-        is_collective = .FALSE.
+        is_collective = .TRUE.
 
         ! There is a Bcast on this later so I don't use _coll here...
         CALL getenv_char(iomodestr, "MGLET_IO_MODE", "")
-        IF (upper(TRIM(iomodestr)) == "COLLECTIVE") THEN
-            is_collective = .TRUE.
-        END IF
-
-        ! In case there is only a single process doing IO, always use
-        ! independent mode
-        IF (ioprocs <= 1) THEN
+        IF (upper(TRIM(iomodestr)) == "INDEPENDENT") THEN
             is_collective = .FALSE.
         END IF
 
