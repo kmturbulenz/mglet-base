@@ -651,8 +651,9 @@ CONTAINS
             nrecv = 0
             DO i = 1, niogrgrids
                 igrid = iogridinfo(1, i)
-                iproc = idprocofgrd(igrid)
                 nelems = iogridinfo(3, i)
+                ! Rank in the WORLD communicator (not iogrcomm)
+                iproc = idprocofgrd(igrid)
 
                 ! Grids with no data are not communicated
                 IF (nelems == 0) CYCLE
@@ -666,11 +667,11 @@ CONTAINS
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
                     CALL MPI_Irecv(buffer(bufptr), nelems, &
-                        field%mpi_dtype, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, MPI_COMM_WORLD, &
                         recvreq(nrecv))
                 TYPE IS (INTEGER(ifk))
                     CALL MPI_Irecv(buffer(bufptr), nelems, &
-                        field%mpi_dtype, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, MPI_COMM_WORLD, &
                         recvreq(nrecv))
                 END SELECT
                 bufptr = bufptr + nelems
@@ -733,10 +734,12 @@ CONTAINS
             SELECT TYPE (transposed)
             TYPE IS (REAL(realk))
                 CALL MPI_Isend(transposed(ptr), nelems, &
-                    field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
+                    field%mpi_dtype, iorankworld, igrid, &
+                    MPI_COMM_WORLD, sendreq(nsend))
             TYPE IS (INTEGER(ifk))
                 CALL MPI_Isend(transposed(ptr), nelems, &
-                    field%mpi_dtype, 0, igrid, iogrcomm, sendreq(nsend))
+                    field%mpi_dtype, iorankworld, igrid, &
+                    MPI_COMM_WORLD, sendreq(nsend))
             END SELECT
         END DO
         CALL MPI_Waitall(nsend, sendreq, MPI_STATUSES_IGNORE)
@@ -1310,10 +1313,12 @@ CONTAINS
             SELECT TYPE (field)
             TYPE IS (field_t)
                 CALL MPI_Irecv(field%arr(ptr), nelems, &
-                    field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
+                    field%mpi_dtype, iorankworld, igrid, &
+                    MPI_COMM_WORLD, recvreq(nrecv))
             TYPE IS (intfield_t)
                 CALL MPI_Irecv(field%arr(ptr), nelems, &
-                    field%mpi_dtype, 0, igrid, iogrcomm, recvreq(nrecv))
+                    field%mpi_dtype, iorankworld, igrid, &
+                    MPI_COMM_WORLD, recvreq(nrecv))
             END SELECT
         END DO
 
@@ -1325,8 +1330,9 @@ CONTAINS
             nsend = 0
             DO i = 1, niogrgrids
                 igrid = iogridinfo(1, i)
-                iproc = idprocofgrd(igrid)
                 nelems = iogridinfo(3, i)
+                ! Rank in the WORLD communicator (not iogrcomm)
+                iproc = idprocofgrd(igrid)
 
                 ! Grids with no data are not communicated
                 IF (nelems == 0) CYCLE
@@ -1335,11 +1341,11 @@ CONTAINS
                 SELECT TYPE (buffer)
                 TYPE IS (REAL(realk))
                     CALL MPI_Isend(buffer(bufptr), nelems, &
-                        field%mpi_dtype, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, MPI_COMM_WORLD, &
                         sendreq(nsend))
                 TYPE IS (INTEGER(ifk))
                     CALL MPI_Isend(buffer(bufptr), nelems, &
-                        field%mpi_dtype, iproc, igrid, iogrcomm, &
+                        field%mpi_dtype, iproc, igrid, MPI_COMM_WORLD, &
                         sendreq(nsend))
                 END SELECT
                 bufptr = bufptr + nelems
