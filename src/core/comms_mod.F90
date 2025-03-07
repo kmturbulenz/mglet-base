@@ -48,6 +48,9 @@ MODULE comms_mod
     ! Id of current compute node (i.e. rank of master in iogrcomm)
     INTEGER(int32), PROTECTED :: nodeid = -1
 
+    ! Id of io rank within the world communicator (i.e. not within iogrcomm)
+    INTEGER(int32), PROTECTED :: iorankworld = -1
+
     ! Flag to indicate if this process is to do any IO work
     LOGICAL :: ioProc = .FALSE.
 
@@ -58,8 +61,8 @@ MODULE comms_mod
     TYPE(MPI_Errhandler) :: errh
 
     ! Public data items
-    PUBLIC :: shmId, shmProcs, iogrId, iogrProcs, ioId, ioProcs, myId, &
-        numProcs, ioProc, init_comms, numnodes, nodeid, finish_comms
+    PUBLIC :: shmId, shmProcs, iogrId, iogrProcs, ioId, ioProcs, iorankworld, &
+        myId, numProcs, ioProc, init_comms, numnodes, nodeid, finish_comms
     PUBLIC :: shmcomm, shm_masters_comm, iogrcomm, iocomm
 
 
@@ -135,7 +138,15 @@ CONTAINS
         ! Create I/O process communicator
         ! All the processes with rank 0 in iogrcomm actually do IO
         ioproc = .FALSE.
-        IF (iogrid == 0) ioproc = .TRUE.
+        iorankworld = -1
+        IF (iogrid == 0) THEN
+            ioproc = .TRUE.
+            iorankworld = myid
+        END IF
+
+        ! Reduction within I/O process communicator
+        CALL MPI_Allreduce(MPI_IN_PLACE, iorankworld, 1, MPI_INTEGER, &
+            MPI_MAX, iogrcomm)
 
         color = 1
         IF (iogrid /= 0) color = MPI_UNDEFINED
