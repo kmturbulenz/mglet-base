@@ -28,6 +28,7 @@ CONTAINS
         ! Local variables
         TYPE(field_t), POINTER :: u, v, w
         TYPE(field_t), POINTER :: pwu, pwv, pww
+        TYPE(field_t), POINTER :: pwub, pwvb, pwwb
 
         CALL init_flowcore()
         IF (.NOT. has_flow) RETURN
@@ -69,16 +70,32 @@ CONTAINS
             CALL create_flowstencils(ib)
             IF (compbodyforce) CALL init_compbodyforce(dcont)
 
-            CALL set_field("PWU", istag=1, buffers=.TRUE.)
-            CALL set_field("PWV", jstag=1, buffers=.TRUE.)
-            CALL set_field("PWW", kstag=1, buffers=.TRUE.)
+            CALL get_field(u, "U")
+            CALL get_field(v, "V")
+            CALL get_field(w, "W")
+
+            ! Fields for the point values (german: PunktWert = PW)
+            CALL set_field("PWU", istag=1, buffers=.TRUE., &
+                units=u%units, dwrite=writepntvalues)
+            CALL set_field("PWV", jstag=1, buffers=.TRUE., &
+                units=v%units, dwrite=writepntvalues)
+            CALL set_field("PWW", kstag=1, buffers=.TRUE., &
+                units=w%units, dwrite=writepntvalues)
+
+            IF (writepntvalues) THEN
+                ! Inidicator field if point values are present
+                CALL set_field("PWUB", istag=1, dwrite=.TRUE.)
+                CALL set_field("PWVB", jstag=1, dwrite=.TRUE.)
+                CALL set_field("PWWB", kstag=1, dwrite=.TRUE.)
+                CALL get_field(pwub, "PWUB")
+                CALL get_field(pwvb, "PWVB")
+                CALL get_field(pwwb, "PWWB")
+                CALL setpointvaluemarkers(pwub, pwvb, pwwb)
+            END IF
 
             CALL get_field(pwu, "PWU")
             CALL get_field(pwv, "PWV")
             CALL get_field(pww, "PWW")
-            CALL get_field(u, "U")
-            CALL get_field(v, "V")
-            CALL get_field(w, "W")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
             CALL setibvalues(u, v, w)
         END SELECT
