@@ -301,7 +301,7 @@ CONTAINS
 
 
     SUBROUTINE calc_volp(this, bzelltyp, areau_f, areav_f, areaw_f, icells, &
-        icellspointer, xpsw, volp_f)
+        icellspointer, xpsw, bp_f, volp_f)
         ! Subroutine arguments
         CLASS(gc_stencils_t), INTENT(inout) :: this
         INTEGER(intk), INTENT(in) :: bzelltyp(*)
@@ -311,6 +311,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: icells(:)
         INTEGER(intk), INTENT(in) :: icellspointer(:)
         REAL(realk), INTENT(in) :: xpsw(:, :)
+        TYPE(field_t), INTENT(in) :: bp_f
         TYPE(field_t), INTENT(inout) :: volp_f
 
         ! Local variables
@@ -321,6 +322,7 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: areav(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: areaw(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: volp(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -345,16 +347,17 @@ CONTAINS
             CALL areav_f%get_ptr(areav, igrid)
             CALL areaw_f%get_ptr(areaw, igrid)
             CALL volp_f%get_ptr(volp, igrid)
+            CALL bp_f%get_ptr(bp, igrid)
 
             CALL calc_volp_grid(kk, jj, ii, ddx, ddy, ddz, &
                 xstag, ystag, zstag, bzelltyp(ip3), areau, areav, areaw, &
-                xpsw(:, ipp:ipp+ncells-1), volp)
+                xpsw(:, ipp:ipp+ncells-1), bp, volp)
         END DO
     END SUBROUTINE calc_volp
 
 
-    SUBROUTINE calc_volp_grid(kk, jj, ii, ddx, ddy, ddz, &
-            xstag, ystag, zstag, bzelltyp, areau, areav, areaw, xpsw, volp)
+    SUBROUTINE calc_volp_grid(kk, jj, ii, ddx, ddy, ddz, xstag, ystag, zstag, &
+            bzelltyp, areau, areav, areaw, xpsw, bp, volp)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
@@ -364,6 +367,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: areav(kk, jj, ii)
         REAL(realk), INTENT(in) :: areaw(kk, jj, ii)
         REAL(realk), INTENT(in) :: xpsw(:, :)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(inout) :: volp(kk, jj, ii)
 
         ! Local variables
@@ -380,8 +384,7 @@ CONTAINS
                         bzelltyp(k, j, i) == 1) THEN
 
                         ! Cell is fully open or fully blocked
-                        volp(k, j, i) = REAL(bzelltyp(k, j, i), realk) * &
-                            ddx(i) * ddy(j) * ddz(k)
+                        volp(k, j, i) = bp(k, j, i) * ddx(i) * ddy(j) * ddz(k)
 
                     ELSE IF (bzelltyp(k, j, i) < 0) THEN
 

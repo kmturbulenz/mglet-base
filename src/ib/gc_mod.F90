@@ -159,12 +159,13 @@ CONTAINS
         ALLOCATE(this%bodyid(this%ncells))
         ALLOCATE(this%arealist(this%ncells))
         ALLOCATE(this%bzelltyp(idim3d))
+
         CALL this%stencils%get_intersected(this%icells, this%icellspointer, &
             this%bodyid, this%xpsw, this%ucell, this%bzelltyp)
 
         CALL get_field(volp, "VOLP")
         CALL this%stencils%calc_volp(this%bzelltyp, areau, areav, areaw, &
-            this%icells, this%icellspointer, this%xpsw, volp)
+            this%icells, this%icellspointer, this%xpsw, bp, volp)
 
         ALLOCATE(this%nvecs(4, this%ncells))
         CALL this%calc_nvecs(this%bzelltyp, areau, areav, areaw, this%icells, &
