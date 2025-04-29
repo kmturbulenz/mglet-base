@@ -1148,21 +1148,22 @@ CONTAINS
 
         ! IO process sort list of points
         ALLOCATE(array%groupid(array%grouppnts))
-        BLOCK
-            INTEGER(intk), ALLOCATABLE :: sortid(:)
+        ALLOCATE(pointowner(array%grouppnts))
+        IF (array%grouppnts > 0) THEN
+            BLOCK
+                INTEGER(intk), ALLOCATABLE :: sortid(:)
 
-            ALLOCATE(sortid(array%grouppnts))
-            ALLOCATE(pointowner(array%grouppnts))
+                ALLOCATE(sortid(array%grouppnts))
+                CALL sortix(array%grouppnts, tmpgroupid, sortid)
 
-            CALL sortix(array%grouppnts, tmpgroupid, sortid)
+                DO i = 1, array%grouppnts
+                    array%groupid(i) = tmpgroupid(sortid(i))
+                    pointowner(i) = tmppointowner(sortid(i))
+                END DO
 
-            DO i = 1, array%grouppnts
-                array%groupid(i) = tmpgroupid(sortid(i))
-                pointowner(i) = tmppointowner(sortid(i))
-            END DO
-
-            DEALLOCATE(sortid)
-        END BLOCK
+                DEALLOCATE(sortid)
+            END BLOCK
+        END IF
 
         DEALLOCATE(tmppointowner)
         DEALLOCATE(tmpgroupid)
