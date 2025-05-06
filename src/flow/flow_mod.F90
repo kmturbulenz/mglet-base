@@ -48,6 +48,7 @@ CONTAINS
         CALL set_timer(310, "FLOW_TSTLE4")
         CALL set_timer(320, "FLOW_MGPOISL")
         CALL set_timer(321, "FLOW_MGPOISIT")
+        CALL set_timer(322, "FLOW_MGPOISL_INNER")
         CALL set_timer(330, "FLOW_LESMODEL")
         CALL set_timer(340, "FLOW_SETIBVALUES")
         CALL set_timer(341, "FLOW_GETIBVALUES")

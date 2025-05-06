@@ -349,11 +349,13 @@ CONTAINS
         outer: DO ipcount = 1, nouter
             ! Inner pressure iterations
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
+            CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
                 CALL ctof(ilevel, hilf%arr, hilf%arr)
                 CALL parent(ilevel, s1=hilf)
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
+            CALL stop_timer(322)
 
             ! --- intermediate state ---
             ! every grid level has an inner solution

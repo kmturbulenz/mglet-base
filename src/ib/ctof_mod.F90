@@ -7,7 +7,7 @@ MODULE ctof_mod
 
     ! Variable to indicate if the required data structures and MPI-types
     ! have been created
-    LOGICAL :: isInit = .FALSE.
+    LOGICAL :: isinit = .FALSE.
 
     ! If .TRUE., a prolongation is already in process and you cannot start
     ! another one
@@ -15,41 +15,31 @@ MODULE ctof_mod
 
     ! Maximum allowed number of childs per parent (i.e. maximum number of
     ! send-conenctions per grid)
-    INTEGER(intk), PARAMETER :: maxChilds = 8
+    INTEGER(intk), PARAMETER :: maxchilds = 8
 
     ! Lists that hold the send and receive request arrays
-    TYPE(MPI_Request), ALLOCATABLE :: sendReqs(:), recvReqs(:)
+    TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
 
     ! Actual number of messages that are to be sendt and received in one
     ! "round" of operations
-    INTEGER(intk) :: nSend, nRecv
+    INTEGER(intk) :: nsend, nrecv
 
     ! List of grids to receive data on
-    INTEGER(intk), ALLOCATABLE :: recvGrids(:)
-
-    ! Datatypes for send- and receive-operations
-    TYPE(MPI_Datatype), ALLOCATABLE :: sendTypes(:)
-    TYPE(MPI_Datatype), ALLOCATABLE :: recvTypes(:)
-
-    ! Field to prolongate
-    REAL(realk), POINTER :: ff(:) => NULL(), fc(:) => NULL()
+    INTEGER(intk), ALLOCATABLE :: recvgrids(:), recvpos(:)
 
     PUBLIC :: ctof, init_ctof, finish_ctof
 
 CONTAINS
-    SUBROUTINE ctof(ilevel, ff_p, fc_p)
-        INTEGER(intk), INTENT(in) :: ilevel
-
-        ! Fields to be interpolated
-        REAL(realk), TARGET, INTENT(inout) :: ff_p(:)
-
-        ! field on the fine grid
-        REAL(realk), TARGET, INTENT(inout) :: fc_p(:)
+    SUBROUTINE ctof(ilevel, ff, fc)
+        INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
+        REAL(realk), INTENT(inout) :: ff(:)
+        REAL(realk), INTENT(in) :: fc(:)
 
         CALL start_timer(230)
-        CALL ctof_begin(ff_p, fc_p, noflevel(ilevel), &
-            igrdoflevel(1, ilevel))
-        CALL ctof_end()
+
+        CALL ctof_begin(ilevel, fc)
+        CALL ctof_end(ff)
+
         CALL stop_timer(230)
     END SUBROUTINE ctof
 
@@ -59,84 +49,188 @@ CONTAINS
     ! Interpolate the results from a coarse level to a fine level
     ! This function initiate the process, and the ctof_finish
     ! must be called afterwards to clean up.
-    SUBROUTINE ctof_begin(ff_p, fc_p, ngrids, lofgrids)
-        ! Fields to be interpolated
-        REAL(realk), TARGET, INTENT(inout) :: ff_p(:)
-        REAL(realk), TARGET, INTENT(inout) :: fc_p(:)
-
-        ! Number of grids ol level
-        INTEGER(intk), INTENT(in) :: ngrids
-
-        ! Grid ID's on level
-        INTEGER(intk), INTENT(in) :: lofgrids(ngrids)
+    SUBROUTINE ctof_begin(ilevel, fc)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(in) :: fc(:)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, iprocc, iprocf, ipar
+        ! none...
 
         CALL start_timer(231)
 
         IF (.NOT. isInit) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-
         IF (in_progress) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-
         in_progress = .TRUE.
-        ff => ff_p
-        fc => fc_p
 
-        nRecv = 0
-        nSend = 0
-
-        ! Make all Recv-calls
-        DO i = 1, ngrids
-            igrid = lofgrids(i)
-            ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocf = idprocofgrd(igrid)
-
-                IF (myid == iprocf) THEN
-                    nRecv = nRecv + 1
-                    CALL prolong_recv(igrid, ipar)
-                    recvGrids(nRecv) = igrid
-                END IF
-            END IF
-        END DO
-
-        ! Make all Send-calls
-        DO i = 1, ngrids
-            igrid = lofgrids(i)
-            ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocc = idprocofgrd(ipar)
-
-                IF (myid == iprocc) THEN
-                    nSend = nSend + 1
-                    CALL prolong_send(igrid, ipar)
-                END IF
-            END IF
-        END DO
+        CALL recv_all(ilevel)
+        CALL send_all(ilevel, fc)
 
         CALL stop_timer(231)
     END SUBROUTINE ctof_begin
 
 
+    ! Perform all Recv-calls
+    SUBROUTINE recv_all(ilevel)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
+
+        ! Local variables
+        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
+        INTEGER(intk) :: kk, jj, ii
+        INTEGER(int32) :: recvcounter, messagelength
+
+        ! Post all receive calls
+        recvcounter = 0
+        messagelength = 0
+        nrecv = 0
+
+        DO i = 1, noflevel(ilevel)
+            igridf = igrdoflevel(i, ilevel)
+            igridc = iparent(igridf)
+            IF (igridc == 0) CYCLE
+
+            iprocc = idprocofgrd(igridc)
+            iprocf = idprocofgrd(igridf)
+
+            IF (myid == iprocf) THEN
+                nrecv = nrecv + 1
+
+                CALL get_mgdims(kk, jj, ii, igridf)
+                messagelength = kk*jj*ii/8
+
+                IF (recvcounter + messagelength > SIZE(sendbuf)) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+
+                CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+                    mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
+                    recvreqs(nrecv))
+
+                recvgrids(nrecv) = igridf
+                recvpos(nrecv) = recvcounter + 1
+                recvcounter = recvcounter + messagelength
+            END IF
+        END DO
+    END SUBROUTINE recv_all
+
+
+    ! Perform all Send-calls
+    SUBROUTINE send_all(ilevel, fc)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
+        REAL(realk), INTENT(in) :: fc(*)      ! Field on the coarse grid
+
+        ! Local variables
+        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, ip3
+        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kkf, jjf, iif
+        INTEGER(int32) :: sendcounter, messagelength
+
+        ! Post all receive calls
+        sendcounter = 0
+        messagelength = 0
+        nsend = 0
+
+        DO i = 1, noflevel(ilevel)
+            igridf = igrdoflevel(i, ilevel)
+            igridc = iparent(igridf)
+            IF (igridc == 0) CYCLE
+
+            iprocc = idprocofgrd(igridc)
+            iprocf = idprocofgrd(igridf)
+
+            IF (myid == iprocc) THEN
+                nsend = nsend + 1
+
+                CALL get_mgdims(kk, jj, ii, igridc)
+                CALL get_mgdims(kkf, jjf, iif, igridf)
+                messagelength = kkf*jjf*iif/8
+
+                IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+
+                CALL get_ip3(ip3, igridc)
+                CALL pack_send(&
+                    sendbuf(sendcounter+1:sendcounter+messagelength), &
+                    kk, jj, ii, fc(ip3), igridc, igridf)
+
+                CALL MPI_Isend(sendbuf(sendcounter+1), messagelength, &
+                    mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
+                    sendreqs(nsend))
+
+                sendcounter = sendcounter + messagelength
+            END IF
+        END DO
+    END SUBROUTINE send_all
+
+
+    SUBROUTINE pack_send(buf, kk, jj, ii, fc, igridc, igridf)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: buf(:)
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: fc(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: igridc
+        INTEGER(intk), INTENT(in) :: igridf
+
+        ! Local variables
+        INTEGER(intk) :: i, j, k
+        INTEGER(intk) :: kkf, jjf, iif
+        INTEGER(intk) :: counter
+        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
+
+        ! Compute start- and end-positions in coarse grid
+        ista = iposition(igridf) - 1
+        jsta = jposition(igridf) - 1
+        ksta = kposition(igridf) - 1
+
+        CALL get_mgdims(kkf, jjf, iif, igridf)
+        isto = ista + (iif - 4)/2 + 1
+        jsto = jsta + (jjf - 4)/2 + 1
+        ksto = ksta + (kkf - 4)/2 + 1
+
+        ! Pack buffer
+        counter = 0
+        DO i = ista, isto
+            DO j = jsta, jsto
+                DO k = ksta, ksto
+                    counter = counter + 1
+                    buf(counter) = fc(k, j, i)
+                END DO
+            END DO
+        END DO
+
+        ! Sanity checks
+        IF (counter /= kkf*jjf*iif/8) THEN
+            WRITE(*, *) "counter = ", counter
+            WRITE(*, *) "kkf = ", kkf
+            WRITE(*, *) "jjf = ", jjf
+            WRITE(*, *) "iif = ", iif
+            WRITE(*, *) "ksta = ", ksta
+            WRITE(*, *) "jsta = ", jsta
+            WRITE(*, *) "ista = ", ista
+            WRITE(*, *) "ksto = ", ksto
+            WRITE(*, *) "jsto = ", jsto
+            WRITE(*, *) "isto = ", isto
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        IF (counter /= SIZE(buf)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE pack_send
+
+
     ! Finish prolongation
     !
-    ! Wait for communication to finish and clean up after prolongation
-    !
-    ! If the optional argument 'pbufs' is present the result from the
-    ! prolongation will also be copied into the buffers PFR, PBA, PRI
-    ! on the faces with 'parent' boundary conditions. This eliminate the
-    ! need to update these ones manually afterward with a call to BPARMG,
-    ! thus saving one communication stage.
-    SUBROUTINE ctof_end(pbufs)
-        ! USE copy_pbufs_mod, ONLY: copy_pbufs
-
+    ! Wait for communication to finish and clean up
+    SUBROUTINE ctof_end(ff)
         ! Subroutine arguments
-        LOGICAL, OPTIONAL, INTENT(in) :: pbufs
+        REAL(realk), INTENT(inout) :: ff(:)
 
         ! Local variables
         INTEGER(int32) :: idx
@@ -147,97 +241,61 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        IF (nRecv > 0) THEN
+        IF (nrecv > 0) THEN
             DO WHILE (.TRUE.)
-                CALL MPI_Waitany(nRecv, recvReqs, idx, MPI_STATUS_IGNORE)
+                CALL MPI_Waitany(nrecv, recvreqs, idx, MPI_STATUS_IGNORE)
 
                 IF (idx /= MPI_UNDEFINED) THEN
-                    CALL prolong_finish(recvGrids(idx))
-
-                    IF (PRESENT(pbufs)) THEN
-                        ! TODO: Implement or remove
-                        ! IF (pbufs) THEN
-                        !     CALL copy_pbufs(recvGrids(idx), SIZE(ff), ff)
-                        ! END IF
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
+                    CALL start_timer(235)
+                    CALL prolong_finish(ff, recvgrids(idx), recvpos(idx))
+                    CALL stop_timer(235)
                 ELSE
                     EXIT
                 END IF
             END DO
         END IF
 
-        CALL MPI_Waitall(nSend, sendReqs, MPI_STATUSES_IGNORE)
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
-        NULLIFY(ff)
-        NULLIFY(fc)
         in_progress = .FALSE.
 
         CALL stop_timer(232)
     END SUBROUTINE ctof_end
 
 
-    ! Initiate communication on receiver side
-    SUBROUTINE prolong_recv(igridf, igridc)
-        ! Suibroutine arguments
-        INTEGER, INTENT(in) :: igridf
-        INTEGER, INTENT(in) :: igridc
-
-        ! Local variables
-        INTEGER(intk) :: iprocc
-        INTEGER(intk) :: ip3
-
-        iprocc = idprocofgrd(igridc)
-
-        CALL get_ip3(ip3, igridf)
-        CALL MPI_Irecv(ff(ip3), 1, recvTypes(igridf), iprocc, igridf, &
-            MPI_COMM_WORLD, recvReqs(nRecv))
-    END SUBROUTINE prolong_recv
-
-
-    ! Initiate communication on sender side
-    SUBROUTINE prolong_send(igridf, igridc)
-        ! Subroutine arguments
-        INTEGER, INTENT(in) :: igridf
-        INTEGER, INTENT(in) :: igridc
-
-        ! Local variables
-        INTEGER(intk) :: iprocf
-        INTEGER(intk) :: ip3
-
-        iprocf = idprocofgrd(igridf)
-
-        CALL get_ip3(ip3, igridc)
-        CALL MPI_Isend(fc(ip3), 1, sendTypes(igridf), iprocf, igridf, &
-            MPI_COMM_WORLD, sendReqs(nSend))
-    END SUBROUTINE prolong_send
-
-
     ! Finish prolongation, i.e. distribute the data on the grid
-    SUBROUTINE prolong_finish(igridf)
-        INTEGER, INTENT(in) :: igridf
+    SUBROUTINE prolong_finish(ff, igridf, pos)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout), TARGET :: ff(:)
+        INTEGER(intk), INTENT(in) :: igridf
+        INTEGER(intk), INTENT(in) :: pos
 
-        INTEGER(intk) :: ip3, pos, posc
-        INTEGER(intk) :: k, j, i
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: kc, jc, ic
+        ! Local variables
+        INTEGER(intk) :: ip3
+        INTEGER(intk) :: k, j, i, kc, jc, ic
+        INTEGER(intk) :: kk, jj, ii, kkc, jjc, iic
+        REAL(realk), POINTER :: fc(:, :, :)
+        REAL(realk), POINTER :: fff(:, :, :)
 
         CALL get_ip3(ip3, igridf)
         CALL get_mgdims(kk, jj, ii, igridf)
+        fff(1:kk, 1:jj, 1:ii) => ff(ip3:ip3 + kk*jj*ii - 1)
 
-        !$omp simd private(pos, posc, ic, jc, kc)
+        ! We map the recvbuf to a 3-D field to make lookup easier
+        ! (remember that only 2..kkc-1 are send - so kkc here is not
+        ! really the same as kk for the coarse grid)
+        kkc = kk/2
+        jjc = jj/2
+        iic = ii/2
+        fc(1:kkc, 1:jjc, 1:iic) => recvbuf(pos:pos + kkc*jjc*iic - 1)
+
         DO i = 1, ii
             DO j = 1, jj
                 DO k = 1, kk
-                    pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-
-                    ! Position in fine grid where the values from the
-                    ! coarse grid is located
-                    ic = i - (1 - MOD(i, 2))
-                    jc = j - (1 - MOD(j, 2))
-                    kc = k - (1 - MOD(k, 2))
-                    posc = jj*kk*(ic-1) + kk*(jc-1) + (kc-1)
-                    ff(ip3 + pos) = ff(ip3 + posc)
+                    ic = (i-1)/2 + 1
+                    jc = (j-1)/2 + 1
+                    kc = (k-1)/2 + 1
+                    fff(k, j, i) = fc(kc, jc, ic)
                 END DO
             END DO
         END DO
@@ -247,155 +305,51 @@ CONTAINS
     ! Initialize arrays and data types
     SUBROUTINE init_ctof()
         ! Local variables
-        INTEGER :: igrid, iprocc, iprocf, ipar
+        INTEGER :: igrid, iprocc, ipar
 
         CALL set_timer(230, "CTOF")
         CALL set_timer(231, "CTOF_BEGIN")
         CALL set_timer(232, "CTOF_END")
+        CALL set_timer(235, "CTOF_PROLONG_FINISH")
 
-        IF (.NOT. isInit) THEN
-            ALLOCATE(sendReqs(nMyGrids*maxChilds))
-            ALLOCATE(recvReqs(nMyGrids))
-            ALLOCATE(recvGrids(nMyGrids))
-            ALLOCATE(sendTypes(ngrid))
-            ALLOCATE(recvTypes(ngrid))
-
-            sendTypes = MPI_DATATYPE_NULL
-            recvTypes = MPI_DATATYPE_NULL
+        IF (.NOT. isinit) THEN
+            ALLOCATE(sendreqs(nmygrids*maxchilds))
+            ALLOCATE(recvreqs(nmygrids))
+            ALLOCATE(recvgrids(nmygrids))
+            ALLOCATE(recvpos(nmygrids))
         END IF
 
-        nRecv = 0
-        nSend = 0
+        nrecv = 0
+        nsend = 0
 
-        ! Make all Send- and Recv-types
         DO igrid = 1, ngrid
             ipar = iparent(igrid)
             IF (ipar /= 0) THEN
-                iprocf = idprocofgrd(igrid)
                 iprocc = idprocofgrd(ipar)
-
-                IF (myid == iprocf) THEN
-                    nRecv = nRecv + 1
-                    CALL create_recvtype(igrid)
-                END IF
                 IF (myid == iprocc) THEN
-                    nSend = nSend + 1
-
-                    IF (nSend > nMyGrids*maxChilds) THEN
+                    nsend = nsend + 1
+                    IF (nsend > nmygrids*maxchilds) THEN
                         CALL errr(__FILE__, __LINE__)
                     END IF
-
-                    CALL create_sendtype(igrid, ipar)
                 END IF
             END IF
         END DO
 
-        isInit = .TRUE.
+        isinit = .TRUE.
         in_progress = .FALSE.
-
-        ! Nullify pointers
-        nullify(ff)
-        nullify(fc)
     END SUBROUTINE init_ctof
 
 
-    ! Create MPI-datatypes for send-operation from a grid
-    SUBROUTINE create_sendtype(igridf, igridc)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igridf, igridc
-
-        ! Local variables
-        INTEGER(intk) :: kkc, jjc, iic
-        INTEGER(intk) :: kkf, jjf, iif
-        INTEGER(intk) :: ipos, jpos, kpos
-        INTEGER(int32) :: array_of_sizes(3)
-        INTEGER(int32) :: array_of_subsizes(3)
-        INTEGER(int32) :: array_of_starts(3)
-
-        ipos = iposition(igridf) - 1
-        jpos = jposition(igridf) - 1
-        kpos = kposition(igridf) - 1
-
-        CALL get_mgdims(kkf, jjf, iif, igridf)
-        CALL get_mgdims(kkc, jjc, iic, igridc)
-
-        array_of_sizes(1) = kkc
-        array_of_sizes(2) = jjc
-        array_of_sizes(3) = iic
-
-        array_of_subsizes(1) = kkf/2
-        array_of_subsizes(2) = jjf/2
-        array_of_subsizes(3) = iif/2
-
-        ! NB: The starting value must be given in a C-index style, i.e.
-        ! first element is 0, second element is 1 etc. Starting at Fortran
-        ! index 2 means C index 1.
-        array_of_starts(1) = kpos - 1
-        array_of_starts(2) = jpos - 1
-        array_of_starts(3) = ipos - 1
-
-        CALL MPI_Type_create_subarray(3, array_of_sizes, array_of_subsizes, &
-            array_of_starts, MPI_ORDER_FORTRAN,  mglet_mpi_real, &
-            sendTypes(igridf))
-        CALL MPI_Type_commit(sendTypes(igridf))
-    END SUBROUTINE create_sendtype
-
-
-    ! Create MPI-datatypes for receive operation onto a grid
-    SUBROUTINE create_recvtype(igridf)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igridf
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii
-        TYPE(MPI_Datatype) :: ktype, jtype
-        INTEGER(mpi_address_kind) :: stride
-
-        CALL get_mgdims(kk, jj, ii, igridf)
-
-        ! Temporary type for jumping in z-direction
-        CALL MPI_Type_vector(kk/2, 1, 2, mglet_mpi_real, ktype)
-
-        ! Temporary type for jumping in y-direction
-        stride = 2*kk*real_bytes
-        CALL MPI_Type_create_hvector(jj/2, 1, stride, ktype, jtype)
-
-        ! Final type including jumps in x-direction
-        stride = 2*kk*jj*real_bytes
-        CALL MPI_Type_create_hvector(ii/2, 1, stride, jtype, recvTypes(igridf))
-        CALL MPI_Type_commit(recvTypes(igridf))
-
-        ! Free temporary types
-        CALL MPI_Type_free(ktype)
-        CALL MPI_Type_free(jtype)
-    END SUBROUTINE create_recvtype
-
-
     SUBROUTINE finish_ctof()
-        INTEGER(intk) :: i
-
         IF (isInit .NEQV. .TRUE.) THEN
             RETURN
         END IF
 
         isInit = .FALSE.
 
-        ! Free datatypes
-        DO i = 1, SIZE(sendTypes)
-            IF (sendTypes(i) /= MPI_DATATYPE_NULL) THEN
-                CALL MPI_Type_free(sendTypes(i))
-            END IF
-        END DO
-        DO i = 1, SIZE(recvTypes)
-            IF (recvTypes(i) /= MPI_DATATYPE_NULL) THEN
-                CALL MPI_Type_free(recvTypes(i))
-            END IF
-        END DO
-
-        DEALLOCATE(sendReqs)
-        DEALLOCATE(recvReqs)
-        DEALLOCATE(recvGrids)
-        DEALLOCATE(sendTypes)
-        DEALLOCATE(recvTypes)
+        DEALLOCATE(sendreqs)
+        DEALLOCATE(recvreqs)
+        DEALLOCATE(recvgrids)
+        DEALLOCATE(recvpos)
     END SUBROUTINE finish_ctof
 END MODULE ctof_mod
