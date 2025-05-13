@@ -61,7 +61,7 @@ CONTAINS
         CHARACTER(len=mglet_filename_max + 64) :: jsonptr
         CHARACTER(len=16) :: type
         CHARACTER(len=10240) :: initial_expr
-        LOGICAL :: kayscrawford
+        LOGICAL :: kayscrawford, found
         REAL(realk) :: rvalue
 
         ! Read configuration values - if not exists no timeintegration is
@@ -173,7 +173,7 @@ CONTAINS
         ! Declare fields
         DO l = 1, nsca
             CALL set_field(scalar(l)%name, units=scalar(l)%units, dread=dread, &
-                required=dcont, dwrite=dwrite, buffers=.TRUE.)
+                required=dcont, dwrite=dwrite, buffers=.TRUE., found=found)
 
             ! Get field, set PRMOL and scalar index as attribute
             CALL get_field(t, scalar(l)%name)
@@ -187,20 +187,22 @@ CONTAINS
             CALL set_field(TRIM(scalar(l)%name)//"_OLD")
 
             ! Scalar initial condition
-            WRITE(jsonptr, '("/scalars/", I0, "/initial_value")') l-1
-            IF (scaconf%exists(jsonptr)) THEN
-                IF (scaconf%is_char(jsonptr)) THEN
-                    CALL scaconf%get_value(jsonptr, initial_expr)
-                    CALL set_initial_expr(t, initial_expr)
-                ELSE
-                    CALL scaconf%get_value(jsonptr, rvalue)
-                    CALL set_initial_value(t, rvalue)
-                END IF
+            IF (.NOT. found) THEN
+                WRITE(jsonptr, '("/scalars/", I0, "/initial_value")') l-1
+                IF (scaconf%exists(jsonptr)) THEN
+                    IF (scaconf%is_char(jsonptr)) THEN
+                        CALL scaconf%get_value(jsonptr, initial_expr)
+                        CALL set_initial_expr(t, initial_expr)
+                    ELSE
+                        CALL scaconf%get_value(jsonptr, rvalue)
+                        CALL set_initial_value(t, rvalue)
+                    END IF
 
-                CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
-                t_old%arr = t%arr
-            ELSE
-                CALL scaconf%set_value(jsonptr, 0.0_realk)
+                    CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
+                    t_old%arr = t%arr
+                ELSE
+                    CALL scaconf%set_value(jsonptr, 0.0_realk)
+                END IF
             END IF
 
             IF (myid == 0) THEN

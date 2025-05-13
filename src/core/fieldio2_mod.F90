@@ -381,11 +381,12 @@ CONTAINS
     END SUBROUTINE fieldio_write
 
 
-    SUBROUTINE fieldio_read(parent_id, field, required)
+    SUBROUTINE fieldio_read(parent_id, field, required, found)
         ! Subroutine arguments
         INTEGER(hid_t), INTENT(in) :: parent_id
         CLASS(basefield_t), INTENT(inout) :: field
         LOGICAL, INTENT(in), OPTIONAL :: required
+        LOGICAL, INTENT(out), OPTIONAL :: found
 
         ! Local variables
         INTEGER(hid_t) :: group_id
@@ -402,6 +403,10 @@ CONTAINS
         IF (ngrid_io /= ngrid) CALL errr(__FILE__, __LINE__)
         IF (nmygrids_io /= nmygrids) CALL errr(__FILE__, __LINE__)
 
+        IF (PRESENT(found)) THEN
+            found = .FALSE.
+        END IF
+
         ! Check if field is present
         IF (PRESENT(required)) THEN
             IF (ioproc) THEN
@@ -411,6 +416,7 @@ CONTAINS
             CALL MPI_Bcast(link_exists, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
 
             IF ((.NOT. required) .AND. (.NOT. link_exists)) THEN
+                ! Found is initialized false
                 RETURN
             END IF
         END IF
@@ -425,6 +431,12 @@ CONTAINS
         CALL read_attrs(group_id, field)
 
         CALL hdf5common_group_close(group_id)
+
+        ! If it came this far without errors, the field was read successfully
+        IF (PRESENT(found)) THEN
+            found = .TRUE.
+        END IF
+
         CALL stop_timer(100)
     END SUBROUTINE fieldio_read
 

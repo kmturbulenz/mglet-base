@@ -150,7 +150,8 @@ CONTAINS
 
 
     SUBROUTINE set_field(name, description, ndim, istag, jstag, kstag, &
-            units, dread, required, dwrite, buffers, active_level, get_len)
+            units, dread, required, dwrite, buffers, active_level, get_len, &
+            found)
 
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(in) :: name
@@ -166,6 +167,7 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: buffers
         LOGICAL, INTENT(in), OPTIONAL :: active_level(:)
         PROCEDURE(get_len_i), OPTIONAL :: get_len
+        LOGICAL, INTENT(out), OPTIONAL :: found
 
         ! Local variables
         TYPE(field_t), POINTER :: dummy
@@ -192,9 +194,12 @@ CONTAINS
         END IF
 
         ! Read if neccesary
+        IF (PRESENT(found)) THEN
+            found = .FALSE.
+        END IF
         IF (fields(nfields)%dread) THEN
             IF (group_id /= 0) THEN
-                CALL fieldio_read(group_id, fields(nfields), required)
+                CALL fieldio_read(group_id, fields(nfields), required, found)
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
