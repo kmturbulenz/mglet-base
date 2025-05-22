@@ -129,6 +129,8 @@ CONTAINS
         CALL mgpoisl(u, v, w, p, dtrk*dt, ittot, irk)
         CALL lesmodel(g)
 
+        ! In the last RK step of the scheme point values
+        ! are computed and written to pwu, pwv, pww
         IF (ib%type == "GHOSTCELL") THEN
             lastrk = (irk == rkscheme%nrk)
             CALL setpointvalues(pwu, pwv, pww, u, v, w, lastrk)
