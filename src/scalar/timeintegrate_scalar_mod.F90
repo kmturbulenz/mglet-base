@@ -398,7 +398,7 @@ CONTAINS
                     ! neighbours it is determined if faces are blocked (=0)
                     ! or open (=1)
                     area = bt(k, j, i)*bt(k+1, j, i)*(ddx(i)*ddy(j))
-                    diff = -gsca(k)*rdy(j)*(t(k+1, j, i) - t(k, j, i))*area
+                    diff = -gsca(k)*rdz(k)*(t(k+1, j, i) - t(k, j, i))*area
 
                     ! Final result
                     qtw(k, j, i) = adv + diff
