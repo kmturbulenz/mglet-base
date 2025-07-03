@@ -23,7 +23,7 @@
 
                 "MGLET_C_FLAGS": "-qno-openmp-simd",
                 "MGLET_CXX_FLAGS": "-qno-openmp-simd",
-                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors;-qno-openmp-simd",
+                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors;-qno-openmp-simd;-fpscomp;logicals",
 
                 "MGLET_C_FLAGS_RELEASE": "-g",
                 "MGLET_CXX_FLAGS_RELEASE": "-g",
