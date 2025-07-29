@@ -6,8 +6,7 @@ MODULE wernerwengle_mod
     PRIVATE
 
     REAL(realk), PROTECTED :: cwa, cwb
-    real(realk), PROTECTED :: cpo1, cpo2, cpo3, cpo4, cpo5, cpo6, &
-        cpo7, cpo8, cpo9, cpo10, cpo11, cpo12
+    real(realk), PROTECTED :: cpo1, cpo2, cpo4, cpo5, cpo6, cpo8, cpo11, cpo12
 
     PUBLIC :: init_wernerwengle, finish_wernerwengle, gradp2, tauwin, qwallfix
 CONTAINS
@@ -17,14 +16,14 @@ CONTAINS
 
         cpo1 = 1.0_realk - cwb
         cpo2 = 1.0_realk + cwb
-        cpo3 = 1.0_realk/cpo2
+        ! cpo3 = 1.0_realk/cpo2
         cpo4 = cpo2/cwa*(gmol/rho)**cwb
         cpo5 = 0.5_realk*cpo1*(cwa**(cpo2/cpo1))*(gmol/rho)**cpo2
         cpo6 = 0.5_realk*gmol/rho*cwa**(2.0_realk/cpo1)
-        cpo7 = cwa*cwb/((gmol/rho)**cwb)
+        ! cpo7 = cwa*cwb/((gmol/rho)**cwb)
         cpo8 = 2.0_realk/cpo2
-        cpo9 = -cpo1*cpo6/cpo2
-        cpo10 = gmol/rho*cwa**(1.0_realk/cpo1)
+        ! cpo9 = -cpo1*cpo6/cpo2
+        ! cpo10 = gmol/rho*cwa**(1.0_realk/cpo1)
         cpo11 = 2.0_realk*cpo6*cwb*cpo1/(2.0_realk** cwb)
         cpo12 = cwb*cpo2/(2.0_realk**(cwb-1.0_realk))
     END SUBROUTINE init_wernerwengle

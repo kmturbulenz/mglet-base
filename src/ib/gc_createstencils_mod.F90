@@ -265,9 +265,9 @@ CONTAINS
         INTEGER(intk) :: it, jt, kt
         INTEGER(intk) :: n
         INTEGER(intk) :: carea, carea2
-        REAL(realk) :: dx, dy, dz
-        REAL(realk) :: xs, ys, zs
-        REAL(realk) :: ddx, ddy, ddz, xm, ym, zm, dt, area, dir
+        REAL(realk) :: dy, dz
+        REAL(realk) :: ys, zs
+        REAL(realk) :: ddy, ddz, xm, ym, zm, dt, area, dir
         REAL(realk) :: dist(velpts), ce(velpts), cesum, dall, dpoint
         REAL(realk) :: sum
 
@@ -313,15 +313,12 @@ CONTAINS
             cesum = cesum + ce(n)
         END DO
 
-        dx = x(i) - x(i-1)
         dy = y(j) - y(j-1)
         dz = z(k) - z(k-1)
 
-        ddx = dx/parts
         ddy = dy/parts
         ddz = dz/parts
 
-        xs = x(i-1) - ddx/2.0
         ys = y(j-1) - ddy/2.0
         zs = z(k-1) - ddz/2.0
 

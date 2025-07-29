@@ -1126,7 +1126,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: cellcount, intcell
-        INTEGER(intk) :: ishift, jshift, kshift, foundnr
+        INTEGER(intk) :: ishift, jshift, kshift
         INTEGER(intk) :: pntxpoli, pntxpolr
         REAL(realk) :: div, acoeffstc, sarea
         REAL(realk) :: ax1, ax2, ay1, ay2, az1, az2
@@ -1138,7 +1138,7 @@ CONTAINS
         pntxpoli = 1
         pntxpolr = 1
         DO cellcount = 1, ncells
-            foundnr = xpoli(pntxpoli)
+            ! foundnr = xpoli(pntxpoli)
             pntxpoli = pntxpoli + 1
 
             intcell = xpoli(pntxpoli)
