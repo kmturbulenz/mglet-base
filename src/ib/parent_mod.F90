@@ -250,7 +250,8 @@ CONTAINS
 
             IF (ilevel == ilevelgrid) THEN
                 faceArea      = face_area(igrid, iface)
-                IF (sendCounter + messageLength + nVars*faceArea > idim_mg_bufs) THEN
+                IF (sendCounter + messageLength + nVars*faceArea &
+                        > idim_mg_bufs) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
                 CALL write_buffer(i)
@@ -767,7 +768,8 @@ CONTAINS
 
                 unpackLen = 0
                 DO i = 1, iRecv
-                    IF (recvIdxList(1, i) == recvList(idx) .AND. recvIdxList(2, i) > 0) THEN
+                    IF (recvIdxList(1, i) == recvList(idx) &
+                            .AND. recvIdxList(2, i) > 0) THEN
                         CALL read_buffer(i)
                         unpackLen = unpackLen + recvIdxList(2, i)
                     END IF
@@ -870,7 +872,8 @@ CONTAINS
                     recvConns(6, nRecv) = -1.0      ! unused atm.
                     recvConns(7, nRecv) = maxTag(iprocnbr)  ! Message tag
 
-                    sendcounts(iprocnbr) = sendcounts(iprocnbr) + SIZE(recvConns, 1)
+                    sendcounts(iprocnbr) = sendcounts(iprocnbr) &
+                        + SIZE(recvConns, 1)
                 END IF
             END DO
         END DO
@@ -896,7 +899,8 @@ CONTAINS
         END DO
 
         ! Allocate sendConns array
-        iSend = (rdispls(numprocs-1) + recvcounts(numprocs-1))/SIZE(recvConns, 1)
+        iSend = (rdispls(numprocs-1) &
+            + recvcounts(numprocs-1))/SIZE(recvConns, 1)
         ALLOCATE(sendConns(7, iSend))
         sendConns = 0
 

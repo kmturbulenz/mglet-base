@@ -776,7 +776,8 @@ CONTAINS
 
         ! Check that buffer does not overflow
         ! TODO: not correct for integer connects
-        IF (sendcounter + messagelength + thismessagelength > SIZE(sendbuf)) THEN
+        IF (sendcounter + messagelength + thismessagelength &
+                > SIZE(sendbuf)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -905,7 +906,8 @@ CONTAINS
         ! Check if send- and recv- face have elementary faces in common
         DO i = 1, facelist(1, ifacesend)
             DO j = 1, facelist(1, ifacerecv)
-                IF (facelist(i + 1, ifacesend) == facelist(j + 1, ifacerecv)) THEN
+                IF (facelist(i + 1, ifacesend) &
+                        == facelist(j + 1, ifacerecv)) THEN
                     iface = facelist(i + 1, ifacesend)
                     CALL start_and_stop_face(igrid, iface, istart, istop, &
                         jstart, jstop, kstart, kstop)
@@ -1096,7 +1098,8 @@ CONTAINS
 
         ! Sanity check of message length
         source_size = (istop-istart+1)*(jstop-jstart+1)*(kstop-kstart+1)
-        dest_size = (istop_d-istart_d+1)*(jstop_d-jstart_d+1)*(kstop_d-kstart_d+1)
+        dest_size = (istop_d-istart_d+1) &
+            *(jstop_d-jstart_d+1)*(kstop_d-kstart_d+1)
         IF (source_size /= dest_size) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -1219,7 +1222,8 @@ CONTAINS
 
                 unpackLen = 0
                 DO i = 1, iRecv
-                    IF (recvIdxList(1, i) == recvList(idx) .AND. recvIdxList(2, i) > 0) THEN
+                    IF (recvIdxList(1, i) == recvList(idx) &
+                            .AND. recvIdxList(2, i) > 0) THEN
                         CALL read_buffer(i)
                         unpacklen = unpacklen + recvIdxList(2, i)
                     END IF
@@ -1392,7 +1396,8 @@ CONTAINS
                     recvConns(7, nRecv) = maxTag(iprocnbr)  ! Message tag
                     recvConns(8, nRecv) = iexchange  ! Geometry exchange flag
 
-                    sendcounts(iprocnbr) = sendcounts(iprocnbr) + SIZE(recvConns, 1)
+                    sendcounts(iprocnbr) = sendcounts(iprocnbr) &
+                        + SIZE(recvConns, 1)
                 END IF
             END DO
 
@@ -1443,7 +1448,8 @@ CONTAINS
                     recvConns(7, nRecv) = maxTag(iprocnbr)  ! Message tag
                     recvConns(8, nRecv) = iexchange  ! Geometry exchange flag
 
-                    sendcounts(iprocnbr) = sendcounts(iprocnbr) + SIZE(recvConns, 1)
+                    sendcounts(iprocnbr) = sendcounts(iprocnbr) &
+                        + SIZE(recvConns, 1)
                 END IF
             END DO
 
@@ -1497,7 +1503,8 @@ CONTAINS
                     recvConns(7, nRecv) = maxTag(iprocnbr)  ! Message tag
                     recvConns(8, nRecv) = iexchange  ! Geometry exchange flag
 
-                    sendcounts(iprocnbr) = sendcounts(iprocnbr) + SIZE(recvConns, 1)
+                    sendcounts(iprocnbr) = sendcounts(iprocnbr) &
+                        + SIZE(recvConns, 1)
                 END IF
             END DO
         END DO

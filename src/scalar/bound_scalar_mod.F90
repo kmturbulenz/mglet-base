@@ -31,7 +31,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: k, j, i2, i3, i4, istag1, istag2, dir
+        INTEGER(intk) :: k, j, i3, istag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
         REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
         INTEGER(intk) :: idx, scbtype(nsca)
@@ -81,18 +81,18 @@ CONTAINS
         SELECT CASE (iface)
         CASE (1)
             ! Front
-            i2 = 2
+            ! i2 = 2
             i3 = 3
-            i4 = 4
-            istag1 = 1
+            ! i4 = 4
+            ! istag1 = 1
             istag2 = 2
             dir = -1
         CASE (2)
             ! Back
-            i2 = ii - 1
+            ! i2 = ii - 1
             i3 = ii - 2
-            i4 = ii - 3
-            istag1 = ii - 1
+            ! i4 = ii - 3
+            ! istag1 = ii - 1
             istag2 = ii - 2
             dir = 1
         CASE DEFAULT
@@ -221,7 +221,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: k, i, j2, j3, j4, jstag1, jstag2, dir
+        INTEGER(intk) :: k, i, j3, jstag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
         REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
         INTEGER(intk) :: idx, scbtype(nsca)
@@ -271,18 +271,18 @@ CONTAINS
         SELECT CASE (iface)
         CASE (3)
             ! Right
-            j2 = 2
+            ! j2 = 2
             j3 = 3
-            j4 = 4
-            jstag1 = 1
+            ! j4 = 4
+            ! jstag1 = 1
             jstag2 = 2
             dir = -1
         CASE (4)
             ! Left
-            j2 = jj - 1
+            ! j2 = jj - 1
             j3 = jj - 2
-            j4 = jj - 3
-            jstag1 = jj - 1
+            ! j4 = jj - 3
+            ! jstag1 = jj - 1
             jstag2 = jj - 2
             dir = 1
         CASE DEFAULT
@@ -411,7 +411,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: j, i, k2, k3, k4, kstag1, kstag2, dir
+        INTEGER(intk) :: j, i, k3, kstag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
         REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
         INTEGER(intk) :: idx, scbtype(nsca)
@@ -461,18 +461,18 @@ CONTAINS
         SELECT CASE (iface)
         CASE (5)
             ! Bottom
-            k2 = 2
+            ! k2 = 2
             k3 = 3
-            k4 = 4
-            kstag1 = 1
+            ! k4 = 4
+            ! kstag1 = 1
             kstag2 = 2
             dir = -1
         CASE (6)
             ! Top
-            k2 = kk - 1
+            ! k2 = kk - 1
             k3 = kk - 2
-            k4 = kk - 3
-            kstag1 = kk - 1
+            ! k4 = kk - 3
+            ! kstag1 = kk - 1
             kstag2 = kk - 2
             dir = 1
         CASE DEFAULT

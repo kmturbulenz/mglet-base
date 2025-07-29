@@ -5,7 +5,7 @@ MODULE hdf5common_mod
         mglet_hdf5_int, mglet_hdf5_real, mglet_mpi_hsize_t, &
         mglet_mpi_real, mglet_mpi_int
     USE err_mod, ONLY: errr
-    USE comms_mod, ONLY: iocomm, ioproc, ioprocs, myid, iogrcomm
+    USE comms_mod, ONLY: iocomm, ioproc, myid, iogrcomm
 
     IMPLICIT NONE (type, external)
     PRIVATE

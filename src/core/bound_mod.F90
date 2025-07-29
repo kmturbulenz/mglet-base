@@ -21,7 +21,7 @@ MODULE bound_mod
         SUBROUTINE bound_face_i(igrid, iface, ibocd, ctyp, f1, f2, f3, &
                 f4, timeph)
             IMPORT :: bound_t, intk, realk, field_t
-            IMPLICIT NONE
+            IMPLICIT NONE (type, external)
             INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
             CHARACTER(len=*), INTENT(in) :: ctyp
             TYPE(field_t), INTENT(inout) :: f1
