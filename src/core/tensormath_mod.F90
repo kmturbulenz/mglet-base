@@ -154,9 +154,12 @@ CONTAINS
         CLASS(tensor_t), INTENT(in) :: this
 
         ! g(j, i) -> j=column, i=row
-        det = this%g(1, 1)*(this%g(2, 2)*this%g(3, 3) - this%g(3, 2)*this%g(2, 3)) &
-            - this%g(2, 1)*(this%g(1, 2)*this%g(3, 3) - this%g(3, 2)*this%g(1, 3)) &
-            + this%g(3, 1)*(this%g(1, 2)*this%g(2, 3) - this%g(2, 2)*this%g(1, 3))
+        det = this%g(1, 1)*(this%g(2, 2)*this%g(3, 3) &
+            - this%g(3, 2)*this%g(2, 3)) &
+            - this%g(2, 1)*(this%g(1, 2)*this%g(3, 3) &
+            - this%g(3, 2)*this%g(1, 3)) &
+            + this%g(3, 1)*(this%g(1, 2)*this%g(2, 3) &
+            - this%g(2, 2)*this%g(1, 3))
     END FUNCTION det
 
 

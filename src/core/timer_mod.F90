@@ -227,7 +227,7 @@ CONTAINS
                 MPI_COMM_WORLD)
 
             IF (stat%n > 0 .AND. myid == 0) THEN
-                WRITE(wu, '(I6, 1X, A32, 1X, ES12.3, ES12.3, ES12.3, ES12.3, ES12.3)') &
+                WRITE(wu, '(I6, 1X, A32, 1X, 5ES12.3)') &
                     i, TRIM(timers(i)%desc), stat%avgTime, stat%minTime, &
                     stat%maxTime, stat%avgN, stat%avgTime*stat%avgN
             END IF
@@ -236,7 +236,7 @@ CONTAINS
         IF (myid == 0) THEN
             WRITE(wu, *) ""
             WRITE(wu, *) "EXCLUSIVE TIME:"
-            WRITE(wu, '(A6, 1X, A32, 1X, A12, A12, A12, A12, A12)') "idx", &
+            WRITE(wu, '(A6, 1X, A32, 1X, 5A12)') "idx", &
                 "region", "average", "minimum", "maximum", "instances", "total"
         END IF
 
@@ -260,7 +260,7 @@ CONTAINS
                 MPI_COMM_WORLD)
 
             IF (stat%n > 0 .AND. myid == 0) THEN
-                WRITE(wu, '(I6, 1X, A32, 1X, ES12.3, ES12.3, ES12.3, ES12.3, ES12.3)') &
+                WRITE(wu, '(I6, 1X, A32, 1X, 5ES12.3)') &
                     i, TRIM(timers(i)%desc), stat%avgTime, stat%minTime, &
                     stat%maxTime, stat%avgN, stat%avgTime*stat%avgN
             END IF

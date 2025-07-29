@@ -1,0 +1,11 @@
+[check]
+ignore = ["C002", "C061", "C071", "C072", "C121"]
+line-length = 80
+
+[check.per-file-ignores]
+"core_mod.F90" = ["C131"]
+"flow_mod.F90" = ["C131"]
+"gc_compbodyforce_mod.F90" = ["S001"]
+"ib_mod.F90" = ["C131"]
+"ibconst_mod.F90" = ["C131"]
+"scalar_mod.F90" = ["C131"]

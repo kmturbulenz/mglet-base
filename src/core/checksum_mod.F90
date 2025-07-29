@@ -17,7 +17,7 @@ MODULE checksum_mod
         ! have to declare unsigned long as long...
         INTEGER(c_long) FUNCTION crc32(crc, buf, len) BIND(C)
             IMPORT :: C_LONG, C_PTR
-            IMPLICIT NONE
+            IMPLICIT NONE (type, external)
             INTEGER(c_long), INTENT(in), VALUE :: crc
             TYPE(C_PTR), INTENT(in), VALUE :: buf
             INTEGER(c_long), INTENT(in), VALUE :: len
