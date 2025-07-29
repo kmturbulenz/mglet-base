@@ -117,8 +117,7 @@ CONTAINS
         INTEGER(intk) :: bodyidkanten(12)
         INTEGER(intk) :: nfixed_cells
 
-        REAL(realk) :: umean(3), sum, this_vel(3)
-        INTEGER(intk) :: ikante, idir, idmin, irepeat
+        INTEGER(intk) :: ikante, idmin, irepeat
 
         INTEGER(intk), ALLOCATABLE :: icelllist(:), cellind(:)
         INTEGER(intk), ALLOCATABLE :: connect(:, :), ncon(:)
@@ -183,30 +182,8 @@ CONTAINS
                         + (ddx(i)*ddz(k)*(av(k, j, i) - av(k, j-1, i)))**2 &
                         + (ddx(i)*ddy(j)*(aw(k, j, i) - aw(k-1, j, i)))**2)
 
-                    umean = 0.0
                     idmin = 0
-
-                    sum = 0.0
                     DO ikante = 1, 12
-                        IF (kanten(ikante) == 1) THEN
-
-                            IF (bodyidkanten(ikante) > 0) THEN
-                                this_vel = velocity(:, bodyidkanten(ikante))
-                            ELSE
-                                this_vel = 0.0
-                            END IF
-
-                            DO idir = 1, 3
-                                umean(idir) = umean(idir) + this_vel(idir)
-                            END DO
-
-                            ! Mittelung nur ueber Kanten mit Geschwdinigkeit
-                            ! /= Null
-                            IF (SQRT(this_vel(1)**2 + this_vel(2)**2 &
-                                    + this_vel(3)**2) > 0.0) THEN
-                                sum = sum + 1.0
-                            END IF
-                        END IF
                         IF (bodyidkanten(ikante) > 0) THEN
                             idmin = MAX(idmin, bodyidkanten(ikante))
                         END IF
@@ -217,10 +194,11 @@ CONTAINS
                     ! bodyid(icell) = most_frequent_nonzero(bodyidkanten)
                     bodyid(icell) = idmin
 
-                    IF (sum < 0.5) sum = 1.0
-                    DO idir = 1, 3
-                        ucell(idir, icell) = umean(idir)/sum
-                    END DO
+                    IF (bodyid(icell) > 0) THEN
+                        ucell(:, icell) = velocity(:, bodyid(icell))
+                    ELSE
+                        ucell(:, icell) = 0.0
+                    END IF
 
                     IF (write_geom_with_gl) THEN
                         indnn = 1.0
