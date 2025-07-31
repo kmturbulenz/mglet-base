@@ -128,21 +128,7 @@ CONTAINS
                     END IF
                 END IF
             END DO
-            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
-                MPI_MAX, MPI_COMM_WORLD, ierr)
-            IF (maxarr <= HUGE(1_int16)) THEN
-                IF (PRESENT(same_kind)) THEN
-                    IF (same_kind) THEN
-                        hdf5_filetype = mglet_hdf5_int
-                    ELSE
-                        hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
-                    END IF
-                ELSE
-                    hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
-                END IF
-            ELSE
-                hdf5_filetype = mglet_hdf5_int
-            END IF
+            CALL select_int_kind(hdf5_filetype, maxarr, mpi_dtype, same_kind)
         TYPE IS (real_stencils_t)
             hdf5_memtype = mglet_hdf5_real
             hdf5_filetype = mglet_hdf5_real
@@ -169,21 +155,7 @@ CONTAINS
                         MAXVAL(ABS(stencils(ptr:ptr+len-1))))
                 END IF
             END DO
-            CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
-                MPI_MAX, MPI_COMM_WORLD, ierr)
-            IF (maxarr <= HUGE(1_int16)) THEN
-                IF (PRESENT(same_kind)) THEN
-                    IF (same_kind) THEN
-                        hdf5_filetype = mglet_hdf5_int
-                    ELSE
-                        hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
-                    END IF
-                ELSE
-                    hdf5_filetype = h5kind_to_type(int16, H5_INTEGER_KIND)
-                END IF
-            ELSE
-                hdf5_filetype = mglet_hdf5_int
-            END IF
+            CALL select_int_kind(hdf5_filetype, maxarr, mpi_dtype, same_kind)
         TYPE IS (REAL(realk))
             IF (.NOT. PRESENT(get_len)) THEN
                 CALL errr(__FILE__, __LINE__)
@@ -1906,5 +1878,41 @@ CONTAINS
         CALL h5sclose_f(memspace, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE stencilio_append_master_cptr
+
+
+    SUBROUTINE select_int_kind(hdf5_filetype, maxarr, mpi_dtype, same_kind)
+        ! Subroutine arguments
+        INTEGER(HID_T), INTENT(out) :: hdf5_filetype
+        INTEGER(intk), INTENT(in) :: maxarr
+        TYPE(MPI_Datatype), INTENT(in) :: mpi_dtype
+        LOGICAL, INTENT(IN), OPTIONAL :: same_kind
+
+        ! Local variables
+        INTEGER(HID_T) :: hdf5_int16
+
+        hdf5_int16 = h5kind_to_type(int16, H5_INTEGER_KIND)
+        IF (hdf5_int16 < 0) THEN
+            ! HDF5 integer type for int16 not supported - just return
+            ! mglet_hdf5_int
+            hdf5_filetype = mglet_hdf5_int
+            RETURN
+        END IF
+
+        CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
+            MPI_MAX, MPI_COMM_WORLD)
+        IF (maxarr <= HUGE(1_int16)) THEN
+            IF (PRESENT(same_kind)) THEN
+                IF (same_kind) THEN
+                    hdf5_filetype = mglet_hdf5_int
+                ELSE
+                    hdf5_filetype = hdf5_int16
+                END IF
+            ELSE
+                hdf5_filetype = hdf5_int16
+            END IF
+        ELSE
+            hdf5_filetype = mglet_hdf5_int
+        END IF
+    END SUBROUTINE select_int_kind
 
 END MODULE stencilio_mod
