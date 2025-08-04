@@ -437,7 +437,7 @@ CONTAINS
         cflmax = 0.0
 
         DO i = minlevel, maxlevel
-           cflmax = MAX(cflmax, itinfo_level(i)%cflmax)
+            cflmax = MAX(cflmax, itinfo_level(i)%cflmax)
         END DO
     END SUBROUTINE itinfo_get_cflmax
 END MODULE itinfo_mod

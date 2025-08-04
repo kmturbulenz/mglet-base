@@ -84,11 +84,11 @@ CONTAINS
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(timeinfo_h5t, "ITTOT", &
-             H5OFFSETOF(C_LOC(foo), C_LOC(foo%ittot)), mglet_hdf5_int, hdferr)
+            H5OFFSETOF(C_LOC(foo), C_LOC(foo%ittot)), mglet_hdf5_int, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(timeinfo_h5t, "TIME", &
-             H5OFFSETOF(C_LOC(foo), C_LOC(foo%time)), mglet_hdf5_real, hdferr)
+            H5OFFSETOF(C_LOC(foo), C_LOC(foo%time)), mglet_hdf5_real, hdferr)
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE create_timeinfo_h5t
 
@@ -376,7 +376,7 @@ CONTAINS
 
             ! Create dataset in file with default properties
             CALL h5dcreate_f(parent_id, name, dtype, filespace, &
-                 dset_id, ierr, dcpl_id=dcpl)
+                dset_id, ierr, dcpl_id=dcpl)
             IF (ierr < 0) CALL errr(__FILE__, __LINE__)
 
             CALL h5pclose_f(dcpl, ierr)

@@ -210,11 +210,11 @@ CONTAINS
             IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
             CALL h5tinsert_f(offset_h5t, "OFFSET", &
-                 H5OFFSETOF(C_LOC(foo), C_LOC(foo%offset)), int64_h5t, hdferr)
+                H5OFFSETOF(C_LOC(foo), C_LOC(foo%offset)), int64_h5t, hdferr)
             IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
             CALL h5tinsert_f(offset_h5t, "LENGTH", &
-                 H5OFFSETOF(C_LOC(foo), C_LOC(foo%length)), int64_h5t, hdferr)
+                H5OFFSETOF(C_LOC(foo), C_LOC(foo%length)), int64_h5t, hdferr)
             IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
         END BLOCK
 
@@ -314,10 +314,10 @@ CONTAINS
         IF (ALLOCATED(io_counts)) DEALLOCATE(io_counts)
         IF (ALLOCATED(io_displs)) DEALLOCATE(io_displs)
 
-       IF (ALLOCATED(mygrids_io)) DEALLOCATE(mygrids_io)
-       IF (ALLOCATED(gridid_io)) DEALLOCATE(gridid_io)
-       nmygrids_io = 0
-       ngrid_io = 0
+        IF (ALLOCATED(mygrids_io)) DEALLOCATE(mygrids_io)
+        IF (ALLOCATED(gridid_io)) DEALLOCATE(gridid_io)
+        nmygrids_io = 0
+        ngrid_io = 0
     END SUBROUTINE finish_fieldio
 
 
@@ -1203,8 +1203,8 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END SELECT
             CALL h5dread_f(dset_id, memtype, cptr, ierr, &
-                 file_space_id=filespace, mem_space_id=memspace, &
-                 xfer_prp=plist_id)
+                file_space_id=filespace, mem_space_id=memspace, &
+                xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
             bufptr = bufptr + count_m
 

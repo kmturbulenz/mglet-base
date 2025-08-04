@@ -698,7 +698,7 @@ CONTAINS
 
         sumfac = 0.0
         DO i = 1, 8
-           sumfac = sumfac + psi(i)*blocked(i)
+            sumfac = sumfac + psi(i)*blocked(i)
         END DO
 
         IF (sumfac > 0.02) THEN

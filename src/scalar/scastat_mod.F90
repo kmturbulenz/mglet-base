@@ -192,7 +192,7 @@ CONTAINS
     ! Computation at staggered positions of velocity
     !
     SUBROUTINE comp_utt_avg(field, name, dt)
-       ! Subroutine arguments
+        ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt

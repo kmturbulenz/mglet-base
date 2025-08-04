@@ -279,58 +279,58 @@ CONTAINS
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "JJ", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%jj)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%jj)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "KK", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%kk)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%kk)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "LEVEL", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%level)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%level)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "IPARENT", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%iparent)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%iparent)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "IPOSITION", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%iposition)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%iposition)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "JPOSITION", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%jposition)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%jposition)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "KPOSITION", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%kposition)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%kposition)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "FLAGS", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%flags)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%flags)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "IGRIDLVL", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%igridlvl)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%igridlvl)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "BBOX", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%bbox)), &
-             bboxtype, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%bbox)), &
+            bboxtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "NBRGRID", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%nbrgrid)), &
-             nbrtype, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%nbrgrid)), &
+            nbrtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Close types not needed any more
@@ -435,23 +435,23 @@ CONTAINS
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "NBOCD", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%nbocd)), &
-             mglet_hdf5_int, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%nbocd)), &
+            mglet_hdf5_int, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "TYPE", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%type)), &
-             strarr_t, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%type)), &
+            strarr_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "INTPRM", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%intprm)), &
-             intarr_t, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%intprm)), &
+            intarr_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "REALPRM", &
-             H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%realprm)), &
-             intarr_t, ierr)
+            H5OFFSETOF(C_LOC(wdata), C_LOC(wdata%realprm)), &
+            intarr_t, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Close temporary datatypes

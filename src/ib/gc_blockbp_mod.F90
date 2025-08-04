@@ -88,8 +88,8 @@ CONTAINS
         CALL knoten%init("KNOTEN", istag=1, jstag=1, kstag=1)
 
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'FIND CELLS INTERSECTED BY TRIANGLES', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'FIND CELLS INTERSECTED BY TRIANGLES', MPI_Wtime() - this%time0
         END IF
 
         CALL cutcorner(this%topol, ntrimax, kanteu, kantev, &
@@ -97,23 +97,23 @@ CONTAINS
         CALL blocknodes(kanteu, kantev, kantew, knoten)
 
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'FILLING OF FLUID CELLS', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'FILLING OF FLUID CELLS', MPI_Wtime() - this%time0
         END IF
 
         CALL fillfluid(this%fluidpoints, knoten)
 
         IF (this%nnofluidpoints > 0) THEN
             IF (myid == 0) THEN
-               WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-                   'FILLFOLLOWER', MPI_Wtime() - this%time0
+                WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                    'FILLFOLLOWER', MPI_Wtime() - this%time0
             END IF
             CALL fillfollower(knoten, this%nofluidpoints)
         END IF
 
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'FINISHING INTERSECTED CORNERS', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'FINISHING INTERSECTED CORNERS', MPI_Wtime() - this%time0
         END IF
 
         CALL freepressure(kanteu, kantev, kantew, knoten)
@@ -148,8 +148,8 @@ CONTAINS
         CALL blockluecken_closetoboundary(bp)
 
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'REMOVING DEAD WATER ZONES', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'REMOVING DEAD WATER ZONES', MPI_Wtime() - this%time0
         END IF
 
         CALL totwasser(this%fluidpoints, bp)
@@ -186,8 +186,8 @@ CONTAINS
 
         ! BP field is now finished
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'WRITE GEOMETRY DATA, CREATE STENCILS', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'WRITE GEOMETRY DATA, CREATE STENCILS', MPI_Wtime() - this%time0
         END IF
 
         CALL finishknotenbezelltyp(this%topol, ntrimax, triau, triav, triaw, &
@@ -248,8 +248,8 @@ CONTAINS
         CALL aw%finish()
 
         IF (myid == 0) THEN
-           WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
-               'BLOCKING COMPLETE', MPI_Wtime() - this%time0
+            WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
+                'BLOCKING COMPLETE', MPI_Wtime() - this%time0
         END IF
 
         CALL this%finish()
