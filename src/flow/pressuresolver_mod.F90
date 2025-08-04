@@ -222,7 +222,7 @@ CONTAINS
                         ut(k, j, i) = (at(k)*bw(k, j, i) - p3)*lpr(k, j, i)
                     END DO
                 END DO
-             END DO
+            END DO
 
             DO i = 3, ii-2
                 DO j = 3, jj-2
@@ -283,7 +283,7 @@ CONTAINS
                         rap(k, j, i) = divide0(1.0_realk, ap(k, j, i))
                     END DO
                 END DO
-             END DO
+            END DO
         END DO
     END SUBROUTINE init_sor
 

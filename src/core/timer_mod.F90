@@ -132,8 +132,8 @@ CONTAINS
 
         IF (idx > maxtimers) CALL errr(__FILE__, __LINE__)
         IF (stack(stackpos) /= idx) THEN
-           write(*, *) "Timer", idx, "stack", stack(stackpos)
-           CALL errr(__FILE__, __LINE__)
+            write(*, *) "Timer", idx, "stack", stack(stackpos)
+            CALL errr(__FILE__, __LINE__)
         END IF
         IF (timers(idx)%tic < 0.0) THEN
             write(*, *) "Timer", idx, "not started."

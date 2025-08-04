@@ -95,8 +95,7 @@ CONTAINS
         END IF
 
         IF (myid == 0) THEN
-           WRITE(*, '(" Totwasser finished in ", I0, " iterations")') &
-               iloop
+            WRITE(*, '(" Totwasser finished in ", I0, " iterations")') iloop
         END IF
 
         DEALLOCATE(ifluidpoints)

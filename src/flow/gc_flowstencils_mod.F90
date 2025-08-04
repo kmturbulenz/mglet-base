@@ -485,8 +485,8 @@ CONTAINS
                     END IF
 
                     sarea = ax1*areau(k, j, i) + ax2*areau(k, j, i-1) &
-                          + ay1*areav(k, j, i) + ay2*areav(k, j-1, i) &
-                          + az1*areaw(k, j, i) + az2*areaw(k-1, j, i)
+                        + ay1*areav(k, j, i) + ay2*areav(k, j-1, i) &
+                        + az1*areaw(k, j, i) + az2*areaw(k-1, j, i)
 
                     refarea = ((dx + dy + dz)/3.0)**2
                     ! Nur wenn seara > 0 werden die ax... mit den

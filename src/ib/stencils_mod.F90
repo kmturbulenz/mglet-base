@@ -104,8 +104,8 @@ CONTAINS
         IF (.NOT. ALLOCATED(this%points)) ALLOCATE(this%points(nmygrids))
         IF (.NOT. ALLOCATED(this%cells)) ALLOCATE(this%cells(nmygrids))
         IF (.NOT. ALLOCATED(this%ncells)) THEN
-           ALLOCATE(this%ncells(nmygrids))
-           this%ncells = 0
+            ALLOCATE(this%ncells(nmygrids))
+            this%ncells = 0
         END IF
         IF (.NOT. ALLOCATED(this%cellind)) ALLOCATE(this%cellind(nmygrids))
         IF (.NOT. ALLOCATED(this%area)) ALLOCATE(this%area(nmygrids))
@@ -135,7 +135,7 @@ CONTAINS
                 this%points(i)%arr(counter+2) = &
                     xx(3, connect(ika, icelllist(idx)) + 1)
                 counter = counter + 3
-           END DO
+            END DO
         END DO
 
         counter = 1
@@ -473,7 +473,7 @@ CONTAINS
                 cptr = C_NULL_PTR
             END IF
             CALL stencilio_write_master_cptr(file_id, 'stlnames', &
-                                             cptr, shape, str_t)
+                cptr, shape, str_t)
 
             CALL h5tclose_f(str_t, ierr)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)

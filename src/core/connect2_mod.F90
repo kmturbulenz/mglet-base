@@ -405,7 +405,7 @@ CONTAINS
             END IF
             nVars = nVars + 3
         ELSE IF (has_v2 .OR. has_v3) THEN
-             WRITE(*, *) "If one vector arg is present, all three " &
+            WRITE(*, *) "If one vector arg is present, all three " &
                 // "must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
