@@ -1181,18 +1181,35 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
         INTEGER(ifk), POINTER, CONTIGUOUS :: src_iarr(:, :, :), &
             dst_iarr(:, :, :)
+        INTEGER(intk) :: i, j, k, ioff, joff, koff
+
+        koff = kstart - kstart_d
+        joff = jstart - jstart_d
+        ioff = istart - istart_d
 
         SELECT TYPE(field)
         TYPE IS (field_t)
             CALL field%get_ptr(src_rarr, igrid)
             CALL field%get_ptr(dst_rarr, igrid_d)
-            dst_rarr(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_rarr(kstart:kstop, jstart:jstop, istart:istop)
+            DO i = istart_d, istop_d
+                DO j = jstart_d, jstop_d
+                    DO k = kstart_d, kstop_d
+                        dst_rarr(k, j, i) = &
+                            src_rarr(k + koff, j + joff, i + ioff)
+                    END DO
+                END DO
+            END DO
         TYPE IS (intfield_t)
             CALL field%get_ptr(src_iarr, igrid)
             CALL field%get_ptr(dst_iarr, igrid_d)
-            dst_iarr(kstart_d:kstop_d, jstart_d:jstop_d, istart_d:istop_d) = &
-                src_iarr(kstart:kstop, jstart:jstop, istart:istop)
+            DO i = istart_d, istop_d
+                DO j = jstart_d, jstop_d
+                    DO k = kstart_d, kstop_d
+                        dst_iarr(k, j, i) = &
+                            src_iarr(k + koff, j + joff, i + ioff)
+                    END DO
+                END DO
+            END DO
         CLASS DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
