@@ -312,17 +312,14 @@ CONTAINS
                     CALL bu%buffers%get_buffer(buf, igrid, iface)
                     CALL bucoarse%get_ptr(field, igrid)
                     buf(:, :, 1) = field(:, :, ipic)
-                    buf(:, :, 2) = field(:, :, ipic)
                 CASE(3, 4)
                     CALL bv%buffers%get_buffer(buf, igrid, iface)
                     CALL bvcoarse%get_ptr(field, igrid)
                     buf(:, :, 1) = field(:, ipic, :)
-                    buf(:, :, 2) = field(:, ipic, :)
                 CASE(5, 6)
                     CALL bw%buffers%get_buffer(buf, igrid, iface)
                     CALL bwcoarse%get_ptr(field, igrid)
                     buf(:, :, 1) = field(ipic, :, :)
-                    buf(:, :, 2) = field(:, ipic, :)
                 END SELECT
             END DO
         END DO

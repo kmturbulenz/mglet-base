@@ -108,7 +108,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        ibb = 2*ip2d(igrid) - 1
+        ibb = ip2d(igrid)
     END SUBROUTINE get_ibb
 
 
@@ -120,7 +120,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        ibbt = 2*ncomp*ip2d(igrid) - (2*ncomp-1)
+        ibbt = ncomp*ip2d(igrid) - (ncomp-1)
     END SUBROUTINE get_ibbn
 
 

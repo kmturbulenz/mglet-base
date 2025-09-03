@@ -479,12 +479,12 @@ CONTAINS
 
         IF (this%is_init) CALL errr(__FILE__, __LINE__)
 
-        ALLOCATE(this%fr(2*idim2d))
-        ALLOCATE(this%ba(2*idim2d))
-        ALLOCATE(this%ri(2*idim2d))
-        ALLOCATE(this%le(2*idim2d))
-        ALLOCATE(this%bo(2*idim2d))
-        ALLOCATE(this%to(2*idim2d))
+        ALLOCATE(this%fr(idim2d))
+        ALLOCATE(this%ba(idim2d))
+        ALLOCATE(this%ri(idim2d))
+        ALLOCATE(this%le(idim2d))
+        ALLOCATE(this%bo(idim2d))
+        ALLOCATE(this%to(idim2d))
 
         this%fr = 0.0
         this%ba = 0.0
@@ -535,17 +535,17 @@ CONTAINS
 
         SELECT CASE (iface)
         CASE (1)
-            ptr(1:kk, 1:jj, 1:2) => this%fr(ibb:ibb+2*kk*jj-1)
+            ptr(1:kk, 1:jj, 1:1) => this%fr(ibb:ibb+kk*jj-1)
         CASE (2)
-            ptr(1:kk, 1:jj, 1:2) => this%ba(ibb:ibb+2*kk*jj-1)
+            ptr(1:kk, 1:jj, 1:1) => this%ba(ibb:ibb+kk*jj-1)
         CASE (3)
-            ptr(1:kk, 1:ii, 1:2) => this%ri(ibb:ibb+2*kk*ii-1)
+            ptr(1:kk, 1:ii, 1:1) => this%ri(ibb:ibb+kk*ii-1)
         CASE (4)
-            ptr(1:kk, 1:ii, 1:2) => this%le(ibb:ibb+2*kk*ii-1)
+            ptr(1:kk, 1:ii, 1:1) => this%le(ibb:ibb+kk*ii-1)
         CASE (5)
-            ptr(1:jj, 1:ii, 1:2) => this%bo(ibb:ibb+2*jj*ii-1)
+            ptr(1:jj, 1:ii, 1:1) => this%bo(ibb:ibb+jj*ii-1)
         CASE (6)
-            ptr(1:jj, 1:ii, 1:2) => this%to(ibb:ibb+2*jj*ii-1)
+            ptr(1:jj, 1:ii, 1:1) => this%to(ibb:ibb+jj*ii-1)
         CASE DEFAULT
             WRITE(*, '("Invalid face: ", I0)') iface
             CALL errr(__FILE__, __LINE__)
@@ -565,12 +565,12 @@ CONTAINS
         CLASS(buffer_t), INTENT(inout) :: this
         CLASS(buffer_t), INTENT(in) :: that
 
-        this%fr(:) = that%fr(:)
-        this%ba(:) = that%ba(:)
-        this%ri(:) = that%ri(:)
-        this%le(:) = that%le(:)
-        this%bo(:) = that%bo(:)
-        this%to(:) = that%to(:)
+        this%fr = that%fr
+        this%ba = that%ba
+        this%ri = that%ri
+        this%le = that%le
+        this%bo = that%bo
+        this%to = that%to
     END SUBROUTINE copy_buffer
 
 END MODULE realfield_mod

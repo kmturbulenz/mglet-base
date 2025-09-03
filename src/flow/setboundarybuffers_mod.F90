@@ -46,7 +46,7 @@ CONTAINS
         ! a workaround for Cray.
         REAL(realk), ALLOCATABLE :: xbuf(:), dxbuf(:)
 #else
-        REAL(realk) :: xbuf(2), dxbuf(2)
+        REAL(realk) :: xbuf(1), dxbuf(1)
 #endif
         TYPE(field_t), POINTER :: bu
 
@@ -84,8 +84,8 @@ CONTAINS
             CALL get_fieldptr(ddz, "DDZ", igrid)
 
 #ifdef _CRAYFTN
-            ALLOCATE(xbuf(2))
-            ALLOCATE(dxbuf(2))
+            ALLOCATE(xbuf(1))
+            ALLOCATE(dxbuf(1))
 #endif
 
             SELECT CASE (iface)
@@ -142,7 +142,7 @@ CONTAINS
         ! See comment in bfront routine in this file
         REAL(realk), ALLOCATABLE :: ybuf(:), dybuf(:)
 #else
-        REAL(realk) :: ybuf(2), dybuf(2)
+        REAL(realk) :: ybuf(1), dybuf(1)
 #endif
         TYPE(field_t), POINTER :: bv
 
@@ -180,8 +180,8 @@ CONTAINS
             CALL get_fieldptr(ddz, "DDZ", igrid)
 
 #ifdef _CRAYFTN
-            ALLOCATE(ybuf(2))
-            ALLOCATE(dybuf(2))
+            ALLOCATE(ybuf(1))
+            ALLOCATE(dybuf(1))
 #endif
 
             SELECT CASE (iface)
@@ -238,7 +238,7 @@ CONTAINS
         ! See comment in bfront routine in this file
         REAL(realk), ALLOCATABLE :: zbuf(:), dzbuf(:)
 #else
-        REAL(realk) :: zbuf(2), dzbuf(2)
+        REAL(realk) :: zbuf(1), dzbuf(1)
 #endif
         TYPE(field_t), POINTER :: bw
 
@@ -276,8 +276,8 @@ CONTAINS
             CALL get_fieldptr(ddy, "DDY", igrid)
 
 #ifdef _CRAYFTN
-            ALLOCATE(zbuf(2))
-            ALLOCATE(dzbuf(2))
+            ALLOCATE(zbuf(1))
+            ALLOCATE(dzbuf(1))
 #endif
 
             SELECT CASE (iface)
