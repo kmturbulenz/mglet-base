@@ -2,61 +2,80 @@ MODULE pointers_mod
     USE precision_mod, ONLY: intk
     USE err_mod, ONLY: errr
     USE comms_mod, ONLY: myid
-    USE grids_mod, ONLY: ngrid, get_mgdims, mygrids, nmygrids, idprocofgrd
+    USE grids_mod, ONLY: ngrid, get_mgdims, mygrids, nmygrids, idprocofgrd, &
+        get_bc_ctyp, nboconds
 
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    INTEGER(intk), PROTECTED :: idim3d, idim2d, idim1d
-    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip3d(:), ip2d(:), ip1d(:)
+    INTEGER(intk), PROTECTED :: idim3d, idimbb
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip3d(:)
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: ipbb(:, :)
 
-    PUBLIC :: init_pointers, finish_pointers, get_ip1, &
-        get_ip3, get_ip3n, get_ibb, get_ibbn, &
-        idim3d, idim2d, get_len3
+    PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ibb, &
+        idim3d, idimbb, get_len3
 
 CONTAINS
     SUBROUTINE init_pointers()
         idim3d = 0
-        idim2d = 0
-        idim1d = 0
+        idimbb = 0
 
         ALLOCATE(ip3d(ngrid))
-        ALLOCATE(ip2d(ngrid))
-        ALLOCATE(ip1d(ngrid))
+        ALLOCATE(ipbb(6, ngrid))
 
         ip3d = 0
-        ip2d = 0
-        ip1d = 0
+        ipbb = 0
 
         BLOCK
             ! Initialize and set pointers for all grids this process owns
-            INTEGER(intk) :: i, igrid, kk, jj, ii
-            INTEGER(intk) :: nsize1d, nsize2d, nsize3d
+            INTEGER(intk) :: i, igrid, iface, ibocd, nbocd, kk, jj, ii
+            INTEGER(intk) :: nsizebb, nsize3d
+            CHARACTER(len=8) :: ctyp
 
             DO i = 1, nmygrids
                 igrid = mygrids(i)
-
                 CALL get_mgdims(kk, jj, ii, igrid)
 
+                ! 3-D pointers are allocated for the entire grid
                 nsize3d = ii*jj*kk
-                nsize2d = MAX(ii*jj, ii*kk, jj*kk)
-                nsize1d = MAX(ii, jj, kk)
-
                 ip3d(igrid) = idim3d + 1
-                ip2d(igrid) = idim2d + 1
-                ip1d(igrid) = idim1d + 1
-
                 idim3d = idim3d + nsize3d
-                idim2d = idim2d + nsize2d
-                idim1d = idim1d + nsize1d
+
+                ! BB (boundary buffer) pointers are allocated for every FIX,
+                ! OP1, PAR, SIO and SWA buffer for every face. If a face has
+                ! for example both FIX and SIO, only one buffer is
+                ! allocated for that face.
+                DO iface = 1, 6
+                    nsizebb = 0
+                    nbocd = nboconds(iface, igrid)
+                    DO ibocd = 1, nbocd
+                        CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
+                        SELECT CASE (ctyp)
+                        CASE ("FIX", "OP1", "PAR", "SIO", "SWA")
+                            SELECT CASE (iface)
+                            CASE (1, 2)
+                                nsizebb = kk*jj
+                            CASE (3, 4)
+                                nsizebb = kk*ii
+                            CASE (5, 6)
+                                nsizebb = jj*ii
+                            END SELECT
+                        END SELECT
+                    END DO
+
+                    ! ipbb needs to be 0 for unallocated buffers
+                    IF (nsizebb > 0) THEN
+                        ipbb(iface, igrid) = idimbb + 1
+                        idimbb = idimbb + nsizebb
+                    END IF
+                END DO
             END DO
         END BLOCK
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
             WRITE(*, '("    idim3d:        ", I0)') idim3d
-            WRITE(*, '("    idim2d:        ", I0)') idim2d
-            WRITE(*, '("    idim1d:        ", I0)') idim1d
+            WRITE(*, '("    idimbb:        ", I0)') idimbb
             WRITE(*, '()')
         END IF
     END SUBROUTINE init_pointers
@@ -64,12 +83,10 @@ CONTAINS
 
     SUBROUTINE finish_pointers()
         idim3d = 0
-        idim2d = 0
-        idim1d = 0
+        idimbb = 0
 
         DEALLOCATE(ip3d)
-        DEALLOCATE(ip2d)
-        DEALLOCATE(ip1d)
+        DEALLOCATE(ipbb)
     END SUBROUTINE finish_pointers
 
 
@@ -100,40 +117,22 @@ CONTAINS
     END SUBROUTINE get_ip3n
 
 
-    SUBROUTINE get_ibb(ibb, igrid)
-        INTEGER(intk), INTENT(in) :: igrid
+    SUBROUTINE get_ibb(ibb, iface, igrid)
         INTEGER(intk), INTENT(out) :: ibb
-
-        IF (myid /= idprocofgrd(igrid)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ibb = ip2d(igrid)
-    END SUBROUTINE get_ibb
-
-
-    SUBROUTINE get_ibbn(ibbt, ncomp, igrid)
-        INTEGER(intk), INTENT(in) :: igrid, ncomp
-        INTEGER(intk), INTENT(out) :: ibbt
-
-        IF (myid /= idprocofgrd(igrid)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ibbt = ncomp*ip2d(igrid) - (ncomp-1)
-    END SUBROUTINE get_ibbn
-
-
-    SUBROUTINE get_ip1(ip1, igrid)
+        INTEGER(intk), INTENT(in) :: iface
         INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(out) :: ip1
 
+#ifdef _MGLET_DEBUG_
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
+        IF (iface < 1 .OR. iface > 6) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+#endif
 
-        ip1 = ip1d(igrid)
-    END SUBROUTINE get_ip1
+        ibb = ipbb(iface, igrid)
+    END SUBROUTINE get_ibb
 
 
     SUBROUTINE get_len3(len, igrid)

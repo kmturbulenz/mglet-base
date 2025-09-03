@@ -58,9 +58,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddy, "DDY", igrid)
@@ -292,9 +295,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddx, "DDX", igrid)
@@ -528,9 +534,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddx, "DDX", igrid)

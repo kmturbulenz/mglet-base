@@ -585,8 +585,6 @@ CONTAINS
         END SELECT
 
         CALL f1%get_ptr(g, igrid)
-        CALL f1%buffers%get_buffer(buffer, igrid, iface)
-        CALL get_fieldptr(bp, "BP", igrid)
 
         SELECT CASE (iface)
         CASE (1)
@@ -615,11 +613,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
-            DO j = 2, SIZE(g, 2)-1
-                DO k = 2, SIZE(g, 1)-1
-                    sbp = bp(k, j, i2)
-                    g(k, j, i2) = buffer(k, j, 1)*sbp &
-                        + (1.0-sbp)*g(k, j, i2)
+            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            DO j = 3, SIZE(g, 2)-2
+                DO k = 3, SIZE(g, 1)-2
+                    g(k, j, i1) = buffer(k, j, 1)
+                    g(k, j, i2) = buffer(k, j, 1)
                 END DO
             END DO
         END SELECT
@@ -649,8 +647,6 @@ CONTAINS
         END SELECT
 
         CALL f1%get_ptr(g, igrid)
-        CALL f1%buffers%get_buffer(buffer, igrid, iface)
-        CALL get_fieldptr(bp, "BP", igrid)
 
         SELECT CASE (iface)
         CASE (3)
@@ -679,11 +675,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
-            DO i = 2, SIZE(g, 3)-1
-                DO k = 2, SIZE(g, 1)-1
-                    sbp = bp(k, j2, i)
-                    g(k, j2, i) = buffer(k, i, 1)*sbp &
-                        + (1.0-sbp)*g(k, j2, i)
+            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            DO i = 3, SIZE(g, 3)-2
+                DO k = 3, SIZE(g, 1)-2
+                    g(k, j1, i) = buffer(k, i, 1)
+                    g(k, j2, i) = buffer(k, i, 1)
                 END DO
             END DO
         END SELECT
@@ -713,8 +709,6 @@ CONTAINS
         END SELECT
 
         CALL f1%get_ptr(g, igrid)
-        CALL f1%buffers%get_buffer(buffer, igrid, iface)
-        CALL get_fieldptr(bp, "BP", igrid)
 
         SELECT CASE (iface)
         CASE (5)
@@ -743,11 +737,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
-            DO i = 2, SIZE(g, 3)-1
-                DO j = 2, SIZE(g, 2)-1
-                    sbp = bp(k2, j, i)
-                    g(k2, j, i) = buffer(j, i, 1)*sbp &
-                        + (1.0-sbp)*g(k2, j, i)
+            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            DO i = 3, SIZE(g, 3)-2
+                DO j = 3, SIZE(g, 2)-2
+                    g(k1, j, i) = buffer(j, i, 1)
+                    g(k2, j, i) = buffer(j, i, 1)
                 END DO
             END DO
         END SELECT

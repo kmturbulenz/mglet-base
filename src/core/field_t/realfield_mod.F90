@@ -1,7 +1,7 @@
 MODULE realfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
-    USE pointers_mod, ONLY: idim2d, get_ibb
+    USE pointers_mod, ONLY: idimbb, get_ibb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
     USE basefield_mod
@@ -11,14 +11,7 @@ MODULE realfield_mod
 
     TYPE :: buffer_t
         LOGICAL :: is_init = .FALSE.
-        REAL(realk), ALLOCATABLE :: fr(:)
-        REAL(realk), ALLOCATABLE :: ba(:)
-
-        REAL(realk), ALLOCATABLE :: ri(:)
-        REAL(realk), ALLOCATABLE :: le(:)
-
-        REAL(realk), ALLOCATABLE :: bo(:)
-        REAL(realk), ALLOCATABLE :: to(:)
+        REAL(realk), ALLOCATABLE :: arr(:)
     CONTAINS
         FINAL :: buffer_destructor
         PROCEDURE :: finish => finish_buffer
@@ -479,19 +472,30 @@ CONTAINS
 
         IF (this%is_init) CALL errr(__FILE__, __LINE__)
 
-        ALLOCATE(this%fr(idim2d))
-        ALLOCATE(this%ba(idim2d))
-        ALLOCATE(this%ri(idim2d))
-        ALLOCATE(this%le(idim2d))
-        ALLOCATE(this%bo(idim2d))
-        ALLOCATE(this%to(idim2d))
+        ALLOCATE(this%arr(idimbb))
 
-        this%fr = 0.0
-        this%ba = 0.0
-        this%ri = 0.0
-        this%le = 0.0
-        this%bo = 0.0
-        this%to = 0.0
+#ifdef _MGLET_DEBUG_
+        BLOCK
+            USE, INTRINSIC :: IEEE_ARITHMETIC
+            USE, INTRINSIC :: IEEE_EXCEPTIONS
+
+            LOGICAL :: saved_fpe_mode(SIZE(ieee_all))
+            REAL(realk) :: nan
+
+            ! Make sure we do not trigger floating point exceptions when
+            ! setting the array to NaN
+            CALL IEEE_GET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+            CALL IEEE_SET_HALTING_MODE(IEEE_ALL, .FALSE.)
+
+            ! Define NaN and set that value in the array
+            nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
+            this%arr = nan
+
+            ! Restore the previous floating point exception mode
+            CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
+            CALL IEEE_SET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+        END BLOCK
+#endif
 
         this%is_init = .TRUE.
     END SUBROUTINE init_buffer
@@ -506,12 +510,7 @@ CONTAINS
     PURE SUBROUTINE finish_buffer(this)
         CLASS(buffer_t), INTENT(inout) :: this
         this%is_init = .FALSE.
-        IF (ALLOCATED(this%fr)) DEALLOCATE(this%fr)
-        IF (ALLOCATED(this%ba)) DEALLOCATE(this%ba)
-        IF (ALLOCATED(this%ri)) DEALLOCATE(this%ri)
-        IF (ALLOCATED(this%le)) DEALLOCATE(this%le)
-        IF (ALLOCATED(this%bo)) DEALLOCATE(this%bo)
-        IF (ALLOCATED(this%to)) DEALLOCATE(this%to)
+        IF (ALLOCATED(this%arr)) DEALLOCATE(this%arr)
     END SUBROUTINE finish_buffer
 
 
@@ -531,21 +530,24 @@ CONTAINS
         END IF
 
         CALL get_mgdims(kk, jj, ii, igrid)
-        CALL get_ibb(ibb, igrid)
+        CALL get_ibb(ibb, iface, igrid)
+
+        ! Buffers are only allocated on FIX, OP1 and PAR boundaries. If the
+        ! returned ibb is zero, this means that get_buffer was called on
+        ! another boundary condition which does not have a buffer
+        IF (ibb == 0) THEN
+            WRITE(*, *) "Buffer not allocated for this boundary condition"
+            WRITE(*, *) "  iface: ", iface, " igrid: ", igrid
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
         SELECT CASE (iface)
-        CASE (1)
-            ptr(1:kk, 1:jj, 1:1) => this%fr(ibb:ibb+kk*jj-1)
-        CASE (2)
-            ptr(1:kk, 1:jj, 1:1) => this%ba(ibb:ibb+kk*jj-1)
-        CASE (3)
-            ptr(1:kk, 1:ii, 1:1) => this%ri(ibb:ibb+kk*ii-1)
-        CASE (4)
-            ptr(1:kk, 1:ii, 1:1) => this%le(ibb:ibb+kk*ii-1)
-        CASE (5)
-            ptr(1:jj, 1:ii, 1:1) => this%bo(ibb:ibb+jj*ii-1)
-        CASE (6)
-            ptr(1:jj, 1:ii, 1:1) => this%to(ibb:ibb+jj*ii-1)
+        CASE (1, 2)
+            ptr(1:kk, 1:jj, 1:1) => this%arr(ibb:ibb+kk*jj-1)
+        CASE (3, 4)
+            ptr(1:kk, 1:ii, 1:1) => this%arr(ibb:ibb+kk*ii-1)
+        CASE (5, 6)
+            ptr(1:jj, 1:ii, 1:1) => this%arr(ibb:ibb+jj*ii-1)
         CASE DEFAULT
             WRITE(*, '("Invalid face: ", I0)') iface
             CALL errr(__FILE__, __LINE__)
@@ -565,12 +567,7 @@ CONTAINS
         CLASS(buffer_t), INTENT(inout) :: this
         CLASS(buffer_t), INTENT(in) :: that
 
-        this%fr = that%fr
-        this%ba = that%ba
-        this%ri = that%ri
-        this%le = that%le
-        this%bo = that%bo
-        this%to = that%to
+        this%arr = that%arr
     END SUBROUTINE copy_buffer
 
 END MODULE realfield_mod
