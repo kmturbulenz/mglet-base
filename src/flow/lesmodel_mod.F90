@@ -573,7 +573,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, j, i2, i3
         REAL(realk) :: sbp
-        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :, :), &
+        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :), &
             bp(:, :, :)
 
         ! Return early when no action is to be taken
@@ -613,11 +613,13 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
+            CALL get_fieldptr(bp, "BP", igrid)
             CALL f1%buffers%get_buffer(buffer, igrid, iface)
-            DO j = 3, SIZE(g, 2)-2
-                DO k = 3, SIZE(g, 1)-2
-                    g(k, j, i1) = buffer(k, j, 1)
-                    g(k, j, i2) = buffer(k, j, 1)
+            DO j = 2, SIZE(g, 2)-1
+                DO k = 2, SIZE(g, 1)-1
+                    sbp = bp(k, j, i2)
+                    g(k, j, i2) = buffer(k, j)*sbp &
+                        + (1.0-sbp)*g(k, j, i2)
                 END DO
             END DO
         END SELECT
@@ -635,7 +637,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, i, j2, j3
         REAL(realk) :: sbp
-        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :, :), &
+        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :), &
             bp(:, :, :)
 
         ! Return early when no action is to be taken
@@ -675,11 +677,13 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
+            CALL get_fieldptr(bp, "BP", igrid)
             CALL f1%buffers%get_buffer(buffer, igrid, iface)
-            DO i = 3, SIZE(g, 3)-2
-                DO k = 3, SIZE(g, 1)-2
-                    g(k, j1, i) = buffer(k, i, 1)
-                    g(k, j2, i) = buffer(k, i, 1)
+            DO i = 2, SIZE(g, 3)-1
+                DO k = 2, SIZE(g, 1)-1
+                    sbp = bp(k, j2, i)
+                    g(k, j2, i) = buffer(k, i)*sbp &
+                        + (1.0-sbp)*g(k, j2, i)
                 END DO
             END DO
         END SELECT
@@ -697,7 +701,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: j, i, k2, k3
         REAL(realk) :: sbp
-        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :, :), &
+        REAL(realk), POINTER, CONTIGUOUS :: g(:, :, :), buffer(:, :), &
             bp(:, :, :)
 
         ! Return early when no action is to be taken
@@ -737,11 +741,13 @@ CONTAINS
                 END DO
             END DO
         CASE ("PAR")
+            CALL get_fieldptr(bp, "BP", igrid)
             CALL f1%buffers%get_buffer(buffer, igrid, iface)
-            DO i = 3, SIZE(g, 3)-2
-                DO j = 3, SIZE(g, 2)-2
-                    g(k1, j, i) = buffer(j, i, 1)
-                    g(k2, j, i) = buffer(j, i, 1)
+            DO i = 2, SIZE(g, 3)-1
+                DO j = 2, SIZE(g, 2)-1
+                    sbp = bp(k2, j, i)
+                    g(k2, j, i) = buffer(j, i)*sbp &
+                        + (1.0-sbp)*g(k2, j, i)
                 END DO
             END DO
         END SELECT

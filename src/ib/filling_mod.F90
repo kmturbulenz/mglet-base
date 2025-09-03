@@ -325,7 +325,7 @@ CONTAINS
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         REAL(realk), POINTER, CONTIGUOUS :: knoten(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: parbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: parbuf(:, :)
 
         CALL knoten_p%get_ptr(knoten, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
@@ -335,8 +335,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 1)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
-                    IF (ABS(parbuf(k, j, 1)) > 0.5_realk) THEN
-                        knoten(k, j, 2) = parbuf(k, j, 1)
+                    IF (ABS(parbuf(k, j)) > 0.5_realk) THEN
+                        knoten(k, j, 2) = parbuf(k, j)
                     END IF
                 END DO
             END DO
@@ -346,8 +346,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 2)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
-                    IF (ABS(parbuf(k, j, 1)) > 0.5_realk) THEN
-                        knoten(k, j, ii-2) = parbuf(k, j, 1)
+                    IF (ABS(parbuf(k, j)) > 0.5_realk) THEN
+                        knoten(k, j, ii-2) = parbuf(k, j)
                     END IF
                 END DO
             END DO
@@ -357,8 +357,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 3)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(k, i, 1)) > 0.5_realk) THEN
-                        knoten(k, 2, i) = parbuf(k, i, 1)
+                    IF (ABS(parbuf(k, i)) > 0.5_realk) THEN
+                        knoten(k, 2, i) = parbuf(k, i)
                     END IF
                 END DO
             END DO
@@ -368,8 +368,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 4)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(k, i, 1)) > 0.5_realk) THEN
-                        knoten(k, jj-2, i) = parbuf(k, i, 1)
+                    IF (ABS(parbuf(k, i)) > 0.5_realk) THEN
+                        knoten(k, jj-2, i) = parbuf(k, i)
                     END IF
                 END DO
             END DO
@@ -379,8 +379,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 5)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(j, i, 1)) > 0.5_realk) THEN
-                        knoten(2, j, i) = parbuf(j, i, 1)
+                    IF (ABS(parbuf(j, i)) > 0.5_realk) THEN
+                        knoten(2, j, i) = parbuf(j, i)
                     END IF
                 END DO
             END DO
@@ -390,8 +390,8 @@ CONTAINS
             CALL knoten_p%buffers%get_buffer(parbuf, igrid, 6)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
-                    IF (ABS(parbuf(j, i, 1)) > 0.5_realk) THEN
-                        knoten(kk-2, j, i) = parbuf(j, i, 1)
+                    IF (ABS(parbuf(j, i)) > 0.5_realk) THEN
+                        knoten(kk-2, j, i) = parbuf(j, i)
                     END IF
                 END DO
             END DO
@@ -411,7 +411,7 @@ CONTAINS
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: parbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: parbuf(:, :)
 
         CALL bp_p%get_ptr(bp, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
@@ -427,7 +427,7 @@ CONTAINS
             DO k = 1, kk
                 DO j = 1, jj
                     DO i = ibbuf1, ibbuf2
-                        bp(k, j, i) = parbuf(k, j, 1)
+                        bp(k, j, i) = parbuf(k, j)
                     END DO
                 END DO
             END DO
@@ -438,7 +438,7 @@ CONTAINS
             DO k = 1, kk
                 DO j = 1, jj
                     DO i = ii-ibbuf3, ii-ibbuf4
-                        bp(k, j, i) = parbuf(k, j, 1)
+                        bp(k, j, i) = parbuf(k, j)
                     END DO
                 END DO
             END DO
@@ -449,7 +449,7 @@ CONTAINS
             DO k = 1, kk
                 DO j = ibbuf1, ibbuf2
                     DO i = 1, ii
-                        bp(k, j, i) = parbuf(k, i, 1)
+                        bp(k, j, i) = parbuf(k, i)
                     END DO
                 END DO
             END DO
@@ -460,7 +460,7 @@ CONTAINS
             DO k = 1, kk
                 DO j = jj-ibbuf3, jj-ibbuf4
                     DO i = 1, ii
-                        bp(k, j, i) = parbuf(k, i, 1)
+                        bp(k, j, i) = parbuf(k, i)
                     END DO
                 END DO
             END DO
@@ -471,7 +471,7 @@ CONTAINS
             DO k = ibbuf1, ibbuf2
                 DO j = 1, jj
                     DO i = 1, ii
-                        bp(k, j, i) = parbuf(j, i, 1)
+                        bp(k, j, i) = parbuf(j, i)
                     END DO
                 END DO
             END DO
@@ -482,7 +482,7 @@ CONTAINS
             DO k = kk-ibbuf3, kk-ibbuf4
                 DO j = 1, jj
                     DO i = 1, ii
-                        bp(k, j, i) = parbuf(j, i, 1)
+                        bp(k, j, i) = parbuf(j, i)
                     END DO
                 END DO
             END DO

@@ -30,7 +30,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: idx
-        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :)
         REAL(realk) :: scbvalue(nsca)
 
         ! Only works on scalar SWA and SIO boundaries, should do nothing
@@ -67,7 +67,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: idx
-        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :)
         REAL(realk) :: scbvalue(nsca)
 
         ! Only works on scalar SWA and SIO boundaries, should do nothing
@@ -104,7 +104,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: idx
-        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: tbuf(:, :)
         REAL(realk) :: scbvalue(nsca)
 
         ! Only works on scalar SWA and SIO boundaries, should do nothing

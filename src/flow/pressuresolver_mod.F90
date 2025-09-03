@@ -987,7 +987,7 @@ CONTAINS
         REAL(realk) :: pcnew, bpc, fak
         REAL(realk) :: sb11, sb12, sb13, sb14
         REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
@@ -1031,7 +1031,7 @@ CONTAINS
                 DO k = 3, kk-2, 2
                     CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
                         ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(k, j, 1)
+                    IF (bpc < 0.5) pcnew = pbuffer(k, j)
 
                     sb11 = bp(k, j, i2)*bp(k, j, i3)
                     sb12 = bp(k, j+1, i2)*bp(k, j+1, i3)
@@ -1048,7 +1048,7 @@ CONTAINS
                         DO n = 0, 1
                             p(k+n, j+m, i2) = p(k+n, j+m, i3) &
                                 + fak*dx(istag2)/(ddx(i3)+ddx(i2)) &
-                                *(pbuffer(k, j, 1) - pcnew)
+                                *(pbuffer(k, j) - pcnew)
                         END DO
                     END DO
                 END DO
@@ -1062,7 +1062,7 @@ CONTAINS
                         DO n = 0, 1
                             p(k+n, j+m, i2) = p(k+n, j+m, i3) &
                                 + dx(istag2)/(ddx(i3)+ddx(i2)) &
-                                *(pbuffer(k, j, 1) - pcnew)
+                                *(pbuffer(k, j) - pcnew)
                         END DO
                     END DO
                 END DO
@@ -1086,7 +1086,7 @@ CONTAINS
         REAL(realk) :: pcnew, bpc, fak
         REAL(realk) :: sb11, sb12, sb13, sb14
         REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
@@ -1130,7 +1130,7 @@ CONTAINS
                 DO k = 3, kk-2, 2
                     CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
                         ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(k, i, 1)
+                    IF (bpc < 0.5) pcnew = pbuffer(k, i)
 
                     sb11 = bp(k, j2, i)*bp(k, j3, i)
                     sb12 = bp(k, j2, i+1)*bp(k, j3, i+1)
@@ -1147,7 +1147,7 @@ CONTAINS
                         DO n = 0, 1
                             p(k+n, j2, i+l) = p(k+n, j3, i+l) &
                                 + fak*dy(jstag2)/(ddy(j3)+ddy(j2)) &
-                                *(pbuffer(k, i, 1) - pcnew)
+                                *(pbuffer(k, i) - pcnew)
                         END DO
                     END DO
                 END DO
@@ -1161,7 +1161,7 @@ CONTAINS
                         DO n = 0, 1
                             p(k+n, j2, i+l) = p(k+n, j3, i+l) &
                                 + dy(jstag2)/(ddy(j3)+ddy(j2)) &
-                                *(pbuffer(k, i, 1) - pcnew)
+                                *(pbuffer(k, i) - pcnew)
                         END DO
                     END DO
                 END DO
@@ -1185,7 +1185,7 @@ CONTAINS
         REAL(realk) :: pcnew, bpc, fak
         REAL(realk) :: sb11, sb12, sb13, sb14
         REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
@@ -1229,7 +1229,7 @@ CONTAINS
                 DO j = 3, jj-2, 2
                     CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
                         ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(j, i, 1)
+                    IF (bpc < 0.5) pcnew = pbuffer(j, i)
 
                     sb11 = bp(k2, j, i)*bp(k3, j, i)
                     sb12 = bp(k2, j, i+1)*bp(k3, j, i+1)
@@ -1246,7 +1246,7 @@ CONTAINS
                         DO m = 0, 1
                             p(k2, j+m, i+l) = p(k3, j+m, i+l) &
                                 + fak*dz(kstag2)/(ddz(k3)+ddz(k2)) &
-                                *(pbuffer(j, i, 1) - pcnew)
+                                *(pbuffer(j, i) - pcnew)
                         END DO
                     END DO
                 END DO
@@ -1260,7 +1260,7 @@ CONTAINS
                         DO m = 0, 1
                             p(k2, j+m, i+l) = p(k3, j+m, i+l) &
                                 + dz(kstag2)/(ddz(k3)+ddz(k2)) &
-                                *(pbuffer(j, i, 1) - pcnew)
+                                *(pbuffer(j, i) - pcnew)
                         END DO
                     END DO
                 END DO

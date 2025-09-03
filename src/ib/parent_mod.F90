@@ -522,7 +522,7 @@ CONTAINS
 
         INTEGER(intk) :: nelem, tmp_buf_size
         INTEGER(intk) :: ustag1, ustag2, vstag1, vstag2, wstag1, wstag2
-        REAL(realk), POINTER, CONTIGUOUS :: faceptr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: faceptr(:, :)
         REAL(realk), ALLOCATABLE :: tmp_buf(:)
         LOGICAL :: exU, exV, exW
 

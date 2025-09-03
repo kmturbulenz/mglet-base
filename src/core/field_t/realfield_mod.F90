@@ -517,7 +517,7 @@ CONTAINS
     SUBROUTINE get_buffer(this, ptr, igrid, iface)
         ! Subroutine arguments
         CLASS(buffer_t), INTENT(inout), TARGET :: this
-        REAL(realk), INTENT(out), POINTER, CONTIGUOUS :: ptr(:, :, :)
+        REAL(realk), INTENT(out), POINTER, CONTIGUOUS :: ptr(:, :)
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(in) :: iface
 
@@ -543,11 +543,11 @@ CONTAINS
 
         SELECT CASE (iface)
         CASE (1, 2)
-            ptr(1:kk, 1:jj, 1:1) => this%arr(ibb:ibb+kk*jj-1)
+            ptr(1:kk, 1:jj) => this%arr(ibb:ibb+kk*jj-1)
         CASE (3, 4)
-            ptr(1:kk, 1:ii, 1:1) => this%arr(ibb:ibb+kk*ii-1)
+            ptr(1:kk, 1:ii) => this%arr(ibb:ibb+kk*ii-1)
         CASE (5, 6)
-            ptr(1:jj, 1:ii, 1:1) => this%arr(ibb:ibb+jj*ii-1)
+            ptr(1:jj, 1:ii) => this%arr(ibb:ibb+jj*ii-1)
         CASE DEFAULT
             WRITE(*, '("Invalid face: ", I0)') iface
             CALL errr(__FILE__, __LINE__)
