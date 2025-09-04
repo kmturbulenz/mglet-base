@@ -21,6 +21,7 @@ add_library(core STATIC
     field_t/realfield_mod.F90
     fields_mod.F90
     fort7_mod.F90
+    getrusage_wrapper.c
     gridio_mod.F90
     grids_mod.F90
     hdf5common_mod.F90

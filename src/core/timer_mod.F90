@@ -10,6 +10,14 @@ MODULE timer_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    INTERFACE
+        SUBROUTINE getrusage_c(maxmem, ierr) BIND(C)
+            IMPORT :: c_int, c_long_long
+            INTEGER(c_long_long), INTENT(OUT) :: maxmem
+            INTEGER(c_int), INTENT(OUT) :: ierr
+        END SUBROUTINE getrusage_c
+    END INTERFACE
+
     INTEGER(intk), PARAMETER :: maxtimers = 1000
     INTEGER(intk), PARAMETER :: stackdepth = 32
     INTEGER(intk), PARAMETER :: desclen = 32
@@ -266,6 +274,8 @@ CONTAINS
             END IF
         END DO
 
+        CALL print_memory_log(wu)
+
         IF (myid == 0) THEN
             close(wu)
         END IF
@@ -391,5 +401,84 @@ CONTAINS
                 REAL(iodata(i)%n, real64)/REAL(numprocs, real64)
         END DO
     END SUBROUTINE reduce_time
+
+
+    SUBROUTINE get_max_memory(maxmem)
+        ! Subroutine arguments
+        INTEGER(int64), INTENT(OUT) :: maxmem
+
+        ! Local variables
+        INTEGER(c_int) :: c_ierr
+        INTEGER(c_long_long) :: c_maxmem
+
+        CALL getrusage_c(c_maxmem, c_ierr)
+
+        IF (c_ierr == 0) THEN
+            maxmem = c_maxmem
+        ELSE
+            maxmem = 0
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE get_max_memory
+
+
+    SUBROUTINE print_memory_log(unit)
+        ! Subroutine arguments
+        INTEGER, INTENT(in) :: unit
+
+        ! Local variables
+        INTEGER(int64) :: maxmem, maxmem_node
+        INTEGER(int64), ALLOCATABLE :: maxmem_all(:)
+        INTEGER :: i, nshmprocs
+
+        ! Get this process maximum memory usage
+        CALL get_max_memory(maxmem)
+
+        ! Gather all processes maximum memory usage to rank 0
+        ALLOCATE(maxmem_all(numprocs))
+        CALL MPI_Gather(maxmem, 1, MPI_INTEGER8, maxmem_all, 1, MPI_INTEGER8, &
+            0, MPI_COMM_WORLD)
+
+        ! Print memory usage table
+        IF (myid == 0) THEN
+            WRITE(unit, '()')
+            WRITE(unit, '("MEMORY USAGE PER PROCESS:")')
+            WRITE(unit, '("  Maximum resident set size in MiB")')
+            WRITE(unit, '()')
+            WRITE(unit, '(A6, 1X, A20)') "Rank", "MaxRSS"
+            DO i = 0, numprocs-1
+                WRITE(unit, '(I6, 1X, I20)') i, maxmem_all(i+1)/1024
+            END DO
+        END IF
+        DEALLOCATE(maxmem_all)
+
+        ! Compute maximum memory per node (SHM segment)
+        CALL MPI_Reduce(maxmem, maxmem_node, 1, MPI_INTEGER8, MPI_SUM, 0, &
+            shmcomm)
+
+        IF (shmid == 0) THEN
+            CALL MPI_Comm_size(shm_masters_comm, nshmprocs)
+            ALLOCATE(maxmem_all(nshmprocs))
+            CALL MPI_Gather(maxmem_node, 1, MPI_INTEGER8, maxmem_all, 1, &
+                MPI_INTEGER8, 0, shm_masters_comm)
+        END IF
+
+        ! Print memory usage per node
+        IF (myid == 0) THEN
+            WRITE(unit, '()')
+            WRITE(unit, '("MEMORY USAGE PER NODE:")')
+            WRITE(unit, '("  Sum of MaxRSS per node in MiB")')
+            WRITE(unit, '()')
+            WRITE(unit, '(A6, 1X, A20)') "Node", "SUM(MaxRSS)"
+            DO i = 0, nshmprocs-1
+                WRITE(unit, '(I6, 1X, I20)') i, maxmem_all(i+1)/1024
+            END DO
+        END IF
+
+        IF (shmid == 0) THEN
+            DEALLOCATE(maxmem_all)
+        END IF
+
+    END SUBROUTINE print_memory_log
 
 END MODULE timer_mod
