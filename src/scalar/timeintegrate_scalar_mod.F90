@@ -50,7 +50,7 @@ CONTAINS
             CALL get_field(dt_f, "D"//TRIM(scalar(l)%name))
             CALL get_field(told, TRIM(scalar(l)%name)//"_OLD")
 
-            ! Copy to "T_OLD"
+            ! Copy to "T_OLD" (not needed here but used for Boussinesq)
             told%arr = t%arr
 
             ! TSTSCA4 zeroize qtu, qtv, qtw before use internally

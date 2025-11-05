@@ -212,6 +212,7 @@ CONTAINS
             END IF
         END DO
 
+        CALL scaconf%finish()
         IF (myid == 0) THEN
             WRITE(*, '()')
         END IF
