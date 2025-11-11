@@ -1338,9 +1338,9 @@ CONTAINS
         pww%arr = w%arr
 
         ! Copy buffers from u, v, w to pwu, pwv, pww
-        pwu%buffers = u%buffers
-        pwv%buffers = v%buffers
-        pww%buffers = w%buffers
+        pwu%buffers%arr = u%buffers%arr
+        pwv%buffers%arr = v%buffers%arr
+        pww%buffers%arr = w%buffers%arr
 
         ! Set the immersed boundary ghost cell values of the
         ! point value velocity field

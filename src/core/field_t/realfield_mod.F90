@@ -18,7 +18,6 @@ MODULE realfield_mod
         PROCEDURE :: get_buffer
         PROCEDURE :: init => init_buffer
         PROCEDURE, PRIVATE :: copy_buffer
-        GENERIC :: ASSIGNMENT(=) => copy_buffer
     END TYPE buffer_t
 
     TYPE, EXTENDS(basefield_t) :: field_t
@@ -569,5 +568,4 @@ CONTAINS
 
         this%arr = that%arr
     END SUBROUTINE copy_buffer
-
 END MODULE realfield_mod
