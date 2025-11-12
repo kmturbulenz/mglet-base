@@ -43,9 +43,9 @@ CONTAINS
         CALL start_timer(310)
 
         ! Set all the output to zero everywhere before we start!
-        uo_f = 0.0_realk
-        vo_f = 0.0_realk
-        wo_f = 0.0_realk
+        uo_f%arr = 0.0_realk
+        vo_f%arr = 0.0_realk
+        wo_f%arr = 0.0_realk
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")

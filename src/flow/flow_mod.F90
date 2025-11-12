@@ -153,7 +153,7 @@ CONTAINS
         ELSE
             CALL init_uvw_uinf(u, v, w)
         END IF
-        p = 0.0_realk
+        p%arr = 0.0_realk
 
         CALL zero_ghostlayers(u)
         CALL zero_ghostlayers(v)

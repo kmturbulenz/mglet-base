@@ -13,11 +13,10 @@ MODULE realfield_mod
         LOGICAL :: is_init = .FALSE.
         REAL(realk), ALLOCATABLE :: arr(:)
     CONTAINS
-        FINAL :: buffer_destructor
-        PROCEDURE :: finish => finish_buffer
-        PROCEDURE :: get_buffer
         PROCEDURE :: init => init_buffer
-        PROCEDURE, PRIVATE :: copy_buffer
+        PROCEDURE, NON_OVERRIDABLE :: get_buffer
+        PROCEDURE :: finish => finish_buffer
+        FINAL :: buffer_destructor
     END TYPE buffer_t
 
     TYPE, EXTENDS(basefield_t) :: field_t
@@ -39,9 +38,6 @@ MODULE realfield_mod
         PROCEDURE :: init_buffers
         PROCEDURE :: finish
         FINAL :: destructor
-
-        PROCEDURE, PRIVATE :: set_const
-        GENERIC :: ASSIGNMENT(=) => set_const
     END TYPE field_t
 
     PUBLIC :: field_t, buffer_t
@@ -454,17 +450,6 @@ CONTAINS
     END SUBROUTINE get_buffers
 
 
-    SUBROUTINE set_const(this, val)
-        ! Set a field to a constant scalar value
-
-        ! Subroutine arguments
-        CLASS(field_t), INTENT(inout) :: this
-        REAL(realk), INTENT(in) :: val
-
-        this%arr = val
-    END SUBROUTINE set_const
-
-
     SUBROUTINE init_buffer(this)
         ! Subroutine arguments
         CLASS(buffer_t), INTENT(inout) :: this
@@ -555,20 +540,4 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_buffer
-
-
-    SUBROUTINE copy_buffer(this, that)
-        ! Copy buffers (from one field to antother)
-        ! Example usage:
-        !     pwu%buffers = u%buffers
-        !     pwv%buffers = v%buffers
-        !     pww%buffers = w%buffers
-        ! from setpointvalues
-
-        ! Subroutine arguments
-        CLASS(buffer_t), INTENT(inout) :: this
-        CLASS(buffer_t), INTENT(in) :: that
-
-        this%arr = that%arr
-    END SUBROUTINE copy_buffer
 END MODULE realfield_mod
