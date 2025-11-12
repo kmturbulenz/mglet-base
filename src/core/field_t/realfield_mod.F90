@@ -200,7 +200,10 @@ CONTAINS
         END IF
         this%active_level = that%active_level
 
-        this%get_len => that%get_len
+        IF (.NOT. ALLOCATED(this%length)) THEN
+            ALLOCATE(this%length, mold=that%length)
+        END IF
+        this%length = that%length
 
         IF (.NOT. ALLOCATED(this%ptr)) THEN
             ALLOCATE(this%ptr, mold=that%ptr)

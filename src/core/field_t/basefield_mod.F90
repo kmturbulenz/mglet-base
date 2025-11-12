@@ -40,9 +40,8 @@ MODULE basefield_mod
         ! is active on
         LOGICAL, ALLOCATABLE :: active_level(:)
 
-        ! Pointers to procedures for getting the pointer and length
-        PROCEDURE(get_len_i), POINTER, NOPASS :: get_len => NULL()
         INTEGER(intk), ALLOCATABLE :: ptr(:)
+        INTEGER(intk), ALLOCATABLE :: length(:)
 
         ! Length and actual data array can be allocated to anything
         INTEGER(intk) :: idim = 0
@@ -72,7 +71,7 @@ MODULE basefield_mod
         GENERIC, PUBLIC :: set_attr => set_rattr, set_iattr
         PROCEDURE, PRIVATE :: set_rattr, set_iattr
 
-        PROCEDURE, NON_OVERRIDABLE :: get_ip
+        PROCEDURE, NON_OVERRIDABLE :: get_ip, get_len
 
         PROCEDURE :: finish_corefield
     END TYPE basefield_t
@@ -106,7 +105,7 @@ CONTAINS
         PROCEDURE(get_len_i), OPTIONAL :: get_len
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, length
+        INTEGER(intk) :: i, igrid
 
         this%is_init = .TRUE.
 
@@ -162,14 +161,23 @@ CONTAINS
             this%active_level(:) = active_level(:)
         END IF
 
-        ! Only sets default pointers for 3D fields
-        IF (this%ndim == 3) THEN
-            this%get_len => get_len3
-        END IF
-        IF (PRESENT(get_len)) THEN
-            this%get_len => get_len
-        END IF
-        IF (.NOT. ASSOCIATED(this%get_len)) CALL errr(__FILE__, __LINE__)
+        ! Set lengths
+        ALLOCATE(this%length(nmygrids), source=0)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            IF (.NOT. this%active_level(level(igrid))) CYCLE
+            IF (this%ndim == 3) THEN
+                CALL get_len3(this%length(i), igrid)
+            END IF
+            IF (PRESENT(get_len)) THEN
+                CALL get_len(this%length(i), igrid)
+            END IF
+            IF (this%length(i) <= 0) THEN
+                WRITE(*, '("Field ", A, " has invalid length for grid ", I0)') &
+                    this%name, igrid
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END DO
 
         ! Set pointers
         ALLOCATE(this%ptr(nmygrids))
@@ -180,9 +188,8 @@ CONTAINS
             igrid = mygrids(i)
             IF (.NOT. this%active_level(level(igrid))) CYCLE
 
-            CALL this%get_len(length, igrid)
             this%ptr(i) = this%idim + 1
-            this%idim = this%idim + length
+            this%idim = this%idim + this%length(i)
         END DO
     END SUBROUTINE init_corefield
 
@@ -221,19 +228,38 @@ CONTAINS
 
         DEALLOCATE(this%active_level)
         DEALLOCATE(this%ptr)
+        DEALLOCATE(this%length)
     END SUBROUTINE finish_corefield
 
 
     SUBROUTINE get_ip(this, ip, igrid)
+        ! Subroutine arguments
         CLASS(basefield_t), INTENT(in) :: this
         INTEGER(intk), INTENT(out) :: ip
         INTEGER(intk), INTENT(in) :: igrid
 
+        ! Local variables
         INTEGER(intk) :: imygrid
+
         ip = 0
         CALL get_imygrid(imygrid, igrid)
         ip = this%ptr(imygrid)
     END SUBROUTINE get_ip
+
+
+    SUBROUTINE get_len(this, len, igrid)
+        ! Subroutine arguments
+        CLASS(basefield_t), INTENT(in) :: this
+        INTEGER(intk), INTENT(out) :: len
+        INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        INTEGER(intk) :: imygrid
+
+        len = 0
+        CALL get_imygrid(imygrid, igrid)
+        len = this%length(imygrid)
+    END SUBROUTINE get_len
 
 
     SUBROUTINE get_rattr(this, val, key, found)
