@@ -52,7 +52,7 @@ CONTAINS
         CALL get_bcprms(scbvalue, igrid, iface, ibocd)
 
         ! Apply value to buffer
-        CALL f1%buffers%get_buffer(tbuf, igrid, iface)
+        CALL f1%get_buffer(tbuf, igrid, iface)
         tbuf = scbvalue(idx)
     END SUBROUTINE bfront
 
@@ -89,7 +89,7 @@ CONTAINS
         CALL get_bcprms(scbvalue, igrid, iface, ibocd)
 
         ! Apply value to buffer
-        CALL f1%buffers%get_buffer(tbuf, igrid, iface)
+        CALL f1%get_buffer(tbuf, igrid, iface)
         tbuf = scbvalue(idx)
     END SUBROUTINE bright
 
@@ -126,7 +126,7 @@ CONTAINS
         CALL get_bcprms(scbvalue, igrid, iface, ibocd)
 
         ! Apply value to buffer
-        CALL f1%buffers%get_buffer(tbuf, igrid, iface)
+        CALL f1%get_buffer(tbuf, igrid, iface)
         tbuf = scbvalue(idx)
     END SUBROUTINE bbottom
 END MODULE setboundarybuffers_scalar_mod

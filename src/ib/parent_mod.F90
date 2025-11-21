@@ -552,7 +552,7 @@ CONTAINS
         exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
 
         IF (ASSOCIATED(u) .AND. exU) THEN
-            CALL u%buffers%get_buffer(faceptr, igrid, iface)
+            CALL u%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, ustag1)
@@ -563,7 +563,7 @@ CONTAINS
 
 
         IF (ASSOCIATED(v) .AND. exV) THEN
-            CALL v%buffers%get_buffer(faceptr, igrid, iface)
+            CALL v%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, vstag1)
@@ -574,7 +574,7 @@ CONTAINS
 
 
         IF (ASSOCIATED(w) .AND. exW) THEN
-            CALL w%buffers%get_buffer(faceptr, igrid, iface)
+            CALL w%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, wstag1)
@@ -584,7 +584,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p1)) THEN
-            CALL p1%buffers%get_buffer(faceptr, igrid, iface)
+            CALL p1%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
@@ -594,7 +594,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p2)) THEN
-            CALL p2%buffers%get_buffer(faceptr, igrid, iface)
+            CALL p2%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
@@ -604,7 +604,7 @@ CONTAINS
         END IF
 
         IF (ASSOCIATED(p3)) THEN
-            CALL p3%buffers%get_buffer(faceptr, igrid, iface)
+            CALL p3%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
                 recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
