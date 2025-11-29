@@ -5,10 +5,6 @@ MODULE parent_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    ! Maximum number of connections on one single process, either
-    ! outgoing or incomming, on any single grid level
-    INTEGER(intk) :: maxConns
-
     ! Lists that hold the Send and Recv connections per grid level
     ! This list must be pre-compiled before the first call to 'connect'
     ! is being made. The reason for this is because it is expensive
@@ -24,42 +20,22 @@ MODULE parent_mod
     !   Field 3: ID of receiving grid
     !   Field 4: ID of sending grid
     !   Field 5: Which face (1..26) to receive
-    !   Field 6: Which face (1..26) to send
-    !   Field 7: Message tag (for MPI)
-    INTEGER(intk), ALLOCATABLE :: sendConns(:, :), recvConns(:, :)
+    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
 
     ! Lists that hold the send and receive request arrays
-    TYPE(MPI_Request), ALLOCATABLE :: sendReqs(:), recvReqs(:)
+    TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
 
     ! Lists that hold the messages that are ACTUALLY sendt and received
-    INTEGER(intk) :: nSend, nRecv, nRecvFaces
-    INTEGER(int32), ALLOCATABLE :: sendList(:), recvList(:)
-    INTEGER(intk), ALLOCATABLE :: recvIdxList(:, :)
+    INTEGER(intk) :: nsend, nrecv
+    INTEGER(int32), ALLOCATABLE :: sendlist(:), recvlist(:)
+    INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
     ! Number of send and receive connections
-    INTEGER(intk) :: iSend = 0, iRecv = 0
-
-    ! Counters for send- and receive operations (for locations in
-    ! send and receive buffers)
-    INTEGER(intk) :: sendCounter, recvCounter
-
-    ! Number of variables per cell to exchange
-    INTEGER(intk) :: nVars
-
-    ! Accumulated message length
-    INTEGER(int32) :: messageLength
+    INTEGER(intk) :: isend = 0, irecv = 0
 
     ! Variable to indicate if the connection information has
     ! been created.
     LOGICAL :: is_init = .FALSE.
-
-    ! Fields
-    TYPE(field_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
-        p1 => NULL(), p2 => NULL(), p3 => NULL()
-
-    ! If true, exchange only surface normal component of
-    ! vector field
-    LOGICAL :: sn
 
     PUBLIC :: parent, init_parent, finish_parent
 
@@ -68,15 +44,14 @@ CONTAINS
     ! Main parent function
     SUBROUTINE parent(ilevel, v1, v2, v3, s1, s2, s3, normal)
 
-        ! Level to set PAR bc
+        ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-
-        ! One or more fields
-        TYPE(field_t), TARGET, OPTIONAL, INTENT(inout) :: &
-            v1, v2, v3, s1, s2, s3
-
-        ! Only exchange face-normal velocity components
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
         LOGICAL, OPTIONAL, INTENT(in) :: normal
+
+        ! Local variables
+        LOGICAL :: sn
+        INTEGER(intk) :: nvars
 
         CALL start_timer(210)
 
@@ -87,122 +62,83 @@ CONTAINS
         END IF
 
         ! Check that no other transfers are in progress
-        IF (nSend > 0 .OR. nRecv > 0) THEN
+        IF (nsend > 0 .OR. nrecv > 0) THEN
             WRITE(*, *) "Other transfer in progress."
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        ! If one vector argument is given, check that all three is present.
-        nVars = 0
-        IF (PRESENT(v1)) THEN
-            IF (.NOT. (PRESENT(v2) .AND. PRESENT(v3))) THEN
-                WRITE(*, *) "If one vector arg is present, all three " &
-                    // "must be present."
-                CALL errr(__FILE__, __LINE__)
-            END IF
-            u => v1
-            v => v2
-            w => v3
-            nVars = nVars + 3
-        ELSE IF (PRESENT(v2) .OR. PRESENT(v3)) THEN
-            WRITE(*, *) "If one vector arg is present, all three " &
-                // "must be present."
+        ! Count number of variables to send/receive
+        IF ((PRESENT(v1) .NEQV. PRESENT(v2)) .OR. &
+                (PRESENT(v1) .NEQV. PRESENT(v3))) THEN
             CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Set pointers to scalars
-        IF (PRESENT(s1)) THEN
-            p1 => s1
-            nVars = nVars + 1
-        END IF
-        IF (PRESENT(s2)) THEN
-            p2 => s2
-            nVars = nVars + 1
-        END IF
-        IF (PRESENT(s3)) THEN
-            p3 => s3
-            nVars = nVars + 1
         END IF
 
         sn = .FALSE.
-        IF (PRESENT(normal)) THEN
-            IF (normal .eqv. .TRUE.) THEN
-                IF (PRESENT(v1)) THEN
-                    nVars = nVars - 2
-                    sn = .TRUE.
-                ELSE
-                    WRITE(*, *) "normal=.TRUE. require a vector v1, v2, v3."
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-            END IF
-        END IF
+        IF (PRESENT(normal)) sn = normal
 
-        ! Not specifying any fields would be very strange
-        IF (nVars == 0) THEN
-            WRITE(*, *) "You have not specified any fields to exchange."
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        nvars = 0
+        IF (PRESENT(v1)) nvars = nvars + 1
+        IF (PRESENT(v2)) nvars = nvars + 1
+        IF (PRESENT(v3)) nvars = nvars + 1
+        IF (PRESENT(s1)) nvars = nvars + 1
+        IF (PRESENT(s2)) nvars = nvars + 1
+        IF (PRESENT(s3)) nvars = nvars + 1
 
-        CALL recv_all(ilevel)
-        CALL send_all(ilevel)
-        CALL process_bufs()
+        ! If one vector component is present, all must be present
+        IF (sn .AND. PRESENT(v1)) nvars = nvars - 2
+
+        CALL recv_all(ilevel, nvars)
+        CALL send_all(ilevel, v1, v2, v3, s1, s2, s3, normal)
+        CALL process_bufs(v1, v2, v3, s1, s2, s3, normal)
 
         ! Clear counters and unset pointers. This is important to avoid
         ! problems at next function call
-        nRecv = 0
-        nSend = 0
-        nVars = 0
-        sn = .FALSE.
-
-        NULLIFY(u)
-        NULLIFY(v)
-        NULLIFY(w)
-        NULLIFY(p1)
-        NULLIFY(p2)
-        NULLIFY(p3)
+        nrecv = 0
+        nsend = 0
 
         CALL stop_timer(210)
     END SUBROUTINE parent
 
 
     ! Perform all Recv-calls
-    SUBROUTINE recv_all(ilevel)
+    SUBROUTINE recv_all(ilevel, nvars)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
+        INTEGER(intk), INTENT(in) :: nvars
 
         ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igrid, iface, ilevelgrid, faceArea
+        INTEGER(intk) :: i, iprocnbr, igrid, iface, ilevelgrid, facearea
+        INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
-        recvCounter = 0
-        messageLength = 0
-        nRecv = 0
-        recvIdxList = 0
+        recvcounter = 0
+        messagelength = 0
+        nrecv = 0
+        recvidxlist = 0
 
-        DO i = 1, iRecv
-            iprocnbr      = recvConns(2, i)
-            igrid         = recvConns(3, i)
-            iface         = recvConns(5, i)
-            ilevelgrid    = level(igrid)
+        DO i = 1, irecv
+            iprocnbr = recvconns(2, i)
+            igrid = recvconns(3, i)
+            iface = recvconns(5, i)
+            ilevelgrid = level(igrid)
 
             IF (ilevel == ilevelgrid) THEN
-                faceArea      = face_area(igrid, iface)
-                nRecvFaces    = nRecvFaces + 1
-                recvIdxList(1, i) = iprocnbr
-                recvIdxList(2, i) = nVars*faceArea
-                recvIdxList(3, i) = recvCounter + messageLength
-                messageLength = messageLength + nVars*faceArea
+                facearea = face_area(igrid, iface)
+                recvidxlist(1, i) = iprocnbr
+                recvidxlist(2, i) = nvars*facearea
+                recvidxlist(3, i) = recvcounter + messagelength
+                messagelength = messagelength + nvars*facearea
 
-                IF (recvCounter + messageLength > idim_mg_bufs) THEN
+                IF (recvcounter + messagelength > idim_mg_bufs) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END IF
 
-            IF (messageLength > 0) THEN
-                IF (i == iRecv) THEN
-                    CALL post_recv(iprocnbr)
-                ELSE IF (recvConns(2, i + 1) /= iprocnbr) THEN
-                    CALL post_recv(iprocnbr)
+            IF (messagelength > 0) THEN
+                IF (i == irecv) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
+                ELSE IF (recvconns(2, i + 1) /= iprocnbr) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
                 END IF
             END IF
         END DO
@@ -210,55 +146,58 @@ CONTAINS
 
 
     ! Perform a single Recv
-    SUBROUTINE post_recv(iprocnbr)
+    SUBROUTINE post_recv(iprocnbr, messagelength, recvcounter)
         ! Identifier of receive connection
         INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: recvcounter
 
         ! Local variables (for convenience)
         ! none...
 
-        nRecv = nRecv + 1
-        recvList(nRecv) = iprocnbr
+        nrecv = nrecv + 1
+        recvlist(nrecv) = iprocnbr
 
-        CALL MPI_Irecv(recvBuf(recvCounter+1), messageLength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvReqs(nRecv))
+        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
 
-        recvCounter = recvCounter + messageLength
-        messageLength = 0
+        recvcounter = recvcounter + messagelength
+        messagelength = 0
     END SUBROUTINE post_recv
 
 
     ! Perform all send calls
-    SUBROUTINE send_all(ilevel)
+    SUBROUTINE send_all(ilevel, v1, v2, v3, s1, s2, s3, normal)
+        ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        INTEGER(intk) :: i, iprocnbr, igrid, ilevelgrid, iface, faceArea
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: normal
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr, igrid, ilevelgrid
+        INTEGER(int32) :: sendcounter, messagelength
 
         ! Pack all buffers and send data
-        sendCounter = 0
-        messageLength = 0
-        nSend = 0
+        sendcounter = 0
+        messagelength = 0
+        nsend = 0
 
-        DO i = 1, iSend
-            iprocnbr      = sendConns(1, i)
-            igrid         = sendConns(3, i)
-            iface         = sendConns(5, i)
-            ilevelgrid    = level(igrid)
+        DO i = 1, isend
+            iprocnbr = sendconns(1, i)
+            igrid = sendconns(3, i)
+            ilevelgrid = level(igrid)
 
             IF (ilevel == ilevelgrid) THEN
-                faceArea      = face_area(igrid, iface)
-                IF (sendCounter + messageLength + nVars*faceArea &
-                        > idim_mg_bufs) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-                CALL write_buffer(i)
-                messageLength = messageLength + nVars*faceArea
+                CALL write_buffer(i, messagelength, sendcounter, &
+                    v1, v2, v3, s1, s2, s3, normal)
             END IF
 
-            IF (messageLength > 0) THEN
-                IF (i == iSend) THEN
-                    CALL post_send(iprocnbr)
-                ELSE IF (sendConns(1, i + 1) /= iprocnbr) THEN
-                    CALL post_send(iprocnbr)
+            IF (messagelength > 0) THEN
+                IF (i == isend) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
+                ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
                 END IF
             END IF
         END DO
@@ -266,245 +205,179 @@ CONTAINS
 
 
     ! Perform a single send call
-    SUBROUTINE post_send(iprocnbr)
+    SUBROUTINE post_send(iprocnbr, messagelength, sendcounter)
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: sendcounter
 
         ! Local variables (for convenience)
         ! none...
 
-        nSend = nSend + 1
-        sendList(nSend) = iprocnbr
+        nsend = nsend + 1
+        sendlist(nsend) = iprocnbr
 
-        CALL MPI_Isend(sendbuf(sendCounter + 1), messageLength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendReqs(nSend))
+        CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(nsend))
 
-        sendCounter = sendCounter + messageLength
-        messageLength = 0
+        sendcounter = sendcounter + messagelength
+        messagelength = 0
     END SUBROUTINE post_send
 
 
     ! Write Send buffers
     !
     ! Write the relevant fields into the send buffers
-    SUBROUTINE write_buffer(sendId)
-        ! Input parameter
-        INTEGER(int32), INTENT(in) :: sendId
+    SUBROUTINE write_buffer(sendid, messagelength, sendcounter, &
+            v1, v2, v3, s1, s2, s3, normal)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: sendid
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(in) :: sendcounter
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: normal
 
-        ! Grid dimensions and pointers
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: ip3
-
-        ! Indices of start- and stop of iteration over boundary face
-        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
-
-        ! Grid to send from
-        INTEGER(intk) :: igrid, igridc, iface, icomp
-
-        ! Message sizes
-        ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: thisMessageLength, faceArea
-        INTEGER(int32) :: iCount, pos, offset
-
-        ! Iterators
-        INTEGER(intk) :: i, j, k
-        LOGICAL :: exU, exV, exW
+        ! Local variables
+        INTEGER(intk) :: igrid, igridc, iface, nvars
+        INTEGER(int32) :: thismessagelength, facearea, offset
+        LOGICAL :: exU, exV, exW, sn
 
         ! Set variables from send table - *fine* grid and face
-        igrid = sendConns(3, sendId)
-        igridc = sendConns(4, sendId)
-        iface = sendConns(5, sendId)
+        igrid = sendconns(3, sendid)
+        igridc = sendconns(4, sendid)
+        iface = sendconns(5, sendid)
 
-        ! Get grid dimentsions and pointers for coarse grid
-        ! (where data is fetched from)
-        CALL get_mgdims(kk, jj, ii, igridc)
-
-        ! Face area
-        faceArea = face_area(igrid, iface)
-        thisMessageLength = nVars*faceArea
-
-        ! Check that buffer does not overflow
-        IF (sendCounter + messageLength + thisMessageLength > idim_mg_bufs) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Reset message size counter
-        offset = sendCounter + messageLength
-        iCount = 0
+        sn = .FALSE.
+        IF (PRESENT(normal)) sn = normal
 
         ! Which vectors to exchange
         exU = (sn .AND. iface < 3) .OR. (.NOT. sn)
         exV = (sn .AND. (iface > 2 .AND. iface < 5)) .OR. (.NOT. sn)
         exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
 
-        ! Fill buffers
-        IF (ASSOCIATED(u) .AND. exU) THEN
-            CALL u%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (u%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (u%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (u%kstag == 1) icomp = 3
-            END SELECT
+        ! Count number of variables to send
+        nvars = 0
+        IF (PRESENT(v1) .AND. exU) nvars = nvars + 1
+        IF (PRESENT(v2) .AND. exV) nvars = nvars + 1
+        IF (PRESENT(v3) .AND. exW) nvars = nvars + 1
+        IF (PRESENT(s1)) nvars = nvars + 1
+        IF (PRESENT(s2)) nvars = nvars + 1
+        IF (PRESENT(s3)) nvars = nvars + 1
 
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = u%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
+        ! Face area
+        facearea = face_area(igrid, iface)
+        thismessagelength = nvars*facearea
 
-        IF (ASSOCIATED(v) .AND. exV) THEN
-            CALL v%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (v%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (v%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (v%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = v%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (ASSOCIATED(w) .AND. exW) THEN
-            CALL w%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (w%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (w%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (w%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = w%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (ASSOCIATED(p1)) THEN
-            CALL p1%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (p1%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (p1%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (p1%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = p1%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (ASSOCIATED(p2)) THEN
-            CALL p2%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (p2%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (p2%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (p2%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = p2%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (ASSOCIATED(p3)) THEN
-            CALL p3%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (p3%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (p3%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (p3%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = p3%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        ! Check that message length was calculated correctly
-        IF (thisMessageLength /= iCount) THEN
-            write(*, *) "nVars:", nVars, " thisMessageLength:", &
-                thisMessageLength, " iCount:", iCount
+        ! Check that buffer does not overflow
+        IF (sendcounter + messagelength + thismessagelength > idim_mg_bufs) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
+
+        ! Reset message size counter
+        offset = sendcounter + messagelength + 1
+
+        ! Fill buffers
+        IF (PRESENT(v1) .AND. exU) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), v1, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (PRESENT(v2) .AND. exV) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), v2, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (PRESENT(v3) .AND. exW) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), v3, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (PRESENT(s1)) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), s1, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), s2, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            CALL pack_single(sendbuf(offset:offset+facearea-1), s3, igrid, &
+                igridc, iface)
+            offset = offset + facearea
+        END IF
+
+        IF (offset /= sendcounter + messagelength + thismessagelength + 1) THEN
+            WRITE(*, *) "offset:", offset, &
+                "expected:", sendcounter + messagelength + thismessagelength + 1
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        messagelength = messagelength + thismessagelength
     END SUBROUTINE write_buffer
+
+
+    SUBROUTINE pack_single(buf, field, igrid, igridc, iface)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout), CONTIGUOUS :: buf(:)
+        TYPE(field_t), INTENT(inout) :: field
+        INTEGER(intk), INTENT(in) :: igrid, igridc, iface
+
+        ! Local variables
+        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+        INTEGER(intk) :: k, j, i, icomp, icount
+        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
+
+        CALL field%get_ptr(fc, igridc)
+
+        icomp = 0
+        SELECT CASE(iface)
+        CASE (1, 2)
+            IF (field%istag == 1) icomp = 1
+        CASE (3, 4)
+            IF (field%jstag == 1) icomp = 2
+        CASE (5, 6)
+            IF (field%kstag == 1) icomp = 3
+        END SELECT
+
+        CALL start_and_stop(igrid, iface, icomp, ista, isto, &
+            jsta, jsto, ksta, ksto)
+
+        icount = 0
+        DO i = ista, isto
+            DO j = jsta, jsto
+                DO k = ksta, ksto
+                    icount = icount + 1
+                    buf(icount) = fc(k, j, i)
+                END DO
+            END DO
+        END DO
+
+        IF (icount /= SIZE(buf)) THEN
+            WRITE(*, *) "icount:", icount, "SIZE(buf):", SIZE(buf)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE pack_single
 
 
     ! Read Receive buffers
     !
     ! Write the contents of the receive buffers back in their
     ! matching fields
-    SUBROUTINE read_buffer(recvId)
+    SUBROUTINE read_buffer(recvid, v1, v2, v3, s1, s2, s3, normal)
 
-        ! Input parameter
-        INTEGER(intk), INTENT(in) :: recvId
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: recvid
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: normal
 
         ! Grid dimensions and pointers
         INTEGER(intk) :: kk, jj, ii
@@ -517,18 +390,26 @@ CONTAINS
         INTEGER(intk) :: igrid, iface
 
         ! Message sizes
-        ! Must be int32 because it iterface with MPI
+        ! Must be int32 because it interface with MPI
         INTEGER(int32) :: offset
 
-        INTEGER(intk) :: nelem, tmp_buf_size
+        INTEGER(intk) :: facearea, tmp_buf_size
         INTEGER(intk) :: ustag1, ustag2, vstag1, vstag2, wstag1, wstag2
         REAL(realk), POINTER, CONTIGUOUS :: faceptr(:, :)
         REAL(realk), ALLOCATABLE :: tmp_buf(:)
-        LOGICAL :: exU, exV, exW
+        LOGICAL :: exU, exV, exW, sn
 
         ! Set variables from send table
-        igrid = recvConns(3, recvId)
-        iface = recvConns(5, recvId)
+        igrid = recvconns(3, recvid)
+        iface = recvconns(5, recvid)
+
+        sn = .FALSE.
+        IF (PRESENT(normal)) sn = normal
+
+        ! Which vectors to exchange
+        exU = (sn .AND. iface < 3) .OR. (.NOT. sn)
+        exV = (sn .AND. (iface > 2 .AND. iface < 5)) .OR. (.NOT. sn)
+        exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
 
         ! Get grid dimentsions and pointers
         CALL get_mgdims(kk, jj, ii, igrid)
@@ -536,7 +417,7 @@ CONTAINS
         ! Get start- and stop indices of grid
         CALL idx2d(kk, jj, ii, iface, kkc, jjc, iic, jj2d, ii2d, jjc2d, iic2d)
         CALL stag(iface, ustag1, ustag2, vstag1, vstag2, wstag1, wstag2)
-        nelem = face_area(igrid, iface)
+        facearea = face_area(igrid, iface)
 
         ! Allocate temporary work buffer
         tmp_buf_size = MAX(ii*jj, ii*kk, jj*kk)
@@ -544,79 +425,73 @@ CONTAINS
         tmp_buf = 0.0
 
         ! Offset in receive buffer
-        offset = recvIdxList(3, recvId) + 1
+        offset = recvidxlist(3, recvid) + 1
         idx = 0
 
-        exU = (sn .AND. iface < 3) .OR. (.NOT. sn)
-        exV = (sn .AND. (iface > 2 .AND. iface < 5)) .OR. (.NOT. sn)
-        exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
-
-        IF (ASSOCIATED(u) .AND. exU) THEN
-            CALL u%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(v1) .AND. exU) THEN
+            CALL v1%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, ustag1)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, ustag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, ustag2)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
-
-        IF (ASSOCIATED(v) .AND. exV) THEN
-            CALL v%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(v2) .AND. exV) THEN
+            CALL v2%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, vstag1)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, vstag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, vstag2)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
-
-        IF (ASSOCIATED(w) .AND. exW) THEN
-            CALL w%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(v3) .AND. exW) THEN
+            CALL v3%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, wstag1)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, wstag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, wstag2)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
-        IF (ASSOCIATED(p1)) THEN
-            CALL p1%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(s1)) THEN
+            CALL s1%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, 0)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, 0)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
-        IF (ASSOCIATED(p2)) THEN
-            CALL p2%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(s2)) THEN
+            CALL s2%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, 0)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, 0)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
-        IF (ASSOCIATED(p3)) THEN
-            CALL p3%get_buffer(faceptr, igrid, iface)
+        IF (PRESENT(s3)) THEN
+            CALL s3%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, 0)
+                recvbuf(offset+idx:offset+idx+facearea-1), tmp_buf, 0)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, 0)
-            idx = idx + nelem
+            idx = idx + facearea
         END IF
 
         ! Check that message length is calculated correctly
-        IF (idx /= recvIdxList(2, recvId)) THEN
+        IF (idx /= recvidxlist(2, recvid)) THEN
             WRITE(*, *) "idx:", idx, &
-                "recvIdxList(2, recvId):", recvIdxList(2, recvId)
+                "recvidxlist(2, recvid):", recvidxlist(2, recvid)
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -626,84 +501,86 @@ CONTAINS
 
     ! Process receive buffers as they arrive, wait for send
     ! buffers to be free
-    SUBROUTINE process_bufs()
+    SUBROUTINE process_bufs(v1, v2, v3, s1, s2, s3, normal)
+        ! Subroutine arguments
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+        LOGICAL, OPTIONAL, INTENT(in) :: normal
 
         INTEGER(int32) :: idx, i
         TYPE(MPI_Status) :: recvstatus
-        INTEGER(int32) :: recvMessageLen
-        INTEGER(int32) :: unpackLen
+        INTEGER(int32) :: recvmessagelen
+        INTEGER(int32) :: unpacklen
 
         DO WHILE (.TRUE.)
-            IF (nRecv == 0) EXIT
-            CALL MPI_Waitany(nRecv, recvReqs, idx, recvstatus)
+            IF (nrecv == 0) EXIT
+            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN
                 CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
-                    recvMessageLen)
+                    recvmessagelen)
 
-                unpackLen = 0
-                DO i = 1, iRecv
-                    IF (recvIdxList(1, i) == recvList(idx) &
-                            .AND. recvIdxList(2, i) > 0) THEN
-                        CALL read_buffer(i)
-                        unpackLen = unpackLen + recvIdxList(2, i)
+                unpacklen = 0
+                DO i = 1, irecv
+                    IF (recvidxlist(1, i) == recvlist(idx) &
+                            .AND. recvidxlist(2, i) > 0) THEN
+                        CALL read_buffer(i, v1, v2, v3, s1, s2, s3, normal)
+                        unpacklen = unpacklen + recvidxlist(2, i)
                     END IF
                 END DO
 
-                IF (recvMessageLen /= unpackLen) THEN
+                IF (recvmessagelen /= unpacklen) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
             ELSE
                 EXIT
             END IF
         END DO
-        CALL MPI_Waitall(nSend, sendReqs, MPI_STATUSES_IGNORE)
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
     END SUBROUTINE process_bufs
 
 
     SUBROUTINE init_parent()
         INTEGER(intk) :: i, iface, igrid, inbr, iprocnbr, itypbc
 
-        INTEGER(int32), ALLOCATABLE :: maxTag(:)
         INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
         INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
 
         INTEGER(int32) :: ierr
+        INTEGER(intk) :: maxconns
 
         CALL set_timer(210, "PARENT")
 
         ! Maximum number of parents for "simple" cases is number
         ! of grids*6. However, due to the possible prescence of
         ! strange grid structures we add a few more
-        maxConns = INT((nMyGrids+1.0)*6.0*1.2)
-        ALLOCATE(recvConns(7, maxConns))
-        recvConns = 0
+        maxconns = INT((nmygrids+1.0)*6.0*1.2)
+        ALLOCATE(recvconns(5, maxconns))
+        recvconns = 0
 
         ! The maximum number of concurrent communications are the number
         ! of processes
-        ALLOCATE(recvIdxList(3, maxConns))
-        ALLOCATE(sendList(numprocs))
-        ALLOCATE(recvList(numprocs))
-        ALLOCATE(sendReqs(numprocs))
-        ALLOCATE(recvReqs(numprocs))
-        recvIdxList = 0
-        sendList = 0
-        recvList = 0
+        ALLOCATE(recvidxlist(3, maxconns))
+        ALLOCATE(sendlist(numprocs))
+        ALLOCATE(recvlist(numprocs))
+        ALLOCATE(sendreqs(numprocs))
+        ALLOCATE(recvreqs(numprocs))
+        recvidxlist = 0
+        sendlist = 0
+        recvlist = 0
 
-        ALLOCATE(maxTag(0:numprocs-1))
         ALLOCATE(sendcounts(0:numprocs-1))
         ALLOCATE(sdispls(0:numprocs-1))
         ALLOCATE(recvcounts(0:numprocs-1))
         ALLOCATE(rdispls(0:numprocs-1))
-        maxTag = 0
         sendcounts = 0
         sdispls = 0
         recvcounts = 0
         rdispls = 0
 
-        nRecv = 0
+        nrecv = 0
 
-        DO i = 1, nMyGrids
+        DO i = 1, nmygrids
             igrid = myGrids(i)
 
             ! Loop over the boundary faces 1..6
@@ -728,35 +605,31 @@ CONTAINS
                     inbr = iparent(igrid)
                     iprocnbr = idprocofgrd(inbr)
 
-                    nRecv = nRecv + 1
+                    nrecv = nrecv + 1
 
-                    IF (nRecv > maxConns) THEN
+                    IF (nrecv > maxconns) THEN
                         write(*, *) "Number of PAR's exceeded on process ", myid
-                        write(*, *) "maxConns =", maxConns, &
-                            "nMyGrids =", nMyGrids, "nRecv = ", nRecv
+                        write(*, *) "maxconns =", maxconns, &
+                            "nmygrids =", nmygrids, "nrecv = ", nrecv
                         CALL errr(__FILE__, __LINE__)
                     END IF
 
-                    maxTag(iprocnbr) = maxTag(iprocnbr) + 1
-
-                    recvConns(1, nRecv) = myid      ! Receiving process (this process)
-                    recvConns(2, nRecv) = iprocnbr  ! Sending process (neighbour process)
-                    recvConns(3, nRecv) = igrid     ! Receiving grid (on current process)
-                    recvConns(4, nRecv) = inbr      ! Sending grid (on neighbour process)
-                    recvConns(5, nRecv) = iface     ! Which face receive (1..6)
-                    recvConns(6, nRecv) = -1.0      ! unused atm.
-                    recvConns(7, nRecv) = maxTag(iprocnbr)  ! Message tag
+                    recvconns(1, nrecv) = myid      ! Receiving process (this process)
+                    recvconns(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
+                    recvconns(3, nrecv) = igrid     ! Receiving grid (on current process)
+                    recvconns(4, nrecv) = inbr      ! Sending grid (on neighbour process)
+                    recvconns(5, nrecv) = iface     ! Which face receive (1..6)
 
                     sendcounts(iprocnbr) = sendcounts(iprocnbr) &
-                        + SIZE(recvConns, 1)
+                        + SIZE(recvconns, 1)
                 END IF
             END DO
         END DO
 
-        iRecv = nRecv
+        irecv = nrecv
 
-        ! Sort recvConns by process ID
-        CALL sort_conns(recvConns(:, 1:nRecv))
+        ! Sort recvconns by process ID
+        CALL sort_conns(recvconns(:, 1:nrecv), 2)
 
         ! Calculate sdispl offset
         DO i = 1, numprocs-1
@@ -773,71 +646,58 @@ CONTAINS
             rdispls(i) = rdispls(i-1) + recvcounts(i-1)
         END DO
 
-        ! Allocate sendConns array
-        iSend = (rdispls(numprocs-1) &
-            + recvcounts(numprocs-1))/SIZE(recvConns, 1)
-        ALLOCATE(sendConns(7, iSend))
-        sendConns = 0
+        ! Allocate sendconns array
+        isend = (rdispls(numprocs-1) &
+            + recvcounts(numprocs-1))/SIZE(recvconns, 1)
+        ALLOCATE(sendconns(5, isend))
+        sendconns = 0
 
         ! Exchange connection information
-        CALL MPI_Alltoallv(recvConns, sendcounts, sdispls, MPI_INTEGER, &
-            sendConns, recvcounts, rdispls, MPI_INTEGER, &
+        CALL MPI_Alltoallv(recvconns, sendcounts, sdispls, MPI_INTEGER, &
+            sendconns, recvcounts, rdispls, MPI_INTEGER, &
             MPI_COMM_WORLD)
 
         is_init = .TRUE.
 
-        nRecv = 0
-
-        ! Nullify pointers
-        nullify(u)
-        nullify(v)
-        nullify(w)
-        nullify(p1)
-        nullify(p2)
-        nullify(p3)
+        nrecv = 0
     END SUBROUTINE init_parent
 
 
     SUBROUTINE finish_parent()
-        DEALLOCATE(sendConns)
-        DEALLOCATE(recvConns)
-        DEALLOCATE(sendReqs)
-        DEALLOCATE(recvReqs)
-        DEALLOCATE(sendList)
-        DEALLOCATE(recvList)
-        DEALLOCATE(recvIdxList)
+        DEALLOCATE(sendconns)
+        DEALLOCATE(recvconns)
+        DEALLOCATE(sendreqs)
+        DEALLOCATE(recvreqs)
+        DEALLOCATE(sendlist)
+        DEALLOCATE(recvlist)
+        DEALLOCATE(recvidxlist)
         is_init = .FALSE.
     END SUBROUTINE finish_parent
 
 
-    SUBROUTINE sort_conns(list)
-        ! Input array to be sorted
-        INTEGER(int32), INTENT(inout) :: list(:, :)
+    SUBROUTINE sort_conns(list, col)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: list(:, :)
+        INTEGER(intk), INTENT(in) :: col
 
-        INTEGER(intk) :: i, j
+        ! Local variables
+        INTEGER(intk) :: i, n
+        INTEGER(intk), ALLOCATABLE :: tmplist(:, :)
+        INTEGER(intk), ALLOCATABLE :: idx(:)
 
-        ! Temporary storage
-        INTEGER(int32) :: temp(7)
+        ! sortix does not like n = 0 - this happens in one-level testcases
+        n = SIZE(list, 2)
+        IF (n == 0) RETURN
 
-        IF (SIZE(list, 1) /= SIZE(temp)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ALLOCATE(idx(n))
+        CALL sortix(n, list(col, :), idx)
 
-        ! Sort by sending processor number (field 2)
-        DO i = 2, SIZE(list, 2)
-            j = i - 1
-            temp(:) = list(:, i)
-            DO WHILE (j >= 1)
-                IF (list(2, j) > temp(2)) THEN
-                    list(:, j+1) = list(:, j)
-                    j = j - 1
-                ELSE
-                    EXIT
-                END IF
-            END DO
-            list(:, j+1) = temp(:)
+        ! Transfer data to sorted list
+        ALLOCATE(tmplist, SOURCE=list)
+        DO i = 1, n
+            list(:, i) = tmplist(:, idx(i))
         END DO
-
+        DEALLOCATE(tmplist)
     END SUBROUTINE sort_conns
 
 
@@ -991,25 +851,25 @@ CONTAINS
         INTEGER(intk), INTENT(IN) :: istag
 
         ! Local variables
-        INTEGER(intk) :: jf, ic, jc
+        INTEGER(intk) :: j, ic, jc
 
         ! Variable non-staggered in first dir.
         IF (istag == 0) THEN
             DO ic = 1, iic
-                DO jf = 1, jj, 2
-                    jc = 2 + (jf-1)/2
-                    out(jf, ic) = in(jc, ic)
-                    out(jf+1, ic) = in(jc, ic)
+                DO j = 1, jj, 2
+                    jc = 2 + (j-1)/2
+                    out(j, ic) = in(jc, ic)
+                    out(j+1, ic) = in(jc, ic)
                 END DO
             END DO
 
         ! Variable staggered in first dir.
         ELSE IF (istag == 1) THEN
             DO ic = 1, iic
-                DO jf = 1, jj, 2
-                    jc = 2 + (jf-1)/2
-                    out(jf, ic) = 0.5*(in(jc, ic) + in(jc-1, ic))
-                    out(jf+1, ic) = in(jc, ic)
+                DO j = 1, jj, 2
+                    jc = 2 + (j-1)/2
+                    out(j, ic) = 0.5*(in(jc, ic) + in(jc-1, ic))
+                    out(j+1, ic) = in(jc, ic)
                 END DO
             END DO
         ELSE
@@ -1027,25 +887,25 @@ CONTAINS
         INTEGER(intk), INTENT(IN) :: istag
 
         ! Local variables
-        INTEGER(intk) :: if, jf, ic
+        INTEGER(intk) :: i, j, ic
 
         ! Variable non-staggered in second dir.
         IF (istag == 0) THEN
-            DO if = 1, ii, 2
-                ic = 2 + (if-1)/2
-                DO jf = 1, jj
-                    out(jf, if) = in(jf, ic)
-                    out(jf, if+1) = in(jf, ic)
+            DO i = 1, ii, 2
+                ic = 2 + (i-1)/2
+                DO j = 1, jj
+                    out(j, i) = in(j, ic)
+                    out(j, i+1) = in(j, ic)
                 END DO
             END DO
 
         ! Variable staggered in second dir.
         ELSE IF (istag == 1) THEN
-            DO if = 1, ii, 2
-                ic = 2 + (if-1)/2
-                DO jf = 1, jj
-                    out(jf, if) = 0.5*(in(jf, ic) + in(jf, ic-1))
-                    out(jf, if+1) = in(jf, ic)
+            DO i = 1, ii, 2
+                ic = 2 + (i-1)/2
+                DO j = 1, jj
+                    out(j, i) = 0.5*(in(j, ic) + in(j, ic-1))
+                    out(j, i+1) = in(j, ic)
                 END DO
             END DO
         ELSE
