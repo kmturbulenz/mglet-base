@@ -45,7 +45,7 @@ CONTAINS
         converged = .FALSE.
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, knoten%arr, knoten%arr, 'N')
+                CALL ftoc(ilevel, knoten, knoten, 'N')
             END DO
 
             nfilled_tot = 0

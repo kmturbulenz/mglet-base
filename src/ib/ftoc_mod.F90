@@ -61,16 +61,14 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
 
         ! Fields to be interpolated
-        REAL(realk), CONTIGUOUS, INTENT(inout) :: ff_p(:)
-
-        ! field on the fine grid
-        REAL(realk), CONTIGUOUS, INTENT(inout) :: fc_p(:)
+        TYPE(field_t), INTENT(inout) :: ff_p
+        TYPE(field_t), INTENT(inout) :: fc_p
 
         ! flag to specify the mode
         CHARACTER(len=1), INTENT(in) :: flag_p
 
         CALL start_timer(220)
-        CALL ftoc_begin(ff_p, fc_p, flag_p, noflevel(ilevel), &
+        CALL ftoc_begin(ff_p%arr, fc_p%arr, flag_p, noflevel(ilevel), &
             igrdoflevel(1, ilevel))
         CALL ftoc_end()
         CALL stop_timer(220)

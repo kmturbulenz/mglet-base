@@ -92,7 +92,7 @@ CONTAINS
             END IF
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, t%arr, t%arr, 'T')
+                CALL ftoc(ilevel, t, t, 'T')
             END DO
 
             CALL connect(layers=2, s1=t, corners=.TRUE.)

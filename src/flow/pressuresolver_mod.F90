@@ -330,7 +330,7 @@ CONTAINS
         CALL ib%divcal(rhs, u, v, w, prefak)
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, rhs%arr, rhs%arr, 'R')
+            CALL ftoc(ilevel, rhs, rhs, 'R')
         END DO
 
         ! For debug logging
@@ -369,7 +369,7 @@ CONTAINS
             ! vom feinsten zum groebsten (fine to coarse)
             ! hilf = 0.0
             DO ilevel = maxlevel, minlevel, -1
-                CALL ftoc(ilevel, hilf%arr, hilf%arr, 'P')
+                CALL ftoc(ilevel, hilf, hilf, 'P')
             END DO
 
             ! --- intermediate state ---
@@ -387,8 +387,8 @@ CONTAINS
             ! rhs <- rhs + res
             CALL rescal(rhs, res)
 
-            DO ilevel = maxlevel, minlevel, -1
-                CALL ftoc(ilevel, rhs%arr, rhs%arr, 'R')
+            DO ilevel = maxlevel, minlevel+1, -1
+                CALL ftoc(ilevel, rhs, rhs, 'R')
             END DO
 
             ! Max of RHS scaled according to levels
@@ -449,10 +449,10 @@ CONTAINS
         ! Velocity fields are modified and become solenoidal based on DP
         CALL mgpcorr(u, v, w, p, dp, dt/rho, bp)
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, u%arr, u%arr, 'U')
-            CALL ftoc(ilevel, v%arr, v%arr, 'V')
-            CALL ftoc(ilevel, w%arr, w%arr, 'W')
-            CALL ftoc(ilevel, p%arr, p%arr, 'P')
+            CALL ftoc(ilevel, u, u, 'U')
+            CALL ftoc(ilevel, v, v, 'V')
+            CALL ftoc(ilevel, w, w, 'W')
+            CALL ftoc(ilevel, p, p, 'P')
         END DO
 
         ! All levels (coarse to fine)
