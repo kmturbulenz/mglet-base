@@ -675,32 +675,6 @@ CONTAINS
     END SUBROUTINE finish_parent
 
 
-    SUBROUTINE sort_conns(list, col)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: list(:, :)
-        INTEGER(intk), INTENT(in) :: col
-
-        ! Local variables
-        INTEGER(intk) :: i, n
-        INTEGER(intk), ALLOCATABLE :: tmplist(:, :)
-        INTEGER(intk), ALLOCATABLE :: idx(:)
-
-        ! sortix does not like n = 0 - this happens in one-level testcases
-        n = SIZE(list, 2)
-        IF (n == 0) RETURN
-
-        ALLOCATE(idx(n))
-        CALL sortix(n, list(col, :), idx)
-
-        ! Transfer data to sorted list
-        ALLOCATE(tmplist, SOURCE=list)
-        DO i = 1, n
-            list(:, i) = tmplist(:, idx(i))
-        END DO
-        DEALLOCATE(tmplist)
-    END SUBROUTINE sort_conns
-
-
     SUBROUTINE idx2d(kk, jj, ii, iface, kkc, jjc, iic, jj2d, ii2d, jjc2d, iic2d)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, iface
