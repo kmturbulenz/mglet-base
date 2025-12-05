@@ -449,10 +449,7 @@ CONTAINS
         ! Velocity fields are modified and become solenoidal based on DP
         CALL mgpcorr(u, v, w, p, dp, dt/rho, bp)
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, u, u, 'U')
-            CALL ftoc(ilevel, v, v, 'V')
-            CALL ftoc(ilevel, w, w, 'W')
-            CALL ftoc(ilevel, p, p, 'P')
+            CALL ftoc(ilevel, u, v, w, p)
         END DO
 
         ! All levels (coarse to fine)

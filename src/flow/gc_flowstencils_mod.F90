@@ -1416,9 +1416,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u, u, 'U')
-            CALL ftoc(ilevel, v, v, 'V')
-            CALL ftoc(ilevel, w, w, 'W')
+            CALL ftoc(ilevel, u, v, w)
             CALL par_ftoc_norm(ilevel, u, v, w)
         END DO
 
