@@ -10,7 +10,6 @@ MODULE core_mod
     USE config_mod
     USE connect2_mod
     USE corefields_mod
-    USE dlopen_mod
     USE envvars_mod
     USE err_mod
     USE expression_mod
@@ -107,7 +106,6 @@ CONTAINS
 
         CALL init_hdf5common()
         CALL init_fort7()
-        CALL init_dlopen()
         CALL init_grids()
         CALL init_pointers()
         CALL init_commbuf()
@@ -136,7 +134,6 @@ CONTAINS
         CALL finish_commbuf()
         CALL finish_pointers()
         CALL finish_grids()
-        CALL finish_dlopen()
         CALL finish_fort7()
         CALL finish_hdf5common()
 

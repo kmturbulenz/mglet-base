@@ -10,7 +10,6 @@ add_library(core STATIC
     corefields_mod.F90
     core_mod.F90
     create_directory.c
-    dlopen_mod.F90
     envvars_mod.F90
     err_mod.F90
     expression_mod.F90

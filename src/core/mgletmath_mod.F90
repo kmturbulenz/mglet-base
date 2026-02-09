@@ -26,7 +26,7 @@ CONTAINS
 
     PURE SUBROUTINE zero_ghostlayers_grid(field)
         ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: field(:, :, :)
+        REAL(realk), INTENT(inout), CONTIGUOUS :: field(:, :, :)
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
