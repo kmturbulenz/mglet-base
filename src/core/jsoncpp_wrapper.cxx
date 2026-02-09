@@ -182,12 +182,12 @@ extern "C" {
     }
 
     void json_get_bool(jsoncppc_t* jsonc, const char* key,
-            _Bool* val, int* ierr) {
+	    bool* val, int* ierr) {
         json_get_number(jsonc, key, val, ierr);
     }
 
     void json_set_bool(jsoncppc_t* jsonc, const char* key,
-            const _Bool* val, int* ierr) {
+	    const bool* val, int* ierr) {
         json_set_number(jsonc, key, val, ierr);
     }
 
@@ -261,7 +261,7 @@ extern "C" {
 
 
     void json_exists(jsoncppc_t* jsonc, const char* key,
-            _Bool* exists, int* type, int* ierr) {
+        bool* exists, int* type, int* ierr) {
 
         *ierr = 0;
         *exists = false;
@@ -329,7 +329,7 @@ void json_get_number(jsoncppc_t* jsonc, const char* key, T* val, int* ierr) {
             return;
         }
         else if ((std::is_same<T, bool>::value ||
-                std::is_same<T, _Bool>::value)
+		std::is_same<T, bool>::value)
                 && !value.is_boolean()) {
             std::cerr << "Invalid datatype for key: " << key << "\n";
             std::cerr << "Expected logical, got: " << value << "\n";
@@ -378,7 +378,7 @@ void json_set_number(jsoncppc_t* jsonc, const char* key,
     json* obj = static_cast<json *>(jsonc->obj);
 
     // Check is entry exists
-    _Bool exists;
+	bool exists;
     int type;
     json_exists(jsonc, key, &exists, &type, ierr);
     if (*ierr != 0) {
@@ -408,7 +408,7 @@ void json_set_number(jsoncppc_t* jsonc, const char* key,
             return;
         }
         else if ((std::is_same<T, bool>::value ||
-                std::is_same<T, _Bool>::value)
+		std::is_same<T, bool>::value)
                 && !value.is_boolean()) {
             std::cerr << "Invalid datatype for key: " << key << "\n";
             std::cerr << "Expected logical, got: " << value << "\n";

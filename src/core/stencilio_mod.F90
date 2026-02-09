@@ -1089,7 +1089,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        CLASS(*), INTENT(in) :: list(:)
+        CLASS(*), INTENT(in), CONTIGUOUS :: list(:)
         LOGICAL, OPTIONAL, INTENT(in) :: index
 
         ! Local variables
@@ -1328,7 +1328,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        CLASS(*), INTENT(OUT) :: list(:)
+        CLASS(*), INTENT(OUT), CONTIGUOUS :: list(:)
 
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: gridid(:)
@@ -1440,8 +1440,8 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        INTEGER(kind=int64), INTENT(OUT) :: file_offset(:)
-        INTEGER(kind=intk), INTENT(OUT) :: file_length(:)
+        INTEGER(kind=int64), INTENT(OUT), CONTIGUOUS :: file_offset(:)
+        INTEGER(kind=intk), INTENT(OUT), CONTIGUOUS :: file_length(:)
 
         ! Local variables
         INTEGER(kind=intk) :: i, nelemstot
@@ -1478,7 +1478,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        CLASS(*), INTENT(OUT) :: list(:)
+        CLASS(*), INTENT(OUT), CONTIGUOUS :: list(:)
 
         ! Local variables
         INTEGER(intk) :: rank, nelemstot
@@ -1571,7 +1571,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        CLASS(*), INTENT(INOUT), TARGET :: list(:)
+        CLASS(*), INTENT(INOUT), CONTIGUOUS, TARGET :: list(:)
 
         ! Local variables
         INTEGER(HSIZE_T) :: shape(1)
@@ -1698,7 +1698,7 @@ CONTAINS
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(IN) :: group_id
         CHARACTER(LEN=*), INTENT(IN) :: name
-        CLASS(*), INTENT(in), TARGET :: list(:)
+        CLASS(*), INTENT(in), CONTIGUOUS, TARGET :: list(:)
 
         ! Local variables
         INTEGER(HSIZE_T) :: shape(1)

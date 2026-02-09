@@ -16,7 +16,7 @@ MODULE tensormath_mod
         PROCEDURE, PUBLIC, NON_OVERRIDABLE :: det
         PROCEDURE, PUBLIC, NON_OVERRIDABLE :: eig_a, eig_b
 
-#if defined __GNUC__
+#if defined __GFORTRAN__
         PROCEDURE :: add
         PROCEDURE :: subtract
         PROCEDURE :: multiply
@@ -254,6 +254,9 @@ CONTAINS
         ! a3 = (1.0/3.0)*ACOS(a2/a1**(3.0/2.0))
         ! Due to numerical inaccuracies the argument to ACOS can be slightly
         ! outside the range -1.0 to 1.0, clip to this range
+        ! The same applies for a1, which due to numerical inaccuracies can
+        ! get negative.
+        a1 = MAX(a1, 0.0_realk)
         arg = divide0(a2, a1**(3.0_realk/2.0_realk))
         arg = MAX(MIN(arg, 1.0_realk), -1.0_realk)
         a3 = (1.0_realk/3.0_realk)*ACOS(arg)

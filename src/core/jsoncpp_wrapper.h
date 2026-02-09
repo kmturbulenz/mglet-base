@@ -2,7 +2,6 @@
 #define __JSONCPP_C_H__
 
 #include <cstddef>
-#include <cstdbool>
 #include <cstdint>
 
 extern "C" {
@@ -24,8 +23,8 @@ void json_get_float(jsoncppc_t*, const char*, float*, int*);
 void json_set_float(jsoncppc_t*, const char*, const float*, int*);
 void json_get_double(jsoncppc_t*, const char*, double*, int*);
 void json_set_double(jsoncppc_t*, const char*, const double*, int*);
-void json_get_bool(jsoncppc_t*, const char*, _Bool*, int*);
-void json_set_bool(jsoncppc_t*, const char*, const _Bool*, int*);
+void json_get_bool(jsoncppc_t*, const char*, bool*, int*);
+void json_set_bool(jsoncppc_t*, const char*, const bool*, int*);
 void json_get_char(jsoncppc_t*, const char*, char*, const size_t,
     size_t*, int*);
 void json_set_char(jsoncppc_t*, const char*, const char*, int*);
@@ -36,7 +35,7 @@ void json_get_float_arr(jsoncppc_t*, const char*, float*, const size_t, int*);
 void json_get_double_arr(jsoncppc_t*, const char*, double*, const size_t, int*);
 
 void json_get_size(jsoncppc_t*, const char*, size_t* size, int*);
-void json_exists(jsoncppc_t*, const char*, _Bool*, int*, int*);
+void json_exists(jsoncppc_t*, const char*, bool*, int*, int*);
 
 }
 
