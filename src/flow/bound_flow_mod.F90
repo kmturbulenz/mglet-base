@@ -36,8 +36,7 @@ CONTAINS
         REAL(realk) :: flag, vi, wi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :), vbuf(:, :), wbuf(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: ddy(:), ddz(:)
 
         ! Return early when no action is to be taken
@@ -58,9 +57,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddy, "DDY", igrid)
@@ -92,9 +94,9 @@ CONTAINS
         CASE ("FIX")
             DO j = 1, jj
                 DO k = 1, kk
-                    u(k, j, istag2) = ubuf(k, j, 1)
-                    v(k, j, i2) = 2.0*vbuf(k, j, 1) - v(k, j, i3)
-                    w(k, j, i2) = 2.0*wbuf(k, j, 1) - w(k, j, i3)
+                    u(k, j, istag2) = ubuf(k, j)
+                    v(k, j, i2) = 2.0*vbuf(k, j) - v(k, j, i3)
+                    w(k, j, i2) = 2.0*wbuf(k, j) - w(k, j, i3)
                 END DO
             END DO
         CASE ("OP1")
@@ -109,13 +111,13 @@ CONTAINS
                         dir*(u(k, j, istag2) + u(k, j+1, istag2)))
                     flag = 0.5*(flag + 1.0)
                     v(k, j, i2) = flag*v(k, j, i3) &
-                        + (1.0-flag)*(2.0*vbuf(k, j, 1) - v(k, j, i3))
+                        + (1.0-flag)*(2.0*vbuf(k, j) - v(k, j, i3))
 
                     flag = SIGN(1.0_realk, &
                         dir*(u(k, j, istag2) + u(k+1, j, istag2)))
                     flag = 0.5*(flag + 1.0)
                     w(k, j, i2) = flag*w(k, j, i3) &
-                        + (1.0-flag)*(2.0*wbuf(k, j, 1) - w(k, j, i3))
+                        + (1.0-flag)*(2.0*wbuf(k, j) - w(k, j, i3))
                 END DO
             END DO
         CASE ("NOS")
@@ -140,10 +142,10 @@ CONTAINS
                 DO k = 2, kk-1
                     sbv = bp(k, j, i2)*bp(k, j+1, i2)
                     sbw = bp(k, j, i2)*bp(k+1, j, i2)
-                    v(k, j, i2) = (vbuf(k, j, 1) &
+                    v(k, j, i2) = (vbuf(k, j) &
                         - 0.5*(v(k, j, i3) - v(k, j, i4)))*sbv &
                         + (1.0-sbv)*v(k, j, i2)
-                    w(k, j, i2) = (wbuf(k, j, 1) &
+                    w(k, j, i2) = (wbuf(k, j) &
                         - 0.5*(w(k, j, i3)-w(k, j, i4)))*sbw &
                         + (1.0-sbw)*w(k, j, i2)
                 END DO
@@ -204,13 +206,13 @@ CONTAINS
                         + u(k+1, j+1, istag2)*(1.0-sb14)*ddy(j+1)*ddz(k+1)) &
                         /((ddy(j)+ddy(j+1))*(ddz(k)+ddz(k+1)))
 
-                    u(k, j, istag2) = (ubuf(k, j, 1)-ubfine)*fak*sb11 &
+                    u(k, j, istag2) = (ubuf(k, j)-ubfine)*fak*sb11 &
                         + (1.0-sb11)*u(k, j, istag2)*sbu
-                    u(k, j+1, istag2) = (ubuf(k, j+1, 1)-ubfine)*fak*sb12 &
+                    u(k, j+1, istag2) = (ubuf(k, j+1)-ubfine)*fak*sb12 &
                         + (1.0-sb12)*u(k, j+1, istag2)*sbu
-                    u(k+1, j, istag2) = (ubuf(k+1, j, 1)-ubfine)*fak*sb13 &
+                    u(k+1, j, istag2) = (ubuf(k+1, j)-ubfine)*fak*sb13 &
                         + (1.0-sb13)*u(k+1, j, istag2)*sbu
-                    u(k+1, j+1, istag2) = (ubuf(k+1, j+1, 1)-ubfine)*fak*sb14 &
+                    u(k+1, j+1, istag2) = (ubuf(k+1, j+1)-ubfine)*fak*sb14 &
                         + (1.0-sb14)*u(k+1, j+1, istag2)*sbu
                 END DO
             END DO
@@ -270,8 +272,7 @@ CONTAINS
         REAL(realk) :: flag, ui, wi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :), vbuf(:, :), wbuf(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddz(:)
 
         ! Return early when no action is to be taken
@@ -292,9 +293,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddx, "DDX", igrid)
@@ -326,9 +330,9 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO k = 1, kk
-                    u(k, j2, i) = 2.0*ubuf(k, i, 1) - u(k, j3, i)
-                    v(k, jstag2, i) = vbuf(k, i, 1)
-                    w(k, j2, i) = 2.0*wbuf(k, i, 1) - w(k, j3, i)
+                    u(k, j2, i) = 2.0*ubuf(k, i) - u(k, j3, i)
+                    v(k, jstag2, i) = vbuf(k, i)
+                    w(k, j2, i) = 2.0*wbuf(k, i) - w(k, j3, i)
                 END DO
             END DO
         CASE ("OP1")
@@ -340,7 +344,7 @@ CONTAINS
                         dir*(v(k, jstag2, i) + v(k, jstag2, i+1)))
                     flag = 0.5*(flag + 1.0)
                     u(k, j2, i) = flag*u(k, j3, i) &
-                        + (1.0-flag)*(2.0*ubuf(k, i, 1) - u(k, j3, i))
+                        + (1.0-flag)*(2.0*ubuf(k, i) - u(k, j3, i))
 
                     ! Interface-normal velocity is always zero-gradient for OP1
                     v(k, jstag1, i) = v(k, jstag2, i)
@@ -351,7 +355,7 @@ CONTAINS
                         dir*(v(k, jstag2, i) + v(k+1, jstag2, i)))
                     flag = 0.5*(flag + 1.0)
                     w(k, j2, i) = flag*w(k, j3, i) &
-                        + (1.0-flag)*(2.0*wbuf(k, i, 1) - w(k, j3, i))
+                        + (1.0-flag)*(2.0*wbuf(k, i) - w(k, j3, i))
                 END DO
             END DO
         CASE ("NOS")
@@ -376,10 +380,10 @@ CONTAINS
                 DO k = 2, kk-1
                     sbu = bp(k, j2, i)*bp(k, j2, i+1)
                     sbw = bp(k, j2, i)*bp(k+1, j2, i)
-                    u(k, j2, i) = (ubuf(k, i, 1) &
+                    u(k, j2, i) = (ubuf(k, i) &
                         - 0.5*(u(k, j3, i) - u(k, j4, i)))*sbu &
                         + (1.0-sbu)*u(k, j2, i)
-                    w(k, j2, i) = (wbuf(k, i, 1) &
+                    w(k, j2, i) = (wbuf(k, i) &
                         - 0.5*(w(k, j2, i)-w(k, j4, i)))*sbw &
                         + (1.0-sbw)*w(k, j2, i)
                 END DO
@@ -440,13 +444,13 @@ CONTAINS
                         + v(k+1, jstag2, i+1)*(1.0-sb14)*ddz(k+1)*ddx(i+1)) &
                         /((ddz(k)+ddz(k+1))*(ddx(i)+ddx(i+1)))
 
-                    v(k, jstag2, i) = (vbuf(k, i, 1)-vbfine)*fak*sb11 &
+                    v(k, jstag2, i) = (vbuf(k, i)-vbfine)*fak*sb11 &
                         + v(k, jstag2, i)*(1.-sb11)*sbv
-                    v(k, jstag2, i+1) = (vbuf(k, i+1, 1)-vbfine)*fak*sb12 &
+                    v(k, jstag2, i+1) = (vbuf(k, i+1)-vbfine)*fak*sb12 &
                         + v(k, jstag2, i+1)*(1.-sb12)*sbv
-                    v(k+1, jstag2, i) = (vbuf(k+1, i, 1)-vbfine)*fak*sb13 &
+                    v(k+1, jstag2, i) = (vbuf(k+1, i)-vbfine)*fak*sb13 &
                         + v(k+1, jstag2, i)*(1.-sb13)*sbv
-                    v(k+1, jstag2, i+1) = (vbuf(k+1, i+1, 1)-vbfine)*fak*sb14 &
+                    v(k+1, jstag2, i+1) = (vbuf(k+1, i+1)-vbfine)*fak*sb14 &
                         + v(k+1, jstag2, i+1)*(1.-sb14)*sbv
                 END DO
             END DO
@@ -506,8 +510,7 @@ CONTAINS
         REAL(realk) :: flag, ui, vi
         REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
             w(:, :, :), p(:, :, :), bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :, :), vbuf(:, :, :), &
-            wbuf(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ubuf(:, :), vbuf(:, :), wbuf(:, :)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:)
 
         ! Return early when no action is to be taken
@@ -528,9 +531,12 @@ CONTAINS
         CALL f2%get_ptr(v, igrid)
         CALL f3%get_ptr(w, igrid)
 
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        SELECT CASE (ctyp)
+        CASE ("FIX", "OP1", "PAR")
+            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
+            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
+            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
         CALL get_fieldptr(ddx, "DDX", igrid)
@@ -562,9 +568,9 @@ CONTAINS
         CASE ("FIX")
             DO i = 1, ii
                 DO j = 1, jj
-                    u(k2, j, i) = 2.0*ubuf(j, i, 1) - u(k3, j, i)
-                    v(k2, j, i) = 2.0*vbuf(j, i, 1) - v(k3, j, i)
-                    w(kstag2, j, i) = wbuf(j, i, 1)
+                    u(k2, j, i) = 2.0*ubuf(j, i) - u(k3, j, i)
+                    v(k2, j, i) = 2.0*vbuf(j, i) - v(k3, j, i)
+                    w(kstag2, j, i) = wbuf(j, i)
                 END DO
             END DO
         CASE ("OP1")
@@ -576,13 +582,13 @@ CONTAINS
                         dir*(w(kstag2, j, i) + w(kstag2, j, i+1)))
                     flag = 0.5*(flag + 1.0)
                     u(k2, j, i) = flag*u(k3, j, i) &
-                        + (1.0-flag)*(2*ubuf(j, i, 1) - u(k3, j, i))
+                        + (1.0-flag)*(2*ubuf(j, i) - u(k3, j, i))
 
                     flag = SIGN(1.0_realk, &
                         dir*(w(kstag2, j, i) + w(kstag2, j+1, i)))
                     flag = 0.5*(flag + 1.0)
                     v(k2, j, i) = flag*v(k3, j, i) &
-                        + (1.0-flag)*(2.0*vbuf(j, i, 1) - v(k3, j, i))
+                        + (1.0-flag)*(2.0*vbuf(j, i) - v(k3, j, i))
 
                     ! Interface-normal velocity is always zero-gradient for OP1
                     w(kstag1, j, i) = w(kstag2, j, i)
@@ -610,10 +616,10 @@ CONTAINS
                 DO j = 2, jj-1
                     sbu = bp(k2, j, i)*bp(k2, j, i+1)
                     sbv = bp(k2, j, i)*bp(k2, j+1, i)
-                    u(k2, j, i) = (ubuf(j, i, 1) &
+                    u(k2, j, i) = (ubuf(j, i) &
                         - 0.5*(u(k3, j, i) - u(k4, j, i)))*sbu &
                         + (1.0-sbu)*u(k2, j, i)
-                    v(k2, j, i) = (vbuf(j, i, 1) &
+                    v(k2, j, i) = (vbuf(j, i) &
                         - 0.5*(v(k3, j, i) - v(k4, j, i)))*sbv &
                         + (1.0-sbv)*v(k2, j, i)
                 END DO
@@ -674,13 +680,13 @@ CONTAINS
                         + w(kstag2, j+1, i+1)*(1.0-sb14)*ddy(j+1)*ddx(i+1)) &
                         /((ddy(j)+ddy(j+1))*(ddx(i)+ddx(i+1)))
 
-                    w(kstag2, j, i) = (wbuf(j, i, 1)-wbfine)*fak*sb11 &
+                    w(kstag2, j, i) = (wbuf(j, i)-wbfine)*fak*sb11 &
                         + w(kstag2, j, i)*(1.0-sb11)*sbw
-                    w(kstag2, j, i+1) = (wbuf(j, i+1, 1)-wbfine)*fak*sb12 &
+                    w(kstag2, j, i+1) = (wbuf(j, i+1)-wbfine)*fak*sb12 &
                         + w(kstag2, j, i+1)*(1.0-sb12)*sbw
-                    w(kstag2, j+1, i) = (wbuf(j+1, i, 1)-wbfine)*fak*sb13 &
+                    w(kstag2, j+1, i) = (wbuf(j+1, i)-wbfine)*fak*sb13 &
                         + w(kstag2, j+1, i)*(1.0-sb13)*sbw
-                    w(kstag2, j+1, i+1) = (wbuf(j+1, i+1, 1)-wbfine)*fak*sb14 &
+                    w(kstag2, j+1, i+1) = (wbuf(j+1, i+1)-wbfine)*fak*sb14 &
                         + w(kstag2, j+1, i+1)*(1.0-sb14)*sbw
                 END DO
             END DO

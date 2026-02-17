@@ -53,10 +53,6 @@ MODULE parent_mod
     ! been created.
     LOGICAL :: is_init = .FALSE.
 
-    ! Pack also bu, bv, bw with vectors and use for prolongation
-    ! TODO: implement!
-    LOGICAL :: pack_buvw = .FALSE.
-
     ! Fields
     TYPE(field_t), POINTER :: u => NULL(), v => NULL(), w => NULL(), &
         p1 => NULL(), p2 => NULL(), p3 => NULL()
@@ -314,8 +310,6 @@ CONTAINS
         INTEGER(intk) :: i, j, k
         LOGICAL :: exU, exV, exW
 
-        TYPE(field_t), POINTER :: bu
-
         ! Set variables from send table - *fine* grid and face
         igrid = sendConns(3, sendId)
         igridc = sendConns(4, sendId)
@@ -342,85 +336,6 @@ CONTAINS
         exU = (sn .AND. iface < 3) .OR. (.NOT. sn)
         exV = (sn .AND. (iface > 2 .AND. iface < 5)) .OR. (.NOT. sn)
         exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
-
-        ! Pack BU, BV, BW if requested
-        IF (exU .AND. pack_buvw) THEN
-            CALL get_field(bu, "BU")
-            CALL bu%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (bu%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (bu%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (bu%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = bu%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (exV .AND. pack_buvw) THEN
-            CALL get_field(bu, "BV")
-            CALL bu%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (bu%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (bu%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (bu%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = bu%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (exW .AND. pack_buvw) THEN
-            CALL get_field(bu, "BW")
-            CALL bu%get_ip(ip3, igridc)
-            icomp = 0
-            SELECT CASE(iface)
-                CASE (1, 2)
-                    IF (bu%istag == 1) icomp = 1
-                CASE (3, 4)
-                    IF (bu%jstag == 1) icomp = 2
-                CASE (5, 6)
-                    IF (bu%kstag == 1) icomp = 3
-            END SELECT
-
-            CALL start_and_stop(igrid, iface, icomp, ista, isto, &
-                jsta, jsto, ksta, ksto)
-            DO i = ista, isto
-                DO j = jsta, jsto
-                    DO k = ksta, ksto
-                        iCount = iCount + 1
-                        pos = jj*kk*(i-1) + kk*(j-1) + (k-1)
-                        sendbuf(offset + iCount) = bu%arr(ip3 + pos)
-                    END DO
-                END DO
-            END DO
-        END IF
 
         ! Fill buffers
         IF (ASSOCIATED(u) .AND. exU) THEN
@@ -605,11 +520,9 @@ CONTAINS
         ! Must be int32 because it iterface with MPI
         INTEGER(int32) :: offset
 
-        INTEGER(intk) :: nelem, tmp_buf_size, bu_len
+        INTEGER(intk) :: nelem, tmp_buf_size
         INTEGER(intk) :: ustag1, ustag2, vstag1, vstag2, wstag1, wstag2
-        REAL(realk), POINTER, CONTIGUOUS :: faceptr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bu_ptr(:, :), bv_ptr(:, :), &
-            bw_ptr(:, :)
+        REAL(realk), POINTER, CONTIGUOUS :: faceptr(:, :)
         REAL(realk), ALLOCATABLE :: tmp_buf(:)
         LOGICAL :: exU, exV, exW
 
@@ -638,37 +551,13 @@ CONTAINS
         exV = (sn .AND. (iface > 2 .AND. iface < 5)) .OR. (.NOT. sn)
         exW = (sn .AND. iface > 4) .OR. (.NOT. sn)
 
-        ! Pack BU, BV, BW if requested
-        NULLIFY(bu_ptr)
-        IF (exU .AND. pack_buvw) THEN
-            bu_len = jjc2d*iic2d
-            bu_ptr(1:jjc2d, 1:iic2d) => recvBuf(offset+idx:offset+idx+bu_len)
-            idx = idx + nelem
-        END IF
-
-        NULLIFY(bv_ptr)
-        IF (exV .AND. pack_buvw) THEN
-            bu_len = jjc2d*iic2d
-            bv_ptr(1:jjc2d, 1:iic2d) => recvBuf(offset+idx:offset+idx+bu_len)
-            idx = idx + nelem
-        END IF
-
-        NULLIFY(bw_ptr)
-        IF (exW .AND. pack_buvw) THEN
-            bu_len = jjc2d*iic2d
-            bw_ptr(1:jjc2d, 1:iic2d) => recvBuf(offset+idx:offset+idx+bu_len)
-            idx = idx + nelem
-        END IF
-
-
         IF (ASSOCIATED(u) .AND. exU) THEN
             CALL u%buffers%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, ustag1, &
-                bu_ptr)
+                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, ustag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
-                faceptr, ustag2, bu_ptr)
+                faceptr, ustag2)
             idx = idx + nelem
         END IF
 
@@ -677,10 +566,9 @@ CONTAINS
             CALL v%buffers%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, vstag1, &
-                bv_ptr)
+                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, vstag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
-                faceptr, vstag2, bv_ptr)
+                faceptr, vstag2)
             idx = idx + nelem
         END IF
 
@@ -689,10 +577,9 @@ CONTAINS
             CALL w%buffers%get_buffer(faceptr, igrid, iface)
 
             CALL prolong1(jjc2d, iic2d, jj2d, ii2d, &
-                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, wstag1, &
-                bw_ptr)
+                recvBuf(offset+idx:offset+idx+nelem), tmp_buf, wstag1)
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
-                faceptr, wstag2, bw_ptr)
+                faceptr, wstag2)
             idx = idx + nelem
         END IF
 
@@ -724,18 +611,6 @@ CONTAINS
             CALL prolong2(jjc2d, iic2d, jj2d, ii2d, tmp_buf, &
                 faceptr, 0)
             idx = idx + nelem
-        END IF
-
-        IF (ASSOCIATED(bu_ptr)) THEN
-            NULLIFY(bu_ptr)
-        END IF
-
-        IF (ASSOCIATED(bv_ptr)) THEN
-            NULLIFY(bv_ptr)
-        END IF
-
-        IF (ASSOCIATED(bw_ptr)) THEN
-            NULLIFY(bw_ptr)
         END IF
 
         ! Check that message length is calculated correctly
@@ -1108,25 +983,15 @@ CONTAINS
 
 
     ! Prolongates the first direction in a 2D field
-    SUBROUTINE prolong1(jjc, iic, jj, ii, in, out, istag, hilf)
+    SUBROUTINE prolong1(jjc, iic, jj, ii, in, out, istag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(IN) :: jjc, iic, jj, ii
         REAL(realk), INTENT(IN) :: in(jjc, iic)
         REAL(realk), INTENT(OUT) :: out(jj, iic)
         INTEGER(intk), INTENT(IN) :: istag
-        REAL(realk), INTENT(IN), OPTIONAL, POINTER :: hilf(:, :)
 
         ! Local variables
         INTEGER(intk) :: jf, ic, jc
-        REAL(realk) :: bvcs, bvcn
-
-        IF (pack_buvw .AND. istag == 1) THEN
-            IF (.NOT. PRESENT(hilf)) THEN
-                CALL errr(__FILE__, __LINE__)
-            ELSE IF (.NOT. ASSOCIATED(hilf)) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END IF
 
         ! Variable non-staggered in first dir.
         IF (istag == 0) THEN
@@ -1143,24 +1008,8 @@ CONTAINS
             DO ic = 1, iic
                 DO jf = 1, jj, 2
                     jc = 2 + (jf-1)/2
-
-                    IF (pack_buvw) THEN
-                        bvcn = hilf(jc, ic)*(1.0 - hilf(jc-1, ic))
-                        bvcs = hilf(jc-1, ic)*(1.0 - hilf(jc, ic))
-
-                        out(jf, ic) = 0.5*(in(jc, ic) + in(jc-1, ic)) &
-                            *(1.0 - bvcn - bvcs) &
-                            + (in(jc, ic) + in(jc-1, ic))*(bvcn + bvcs)
-
-                        out(jf+1, ic) = in(jc, ic)*hilf(jc, ic) &
-                            + divide0(in(jc-1, ic) + in(jc+1, ic), &
-                                      hilf(jc-1, ic) + hilf(jc+1, ic)) &
-                            *(1.0 - hilf(jc, ic))
-                    ELSE
-                        out(jf, ic) = 0.5*(in(jc, ic) + in(jc-1, ic))
-                        out(jf+1, ic) = in(jc, ic)
-                    END IF
-
+                    out(jf, ic) = 0.5*(in(jc, ic) + in(jc-1, ic))
+                    out(jf+1, ic) = in(jc, ic)
                 END DO
             END DO
         ELSE
@@ -1170,25 +1019,15 @@ CONTAINS
 
 
     ! Prolongates the second direction in a 2D field
-    SUBROUTINE prolong2(jjc, iic, jj, ii, in, out, istag, hilf)
+    SUBROUTINE prolong2(jjc, iic, jj, ii, in, out, istag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(IN) :: jjc, iic, jj, ii
         REAL(realk), INTENT(IN) :: in(jj, iic)
         REAL(realk), INTENT(OUT) :: out(jj, ii)
         INTEGER(intk), INTENT(IN) :: istag
-        REAL(realk), INTENT(IN), OPTIONAL, POINTER :: hilf(:, :)
 
         ! Local variables
-        INTEGER(intk) :: if, jf, ic, jc
-        REAL(realk) :: bvcs, bvcn
-
-        IF (pack_buvw .AND. istag == 1) THEN
-            IF (.NOT. PRESENT(hilf)) THEN
-                CALL errr(__FILE__, __LINE__)
-            ELSE IF (.NOT. ASSOCIATED(hilf)) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END IF
+        INTEGER(intk) :: if, jf, ic
 
         ! Variable non-staggered in second dir.
         IF (istag == 0) THEN
@@ -1205,24 +1044,8 @@ CONTAINS
             DO if = 1, ii, 2
                 ic = 2 + (if-1)/2
                 DO jf = 1, jj
-                    jc = 2 + (jf-1)/2
-
-                    IF (pack_buvw) THEN
-                        bvcn = hilf(jc, ic)*(1. - hilf(jc, ic-1))
-                        bvcs = hilf(jc, ic-1)*(1. - hilf(jc, ic))
-
-                        out(jf, if) = 0.5*(in(jf, ic) + in(jf, ic-1)) &
-                            *(1.0 - bvcn - bvcs) &
-                            + (in(jf, ic) + in(jf, ic-1))*(bvcn + bvcs)
-
-                        out(jf, if+1) = in(jf, ic)*hilf(jc, ic) &
-                            + divide0(in(jf, ic-1) + in(jf, ic+1), &
-                                      hilf(jc, ic-1)+hilf(jc, ic+1)) &
-                            * (1.0 - hilf(jc, ic))
-                    ELSE
-                        out(jf, if) = 0.5*(in(jf, ic) + in(jf, ic-1))
-                        out(jf, if+1) = in(jf, ic)
-                    END IF
+                    out(jf, if) = 0.5*(in(jf, ic) + in(jf, ic-1))
+                    out(jf, if+1) = in(jf, ic)
                 END DO
             END DO
         ELSE

@@ -5,13 +5,10 @@ MODULE commbuf_mod
 
     USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes, &
         ifk, ifk_bytes
-    USE pointers_mod, ONLY: idim2d, idim3d
+    USE pointers_mod, ONLY: idim3d
 
     IMPLICIT NONE (type, external)
     PRIVATE
-
-    ! Maximum number of variables in any connect-call
-    INTEGER(intk) :: maxnvars = 6
 
     INTEGER(int64), PROTECTED :: idim_mg_bufs = 0
     INTEGER(int64), PROTECTED :: idim_mg_big = 0
@@ -38,27 +35,10 @@ MODULE commbuf_mod
 CONTAINS
     SUBROUTINE init_commbuf()
         ! Local variables
-        INTEGER(int64) :: commbuflen, bigbuflen
-
-        ! Max memory requirement for sendbuf/recvbuf in connect:
-        !   - One 2D slice of each grid (idim2d)
-        !   - 2 planes per face
-        !   - 6 faces
-        !   - times the maximum number of variables
-        ! This calculation overestimate the buffer if many levels
-        ! are used, since the idim2d variable include grids on all
-        ! levels, and connect only work on one level each time.
-        !
-        ! original formulation: 1.2*idim2d*2*6*maxnvars
-        ! only INT's: 1.2*2*6 = 14.4 round up to 15
-        commbuflen = 15*idim2d*maxnvars
-
-        ! Max memory requirement for bigbuf: All 3D fields at once,
-        ! rounded up to a number dividable by two
-        bigbuflen = idim3d + MOD(idim3d, 2) + 2
+        INTEGER(int64) :: bigbuflen
 
         ! All processes allocate the same buffer
-        bigbuflen = MAX(bigbuflen, 2*commbuflen)
+        bigbuflen = 6*idim3d
         CALL MPI_Allreduce(MPI_IN_PLACE, bigbuflen, 1, MPI_INTEGER8, &
             mpi_max, MPI_COMM_WORLD)
 

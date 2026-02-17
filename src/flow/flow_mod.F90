@@ -265,7 +265,7 @@ CONTAINS
         INTEGER(intk) :: i, igrid, iface, ipic, ilevel
         INTEGER(intk) :: kk, jj, ii
         CHARACTER(len=8) :: ctyp
-        REAL(realk), POINTER, CONTIGUOUS :: buf(:, :, :), field(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: buf(:, :), field(:, :, :)
 
         CALL get_field(bu, "BU")
         CALL get_field(bv, "BV")
@@ -311,18 +311,15 @@ CONTAINS
                 CASE(1, 2)
                     CALL bu%buffers%get_buffer(buf, igrid, iface)
                     CALL bucoarse%get_ptr(field, igrid)
-                    buf(:, :, 1) = field(:, :, ipic)
-                    buf(:, :, 2) = field(:, :, ipic)
+                    buf(:, :) = field(:, :, ipic)
                 CASE(3, 4)
                     CALL bv%buffers%get_buffer(buf, igrid, iface)
                     CALL bvcoarse%get_ptr(field, igrid)
-                    buf(:, :, 1) = field(:, ipic, :)
-                    buf(:, :, 2) = field(:, ipic, :)
+                    buf(:, :) = field(:, ipic, :)
                 CASE(5, 6)
                     CALL bw%buffers%get_buffer(buf, igrid, iface)
                     CALL bwcoarse%get_ptr(field, igrid)
-                    buf(:, :, 1) = field(ipic, :, :)
-                    buf(:, :, 2) = field(:, ipic, :)
+                    buf(:, :) = field(ipic, :, :)
                 END SELECT
             END DO
         END DO
