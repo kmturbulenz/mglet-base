@@ -9,6 +9,7 @@ MODULE connect2_mod
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
+    USE qsort_mod, ONLY: sort_conns
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -1512,7 +1513,7 @@ CONTAINS
         iRecv = nRecv
 
         ! Sort recvConns by process ID
-        CALL sort_conns(recvConns(:, 1:nRecv))
+        CALL sort_conns(recvConns(:, 1:nRecv), 2)
 
         ! Calculate sdispl offset
         DO i=1, numprocs-1
@@ -1658,37 +1659,6 @@ CONTAINS
         DEALLOCATE(sendReqs)
         DEALLOCATE(recvReqs)
     END SUBROUTINE finish_connect2
-
-
-    SUBROUTINE sort_conns(list)
-        ! Input array to be sorted
-        INTEGER(int32), INTENT(inout) :: list(:, :)
-
-        INTEGER(intk) :: i, j
-
-        ! Temporary storage
-        INTEGER(int32) :: temp(8)
-
-        IF (SIZE(list, 1) /= SIZE(temp)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Sort by sending processor number (field 2)
-        DO i = 2, SIZE(list, 2)
-            j = i - 1
-            temp(:) = list(:, i)
-            DO WHILE (j >= 1)
-                IF (list(2, j) > temp(2)) THEN
-                    list(:, j+1) = list(:, j)
-                    j = j - 1
-                ELSE
-                    EXIT
-                END IF
-            END DO
-            list(:, j+1) = temp(:)
-        END DO
-
-    END SUBROUTINE sort_conns
 
 
     SUBROUTINE start_and_stop(igrid, iface, istart, &

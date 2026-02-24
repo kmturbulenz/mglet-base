@@ -47,7 +47,7 @@ CONTAINS
         nfilled_tot = 0
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, bp%arr, bp%arr, 'F')
+                CALL ftoc(ilevel, bp, bp, 'F')
             END DO
 
             DO ilevel = minlevel, maxlevel

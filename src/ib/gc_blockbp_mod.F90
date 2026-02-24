@@ -295,7 +295,7 @@ CONTAINS
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, bp%arr, bp%arr, 'E')
+                CALL ftoc(ilevel, bp, bp, 'E')
             END DO
         END DO
     END SUBROUTINE blockluecken_closetoboundary
@@ -351,7 +351,7 @@ CONTAINS
 
         ! Fine-to-coarse
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, bodyid_3d_f%arr, bodyid_3d_f%arr, 'I')
+            CALL ftoc(ilevel, bodyid_3d_f, bodyid_3d_f, 'I')
         END DO
 
         ! Connect

@@ -81,7 +81,7 @@ CONTAINS
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, t%arr, t%arr, 'T')
+                CALL ftoc(ilevel, t, t, 'T')
             END DO
         END DO
     END SUBROUTINE init_tfield

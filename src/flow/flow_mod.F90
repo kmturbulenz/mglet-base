@@ -169,10 +169,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u%arr, u%arr, 'U')
-            CALL ftoc(ilevel, v%arr, v%arr, 'V')
-            CALL ftoc(ilevel, w%arr, w%arr, 'W')
-            CALL ftoc(ilevel, p%arr, p%arr, 'P')
+            CALL ftoc(ilevel, u, v, w, p)
         END DO
     END SUBROUTINE init_uvwp
 
@@ -280,9 +277,7 @@ CONTAINS
         CALL bwcoarse%copy_from(bw)
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, bucoarse%arr, bucoarse%arr, 'U')
-            CALL ftoc(ilevel, bvcoarse%arr, bvcoarse%arr, 'V')
-            CALL ftoc(ilevel, bwcoarse%arr, bwcoarse%arr, 'W')
+            CALL ftoc(ilevel, bucoarse, bvcoarse, bwcoarse)
         END DO
 
         DO i = 1, nmygrids

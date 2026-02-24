@@ -1416,9 +1416,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u%arr, u%arr, 'U')
-            CALL ftoc(ilevel, v%arr, v%arr, 'V')
-            CALL ftoc(ilevel, w%arr, w%arr, 'W')
+            CALL ftoc(ilevel, u, v, w)
             CALL par_ftoc_norm(ilevel, u, v, w)
         END DO
 
@@ -1515,7 +1513,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, sdiv_f%arr, sdiv_f%arr, 'S')
+            CALL ftoc(ilevel, sdiv_f, sdiv_f, 'S')
         END DO
 
         CALL connect(layers=2, s1=sdiv_f, corners=.TRUE.)

@@ -1,328 +1,562 @@
 MODULE ftoc_mod
-    ! Module is responsible for the communication from fine to coarse grids.
-    ! An injection method is used for the restriction.
-    ! Under consideration of the shift of the momentum cells, the values of every second
-    ! node on the finer level are used to define a value on the coarser grid.
     USE core_mod
-
     USE ibcore_mod, ONLY: ib
     USE MPI_f08
 
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    ! The information in the first dimension is sorted as follows:
+    !   Field 1: Rank of sending process
+    !   Field 2: Rank of receiving process
+    !   Field 3: ID of sending grid (fine grid)
+    !   Field 4: ID of receiving grid (coarse grid)
+    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
+
+    ! Lists that hold the send and receive request arrays
+    TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
+
+    ! Lists that hold the messages that are ACTUALLY sendt and received
+    INTEGER(intk) :: nsend, nrecv
+    INTEGER(int32), ALLOCATABLE :: recvlist(:)
+    INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
+
+    ! Number of send and receive connections
+    INTEGER(intk) :: isend = 0, irecv = 0
+
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    ! If .TRUE., a restriction is already in process and you cannot start
-    ! another one
-    LOGICAL :: in_progress = .FALSE.
-
-    ! Maximum allowed number of childs per parent (i.e. maximum number of
-    ! fine grids inside any coarse grid). Does not need to be exact, some grids
-    ! can have many more.
-    INTEGER(intk), PARAMETER :: max_childs = 8
-
-    ! Lists that hold the send and receive request arrays
-    TYPE(MPI_Request), ALLOCATABLE :: sendReqs(:), recvReqs(:)
-
-    ! Actual number of messages that are sendt and received in one
-    ! "round" of operations
-    INTEGER(intk) :: nSend, nRecv
-
-    ! Counters for send- and receive operations (for locations in
-    ! send and receive buffers)
-    INTEGER(int32) :: send_counter, recv_counter
-
-    ! Message offsets, i.e. location in Send/Recv buffer.
-    ! This list is filled each time 'ftoc' is called.
-    ! Columns as follows:
-    !
-    !   Column 1: Offset in the send/recv buffer, first element has offset 0
-    !   Column 2: Lengt of message, i.e. number of elements in the send/recv
-    !             buffer
-    INTEGER(int32), ALLOCATABLE :: recvOffsetLength(:, :)
-
-    ! Flag to indicate behaviour (A, B, C, D, E, F, L, N, P, R, S, U, V, W)
-    CHARACTER(len=1) :: flag
-
-    ! List of *fine grids* to receive data *from*.
-    INTEGER(intk), ALLOCATABLE :: recvGrids(:)
-
-    ! pointers to fine and coarse field used in restriction
-    REAL(realk), POINTER, CONTIGUOUS  :: ffg(:) => NULL(), fcg(:) => NULL()
+    INTERFACE ftoc
+        MODULE PROCEDURE :: ftoc_one, ftoc_multiple
+    END INTERFACE ftoc
 
     ! contained functions
     PUBLIC :: ftoc, init_ftoc, finish_ftoc
 
 
 CONTAINS
-    SUBROUTINE ftoc(ilevel, ff_p, fc_p, flag_p)
+    SUBROUTINE ftoc_one(ilevel, ff, fc, flag)
+        ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(in) :: ff
+        TYPE(field_t), INTENT(inout) :: fc
+        CHARACTER(len=1), INTENT(in) :: flag
 
-        ! Fields to be interpolated
-        REAL(realk), CONTIGUOUS, INTENT(inout) :: ff_p(:)
-
-        ! field on the fine grid
-        REAL(realk), CONTIGUOUS, INTENT(inout) :: fc_p(:)
-
-        ! flag to specify the mode
-        CHARACTER(len=1), INTENT(in) :: flag_p
+        ! Local variables
+        ! none...
 
         CALL start_timer(220)
-        CALL ftoc_begin(ff_p, fc_p, flag_p, noflevel(ilevel), &
-            igrdoflevel(1, ilevel))
-        CALL ftoc_end()
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
+
+        CALL recv_all(ilevel, flag, fc)
+        CALL send_all(ilevel, flag, ff)
+        CALL process_bufs(flag, fc)
+
+        nrecv = 0
+        nsend = 0
+
         CALL stop_timer(220)
-    END SUBROUTINE ftoc
+    END SUBROUTINE ftoc_one
 
 
-    SUBROUTINE ftoc_begin(ff_p, fc_p, flag_p, ngrids, lofgrids)
-        ! Function initiates the restriction.
-        ! The module variable "in_progress" is set to true.
-        ! Interpolate the results from a fine level to a coarse level
-        ! This function initiate the process, and the ftoc_finish
-        ! must be called afterwards to clean up.
-
-        ! Fields to be interpolated
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(inout) :: ff_p(:)
-        ! field on the fine grid
-        REAL(realk), TARGET, CONTIGUOUS, INTENT(inout) :: fc_p(:)
-
-        ! flag to specify the mode
-        CHARACTER(len=1), INTENT(in) :: flag_p
-
-        ! number of grids on the level
-        INTEGER(intk), INTENT(in) :: ngrids
-
-        ! grid ID's on level
-        INTEGER(intk), INTENT(in) :: lofgrids(ngrids)
-
-        ! Local variables
-        INTEGER(intk) :: i, igrid, iprocc, iprocf, ipar
-
-        CALL start_timer(221)
-
-        IF (.NOT. is_init) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        IF (in_progress) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! reminder: The scope of the following variables is module wide
-        in_progress = .TRUE.
-        ! reminder: scope of the pointers is module-wide
-        ffg => ff_p
-        fcg => fc_p
-        flag = flag_p
-
-        nRecv = 0
-        nSend = 0
-
-        send_counter = 0
-        recv_counter = 0
-
-        ! Make all Recv-calls
-        DO i = 1, ngrids
-            igrid = lofgrids(i)
-            ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(ipar)
-
-                IF (myid == iprocc) THEN
-                    nRecv = nRecv + 1
-                    CALL restrict_recv(igrid)
-                    recvGrids(nRecv) = igrid
-                END IF
-            END IF
-        END DO
-
-        ! Make all Send-calls
-        DO i = 1, ngrids
-            igrid = lofgrids(i)
-            ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocf = idprocofgrd(igrid)
-                iprocc = idprocofgrd(ipar)
-
-                IF (myid == iprocf) THEN
-                    nSend = nSend + 1
-                    CALL restrict_send(igrid, ipar)
-                END IF
-            END IF
-        END DO
-
-        CALL stop_timer(221)
-    END SUBROUTINE ftoc_begin
-
-
-    SUBROUTINE ftoc_end()
-        ! Function finishes the restriction.
-        ! The module variable "in_progress" is set to false.
-        ! This means to wait for communication to finish and to clean up
-        ! after restriction.
-
-        INTEGER(int32) :: idx
-
-        CALL start_timer(222)
-
-        IF (.NOT. in_progress) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        IF (nRecv > 0) THEN
-            DO WHILE (.TRUE.)
-                CALL MPI_Waitany(nRecv, recvReqs, idx, MPI_STATUS_IGNORE)
-
-                IF (idx /= MPI_UNDEFINED) THEN
-                    CALL restrict_finish(recvGrids(idx))
-                ELSE
-                    EXIT
-                END IF
-            END DO
-        END IF
-
-        CALL MPI_Waitall(nSend, sendReqs, MPI_STATUSES_IGNORE)
-
-        ! pointers are voided again
-        NULLIFY(ffg)
-        NULLIFY(fcg)
-
-        flag = ' '
-        in_progress = .FALSE.
-
-        CALL stop_timer(222)
-    END SUBROUTINE ftoc_end
-
-
-    SUBROUTINE restrict_recv(igridf)
-        INTEGER, INTENT(in) :: igridf
-
-        INTEGER(intk) :: iprocf
-        INTEGER(intk) :: message_length
-
-        iprocf = idprocofgrd(igridf)
-        message_length = ib%restrict_op%message_length(flag, igridf)
-
-        ! Check that there is sufficient space in the receive buffer
-        IF (recv_counter + message_length > idim_mg_bufs) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        CALL MPI_Irecv(recvbuf(recv_counter + 1), message_length, &
-            mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, recvReqs(nRecv))
-
-        recvOffsetLength(1, igridf) = recv_counter
-        recvOffsetLength(2, igridf) = message_length
-        recv_counter = recv_counter + message_length
-    END SUBROUTINE restrict_recv
-
-
-    SUBROUTINE restrict_send(igridf, igridc)
-        ! Function to pack to information into a message and to send it.
-        ! In a pattern, values are extracted from the fine fields and
-        ! stored within a 1-dimensional buffer array for sending
-        ! (see: subroutine restrict_send_packaging)
-        ! MPI_Isend is called.
-
-        INTEGER(intk), INTENT(in) :: igridf
-        INTEGER(intk), INTENT(in) :: igridc
-
-        INTEGER(intk) :: iprocc
-        INTEGER(intk) :: ip3
-        INTEGER(intk) :: ii, jj, kk
-        INTEGER(intk) :: message_length
-
-        message_length = ib%restrict_op%message_length(flag, igridf)
-
-        IF (send_counter + message_length > idim_mg_bufs) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        CALL get_mgdims(kk, jj, ii, igridf)
-        CALL get_ip3(ip3, igridf)
-        CALL ib%restrict_op%restrict(kk, jj, ii, ffg(ip3:ip3+kk*jj*ii-1), &
-            sendbuf(send_counter+1:send_counter+message_length), &
-            flag, igridf)
-
-        iprocc = idprocofgrd(igridc)
-        CALL MPI_Isend(sendbuf(send_counter + 1), message_length, &
-            mglet_mpi_real, iprocc, igridf,  MPI_COMM_WORLD, &
-            sendReqs(nSend))
-
-        send_counter = send_counter + message_length
-    END SUBROUTINE restrict_send
-
-
-    SUBROUTINE restrict_finish(igridf)
+    SUBROUTINE ftoc_multiple(ilevel, v1, v2, v3, s1, s2, s3)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igridf
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout), OPTIONAL :: v1, v2, v3, s1, s2, s3
 
         ! Local variables
-        INTEGER(intk) :: igridc, position, length
-        INTEGER(intk) :: kk, jj, ii, ip3
+        CHARACTER(len=*), PARAMETER :: flag = '*'
 
-        position = recvOffsetLength(1, igridf)
-        length = recvOffsetLength(2, igridf)
+        CALL start_timer(220)
 
-        igridc = iparent(igridf)
-        CALL get_mgdims(kk, jj, ii, igridc)
-        CALL get_ip3(ip3, igridc)
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        IF (flag == 'N') THEN
-            CALL restrict_recieve_open_n(kk, jj, ii, fcg(ip3:ip3+kk*jj*ii-1), &
-                recvbuf(position+1:position+length), igridf)
+        CALL recv_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
+        CALL send_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
+        CALL process_bufs(flag, v1, v2, v3, s1, s2, s3)
+
+        nrecv = 0
+        nsend = 0
+
+        CALL stop_timer(220)
+    END SUBROUTINE ftoc_multiple
+
+
+    SUBROUTINE recv_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), INTENT(in), OPTIONAL :: v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr, igridf
+        INTEGER(int32) :: recvcounter, messagelength, ncells
+
+        recvcounter = 0
+        messagelength = 0
+        nrecv = 0
+        recvidxlist = -HUGE(1_intk)
+        recvlist = 0
+
+        DO i = 1, irecv
+            ! Receiving grid
+            igridf = recvconns(3, i)
+            IF (ilevel == level(igridf)) THEN
+                iprocnbr = recvconns(1, i)  ! The sender process (fine side)
+
+                CALL count_ncells(ncells, flag, igridf, v1, v2, v3, s1, s2, s3)
+                recvidxlist(1, i) = iprocnbr
+                recvidxlist(2, i) = ncells
+                recvidxlist(3, i) = recvcounter + messagelength
+                messagelength = messagelength + ncells
+
+                IF (recvcounter + messagelength > idim_mg_bufs) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+
+            IF (messagelength > 0) THEN
+                IF (i == irecv) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
+                ELSE IF (recvconns(1, i + 1) /= iprocnbr) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
+                END IF
+            END IF
+        END DO
+    END SUBROUTINE recv_all
+
+
+    ! Perform a single Recv
+    SUBROUTINE post_recv(iprocnbr, messagelength, recvcounter)
+        ! Identifier of receive connection
+        INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: recvcounter
+
+        ! Local variables (for convenience)
+        ! none...
+
+        nrecv = nrecv + 1
+        recvlist(nrecv) = iprocnbr
+        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
+
+        recvcounter = recvcounter + messagelength
+        messagelength = 0
+    END SUBROUTINE post_recv
+
+
+    SUBROUTINE count_ncells(ncells, flag, igrid, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(out) :: ncells
+        CHARACTER(len=1), INTENT(in) :: flag
+        INTEGER(intk), INTENT(in) :: igrid
+        TYPE(field_t), INTENT(in), OPTIONAL :: v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(int32) :: n
+
+        ncells = 0
+
+        IF (flag == '*') THEN
+            IF (PRESENT(v1)) THEN
+                n = ib%restrict_op%message_length('U', igrid)
+                ncells = ncells + n
+            END IF
+            IF (PRESENT(v2)) THEN
+                n = ib%restrict_op%message_length('V', igrid)
+                ncells = ncells + n
+            END IF
+            IF (PRESENT(v3)) THEN
+                n = ib%restrict_op%message_length('W', igrid)
+                ncells = ncells + n
+            END IF
+            IF (PRESENT(s1)) THEN
+                n = ib%restrict_op%message_length('P', igrid)
+                ncells = ncells + n
+            END IF
+            IF (PRESENT(s2)) THEN
+                n = ib%restrict_op%message_length('P', igrid)
+                ncells = ncells + n
+            END IF
+            IF (PRESENT(s3)) THEN
+                n = ib%restrict_op%message_length('P', igrid)
+                ncells = ncells + n
+            END IF
         ELSE
-            CALL restrict_recieve_open(kk, jj, ii, fcg(ip3:ip3+kk*jj*ii-1), &
-                recvbuf(position+1:position+length), igridf)
+            ncells = ib%restrict_op%message_length(flag, igrid)
         END IF
-    END SUBROUTINE restrict_finish
+    END SUBROUTINE count_ncells
+
+
+    ! Perform all send calls
+    SUBROUTINE send_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), OPTIONAL, INTENT(in) :: v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr, igridf
+        INTEGER(int32) :: sendcounter, messagelength
+
+        ! Pack all buffers and send data
+        sendcounter = 0
+        messagelength = 0
+        nsend = 0
+
+        DO i = 1, isend
+            igridf = sendconns(3, i)
+            iprocnbr = sendconns(2, i)
+            IF (ilevel == level(igridf)) THEN
+                CALL write_buffer(i, messagelength, sendcounter, flag, &
+                    v1, v2, v3, s1, s2, s3)
+            END IF
+
+            IF (messagelength > 0) THEN
+                IF (i == isend) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
+                ELSE IF (sendconns(2, i + 1) /= iprocnbr) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
+                END IF
+            END IF
+        END DO
+    END SUBROUTINE send_all
+
+
+    ! Perform a single send call
+    SUBROUTINE post_send(iprocnbr, messagelength, sendcounter)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: sendcounter
+
+        ! Local variables (for convenience)
+        ! none...
+
+        nsend = nsend + 1
+        CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(nsend))
+
+        sendcounter = sendcounter + messagelength
+        messagelength = 0
+    END SUBROUTINE post_send
+
+
+    SUBROUTINE write_buffer(sendid, messagelength, sendcounter, flag, &
+            v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: sendid
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(in) :: sendcounter
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), OPTIONAL, INTENT(in) :: &
+            v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: igrid
+        INTEGER(int32) :: thismessagelength, offset, ncells
+        REAL(realk), POINTER, CONTIGUOUS :: field(:, :, :)
+        CHARACTER(len=1) :: flag_u
+
+        igrid = sendconns(3, sendid)
+        CALL get_mgdims(kk, jj, ii, igrid)
+
+        CALL count_ncells(thismessagelength, flag, igrid, &
+            v1, v2, v3, s1, s2, s3)
+
+        ! Check that buffer does not overflow
+        IF (sendcounter + messagelength + thismessagelength > idim_mg_bufs) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Reset message size counter
+        offset = sendcounter + messagelength + 1
+
+        ! Fill buffers
+        IF (PRESENT(v1)) THEN
+            IF (flag == '*') THEN
+                flag_u = 'U'
+            ELSE
+                flag_u = flag
+            END IF
+            ncells = ib%restrict_op%message_length(flag_u, igrid)
+            CALL v1%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                flag_u, igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(v2)) THEN
+            ncells = ib%restrict_op%message_length('V', igrid)
+            CALL v2%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                'V', igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(v3)) THEN
+            ncells = ib%restrict_op%message_length('W', igrid)
+            CALL v3%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                'W', igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s1)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s1%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                'P', igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s2%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                'P', igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s3%get_ptr(field, igrid)
+            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
+                sendbuf(offset:offset+ncells-1), &
+                'P', igrid)
+            offset = offset + ncells
+        END IF
+
+        IF (offset /= sendcounter + messagelength + thismessagelength + 1) THEN
+            WRITE(*, *) "offset:", offset, &
+                "expected:", sendcounter + messagelength + thismessagelength + 1
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        messagelength = messagelength + thismessagelength
+    END SUBROUTINE write_buffer
+
+
+    ! Process receive buffers as they arrive, wait for send
+    ! buffers to be free
+    SUBROUTINE process_bufs(flag, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+
+        INTEGER(int32) :: idx, i
+        TYPE(MPI_Status) :: recvstatus
+        INTEGER(int32) :: recvmessagelen
+        INTEGER(int32) :: unpacklen
+
+        DO WHILE (.TRUE.)
+            IF (nrecv == 0) EXIT
+            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
+
+            IF (idx /= MPI_UNDEFINED) THEN
+                CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
+                    recvmessagelen)
+
+                unpacklen = 0
+                DO i = 1, irecv
+                    IF (recvidxlist(1, i) == recvlist(idx) &
+                            .AND. recvidxlist(2, i) > 0) THEN
+                        CALL read_buffer(i, flag, v1, v2, v3, s1, s2, s3)
+                        unpacklen = unpacklen + recvidxlist(2, i)
+                    END IF
+                END DO
+
+                IF (recvmessagelen /= unpacklen) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            ELSE
+                EXIT
+            END IF
+        END DO
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+    END SUBROUTINE process_bufs
+
+
+    ! Read Receive buffers
+    !
+    ! Write the contents of the receive buffers back in their
+    ! matching fields
+    SUBROUTINE read_buffer(recvid, flag, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: recvid
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+
+        ! Grid dimensions and pointers
+        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: igrid, igridc
+        INTEGER(int32) :: offset, ncells
+        REAL(realk), POINTER, CONTIGUOUS :: field(:, :, :)
+        CHARACTER(len=1) :: flag_u
+
+        igrid = recvconns(3, recvid)
+        igridc = recvconns(4, recvid)
+        CALL get_mgdims(kk, jj, ii, igridc)
+
+        offset = recvidxlist(3, recvid) + 1
+
+        IF (PRESENT(v1)) THEN
+            IF (flag == '*') THEN
+                flag_u = 'U'
+            ELSE
+                flag_u = flag
+            END IF
+            ncells = ib%restrict_op%message_length(flag_u, igrid)
+            CALL v1%get_ptr(field, igridc)
+
+            IF (flag_u == 'N') THEN
+                CALL restrict_recieve_open_n(kk, jj, ii, field, &
+                    recvbuf(offset:offset+ncells-1), igrid, flag_u)
+            ELSE
+                CALL restrict_recieve_open(kk, jj, ii, field, &
+                    recvbuf(offset:offset+ncells-1), igrid, flag_u)
+            END IF
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(v2)) THEN
+            ncells = ib%restrict_op%message_length('V', igrid)
+            CALL v2%get_ptr(field, igridc)
+            CALL restrict_recieve_open(kk, jj, ii, field, &
+                recvbuf(offset:offset+ncells-1), igrid, 'V')
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(v3)) THEN
+            ncells = ib%restrict_op%message_length('W', igrid)
+            CALL v3%get_ptr(field, igridc)
+            CALL restrict_recieve_open(kk, jj, ii, field, &
+                recvbuf(offset:offset+ncells-1), igrid, 'W')
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s1)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s1%get_ptr(field, igridc)
+            CALL restrict_recieve_open(kk, jj, ii, field, &
+                recvbuf(offset:offset+ncells-1), igrid, 'P')
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s2%get_ptr(field, igridc)
+            CALL restrict_recieve_open(kk, jj, ii, field, &
+                recvbuf(offset:offset+ncells-1), igrid, 'P')
+            offset = offset + ncells
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL s3%get_ptr(field, igridc)
+            CALL restrict_recieve_open(kk, jj, ii, field, &
+                recvbuf(offset:offset+ncells-1), igrid, 'P')
+            offset = offset + ncells
+        END IF
+
+        IF (offset - recvidxlist(3, recvid) - 1 /= recvidxlist(2, recvid)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE read_buffer
 
 
     SUBROUTINE init_ftoc()
-        ! Function to initialize arrays and data types.
-        ! After successful execution, the module varaible "is_init" is set to
-        ! true
-        INTEGER :: igrid, iprocc, ipar
+        ! Local variables
+        INTEGER(intk) :: i, igrid, iprocc, ipar, maxconns
+        INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
+        INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
+        INTEGER(intk), PARAMETER :: ncols = 4
 
         CALL set_timer(220, "FTOC")
-        CALL set_timer(221, "FTOC_BEGIN")
-        CALL set_timer(222, "FTOC_END")
 
-        IF (.NOT. is_init) THEN
-            ALLOCATE(sendReqs(nMyGrids))
-            ALLOCATE(recvReqs(nMyGrids*max_childs))
-            ALLOCATE(recvGrids(nMyGrids*max_childs))
-            ALLOCATE(recvOffsetLength(2, ngrid))
-        END IF
+        IF (is_init) CALL errr(__FILE__, __LINE__)
 
-        nRecv = 0
-        nSend = 0
+        maxconns = nmygrids*8
+        ALLOCATE(sendconns(ncols, maxconns))
 
-        ! Make all Send- and Recv-types
-        DO igrid = 1, ngrid
+        ALLOCATE(sendcounts(0:numprocs-1), SOURCE=0)
+        ALLOCATE(sdispls(0:numprocs-1), SOURCE=0)
+        ALLOCATE(recvcounts(0:numprocs-1), SOURCE=0)
+        ALLOCATE(rdispls(0:numprocs-1), SOURCE=0)
+
+        nsend = 0
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
             ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocc = idprocofgrd(ipar)
+            IF (ipar == 0) CYCLE
 
-                IF (myid == iprocc) THEN
-                    nRecv = nRecv + 1
-                    IF (nRecv > nMyGrids*max_childs) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-                END IF
+            iprocc = idprocofgrd(ipar)
+
+            nsend = nsend + 1
+            IF (nsend > maxconns) THEN
+                CALL errr(__FILE__, __LINE__)
             END IF
+
+            sendconns(1, nsend) = myid
+            sendconns(2, nsend) = iprocc
+            sendconns(3, nsend) = igrid
+            sendconns(4, nsend) = ipar
+
+            sendcounts(iprocc) = sendcounts(iprocc) + ncols
+        END DO
+        isend = nsend
+
+        ! Sort sendconns by process ID (col 2)
+        CALL sort_conns(sendconns(:, 1:nsend), 2)
+
+        ! Calculate sdispl offset
+        DO i = 1, numprocs-1
+            sdispls(i) = sdispls(i-1) + sendcounts(i-1)
         END DO
 
-        is_init = .TRUE.
-        in_progress = .FALSE.
+        ! First exchange NUMBER OF ELEMENTS TO RECEIVE, to be able to
+        ! calculate rdispls array
+        CALL MPI_Alltoall(sendcounts, 1, MPI_INTEGER, recvcounts, 1, &
+            MPI_INTEGER, MPI_COMM_WORLD)
 
-        ! Nullify pointers
-        nullify(ffg)
-        nullify(fcg)
+        ! Calculate rdispl offset
+        DO i = 1, numprocs-1
+            rdispls(i) = rdispls(i-1) + recvcounts(i-1)
+        END DO
+
+        irecv = (rdispls(numprocs-1) + recvcounts(numprocs-1))/ncols
+        ALLOCATE(recvconns(ncols, irecv))
+        recvconns = 0
+
+        ! Exchange connection information
+        CALL MPI_Alltoallv(sendconns, sendcounts, sdispls, MPI_INTEGER, &
+            recvconns, recvcounts, rdispls, MPI_INTEGER, &
+            MPI_COMM_WORLD)
+
+        DEALLOCATE(rdispls)
+        DEALLOCATE(recvcounts)
+        DEALLOCATE(sdispls)
+        DEALLOCATE(sendcounts)
+
+        ALLOCATE(sendreqs(numprocs))
+        ALLOCATE(recvreqs(numprocs))
+        ALLOCATE(recvlist(irecv))
+        ALLOCATE(recvidxlist(3, irecv))
+
+        is_init = .TRUE.
+        nsend = 0
+        nrecv = 0
     END SUBROUTINE init_ftoc
 
 
@@ -330,25 +564,27 @@ CONTAINS
         ! Function to deallocate arrays.
         ! After successful execution, the module varaible "is_init" is set
         ! to false.
-        IF (is_init .NEQV. .TRUE.) THEN
-            RETURN
-        END IF
+        IF (.NOT. is_init) RETURN
 
         is_init = .FALSE.
-
-        DEALLOCATE(sendReqs)
-        DEALLOCATE(recvReqs)
-        DEALLOCATE(recvGrids)
-        DEALLOCATE(recvOffsetLength)
+        isend = 0
+        irecv = 0
+        DEALLOCATE(sendconns)
+        DEALLOCATE(recvconns)
+        DEALLOCATE(sendreqs)
+        DEALLOCATE(recvreqs)
+        DEALLOCATE(recvlist)
+        DEALLOCATE(recvidxlist)
     END SUBROUTINE finish_ftoc
 
 
-    SUBROUTINE restrict_recieve_open(kk, jj, ii, fc, buffer, igridf)
+    SUBROUTINE restrict_recieve_open(kk, jj, ii, fc, buffer, igridf, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: fc(kk, jj, ii)
         REAL(realk), CONTIGUOUS, INTENT(in) :: buffer(:)
         INTEGER(intk), INTENT(in) :: igridf
+        CHARACTER(len=1), INTENT(in) :: flag
 
         ! Local variables
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
@@ -390,12 +626,13 @@ CONTAINS
     END SUBROUTINE restrict_recieve_open
 
 
-    SUBROUTINE restrict_recieve_open_n(kk, jj, ii, fc, buffer, igridf)
+    SUBROUTINE restrict_recieve_open_n(kk, jj, ii, fc, buffer, igridf, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: fc(kk, jj, ii)
         REAL(realk), CONTIGUOUS, INTENT(in) :: buffer(:)
         INTEGER(intk), INTENT(in) :: igridf
+        CHARACTER(len=1), INTENT(in) :: flag
 
         ! Local variables
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
@@ -429,4 +666,5 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE restrict_recieve_open_n
+
 END MODULE ftoc_mod

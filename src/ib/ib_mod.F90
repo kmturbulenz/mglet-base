@@ -65,25 +65,19 @@ CONTAINS
         USE core_mod
 
         ! Local variables
-        INTEGER :: ilevel
-        REAL(realk), ALLOCATABLE :: hilf(:)
+        INTEGER(intk) :: ilevel
+        TYPE(field_t) :: hilf
         TYPE(field_t), POINTER :: finecell
 
         CALL set_field("FINECELL")
         CALL get_field(finecell, "FINECELL")
         finecell%arr = 1.0
 
-        ALLOCATE(hilf(SIZE(finecell%arr)))
-        hilf = 0.0
-
+        CALL hilf%init("HILF")
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, hilf, finecell%arr, 'P')
+            CALL ftoc(ilevel, hilf, finecell, 'P')
         END DO
-
-        DO ilevel = maxlevel, minlevel, -1
-            CALL connect(ilevel, 2, s1=finecell, corners=.TRUE.)
-        END DO
-
-        DEALLOCATE(hilf)
+        CALL connect(layers=2, s1=finecell, corners=.TRUE.)
+        CALL hilf%finish()
     END SUBROUTINE set_finecell
 END MODULE ib_mod
