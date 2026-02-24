@@ -153,7 +153,7 @@ CONTAINS
         ELSE
             CALL init_uvw_uinf(u, v, w)
         END IF
-        p = 0.0_realk
+        p%arr = 0.0_realk
 
         CALL zero_ghostlayers(u)
         CALL zero_ghostlayers(v)
@@ -309,15 +309,15 @@ CONTAINS
                 ! to multiply correctly
                 SELECT CASE(iface)
                 CASE(1, 2)
-                    CALL bu%buffers%get_buffer(buf, igrid, iface)
+                    CALL bu%get_buffer(buf, igrid, iface)
                     CALL bucoarse%get_ptr(field, igrid)
                     buf(:, :) = field(:, :, ipic)
                 CASE(3, 4)
-                    CALL bv%buffers%get_buffer(buf, igrid, iface)
+                    CALL bv%get_buffer(buf, igrid, iface)
                     CALL bvcoarse%get_ptr(field, igrid)
                     buf(:, :) = field(:, ipic, :)
                 CASE(5, 6)
-                    CALL bw%buffers%get_buffer(buf, igrid, iface)
+                    CALL bw%get_buffer(buf, igrid, iface)
                     CALL bwcoarse%get_ptr(field, igrid)
                     buf(:, :) = field(ipic, :, :)
                 END SELECT

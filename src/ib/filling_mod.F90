@@ -332,7 +332,7 @@ CONTAINS
         CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
 
         IF (nfro == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 1)
+            CALL knoten_p%get_buffer(parbuf, igrid, 1)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
                     IF (ABS(parbuf(k, j)) > 0.5_realk) THEN
@@ -343,7 +343,7 @@ CONTAINS
         END IF
 
         IF (nbac == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 2)
+            CALL knoten_p%get_buffer(parbuf, igrid, 2)
             DO k = 2, kk-2, 2
                 DO j = 2, jj-2, 2
                     IF (ABS(parbuf(k, j)) > 0.5_realk) THEN
@@ -354,7 +354,7 @@ CONTAINS
         END IF
 
         IF (nrgt == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 3)
+            CALL knoten_p%get_buffer(parbuf, igrid, 3)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
                     IF (ABS(parbuf(k, i)) > 0.5_realk) THEN
@@ -365,7 +365,7 @@ CONTAINS
         END IF
 
         IF (nlft == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 4)
+            CALL knoten_p%get_buffer(parbuf, igrid, 4)
             DO k = 2, kk-2, 2
                 DO i = 2, ii-2, 2
                     IF (ABS(parbuf(k, i)) > 0.5_realk) THEN
@@ -376,7 +376,7 @@ CONTAINS
         END IF
 
         IF (nbot == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 5)
+            CALL knoten_p%get_buffer(parbuf, igrid, 5)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
                     IF (ABS(parbuf(j, i)) > 0.5_realk) THEN
@@ -387,7 +387,7 @@ CONTAINS
         END IF
 
         IF (ntop == 8) THEN
-            CALL knoten_p%buffers%get_buffer(parbuf, igrid, 6)
+            CALL knoten_p%get_buffer(parbuf, igrid, 6)
             DO j = 2, jj-2, 2
                 DO i = 2, ii-2, 2
                     IF (ABS(parbuf(j, i)) > 0.5_realk) THEN
@@ -423,7 +423,7 @@ CONTAINS
         ibbuf4 = 0
 
         IF (nfro == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 1)
+            CALL bp_p%get_buffer(parbuf, igrid, 1)
             DO k = 1, kk
                 DO j = 1, jj
                     DO i = ibbuf1, ibbuf2
@@ -434,7 +434,7 @@ CONTAINS
         END IF
 
         IF (nbac == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 2)
+            CALL bp_p%get_buffer(parbuf, igrid, 2)
             DO k = 1, kk
                 DO j = 1, jj
                     DO i = ii-ibbuf3, ii-ibbuf4
@@ -445,7 +445,7 @@ CONTAINS
         END IF
 
         IF (nrgt == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 3)
+            CALL bp_p%get_buffer(parbuf, igrid, 3)
             DO k = 1, kk
                 DO j = ibbuf1, ibbuf2
                     DO i = 1, ii
@@ -456,7 +456,7 @@ CONTAINS
         END IF
 
         IF (nlft == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 4)
+            CALL bp_p%get_buffer(parbuf, igrid, 4)
             DO k = 1, kk
                 DO j = jj-ibbuf3, jj-ibbuf4
                     DO i = 1, ii
@@ -467,7 +467,7 @@ CONTAINS
         END IF
 
         IF (nbot == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 5)
+            CALL bp_p%get_buffer(parbuf, igrid, 5)
             DO k = ibbuf1, ibbuf2
                 DO j = 1, jj
                     DO i = 1, ii
@@ -478,7 +478,7 @@ CONTAINS
         END IF
 
         IF (ntop == 8) THEN
-            CALL bp_p%buffers%get_buffer(parbuf, igrid, 6)
+            CALL bp_p%get_buffer(parbuf, igrid, 6)
             DO k = kk-ibbuf3, kk-ibbuf4
                 DO j = 1, jj
                     DO i = 1, ii

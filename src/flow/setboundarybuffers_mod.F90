@@ -69,9 +69,9 @@ CONTAINS
         IF (.NOT. PRESENT(timeph)) CALL errr(__FILE__, __LINE__)
 
         ! Fetch pointers
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        CALL f1%get_buffer(ubuf, igrid, iface)
+        CALL f2%get_buffer(vbuf, igrid, iface)
+        CALL f3%get_buffer(wbuf, igrid, iface)
         ubuf3(1:SIZE(ubuf, 1), 1:SIZE(ubuf, 2), 1:1) => ubuf
         vbuf3(1:SIZE(vbuf, 1), 1:SIZE(vbuf, 2), 1:1) => vbuf
         wbuf3(1:SIZE(wbuf, 1), 1:SIZE(wbuf, 2), 1:1) => wbuf
@@ -124,7 +124,7 @@ CONTAINS
         ! This multiplies with the open fraction of a cell in the FIX boundary
         ! condition. This is done to ensure that the inflow is divergence free
         CALL get_field(bu, "BU")
-        CALL bu%buffers%get_buffer(bubuf, igrid, iface)
+        CALL bu%get_buffer(bubuf, igrid, iface)
         ubuf = ubuf*bubuf
     END SUBROUTINE bfront
 
@@ -171,9 +171,9 @@ CONTAINS
         IF (.NOT. PRESENT(timeph)) CALL errr(__FILE__, __LINE__)
 
         ! Fetch pointers
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        CALL f1%get_buffer(ubuf, igrid, iface)
+        CALL f2%get_buffer(vbuf, igrid, iface)
+        CALL f3%get_buffer(wbuf, igrid, iface)
         ubuf3(1:SIZE(ubuf, 1), 1:SIZE(ubuf, 2), 1:1) => ubuf
         vbuf3(1:SIZE(vbuf, 1), 1:SIZE(vbuf, 2), 1:1) => vbuf
         wbuf3(1:SIZE(wbuf, 1), 1:SIZE(wbuf, 2), 1:1) => wbuf
@@ -226,7 +226,7 @@ CONTAINS
         ! This multiplies with the open fraction of a cell in the FIX boundary
         ! condition. This is done to ensure that the inflow is divergence free
         CALL get_field(bv, "BV")
-        CALL bv%buffers%get_buffer(bvbuf, igrid, iface)
+        CALL bv%get_buffer(bvbuf, igrid, iface)
         vbuf = vbuf*bvbuf
     END SUBROUTINE bright
 
@@ -272,9 +272,9 @@ CONTAINS
         IF (.NOT. PRESENT(timeph)) CALL errr(__FILE__, __LINE__)
 
         ! Fetch pointers
-        CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+        CALL f1%get_buffer(ubuf, igrid, iface)
+        CALL f2%get_buffer(vbuf, igrid, iface)
+        CALL f3%get_buffer(wbuf, igrid, iface)
         ubuf3(1:SIZE(ubuf, 1), 1:SIZE(ubuf, 2), 1:1) => ubuf
         vbuf3(1:SIZE(vbuf, 1), 1:SIZE(vbuf, 2), 1:1) => vbuf
         wbuf3(1:SIZE(wbuf, 1), 1:SIZE(wbuf, 2), 1:1) => wbuf
@@ -327,7 +327,7 @@ CONTAINS
         ! This multiplies with the open fraction of a cell in the FIX boundary
         ! condition. This is done to ensure that the inflow is divergence free
         CALL get_field(bw, "BW")
-        CALL bw%buffers%get_buffer(bwbuf, igrid, iface)
+        CALL bw%get_buffer(bwbuf, igrid, iface)
         wbuf = wbuf*bwbuf
     END SUBROUTINE bbottom
 END MODULE setboundarybuffers_mod

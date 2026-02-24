@@ -614,7 +614,7 @@ CONTAINS
             END DO
         CASE ("PAR")
             CALL get_fieldptr(bp, "BP", igrid)
-            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            CALL f1%get_buffer(buffer, igrid, iface)
             DO j = 2, SIZE(g, 2)-1
                 DO k = 2, SIZE(g, 1)-1
                     sbp = bp(k, j, i2)
@@ -678,7 +678,7 @@ CONTAINS
             END DO
         CASE ("PAR")
             CALL get_fieldptr(bp, "BP", igrid)
-            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            CALL f1%get_buffer(buffer, igrid, iface)
             DO i = 2, SIZE(g, 3)-1
                 DO k = 2, SIZE(g, 1)-1
                     sbp = bp(k, j2, i)
@@ -742,7 +742,7 @@ CONTAINS
             END DO
         CASE ("PAR")
             CALL get_fieldptr(bp, "BP", igrid)
-            CALL f1%buffers%get_buffer(buffer, igrid, iface)
+            CALL f1%get_buffer(buffer, igrid, iface)
             DO i = 2, SIZE(g, 3)-1
                 DO j = 2, SIZE(g, 2)-1
                     sbp = bp(k2, j, i)

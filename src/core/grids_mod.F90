@@ -31,6 +31,8 @@ MODULE grids_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nmygridslvl(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygridslvl(:, :)
 
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: globalgrids(:)
+
     ! From cobound.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nboconds(:, :)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: itypboconds(:, :, :)
@@ -125,6 +127,7 @@ CONTAINS
         DEALLOCATE(mygrids)
         DEALLOCATE(nmygridslvl)
         DEALLOCATE(mygridslvl)
+        DEALLOCATE(globalgrids)
         DEALLOCATE(nboconds)
         DEALLOCATE(itypboconds)
         DEALLOCATE(idprocofgrd)
@@ -298,6 +301,12 @@ CONTAINS
             END DO
         END DO
 
+        ALLOCATE(globalgrids(ngrid), source=-1_intk)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            globalgrids(igrid) = i
+        END DO
+
         IF (myid == 0) CALL setmpi_info()
     END SUBROUTINE setmpi
 
@@ -438,17 +447,9 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: imygrid
 
-        LOGICAL :: found
+        imygrid = globalgrids(igrid)
 
-        found = .FALSE.
-        DO imygrid = 1, nmygrids
-            IF (mygrids(imygrid) == igrid) THEN
-                found = .TRUE.
-                EXIT
-            END IF
-        END DO
-
-        IF (.NOT. found) CALL errr(__FILE__, __LINE__)
+        IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE get_imygrid
 
 

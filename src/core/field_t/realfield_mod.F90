@@ -9,21 +9,9 @@ MODULE realfield_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    TYPE :: buffer_t
-        LOGICAL :: is_init = .FALSE.
-        REAL(realk), ALLOCATABLE :: arr(:)
-    CONTAINS
-        FINAL :: buffer_destructor
-        PROCEDURE :: finish => finish_buffer
-        PROCEDURE :: get_buffer
-        PROCEDURE :: init => init_buffer
-        PROCEDURE, PRIVATE :: copy_buffer
-        GENERIC :: ASSIGNMENT(=) => copy_buffer
-    END TYPE buffer_t
-
     TYPE, EXTENDS(basefield_t) :: field_t
         REAL(realk), ALLOCATABLE :: arr(:)
-        TYPE(buffer_t) :: buffers
+        REAL(realk), ALLOCATABLE :: buffers(:)
     CONTAINS
         PROCEDURE :: init
 
@@ -34,18 +22,15 @@ MODULE realfield_mod
         PROCEDURE, PRIVATE, NON_OVERRIDABLE :: multiply2, multiply3
 
         PROCEDURE, NON_OVERRIDABLE :: get_value
+        PROCEDURE, NON_OVERRIDABLE :: get_buffer
         PROCEDURE :: copy_from
         PROCEDURE :: shift
-        PROCEDURE :: get_buffers
         PROCEDURE :: init_buffers
         PROCEDURE :: finish
         FINAL :: destructor
-
-        PROCEDURE, PRIVATE :: set_const
-        GENERIC :: ASSIGNMENT(=) => set_const
     END TYPE field_t
 
-    PUBLIC :: field_t, buffer_t
+    PUBLIC :: field_t
 
 CONTAINS
     SUBROUTINE init(this, name, description, ndim, istag, jstag, kstag, &
@@ -86,7 +71,9 @@ CONTAINS
         CALL this%finish_corefield()
 
         DEALLOCATE(this%arr)
-        IF (this%buffers%is_init) CALL this%buffers%finish()
+        IF (ALLOCATED(this%buffers)) THEN
+            DEALLOCATE(this%buffers)
+        END IF
     END SUBROUTINE finish
 
 
@@ -201,7 +188,10 @@ CONTAINS
         END IF
         this%active_level = that%active_level
 
-        this%get_len => that%get_len
+        IF (.NOT. ALLOCATED(this%length)) THEN
+            ALLOCATE(this%length, mold=that%length)
+        END IF
+        this%length = that%length
 
         IF (.NOT. ALLOCATED(this%ptr)) THEN
             ALLOCATE(this%ptr, mold=that%ptr)
@@ -432,47 +422,10 @@ CONTAINS
         ! Subroutine arguments
         CLASS(field_t), TARGET, INTENT(inout) :: this
 
-        IF (.NOT. this%buffers%is_init) THEN
-            CALL this%buffers%init()
+        IF (ALLOCATED(this%buffers)) THEN
+            RETURN
         END IF
-    END SUBROUTINE init_buffers
-
-
-    SUBROUTINE get_buffers(this, buffers)
-        ! Allocate and (optionally) fetch buffers
-
-        ! Subroutine arguments
-        CLASS(field_t), TARGET, INTENT(inout) :: this
-        TYPE(buffer_t), POINTER, INTENT(inout) :: buffers
-
-        IF (.NOT. this%buffers%is_init) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-        buffers => this%buffers
-    END SUBROUTINE get_buffers
-
-
-    SUBROUTINE set_const(this, val)
-        ! Set a field to a constant scalar value
-
-        ! Subroutine arguments
-        CLASS(field_t), INTENT(inout) :: this
-        REAL(realk), INTENT(in) :: val
-
-        this%arr = val
-    END SUBROUTINE set_const
-
-
-    SUBROUTINE init_buffer(this)
-        ! Subroutine arguments
-        CLASS(buffer_t), INTENT(inout) :: this
-
-        ! Local variables
-        ! none...
-
-        IF (this%is_init) CALL errr(__FILE__, __LINE__)
-
-        ALLOCATE(this%arr(idimbb))
+        ALLOCATE(this%buffers(idimbb))
 
 #ifdef _MGLET_DEBUG_
         BLOCK
@@ -489,34 +442,19 @@ CONTAINS
 
             ! Define NaN and set that value in the array
             nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
-            this%arr = nan
+            this%buffers = nan
 
             ! Restore the previous floating point exception mode
             CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
             CALL IEEE_SET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
         END BLOCK
 #endif
-
-        this%is_init = .TRUE.
-    END SUBROUTINE init_buffer
-
-
-    ELEMENTAL SUBROUTINE buffer_destructor(this)
-        TYPE(buffer_t), INTENT(inout) :: this
-        CALL this%finish()
-    END SUBROUTINE buffer_destructor
-
-
-    PURE SUBROUTINE finish_buffer(this)
-        CLASS(buffer_t), INTENT(inout) :: this
-        this%is_init = .FALSE.
-        IF (ALLOCATED(this%arr)) DEALLOCATE(this%arr)
-    END SUBROUTINE finish_buffer
+    END SUBROUTINE init_buffers
 
 
     SUBROUTINE get_buffer(this, ptr, igrid, iface)
         ! Subroutine arguments
-        CLASS(buffer_t), INTENT(inout), TARGET :: this
+        CLASS(field_t), INTENT(inout), TARGET :: this
         REAL(realk), INTENT(out), POINTER, CONTIGUOUS :: ptr(:, :)
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(in) :: iface
@@ -524,7 +462,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, ibb
 
-        IF (.NOT. this%is_init) THEN
+        IF (.NOT. ALLOCATED(this%buffers)) THEN
             WRITE(*, *) "Buffers not initialized"
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -543,31 +481,14 @@ CONTAINS
 
         SELECT CASE (iface)
         CASE (1, 2)
-            ptr(1:kk, 1:jj) => this%arr(ibb:ibb+kk*jj-1)
+            ptr(1:kk, 1:jj) => this%buffers(ibb:ibb+kk*jj-1)
         CASE (3, 4)
-            ptr(1:kk, 1:ii) => this%arr(ibb:ibb+kk*ii-1)
+            ptr(1:kk, 1:ii) => this%buffers(ibb:ibb+kk*ii-1)
         CASE (5, 6)
-            ptr(1:jj, 1:ii) => this%arr(ibb:ibb+jj*ii-1)
+            ptr(1:jj, 1:ii) => this%buffers(ibb:ibb+jj*ii-1)
         CASE DEFAULT
             WRITE(*, '("Invalid face: ", I0)') iface
             CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_buffer
-
-
-    SUBROUTINE copy_buffer(this, that)
-        ! Copy buffers (from one field to antother)
-        ! Example usage:
-        !     pwu%buffers = u%buffers
-        !     pwv%buffers = v%buffers
-        !     pww%buffers = w%buffers
-        ! from setpointvalues
-
-        ! Subroutine arguments
-        CLASS(buffer_t), INTENT(inout) :: this
-        CLASS(buffer_t), INTENT(in) :: that
-
-        this%arr = that%arr
-    END SUBROUTINE copy_buffer
-
 END MODULE realfield_mod

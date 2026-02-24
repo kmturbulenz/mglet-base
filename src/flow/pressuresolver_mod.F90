@@ -996,7 +996,7 @@ CONTAINS
         IF (ctyp /= 'PAR') RETURN
 
         CALL f1%get_ptr(p, igrid)
-        CALL f1%buffers%get_buffer(pbuffer, igrid, iface)
+        CALL f1%get_buffer(pbuffer, igrid, iface)
         CALL get_mgdims(kk, jj, ii, igrid)
 
         CALL get_fieldptr(dx, "DX", igrid)
@@ -1095,7 +1095,7 @@ CONTAINS
         IF (ctyp /= 'PAR') RETURN
 
         CALL f1%get_ptr(p, igrid)
-        CALL f1%buffers%get_buffer(pbuffer, igrid, iface)
+        CALL f1%get_buffer(pbuffer, igrid, iface)
         CALL get_mgdims(kk, jj, ii, igrid)
 
         CALL get_fieldptr(dx, "DX", igrid)
@@ -1194,7 +1194,7 @@ CONTAINS
         IF (ctyp /= 'PAR') RETURN
 
         CALL f1%get_ptr(p, igrid)
-        CALL f1%buffers%get_buffer(pbuffer, igrid, iface)
+        CALL f1%get_buffer(pbuffer, igrid, iface)
         CALL get_mgdims(kk, jj, ii, igrid)
 
         CALL get_fieldptr(dx, "DX", igrid)

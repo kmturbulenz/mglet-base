@@ -60,10 +60,10 @@ CONTAINS
         ! CALL f3%get_ptr(qtw, igrid)
         CALL f4%get_ptr(t, igrid)
 
-        CALL f1%buffers%get_buffer(qtubuf, igrid, iface)
-        ! CALL f2%buffers%get_buffer(qtvbuf, igrid, iface)
-        ! CALL f3%buffers%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%buffers%get_buffer(tbuf, igrid, iface)
+        CALL f1%get_buffer(qtubuf, igrid, iface)
+        ! CALL f2%get_buffer(qtvbuf, igrid, iface)
+        ! CALL f3%get_buffer(qtwbuf, igrid, iface)
+        CALL f4%get_buffer(tbuf, igrid, iface)
 
         CALL get_fieldptr(u, "U", igrid)
         CALL get_fieldptr(v, "V", igrid)
@@ -250,10 +250,10 @@ CONTAINS
         ! CALL f3%get_ptr(qtw, igrid)
         CALL f4%get_ptr(t, igrid)
 
-        ! CALL f1%buffers%get_buffer(qtubuf, igrid, iface)
-        CALL f2%buffers%get_buffer(qtvbuf, igrid, iface)
-        ! CALL f3%buffers%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%buffers%get_buffer(tbuf, igrid, iface)
+        ! CALL f1%get_buffer(qtubuf, igrid, iface)
+        CALL f2%get_buffer(qtvbuf, igrid, iface)
+        ! CALL f3%get_buffer(qtwbuf, igrid, iface)
+        CALL f4%get_buffer(tbuf, igrid, iface)
 
         CALL get_fieldptr(u, "U", igrid)
         CALL get_fieldptr(v, "V", igrid)
@@ -440,10 +440,10 @@ CONTAINS
         CALL f3%get_ptr(qtw, igrid)
         CALL f4%get_ptr(t, igrid)
 
-        ! CALL f1%buffers%get_buffer(qtubuf, igrid, iface)
-        ! CALL f2%buffers%get_buffer(qtvbuf, igrid, iface)
-        CALL f3%buffers%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%buffers%get_buffer(tbuf, igrid, iface)
+        ! CALL f1%get_buffer(qtubuf, igrid, iface)
+        ! CALL f2%get_buffer(qtvbuf, igrid, iface)
+        CALL f3%get_buffer(qtwbuf, igrid, iface)
+        CALL f4%get_buffer(tbuf, igrid, iface)
 
         CALL get_fieldptr(u, "U", igrid)
         CALL get_fieldptr(v, "V", igrid)
@@ -589,5 +589,4 @@ CONTAINS
             END SELECT
         END SELECT
     END SUBROUTINE bbottom
-
 END MODULE bound_scalar_mod

@@ -59,9 +59,9 @@ CONTAINS
 
         SELECT CASE (ctyp)
         CASE ("FIX", "OP1", "PAR")
-            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+            CALL f1%get_buffer(ubuf, igrid, iface)
+            CALL f2%get_buffer(vbuf, igrid, iface)
+            CALL f3%get_buffer(wbuf, igrid, iface)
         END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
@@ -295,9 +295,9 @@ CONTAINS
 
         SELECT CASE (ctyp)
         CASE ("FIX", "OP1", "PAR")
-            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+            CALL f1%get_buffer(ubuf, igrid, iface)
+            CALL f2%get_buffer(vbuf, igrid, iface)
+            CALL f3%get_buffer(wbuf, igrid, iface)
         END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
@@ -533,9 +533,9 @@ CONTAINS
 
         SELECT CASE (ctyp)
         CASE ("FIX", "OP1", "PAR")
-            CALL f1%buffers%get_buffer(ubuf, igrid, iface)
-            CALL f2%buffers%get_buffer(vbuf, igrid, iface)
-            CALL f3%buffers%get_buffer(wbuf, igrid, iface)
+            CALL f1%get_buffer(ubuf, igrid, iface)
+            CALL f2%get_buffer(vbuf, igrid, iface)
+            CALL f3%get_buffer(wbuf, igrid, iface)
         END SELECT
 
         CALL get_fieldptr(bp, "BP", igrid)
