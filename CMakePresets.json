@@ -243,6 +243,8 @@
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
                 "MGLET_OFFLOAD_Fortran_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda",
+                "MGLET_OFFLOAD_C_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda",
+                "MGLET_OFFLOAD_CXX_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda",
                 "MGLET_LINK_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda"
             }
         },
