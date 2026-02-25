@@ -56,10 +56,11 @@ else()
     message(STATUS "Compiling MGLET with 32 bit integers")
 endif()
 
-option(MGLET_OPENMP "Enable OpenMP (experimental)" OFF)
-if(MGLET_OPENMP)
+option(MGLET_OFFLOAD "Enable OpenMP Offload (experimental)" OFF)
+if(MGLET_OFFLOAD)
     message(STATUS "Enabling OpenMP")
     find_package(OpenMP REQUIRED)
+    add_compile_definitions(_MGLET_OFFLOAD_=1)
 endif()
 
 # CMake build options
@@ -88,6 +89,12 @@ set(MGLET_C_FLAGS_DEBUG "" CACHE STRING "MGLET C flags (debug)")
 set(MGLET_CXX_FLAGS_DEBUG "" CACHE STRING "MGLET CXX flags (debug)")
 set(MGLET_Fortran_FLAGS_DEBUG "" CACHE STRING "MGLET Fortran flags (debug)")
 
+set(MGLET_OFFLOAD_C_FLAGS "" CACHE STRING "MGLET OFFLOAD C flags")
+set(MGLET_OFFLOAD_CXX_FLAGS "" CACHE STRING "MGLET OFFLOAD CXX flags")
+set(MGLET_OFFLOAD_Fortran_FLAGS "" CACHE STRING "MGLET OFFLOAD Fortran flags")
+
+set(MGLET_LINK_FLAGS "" CACHE STRING "MGLET LINK flags")
+
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<COMPILE_LANGUAGE:CXX>:${MGLET_CXX_FLAGS}>"
     "$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_Fortran_FLAGS}>"
@@ -111,8 +118,17 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
 )
 
-if (MGLET_OPENMP)
-    add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>"
+add_link_options(
+    "${MGLET_LINK_FLAGS}"
+)
+
+if (MGLET_OFFLOAD)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS};${MGLET_OFFLOAD_C_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS};${MGLET_OFFLOAD_CXX_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS};${MGLET_OFFLOAD_Fortran_FLAGS}>"
+    )
+
+    add_link_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>"
         "$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>"
         "$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
     )

@@ -37,7 +37,7 @@ target_link_libraries(mglet
     PUBLIC mgletlib
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ${MPI_Fortran_LIBRARIES}
-    PRIVATE $<IF:$<BOOL:${MGLET_OPENMP}>,OpenMP::OpenMP_Fortran,>
+    PRIVATE $<IF:$<BOOL:${MGLET_OFFLOAD}>,OpenMP::OpenMP_Fortran,>
 )
 
 # When using the NAG Fortran compiler, use the CXX linker (usually GCC),
