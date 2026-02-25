@@ -255,7 +255,6 @@ CONTAINS
                     dwdz(k-2) = (w(k, j, i) - w(k-1, j, i))*rddz(k)
                 END DO
 
-                !$omp simd
                 DO k = 3, kk-2
                     delta(k-2) = cube_root(ddx(i)*ddy(j)*ddz(k))
                     delta(k-2) = delta(k-2)*bp(k, j, i)
@@ -334,7 +333,6 @@ CONTAINS
 
                 SELECT CASE (ilesmodel)
                 CASE (1)
-                    !$omp simd private(dm)
                     DO k = 3, kk-2
                         dm = smagorinsky(dudx(k-2), dudy(k-2), dudz(k-2), &
                             dvdx(k-2), dvdy(k-2), dvdz(k-2), &
@@ -363,8 +361,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
     dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(smagorinsky)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
@@ -517,8 +513,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(sabs)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
