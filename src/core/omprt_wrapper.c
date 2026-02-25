@@ -1,6 +1,7 @@
 
 #include "omprt_wrapper.h"
 
+#include "mglet_precision.h"
 #include <stdio.h>
 #include <math.h>
 #include <omp.h>
@@ -33,8 +34,9 @@ void get_launched_on_gpu(int* l) {
     return;
 }
 
+
 #pragma omp declare target
-void get_exp(float* b, float* a){
+void get_exp(mgletreal* b, const mgletreal* a){
     *b = expf(*a);
     return;
 }
