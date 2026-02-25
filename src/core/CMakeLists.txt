@@ -28,6 +28,7 @@ add_library(core STATIC
     jsoncpp_wrapper.cxx
     mgletmath_mod.F90
     offload_mod.F90
+    omprt_wrapper.c
     plugins_mod.F90
     pointers_mod.F90
     precision_mod.F90
