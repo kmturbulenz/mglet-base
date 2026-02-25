@@ -16,16 +16,19 @@ MODULE commbuf_mod
 
     ! A 1-byte integer data buffer as a core for simplicity
     INTEGER(int8), ALLOCATABLE, TARGET :: buffer(:)
+    !$omp declare target(buffer)
 
     ! Various buffers that all point to the same core buffer
     REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: recvbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: bigbuf(:) => NULL()
     INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:) => NULL()
+    !$omp declare target(sendbuf, recvbuf, bigbuf, intbuf)
 
     INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:) => NULL()
     INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:) => NULL()
     INTEGER(ifk), POINTER, CONTIGUOUS :: irecvbuf(:) => NULL()
+    !$omp declare target(ifkbuf, isendbuf, irecvbuf)
 
     PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &
@@ -111,9 +114,11 @@ CONTAINS
         IF (ASSOCIATED(irecvbuf)) NULLIFY(irecvbuf)
 
         IF (ALLOCATED(buffer)) THEN
+            !$omp target exit data map(delete: buffer)
             DEALLOCATE(buffer)
         END IF
         ALLOCATE(buffer(corrlength))
+        !$omp target enter data map(always, to: buffer)
 
         idim_mg_big = corrlength/real_bytes
         idim_mg_bufs = idim_mg_big/2
@@ -121,15 +126,19 @@ CONTAINS
         cptr = C_LOC(buffer)
 
         CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
+        !$omp target update to(bigbuf)
         sendbuf => bigbuf(1:idim_mg_bufs)
         recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+        !$omp target update to(sendbuf, recvbuf)
 
         CALL C_F_POINTER(cptr, intbuf, [idim_mg_intbuf])
 
         ifklength = corrlength/ifk_bytes
         CALL C_F_POINTER(cptr, ifkbuf, [ifklength])
+        !$omp target update to(ifkbuf)
         isendbuf => ifkbuf(1:ifklength/2)
         irecvbuf => ifkbuf(ifklength/2+1:2*(ifklength/2))
+        !$omp target update to(isendbuf, irecvbuf)
     END SUBROUTINE allocate_buffer
 
 END MODULE commbuf_mod
