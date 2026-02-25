@@ -27,6 +27,7 @@ add_library(core STATIC
     hdf5common_mod.F90
     jsoncpp_wrapper.cxx
     mgletmath_mod.F90
+    offload_mod.F90
     plugins_mod.F90
     pointers_mod.F90
     precision_mod.F90
