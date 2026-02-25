@@ -1,6 +1,6 @@
 MODULE offload_mod
     USE comms_mod, ONLY: myid
-    USE precision_mod, ONLY: intk, realk, c_intk
+    USE precision_mod, ONLY: intk, realk, c_intk, c_realk
     USE err_mod, ONLY: errr
 
     IMPLICIT NONE(type, external)
@@ -31,6 +31,17 @@ MODULE offload_mod
         END SUBROUTINE get_launched_on_gpu
     END INTERFACE
 
+    ! Experimental ...
+
+    INTERFACE
+        ! void get_launched_on_gpuint* l)
+        SUBROUTINE get_exp(out, in) BIND(C)
+            IMPORT :: c_realk
+            REAL(kind=c_realk), INTENT(INOUT) :: out
+            REAL(kind=c_realk), INTENT(INOUT) :: in
+        END SUBROUTINE get_exp
+    END INTERFACE
+
     ! Public subroutines
     PUBLIC :: init_offload
 
@@ -45,6 +56,7 @@ CONTAINS
         INTEGER(intk) :: gpu_launched
         CHARACTER(len=3) :: message
         REAL(realk) :: a = 1.0
+        REAL(realk) :: res = 0.0
 
         ! Querying number of devices (via C function)
         CALL get_num_devices(num_devices)
@@ -69,6 +81,13 @@ CONTAINS
             END IF
             WRITE(*, '()')
         END IF
+
+        ! Experimental: test offloaded function
+
+        !$omp target map(tofrom: res) map(to: a)
+        CALL get_exp(res, a)
+        !$omp end target
+        WRITE(*, '("Result of offloaded get_exp: ", F6.3)') res
 #endif
 
     END SUBROUTINE init_offload

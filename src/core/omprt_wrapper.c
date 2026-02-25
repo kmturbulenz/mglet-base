@@ -2,6 +2,7 @@
 #include "omprt_wrapper.h"
 
 #include <stdio.h>
+#include <math.h>
 #include <omp.h>
 
 
@@ -31,3 +32,10 @@ void get_launched_on_gpu(int* l) {
     }
     return;
 }
+
+#pragma omp declare target
+void get_exp(float* b, float* a){
+    *b = expf(*a);
+    return;
+}
+#pragma omp end declare target
