@@ -40,10 +40,12 @@ MODULE scacore_mod
     LOGICAL, PROTECTED :: has_scalar = .FALSE.
     LOGICAL, PROTECTED :: solve_scalar = .FALSE.
     REAL(realk) :: prturb
+    !$omp declare target(prturb)
 
     ! Scalar/physical paramters
     INTEGER(intk), PROTECTED :: nsca
     TYPE(scalar_t), ALLOCATABLE, PROTECTED :: scalar(:)
+    !$omp declare target(scalar)
 
     PUBLIC :: init_scacore, finish_scacore, scalar_t, scalar, nsca, prturb, &
         has_scalar, solve_scalar, maskbt, scalar_source_t
@@ -159,10 +161,12 @@ CONTAINS
 
             CALL sc%finish()
         END DO
+        !$omp target enter data map(always, to: scalar)
 
         ! Optional values
         CALL scaconf%get_value("/solve", solve_scalar, .TRUE.)
         CALL scaconf%get_value("/prturb", prturb, 1.0)
+        !$omp target enter data map(always, to: prturb)
 
         IF (myid == 0) THEN
             WRITE(*, '("SCALAR TRANSPORT:")')
@@ -197,9 +201,11 @@ CONTAINS
                         CALL scaconf%get_value(jsonptr, rvalue)
                         CALL set_initial_value(t, rvalue)
                     END IF
+                    !$omp target update to(t%arr)
 
                     CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
                     t_old%arr = t%arr
+                    !$omp target update to(t_old%arr)
                 ELSE
                     CALL scaconf%set_value(jsonptr, 0.0_realk)
                 END IF
@@ -221,6 +227,7 @@ CONTAINS
         CALL set_field("BT", dwrite=.TRUE.)
         CALL get_field(bt, "BT")
         CALL blockbt(bt)
+        !$omp target update to(bt%arr)
     END SUBROUTINE init_scacore
 
 

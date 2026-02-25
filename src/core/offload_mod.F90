@@ -6,7 +6,7 @@ MODULE offload_mod
     PRIVATE
 
     ! Public subroutines
-    PUBLIC :: init_offload
+    PUBLIC :: init_offload, is_on_device
 CONTAINS
     SUBROUTINE init_offload()
 #ifdef _MGLET_OFFLOAD_
@@ -37,4 +37,28 @@ CONTAINS
         END IF
 #endif
     END SUBROUTINE init_offload
+
+    LOGICAL FUNCTION is_on_device(cptr, device_num) RESULT(res)
+        USE ISO_C_BINDING, ONLY: c_ptr
+#ifdef _MGLET_OFFLOAD_
+        USE omp_lib
+#endif
+        ! Subroutine arguments
+        TYPE(c_ptr), INTENT(in) :: cptr
+        INTEGER(intk), OPTIONAL :: device_num
+#ifdef _MGLET_OFFLOAD_
+        ! Local variables
+        INTEGER(intk) :: has_device_num
+
+        IF (PRESENT(device_num)) THEN
+            has_device_num = device_num
+        ELSE
+            has_device_num = omp_get_default_device()
+        END IF
+
+        res = (omp_target_is_present(cptr, has_device_num) /= 0)
+#else
+        res = .FALSE.
+#endif
+    END FUNCTION is_on_device
 END MODULE offload_mod

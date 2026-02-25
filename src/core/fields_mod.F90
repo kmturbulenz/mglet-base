@@ -4,9 +4,11 @@ MODULE fields_mod
     USE err_mod, ONLY: errr
     USE fieldio2_mod, ONLY: fieldio_read, fieldio_write, init_fieldio, &
         finish_fieldio
+    USE fieldmapper_mod
     USE fort7_mod
     USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
         hdf5common_group_open, hdf5common_group_close
+    USE offload_mod, ONLY: is_on_device
     USE precision_mod
     USE field_mod, ONLY: field_t, get_len_i, nchar_name
 
@@ -53,6 +55,7 @@ CONTAINS
 
 
     SUBROUTINE finish_fields()
+        USE ISO_C_BINDING, ONLY: C_LOC
         ! Cleans up memory. Strictly speaking not neccesary, but it is ugly
         ! and triggers lots of messages in valgrind when memory is not
         ! explicitly deallocated in the end of executing a program.
@@ -61,6 +64,9 @@ CONTAINS
         INTEGER(intk) :: i
 
         DO i = 1, nfields
+            IF (is_on_device(C_LOC(fields(nfields)))) THEN
+                !$omp target exit data map(release: fields(i))
+            END IF
             CALL fields(i)%finish()
         END DO
     END SUBROUTINE finish_fields
@@ -151,7 +157,7 @@ CONTAINS
 
     SUBROUTINE set_field(name, description, ndim, istag, jstag, kstag, &
             units, dread, required, dwrite, buffers, active_level, get_len, &
-            found)
+            settarget, found)
 
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(in) :: name
@@ -167,11 +173,19 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: buffers
         LOGICAL, INTENT(in), OPTIONAL :: active_level(:)
         PROCEDURE(get_len_i), OPTIONAL :: get_len
+        LOGICAL, INTENT(in), OPTIONAL :: settarget
         LOGICAL, INTENT(out), OPTIONAL :: found
 
         ! Local variables
         TYPE(field_t), POINTER :: dummy
-        LOGICAL :: exists
+        LOGICAL :: exists, has_settarget
+
+        ! Set field on target by default. Use settarget=.FALSE. to opt out
+        IF (PRESENT(settarget)) THEN
+            has_settarget = settarget
+        ELSE
+            has_settarget = .TRUE.
+        END IF
 
         ! Check that field does not exist before
         CALL get_field(dummy, name, exists)
@@ -203,6 +217,11 @@ CONTAINS
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
+        END IF
+
+        ! Set field on target
+        IF (has_settarget) THEN
+            !$omp target enter data map(to: fields(nfields))
         END IF
     END SUBROUTINE set_field
 

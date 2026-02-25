@@ -10,6 +10,7 @@ MODULE lesmodel_mod
     INTEGER(intk), PARAMETER :: nchar = 16
     CHARACTER(len=nchar) :: clesmodel
     INTEGER(intk), PROTECTED :: ilesmodel
+    !$omp declare target(ilesmodel)
 
     TYPE, EXTENDS(bound_t) :: boundg_t
     CONTAINS
@@ -60,6 +61,7 @@ CONTAINS
             WRITE(*, *) "Invalid LES model:", clesmodel
             CALL errr(__FILE__, __LINE__)
         END SELECT
+        !$omp target enter data map(always, to: ilesmodel)
 
         ! Override default model parameter
         CALL lesconf%get_value("/Cm", Cm, Cm)
@@ -81,6 +83,7 @@ CONTAINS
         ELSE
             CALL lesmodel(g)
         END IF
+        !$omp target update to(g%arr)
     END SUBROUTINE init_lesmodel
 
 

@@ -79,6 +79,13 @@ CONTAINS
 
         CALL read_gridspacing()
         CALL calc_reciprocals()
+
+        !$omp target update to(rddx%arr, rddy%arr, rddz%arr)
+        !$omp target update to(rdx%arr, rdy%arr, rdz%arr)
+        !$omp target update to(ddx%arr, ddy%arr, ddz%arr)
+        !$omp target update to(dx%arr, dy%arr, dz%arr)
+        !$omp target update to(x%arr, y%arr, z%arr)
+        !$omp target update to(xstag%arr, ystag%arr, zstag%arr)
     END SUBROUTINE init_corefields
 
 
