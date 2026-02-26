@@ -6,40 +6,107 @@ MODULE offload_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
+    ! Experimental interfaces to OpenMP runtime functions in C
+
+    ! INTERFACE
+    !     FUNCTION omp_get_num_devices_c() BIND(C) RESULT(res)
+    !         USE iso_c_binding
+    !         IMPORT :: c_intk
+    !         INTEGER(kind=c_intk) :: res
+    !     END FUNCTION omp_get_num_devices_c
+    ! END INTERFACE
+
     INTERFACE
-        ! void get_num_devices(int* n_dev)
-        SUBROUTINE get_num_devices(n_dev) BIND(C)
+        FUNCTION omp_get_num_devices_c() BIND(C)
             IMPORT :: c_intk
-            INTEGER(kind=c_intk), INTENT(INOUT) :: n_dev
-        END SUBROUTINE get_num_devices
+            INTEGER(kind=c_intk) :: omp_get_num_devices_c
+        END FUNCTION
+
+        FUNCTION omp_is_initial_device_c() BIND(C)
+            IMPORT :: c_intk
+            INTEGER(kind=c_intk) :: omp_is_initial_device_c
+        END FUNCTION
+
+        FUNCTION omp_get_default_device_c() BIND(C)
+            IMPORT :: c_intk
+            INTEGER(kind=c_intk) :: omp_get_default_device_c
+        END FUNCTION
+
+        FUNCTION omp_get_initial_device_c() BIND(C)
+            IMPORT :: c_intk
+            INTEGER(kind=c_intk) :: omp_get_initial_device_c
+        END FUNCTION
+
+        FUNCTION omp_get_num_teams_c() BIND(C)
+            IMPORT :: c_intk
+            INTEGER(kind=c_intk) :: omp_get_num_teams_c
+        END FUNCTION
+
+        FUNCTION omp_get_team_num_c() BIND(C)
+            IMPORT :: c_intk
+            INTEGER(kind=c_intk) :: omp_get_team_num_c
+        END FUNCTION
+
+        FUNCTION omp_target_is_present_c(ptr, device) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, only : C_PTR
+            USE precision_mod, ONLY: c_intk
+            TYPE(C_PTR), VALUE :: ptr
+            INTEGER(kind=c_intk), VALUE :: device
+            INTEGER(kind=c_intk) :: omp_target_is_present_c
+        END FUNCTION
     END INTERFACE
 
-    INTERFACE
-        ! void get_default_device(int* def_dev)
-        SUBROUTINE get_default_device(def_dev) BIND(C)
-            IMPORT :: c_intk
-            INTEGER(kind=c_intk), INTENT(INOUT) :: def_dev
-        END SUBROUTINE get_default_device
-    END INTERFACE
+    ! Experimental interfaces to C math functions
 
     INTERFACE
-        ! void get_launched_on_gpuint* l)
-        SUBROUTINE get_launched_on_gpu(l) BIND(C)
-            IMPORT :: c_intk
-            INTEGER(kind=c_intk), INTENT(INOUT) :: l
-            ! 1 for GPU, 0 for CPU
-        END SUBROUTINE get_launched_on_gpu
-    END INTERFACE
-
-    ! Experimental ...
-
-    INTERFACE
-        ! void get_launched_on_gpuint* l)
-        SUBROUTINE get_exp(out, in) BIND(C)
+        FUNCTION exp_c(a) BIND(C) RESULT(res)
+            USE iso_c_binding
             IMPORT :: c_realk
-            REAL(kind=c_realk), INTENT(INOUT) :: out
-            REAL(kind=c_realk), INTENT(INOUT) :: in
-        END SUBROUTINE get_exp
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION exp_c
+
+        FUNCTION sin_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION sin_c
+
+        FUNCTION cos_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION cos_c
+
+        FUNCTION asin_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION asin_c
+
+        FUNCTION acos_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION acos_c
+
+        FUNCTION sqrt_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION sqrt_c
+
+        FUNCTION cbrt_c(a) bind(C) RESULT(res)
+            USE iso_c_binding
+            IMPORT :: c_realk
+            REAL(kind=c_realk), VALUE :: a
+            REAL(kind=c_realk) :: res
+        END FUNCTION cbrt_c
     END INTERFACE
 
     ! Public subroutines
@@ -53,22 +120,30 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: num_devices
-        INTEGER(intk) :: gpu_launched
+        INTEGER(intk) :: is_initial_device_cpu
+        INTEGER(intk) :: is_initial_device_gpu
+        LOGICAL :: has_gpu_support
         CHARACTER(len=3) :: message
         REAL(realk) :: a = 1.0
         REAL(realk) :: res = 0.0
 
         ! Querying number of devices (via C function)
-        CALL get_num_devices(num_devices)
+        num_devices = omp_get_num_devices_c()
 
-        ! Check if a kernel can launch on the GPU (via C function)
-        gpu_launched = -1
-        CALL get_launched_on_gpu(gpu_launched)
+        ! Check if a kernel can launch on the CPU and GPU (via C function)
+        is_initial_device_cpu = omp_is_initial_device_c()
+        !$omp target map(is_initial_device_gpu)
+        is_initial_device_gpu = omp_is_initial_device_c()
+        !$omp end target
 
-        IF (gpu_launched == 1) THEN
+        IF (is_initial_device_cpu == 1 .AND. &
+                is_initial_device_gpu == 0) THEN
             message = "YES"
-        ELSE IF (gpu_launched == 0) THEN
+            has_gpu_support = .TRUE.
+        ELSE IF (is_initial_device_cpu == 1 .AND. &
+                is_initial_device_gpu == 1) THEN
             message = "NO "
+            has_gpu_support = .FALSE.
         ELSE
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -76,7 +151,7 @@ CONTAINS
         IF (myid == 0) THEN
             WRITE(*, '("OPENMP ENABLED")')
             WRITE(*, '("    Offload available:   ", A)') message
-            IF (gpu_launched == 1) THEN
+            IF (has_gpu_support) THEN
                 WRITE(*, '("    Visible devices (rank 0): ", I0)') num_devices
             END IF
             WRITE(*, '()')
@@ -85,9 +160,9 @@ CONTAINS
         ! Experimental: test offloaded function
 
         !$omp target map(tofrom: res) map(to: a)
-        CALL get_exp(res, a)
+        res = exp_c(a)
         !$omp end target
-        WRITE(*, '("Result of offloaded get_exp: ", F6.3)') res
+        WRITE(*, '("Result of offloaded exp_c: ", F6.3)') res
 #endif
 
     END SUBROUTINE init_offload
