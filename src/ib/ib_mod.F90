@@ -35,10 +35,23 @@ MODULE ib_mod
 
 CONTAINS
     SUBROUTINE init_ib()
-        USE core_mod, ONLY: set_timer
+        USE core_mod, ONLY: set_timer, fort7, errr
 
-        CALL register_ib("ghostcell", gc_constructor)
-        CALL register_ib("noib", noib_constructor)
+        ! Local variables
+        CHARACTER(len=16) :: ctyp
+
+        ! Allocate IB model object
+        CALL fort7%get_value("/ib/type", ctyp)
+
+        SELECT CASE (TRIM(ctyp))
+        CASE ("noib")
+            CALL noib_constructor(ib)
+        CASE ("ghostcell")
+            CALL gc_constructor(ib)
+        CASE DEFAULT
+            WRITE(*, '(A)') "Error: Unknown IB type: "//TRIM(ctyp)
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
 
         CALL init_ibcore()
         CALL init_ctof()
