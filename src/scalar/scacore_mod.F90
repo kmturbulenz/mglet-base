@@ -218,6 +218,11 @@ CONTAINS
             END IF
         END DO
 
+        CALL set_field("QTT")
+        CALL set_field("QTU", istag=1, buffers=.TRUE.)
+        CALL set_field("QTV", jstag=1, buffers=.TRUE.)
+        CALL set_field("QTW", kstag=1, buffers=.TRUE.)
+
         CALL scaconf%finish()
         IF (myid == 0) THEN
             WRITE(*, '()')
