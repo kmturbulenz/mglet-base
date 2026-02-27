@@ -2,6 +2,7 @@ MODULE scacore_mod
     USE core_mod
     USE ib_mod, ONLY: ib, gc_t
     USE flow_mod, ONLY: has_flow
+    USE fieldmapper_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -201,11 +202,11 @@ CONTAINS
                         CALL scaconf%get_value(jsonptr, rvalue)
                         CALL set_initial_value(t, rvalue)
                     END IF
-                    !$omp target update to(t%arr)
+                    !$omp target update to(mapper(maparr): t)
 
                     CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
                     t_old%arr = t%arr
-                    !$omp target update to(t_old%arr)
+                    !$omp target update to(mapper(maparr): t_old)
                 ELSE
                     CALL scaconf%set_value(jsonptr, 0.0_realk)
                 END IF
@@ -218,6 +219,11 @@ CONTAINS
             END IF
         END DO
 
+        CALL set_field("QTT")
+        CALL set_field("QTU", istag=1, buffers=.TRUE.)
+        CALL set_field("QTV", jstag=1, buffers=.TRUE.)
+        CALL set_field("QTW", kstag=1, buffers=.TRUE.)
+
         CALL scaconf%finish()
         IF (myid == 0) THEN
             WRITE(*, '()')
@@ -227,7 +233,7 @@ CONTAINS
         CALL set_field("BT", dwrite=.TRUE.)
         CALL get_field(bt, "BT")
         CALL blockbt(bt)
-        !$omp target update to(bt%arr)
+        !$omp target update to(mapper(maparr): bt)
     END SUBROUTINE init_scacore
 
 

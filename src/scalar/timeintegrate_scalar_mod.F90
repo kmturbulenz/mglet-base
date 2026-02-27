@@ -25,22 +25,20 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: ilevel, l
         REAL(realk) :: frhs, fu, dtrk, dtrki
-        TYPE(field_t), POINTER :: t, told, dt_f
-        TYPE(field_t) :: qtt, qtu, qtv, qtw
+        TYPE(field_t), POINTER :: t, told, dt_f, qtt, qtu, qtv, qtw
 
         IF (.NOT. solve_scalar) RETURN
         CALL start_timer(400)
+
         CALL start_timer(401)
-
-        ! Local temporary storage ("scrap")
-        CALL qtt%init("QTT")
-        CALL qtu%init("QTU", istag=1)
-        CALL qtv%init("QTV", jstag=1)
-        CALL qtw%init("QTW", kstag=1)
-
-        CALL qtu%init_buffers()
-        CALL qtv%init_buffers()
-        CALL qtw%init_buffers()
+        ! (Cray) Frequently reallocating memory on an USM system is very
+        !        costly and should be avoided. Thus, we keep the scalar
+        !        fluxes allocated throughout the full simulation, which
+        !        increases the total memory footprint
+        CALL get_field(qtt, "QTT")
+        CALL get_field(qtu, "QTU")
+        CALL get_field(qtv, "QTV")
+        CALL get_field(qtw, "QTW")
         CALL stop_timer(401)
 
         CALL start_timer(402)
@@ -100,11 +98,6 @@ CONTAINS
             ! TODO: Fill ghost layers of T (maybe only at last IRK?)
         END DO
         CALL stop_timer(402)
-
-        CALL qtt%finish()
-        CALL qtu%finish()
-        CALL qtv%finish()
-        CALL qtw%finish()
 
         CALL stop_timer(400)
     END SUBROUTINE timeintegrate_scalar
@@ -245,8 +238,7 @@ CONTAINS
         INTEGER(intk) :: i, j, k
         INTEGER(intk) :: nfu, nbu, nrv, nlv, nbw, ntw
         INTEGER(intk) :: iles
-        REAL(realk) :: gsca(kk)
-        REAL(realk) :: adv, diff, area
+        REAL(realk) :: gsca, adv, diff, area
         REAL(realk) :: gscamol, gtgmolp, gtgmoln
 
         ! Set INTENT(out) to zero
@@ -278,28 +270,23 @@ CONTAINS
         DO i = 3-nfu, ii-3+nbu
             DO j = 3, jj-2
                 ! Scalar diffusivity LES/DNS computation
-                IF (iles == 1) THEN
-                    DO k = 3, kk-2
+                DO k = 3, kk - 2
+                    IF (iles == 1) THEN
                         gscamol = gmol/rho/sca%prmol
                         gtgmolp = (g(k, j, i) - gmol)/gmol
                         gtgmoln = (g(k, j, i+1) - gmol)/gmol
 
                         ! 1/Re * 1/Pr + 1/Re_t * 1/Pr_t:
-                        gsca(k) = gscamol &
+                        gsca = gscamol &
                             + (g(k, j, i+1) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
                         ! Limit gsca here MAX(..., 0): no negative diffusion!
-                        gsca(k) = MAX(gscamol, gsca(k))
-                    END DO
-                ELSE
-                    DO k = 3, kk-2
-                        gsca(k) = gmol/rho/sca%prmol
-                    END DO
-                END IF
+                        gsca = MAX(gscamol, gsca)
+                    ELSE
+                        gsca = gmol/rho/sca%prmol
+                    END IF
 
-                ! Final asembly
-                DO k = 3, kk-2
                     ! Convective fluxes
                     ! It is assumed that the velocity field is already masked
                     ! with BU, BV, BW = no new masking necessary (!)
@@ -310,7 +297,7 @@ CONTAINS
                     ! neighbours it is determined if faces are blocked (=0)
                     ! or open (=1)
                     area = bt(k, j, i)*bt(k, j, i+1)*(ddy(j)*ddz(k))
-                    diff = -gsca(k)*rdx(i)*(t(k, j, i+1) - t(k, j, i))*area
+                    diff = -gsca*rdx(i)*(t(k, j, i+1) - t(k, j, i))*area
 
                     ! Final result
                     qtu(k, j, i) = adv + diff
@@ -322,28 +309,23 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3-nrv, jj-3+nlv
                 ! Scalar diffusivity LES/DNS computation
-                IF (iles == 1) THEN
-                    DO k = 3, kk-2
+                DO k = 3, kk-2
+                    IF (iles == 1) THEN
                         gscamol = gmol/rho/sca%prmol
                         gtgmolp = (g(k, j, i) - gmol)/gmol
                         gtgmoln = (g(k, j+1, i) - gmol)/gmol
 
                         ! 1/Re * 1/Pr + 1/Re_t * 1/Pr_t:
-                        gsca(k) = gscamol &
+                        gsca = gscamol &
                             + (g(k, j+1, i) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
                         ! Limit gsca here MAX(..., 0): no negative diffusion!
-                        gsca(k) = MAX(gscamol, gsca(k))
-                    END DO
-                ELSE
-                    DO k = 3, kk-2
-                        gsca(k) = gmol/rho/sca%prmol
-                    END DO
-                END IF
+                        gsca = MAX(gscamol, gsca)
+                    ELSE
+                        gsca = gmol/rho/sca%prmol
+                    END IF
 
-                ! Final asembly
-                DO k = 3, kk-2
                     ! Convective fluxes
                     ! It is assumed that the velocity field is already masked
                     ! with BU, BV, BW = no new masking necessary (!)
@@ -354,7 +336,7 @@ CONTAINS
                     ! neighbours it is determined if faces are blocked (=0)
                     ! or open (=1)
                     area = bt(k, j, i)*bt(k, j+1, i)*(ddx(i)*ddz(k))
-                    diff = -gsca(k)*rdy(j)*(t(k, j+1, i) - t(k, j, i))*area
+                    diff = -gsca*rdy(j)*(t(k, j+1, i) - t(k, j, i))*area
 
                     ! Final result
                     qtv(k, j, i) = adv + diff
@@ -366,28 +348,23 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3, jj-2
                 ! Scalar diffusivity LES/DNS computation
-                IF (iles == 1) THEN
-                    DO k = 3-nbw, kk-3+ntw
+                DO k = 3-nbw, kk-3+ntw
+                    IF (iles == 1) THEN
                         gscamol = gmol/rho/sca%prmol
                         gtgmolp = (g(k, j, i) - gmol)/gmol
                         gtgmoln = (g(k+1, j, i) - gmol)/gmol
 
                         ! 1/Re * 1/Pr + 1/Re_t * 1/Pr_t:
-                        gsca(k) = gscamol &
+                        gsca = gscamol &
                             + (g(k+1, j, i) + g(k, j, i) - 2.0*gmol) / rho &
                             / (sca%prt(gtgmoln) + sca%prt(gtgmolp))
 
                         ! Limit gsca here MAX(..., 0): no negative diffusion!
-                        gsca(k) = MAX(gscamol, gsca(k))
-                    END DO
-                ELSE
-                    DO k = 3-nbw, kk-3+ntw
-                        gsca(k) = gmol/rho/sca%prmol
-                    END DO
-                END IF
+                        gsca = MAX(gscamol, gsca)
+                    ELSE
+                        gsca = gmol/rho/sca%prmol
+                    END IF
 
-                ! Final asembly
-                DO k = 3-nbw, kk-3+ntw
                     ! Convective fluxes
                     ! It is assumed that the velocity field is already masked
                     ! with BU, BV, BW = no new masking necessary (!)
@@ -398,7 +375,7 @@ CONTAINS
                     ! neighbours it is determined if faces are blocked (=0)
                     ! or open (=1)
                     area = bt(k, j, i)*bt(k+1, j, i)*(ddx(i)*ddy(j))
-                    diff = -gsca(k)*rdz(k)*(t(k+1, j, i) - t(k, j, i))*area
+                    diff = -gsca*rdz(k)*(t(k+1, j, i) - t(k, j, i))*area
 
                     ! Final result
                     qtw(k, j, i) = adv + diff

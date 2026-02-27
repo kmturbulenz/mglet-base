@@ -1,6 +1,7 @@
 MODULE lesmodel_mod
     USE core_mod
     USE flowcore_mod
+    USE fieldmapper_mod
     USE ib_mod
     USE wernerwengle_mod
 
@@ -83,7 +84,7 @@ CONTAINS
         ELSE
             CALL lesmodel(g)
         END IF
-        !$omp target update to(g%arr)
+        !$omp target update to(mapper(maparr): g)
     END SUBROUTINE init_lesmodel
 
 

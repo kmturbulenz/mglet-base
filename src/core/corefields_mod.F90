@@ -3,6 +3,7 @@ MODULE corefields_mod
     USE err_mod, ONLY: errr
     USE field_mod
     USE fieldio2_mod
+    USE fieldmapper_mod
     USE fields_mod
     USE fort7_mod
     USE grids_mod
@@ -80,12 +81,12 @@ CONTAINS
         CALL read_gridspacing()
         CALL calc_reciprocals()
 
-        !$omp target update to(rddx%arr, rddy%arr, rddz%arr)
-        !$omp target update to(rdx%arr, rdy%arr, rdz%arr)
-        !$omp target update to(ddx%arr, ddy%arr, ddz%arr)
-        !$omp target update to(dx%arr, dy%arr, dz%arr)
-        !$omp target update to(x%arr, y%arr, z%arr)
-        !$omp target update to(xstag%arr, ystag%arr, zstag%arr)
+        !$omp target update to(mapper(maparr): rddx, rddy, rddz)
+        !$omp target update to(mapper(maparr): rdx, rdy, rdz)
+        !$omp target update to(mapper(maparr): ddx, ddy, ddz)
+        !$omp target update to(mapper(maparr): dx, dy, dz)
+        !$omp target update to(mapper(maparr): x, y, z)
+        !$omp target update to(mapper(maparr): xstag, ystag, zstag)
     END SUBROUTINE init_corefields
 
 
