@@ -43,59 +43,87 @@ CONTAINS
 
         CALL start_timer(402)
         DO l = 1, nsca
+            CALL start_timer(429)
             ! Fetch fields
             CALL get_field(t, scalar(l)%name)
             CALL get_field(dt_f, "D"//TRIM(scalar(l)%name))
             CALL get_field(told, TRIM(scalar(l)%name)//"_OLD")
 
+            CALL start_timer(430)
             ! Copy to "T_OLD" (not needed here but used for Boussinesq)
             told%arr = t%arr
+            CALL stop_timer(430)
 
+            CALL start_timer(435)
             ! TSTSCA4 zeroize qtu, qtv, qtw before use internally
             CALL tstsca4(qtu, qtv, qtw, t, scalar(l))
+            CALL stop_timer(435)
 
             ! This operation apply boundary conditions to qtu, qtv, qtw ONLY!
             ! Does not modify t-field at all!
             DO ilevel = minlevel, maxlevel
+                CALL start_timer(440)
                 CALL parent(ilevel, qtu, qtv, qtw)
+                CALL stop_timer(440)
+                CALL start_timer(445)
                 CALL bound_scaflux%bound(ilevel, qtu, qtv, qtw, t)
+                CALL stop_timer(445)
             END DO
 
+            CALL start_timer(450)
             ! fluxbalance zeroize qtt before use internally
             CALL fluxbalance(qtt, qtu, qtv, qtw)
+            CALL stop_timer(450)
 
+            CALL start_timer(455)
             ! Additional source terms
             CALL sourceterm(qtt, scalar(l))
+            CALL stop_timer(455)
 
+            CALL start_timer(460)
             ! Ghost cell "flux" boundary condition applied to qtt field
             IF (ib%type == "GHOSTCELL") THEN
                 CALL set_scastencils("P", scalar(l), qtt=qtt)
             END IF
+            CALL stop_timer(460)
 
             ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
             ! the dt field before each step
             CALL rkscheme%get_coeffs(frhs, fu, dtrk, dtrki, irk)
 
+            CALL start_timer(465)
             ! dT_j = A_j*dT_(j-1) + QTT
             ! T_j = T_(j-1) + B_j*dT_j
             CALL rkstep(t%arr, dt_f%arr, qtt%arr, frhs, dt*fu)
+            CALL stop_timer(465)
 
+            CALL start_timer(470)
             ! Mask blocked cells
             CALL maskbt(t)
+            CALL stop_timer(470)
 
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
+                CALL start_timer(475)
                 CALL connect(layers=2, s1=t, corners=.TRUE.)
+                CALL stop_timer(475)
+                CALL start_timer(480)
                 CALL set_scastencils("P", scalar(l), t=t)
+                CALL stop_timer(480)
             END IF
 
             DO ilevel = maxlevel, minlevel+1, -1
+                CALL start_timer(485)
                 CALL ftoc(ilevel, t, t, 'T')
+                CALL stop_timer(485)
             END DO
 
+            CALL start_timer(490)
             CALL connect(layers=2, s1=t, corners=.TRUE.)
+            CALL stop_timer(490)
 
             ! TODO: Fill ghost layers of T (maybe only at last IRK?)
+            CALL stop_timer(429)
         END DO
         CALL stop_timer(402)
 
