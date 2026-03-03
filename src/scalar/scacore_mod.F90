@@ -280,25 +280,35 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, ip3
         TYPE(field_t), POINTER :: bt_f
-        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :), bt(:, :, :)
 
         CALL get_field(bt_f, "BT")
 
+        !$omp target teams loop bind(teams) &
+        !$omp private(igrid, kk, jj, ii, ip3)
         DO i = 1, nmygrids
             igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL bt_f%get_ptr(bt, igrid)
-            CALL t_f%get_ptr(t, igrid)
+            kk = gridinfo(igrid)%kk
+            jj = gridinfo(igrid)%jj
+            ii = gridinfo(igrid)%ii
+            ip3 = ip3d(igrid)
 
-            CALL maskbt_grid(kk, jj, ii, t, bt)
+#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
+            !$omp parallel
+#endif
+            CALL maskbt_grid(kk, jj, ii, t_f%arr(ip3), bt_f%arr(ip3))
+#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
+            !$omp end parallel
+#endif
         END DO
+        !$omp end target teams loop
     END SUBROUTINE maskbt
 
 
-    PURE SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+    SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: t(kk, jj, ii)
@@ -308,6 +318,12 @@ CONTAINS
         INTEGER :: k, j, i
 
         ! TODO: Indices?
+        !$omp loop collapse(3) &
+#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
+        !$omp bind(thread)
+#else
+        !$omp bind(parallel)
+#endif
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -315,6 +331,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end loop
     END SUBROUTINE maskbt_grid
 
 

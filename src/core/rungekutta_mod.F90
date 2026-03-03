@@ -312,7 +312,7 @@ CONTAINS
     ! Perform an update of fields in the RK time integration scheme
     ! dU_j = A_j*dU_(j-1) + dt*uo
     ! U_j = U_(j-1) + B_j*dU_j
-    PURE SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
+    SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
         ! Subroutine arguments
         REAL(realk), CONTIGUOUS, INTENT(inout) :: p(:)
         REAL(realk), CONTIGUOUS, INTENT(inout) :: dp(:)
@@ -326,9 +326,11 @@ CONTAINS
         ! Perform the update in a manually crafted loop is faster than using an
         ! implicit loop, because of cache effects (dp(i) is already in cache
         ! when p(i) is updated)
+        !$omp target teams loop
         DO i = 1, SIZE(p)
             dp(i) = frhs*dp(i) + rhsp(i)
             p(i) = p(i) + dtfu*dp(i)
         END DO
+        !$omp end target teams loop
     END SUBROUTINE rkstep
 END MODULE rungekutta_mod
