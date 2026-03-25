@@ -14,10 +14,11 @@ MODULE grids_mod
     TYPE(bcond_t), ALLOCATABLE, TARGET :: left(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: bottom(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: top(:)
-    !$omp declare target(gridinfo)
+    !$omp declare target(gridinfo, front, back, right, left, bottom, top)
 
     REAL(realk), ALLOCATABLE :: realprms(:)
     INTEGER(intk), ALLOCATABLE :: intprms(:)
+    !$omp declare target(realprms, intprms)
 
     ! Elements from former mgpar.h, colevel.h cobound.h and setmpi_mod
     INTEGER(intk), PROTECTED :: ngrid
@@ -31,7 +32,7 @@ MODULE grids_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygrids(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nmygridslvl(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygridslvl(:, :)
-    !$omp declare target(nmygrids, mygrids)
+    !$omp declare target(nmygrids, mygrids, nmygridslvl, mygridslvl)
 
     INTEGER(intk), ALLOCATABLE, PROTECTED :: globalgrids(:)
     !$omp declare target(globalgrids)
@@ -39,7 +40,7 @@ MODULE grids_mod
     ! From cobound.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nboconds(:, :)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: itypboconds(:, :, :)
-    !$omp declare target(itypboconds)
+    !$omp declare target(nboconds, itypboconds)
 
     ! From compi.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: idprocofgrd(:)
@@ -305,8 +306,11 @@ CONTAINS
                 END IF
             END DO
         END DO
-        !$omp target enter data map(always, to: gridinfo)
+        !$omp target enter data map(always, to: gridinfo, front, back, right, left, bottom, top)
+        !$omp target enter data map(always, to: realprms, intprms)
         !$omp target enter data map(always, to: mygrids, nmygrids)
+        !$omp target enter data map(always, to: nmygridslvl, mygridslvl)
+        !$omp target enter data map(always, to: nboconds, itypboconds)
 
         ALLOCATE(globalgrids(ngrid), source=-1_intk)
         DO i = 1, nmygrids
@@ -516,6 +520,7 @@ CONTAINS
 
 
     SUBROUTINE get_bcprms(params, igrid, iface, ibocd)
+        !$omp declare target
         USE gridio_mod, ONLY: maxboconds
 
         ! Subroutine arguments
@@ -528,17 +533,17 @@ CONTAINS
         INTEGER(intk) :: offset, length, nbocd, nparams, nparams_tot
         TYPE(bcond_t), POINTER :: facearr(:)
 
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (igrid > ngrid .OR. igrid < 0) THEN
+        !     WRITE(*, *) "Invalid igrid: ", igrid
+        !     WRITE(*, *) "ngrid: ", ngrid
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
-        IF (ibocd > maxboconds) THEN
-            WRITE(*, *) "Invalid ibocd: ", ibocd
-            WRITE(*, *) "maxboconds: ", maxboconds
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (ibocd > maxboconds) THEN
+        !     WRITE(*, *) "Invalid ibocd: ", ibocd
+        !     WRITE(*, *) "maxboconds: ", maxboconds
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
         SELECT CASE(iface)
         CASE (1)
@@ -554,7 +559,7 @@ CONTAINS
         CASE (6)
             facearr => top
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
 
         nbocd = facearr(igrid)%nbocd
@@ -563,7 +568,7 @@ CONTAINS
             WRITE(*, *) "nbocd: ", nbocd
             WRITE(*, *) "igrid: ", igrid
             WRITE(*, *) "iface: ", iface
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
         SELECT TYPE (params)
@@ -578,7 +583,7 @@ CONTAINS
             nparams = SIZE(params)
             nparams_tot = SIZE(intprms)
         CLASS DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
 
         IF (length /= nparams) THEN
@@ -586,7 +591,7 @@ CONTAINS
             WRITE(*, *) "nparams: ", nparams
             WRITE(*, *) "igrid: ", igrid
             WRITE(*, *) "iface: ", iface
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
         ! It is OK to ask for zero parameters, then we just return here...
@@ -598,7 +603,7 @@ CONTAINS
             WRITE(*, *) "nparams_tot: ", nparams_tot
             WRITE(*, *) "igrid: ", igrid
             WRITE(*, *) "iface: ", iface
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
         SELECT TYPE (params)
@@ -607,7 +612,7 @@ CONTAINS
         TYPE IS (INTEGER(intk))
             params(1:length) = intprms(offset:offset+length-1)
         CLASS DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_bcprms
 
@@ -877,6 +882,8 @@ CONTAINS
 
 
     SUBROUTINE get_bc_ctyp(ctyp, ibocd, iface, igrid)
+        !$omp declare target
+
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(out) :: ctyp
         INTEGER(intk), INTENT(in) :: ibocd
@@ -889,50 +896,50 @@ CONTAINS
         ! Initialize INTENT(out)
         ctyp = ''
 
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (igrid > ngrid .OR. igrid < 0) THEN
+        !     WRITE(*, *) "Invalid igrid: ", igrid
+        !     WRITE(*, *) "ngrid: ", ngrid
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
-        IF (iface > 6 .OR. iface < 0) THEN
-            WRITE(*, *) "Invalid iface: ", iface
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (iface > 6 .OR. iface < 0) THEN
+        !     WRITE(*, *) "Invalid iface: ", iface
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
-        IF (ibocd > nboconds(iface, igrid) .OR. ibocd < 0) THEN
-            WRITE(*, *) "Invalid ibocd: ", ibocd
-            WRITE(*, *) "nboconds: ", nboconds(iface, igrid)
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (ibocd > nboconds(iface, igrid) .OR. ibocd < 0) THEN
+        !     WRITE(*, *) "Invalid ibocd: ", ibocd
+        !     WRITE(*, *) "nboconds: ", nboconds(iface, igrid)
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
         SELECT CASE (iface)
         CASE (1)
             nchar = SIZE(front(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(front(igrid)%type(:, ibocd), ctyp)
         CASE (2)
             nchar = SIZE(back(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(back(igrid)%type(:, ibocd), ctyp)
         CASE (3)
             nchar = SIZE(right(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(right(igrid)%type(:, ibocd), ctyp)
         CASE (4)
             nchar = SIZE(left(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(left(igrid)%type(:, ibocd), ctyp)
         CASE (5)
             nchar = SIZE(bottom(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(bottom(igrid)%type(:, ibocd), ctyp)
         CASE (6)
             nchar = SIZE(top(igrid)%type(:, ibocd))
-            IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
+            ! IF (nchar > LEN(ctyp)) CALL errr(__FILE__, __LINE__)
             ctyp = TRANSFER(top(igrid)%type(:, ibocd), ctyp)
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_bc_ctyp
 

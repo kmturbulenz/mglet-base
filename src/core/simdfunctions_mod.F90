@@ -46,6 +46,7 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(real32) FUNCTION divide0_sp(a, b) RESULT(res)
+        !$omp declare target
         REAL(real32), INTENT(in) :: a, b
 
         IF (b == 0.0_real32) THEN

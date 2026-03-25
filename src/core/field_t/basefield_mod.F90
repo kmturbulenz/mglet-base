@@ -233,6 +233,8 @@ CONTAINS
 
 
     SUBROUTINE get_ip(this, ip, igrid)
+        !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(in) :: this
         INTEGER(intk), INTENT(out) :: ip
@@ -248,6 +250,8 @@ CONTAINS
 
 
     SUBROUTINE get_len(this, len, igrid)
+        !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(in) :: this
         INTEGER(intk), INTENT(out) :: len
@@ -263,6 +267,8 @@ CONTAINS
 
 
     SUBROUTINE get_rattr(this, val, key, found)
+        !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(inout) :: this
         REAL(realk), INTENT(inout) :: val
@@ -273,7 +279,7 @@ CONTAINS
         INTEGER(intk) :: i
         LOGICAL :: thisfound
 
-        IF (LEN_TRIM(key) > nchar_name) CALL errr(__FILE__, __LINE__)
+        ! IF (LEN_TRIM(key) > nchar_name) CALL errr(__FILE__, __LINE__)
 
         thisfound = .FALSE.
         DO i = 1, this%n_rattr
@@ -289,13 +295,15 @@ CONTAINS
         ELSE
             IF (.NOT. thisfound) THEN
                 WRITE(*, '("Attribute ", A, " does not exist!")') key
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END IF
         END IF
     END SUBROUTINE get_rattr
 
 
     SUBROUTINE get_iattr(this, val, key, found)
+        !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(inout) :: this
         INTEGER(intk), INTENT(inout) :: val
@@ -306,7 +314,7 @@ CONTAINS
         INTEGER(intk) :: i
         LOGICAL :: thisfound
 
-        IF (LEN_TRIM(key) > nchar_name) CALL errr(__FILE__, __LINE__)
+        ! IF (LEN_TRIM(key) > nchar_name) CALL errr(__FILE__, __LINE__)
 
         thisfound = .FALSE.
         DO i = 1, this%n_iattr
@@ -322,7 +330,7 @@ CONTAINS
         ELSE
             IF (.NOT. thisfound) THEN
                 WRITE(*, '("Attribute ", A, " does not exist!")') key
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END IF
         END IF
     END SUBROUTINE get_iattr

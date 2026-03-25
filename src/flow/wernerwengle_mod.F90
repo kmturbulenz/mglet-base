@@ -7,6 +7,8 @@ MODULE wernerwengle_mod
 
     REAL(realk), PROTECTED :: cwa, cwb
     real(realk), PROTECTED :: cpo1, cpo2, cpo4, cpo5, cpo6, cpo8, cpo11, cpo12
+    !$omp declare target(cwa, cwb, cpo1, cpo2, cpo4, cpo5, cpo6, &
+    !$omp                cpo8, cpo11, cpo12)
 
     PUBLIC :: init_wernerwengle, finish_wernerwengle, gradp2, tauwin, qwallfix
 CONTAINS
@@ -26,6 +28,9 @@ CONTAINS
         ! cpo10 = gmol/rho*cwa**(1.0_realk/cpo1)
         cpo11 = 2.0_realk*cpo6*cwb*cpo1/(2.0_realk** cwb)
         cpo12 = cwb*cpo2/(2.0_realk**(cwb-1.0_realk))
+
+        !$omp target enter data map(always, to: cwa, cwb, cpo1, cpo2, cpo4, &
+        !$omp                       cpo5, cpo6, cpo8, cpo11, cpo12)
     END SUBROUTINE init_wernerwengle
 
 
@@ -83,6 +88,8 @@ CONTAINS
     ! usage!
     PURE ELEMENTAL REAL(realk) FUNCTION qwallfix(tbound, tfluid, uquer, dds, &
             prmol)
+        !$omp declare target
+
         ! Function arguments
         REAL(realk), INTENT(IN) :: tbound, tfluid, uquer, dds, prmol
 

@@ -6,77 +6,129 @@ MODULE bound_scalar_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    ! Bound operation 'T' operate on U, V, W, P
-    TYPE, EXTENDS(bound_t) :: bound_scaflux_t
-    CONTAINS
-        PROCEDURE, NOPASS :: front => bfront
-        PROCEDURE, NOPASS :: back => bfront
-        PROCEDURE, NOPASS :: right => bright
-        PROCEDURE, NOPASS :: left => bright
-        PROCEDURE, NOPASS :: bottom => bbottom
-        PROCEDURE, NOPASS :: top => bbottom
-    END TYPE bound_scaflux_t
-    TYPE(bound_scaflux_t) :: bound_scaflux
-
     PUBLIC :: bound_scaflux
 
 CONTAINS
-    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
+    SUBROUTINE bound_scaflux(ilevel, qtu_f, qtv_f, qtw_f, t_f)
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: qtu_f, qtv_f, qtw_f, t_f
+
+        INTEGER(intk) :: i, igrid, iface, nbocd, ibocd, kk, jj, ii
+        CHARACTER(len=8) :: ctyp
+        INTEGER(intk) :: scaidx, scb, scbtype(nsca)
+        REAL(realk) :: prmol
+        TYPE(field_t), POINTER :: u_f, v_f, w_f, bt_f, dx_f, dy_f, dz_f, ddx_f, &
+            ddy_f, ddz_f
+        REAL(realk), POINTER, CONTIGUOUS :: qtu(:, :, :), qtv(:, :, :), &
+            qtw(:, :, :), t(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: qtubuf(:, :), qtvbuf(:, :), &
+            qtwbuf(:, :), tbuf(:, :)
+        REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
+            w(:, :, :), bt(:, :, :), dx(:), dy(:), dz(:), &
+            ddx(:), ddy(:), ddz(:)
+
+        CALL get_field(u_f, "U")
+        CALL get_field(v_f, "V")
+        CALL get_field(w_f, "W")
+        CALL get_field(bt_f, "BT")
+        CALL get_field(dx_f, "DX")
+        CALL get_field(dy_f, "DY")
+        CALL get_field(dz_f, "DZ")
+        CALL get_field(ddx_f, "DDX")
+        CALL get_field(ddy_f, "DDY")
+        CALL get_field(ddz_f, "DDZ")
+
+        CALL t_f%get_attr(scaidx, "SCAIDX")
+        CALL t_f%get_attr(prmol, "PRMOL")
+
+        ! TODO: exploit more parallelism here!
+
+        !$omp target teams loop bind(teams) shared(prmol, scaidx) &
+        !$omp private(igrid, iface, nbocd, ibocd, ctyp, scb, scbtype, kk, jj, ii, qtu, qtv, &
+        !$omp         qtw, t, qtubuf, qtvbuf, qtwbuf, tbuf, u, v, w, bt, dx, &
+        !$omp         dy, dz, ddx, ddy, ddz)
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL qtu_f%get_ptr(qtu, igrid)
+            CALL qtv_f%get_ptr(qtv, igrid)
+            CALL qtw_f%get_ptr(qtw, igrid)
+            CALL t_f%get_ptr(t, igrid)
+
+            CALL u_f%get_ptr(u, igrid)
+            CALL v_f%get_ptr(v, igrid)
+            CALL w_f%get_ptr(w, igrid)
+            CALL bt_f%get_ptr(bt, igrid)
+            CALL dx_f%get_ptr(dx, igrid)
+            CALL dy_f%get_ptr(dy, igrid)
+            CALL dz_f%get_ptr(dz, igrid)
+            CALL ddx_f%get_ptr(ddx, igrid)
+            CALL ddy_f%get_ptr(ddy, igrid)
+            CALL ddz_f%get_ptr(ddz, igrid)
+
+            DO iface = 1, 6
+                nbocd = nboconds(iface, igrid)
+                DO ibocd = 1, nbocd
+                    CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
+
+                    SELECT CASE (ctyp)
+                    CASE ("PAR", "SIO", "SWA")
+                        CONTINUE
+                    CASE DEFAULT
+                        CYCLE
+                    END SELECT
+
+                    CALL qtu_f%get_buffer(qtubuf, igrid, iface)
+                    CALL qtv_f%get_buffer(qtvbuf, igrid, iface)
+                    CALL qtw_f%get_buffer(qtwbuf, igrid, iface)
+                    CALL t_f%get_buffer(tbuf, igrid, iface)
+
+                    CALL get_bcprms(scbtype, igrid, iface, ibocd)
+                    scb = scbtype(scaidx)
+
+                    !$omp parallel
+                    SELECT CASE(iface)
+                    CASE(1, 2)
+                        CALL bfront(igrid, iface, ibocd, ctyp, scb, prmol, &
+                            kk, jj, ii, qtu, t, u, v, w, bt, dx, &
+                            ddx, ddy, ddz, qtubuf, tbuf)
+                    CASE(3, 4)
+                        CALL bright(igrid, iface, ibocd, ctyp, scb, prmol, &
+                            kk, jj, ii, qtv, t, u, v, w, bt, dy, &
+                            ddx, ddy, ddz, qtvbuf, tbuf)
+                    CASE(5, 6)
+                        CALL bbottom(igrid, iface, ibocd, ctyp, scb, prmol, &
+                            kk, jj, ii, qtw, t, u, v, w, bt, dz, &
+                            ddx, ddy, ddz, qtwbuf, tbuf)
+                    END SELECT
+                    !$omp end parallel
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE bound_scaflux
+
+
+    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, scb, prmol, kk, jj, ii, &
+            qtu, t, u, v, w, bt, dx, ddx, ddy, ddz, qtubuf, tbuf)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
+        INTEGER(intk), INTENT(in) :: scb
+        REAL(realk), INTENT(in) :: prmol
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: qtu(kk, jj, ii)
+        REAL(realk), INTENT(in) :: t(kk, jj, ii), u(kk, jj, ii), &
+            v(kk, jj, ii), w(kk, jj, ii), bt(kk, jj, ii), dx(ii), &
+            ddx(ii), ddy(jj), ddz(kk), qtubuf(kk, jj), tbuf(kk, jj)
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: k, j, i3, istag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
-        REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
-        INTEGER(intk) :: idx, scbtype(nsca)
-        REAL(realk), POINTER, CONTIGUOUS :: qtu(:, :, :), t(:, :, :), &
-            bt(:, :, :), u(:, :, :), v(:, :, :), w(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: qtubuf(:, :), tbuf(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), ddx(:), ddy(:), ddz(:)
-
-        ! Return early when no action is to be taken
-        SELECT CASE (ctyp)
-        CASE ("PAR", "SIO", "SWA")
-            CONTINUE
-        CASE DEFAULT
-            RETURN
-        END SELECT
-
-        ! Assure that required fields are present
-        IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3) &
-                .OR. .NOT. PRESENT(f4)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Fetch pointers
-        CALL f1%get_ptr(qtu, igrid)
-        ! CALL f2%get_ptr(qtv, igrid)
-        ! CALL f3%get_ptr(qtw, igrid)
-        CALL f4%get_ptr(t, igrid)
-
-        CALL f1%get_buffer(qtubuf, igrid, iface)
-        ! CALL f2%get_buffer(qtvbuf, igrid, iface)
-        ! CALL f3%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%get_buffer(tbuf, igrid, iface)
-
-        CALL get_fieldptr(u, "U", igrid)
-        CALL get_fieldptr(v, "V", igrid)
-        CALL get_fieldptr(w, "W", igrid)
-
-        CALL get_fieldptr(bt, "BT", igrid)
-
-        CALL get_fieldptr(dx, "DX", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
-
-        CALL get_mgdims(kk, jj, ii, igrid)
+        REAL(realk) :: area, adv, diff, gamma, gamma2dx, uquer, tout
 
         SELECT CASE (iface)
         CASE (1)
@@ -96,12 +148,13 @@ CONTAINS
             istag2 = ii - 2
             dir = 1
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
 
         SELECT CASE (ctyp)
         CASE ("PAR")
             ! Wall-normal fluxes
+            !$omp loop collapse(2) bind(parallel) private(k, j, area1, area2, area3, area4, arecvtot, qtot)
             DO j = 3, jj-2, 2
                 DO k = 3, kk-2, 2
                     ! Open areas on sides of the 4 receiver cells
@@ -122,15 +175,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("SWA")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (wall)
-                CALL f4%get_attr(prmol, "PRMOL")
-
                 IF (ilesmodel == 0) THEN
                     gamma2dx = 2.0 * gmol / rho / prmol / dx(istag2)
+                    !$omp loop collapse(2) bind(parallel) private(k, j, diff)
                     DO j = 1, jj
                         DO k = 1, kk
                             ! Setting the scalar diffusive flux from the wall
@@ -140,6 +189,7 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
+                    !$omp loop collapse(2) bind(parallel) private(k, j, area, uquer)
                     DO j = 2, jj
                         DO k = 2, kk
                             ! Setting the scalar flux with a wall model
@@ -156,6 +206,7 @@ CONTAINS
                     END DO
                 END IF
             CASE (1)  ! Fixed flux value (wall)
+                !$omp loop collapse(2) bind(parallel) private(k, j, area)
                 DO j = 1, jj
                     DO k = 1, kk
                         ! Wall buffer tbuf contains flux at this boundary
@@ -164,18 +215,15 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
 
         CASE ("SIO")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (inflow/outflow)
-                CALL f4%get_attr(prmol, "PRMOL")
                 gamma = gmol / rho / prmol
 
+                !$omp loop collapse(2) bind(parallel) private(k, j, tout, adv, diff, area)
                 DO j = 1, jj
                     DO k = 1, kk
                         IF (-dir*u(k, j, istag2) >= 0.0) THEN
@@ -197,6 +245,7 @@ CONTAINS
                     END DO
                 END DO
             CASE (1)  ! Fixed flux value
+                !$omp loop collapse(2) bind(parallel) private(k, j, area)
                 DO j = 1, jj
                     DO k = 1, kk
                         ! Wall buffer tbuf contains flux at this boundary
@@ -205,68 +254,31 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
         END SELECT
     END SUBROUTINE bfront
 
 
-    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
+    SUBROUTINE bright(igrid, iface, ibocd, ctyp, scb, prmol, kk, jj, ii, &
+            qtv, t, u, v, w, bt, dy, ddx, ddy, ddz, qtvbuf, tbuf)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
+        INTEGER(intk), INTENT(in) :: scb
+        REAL(realk), INTENT(in) :: prmol
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: qtv(kk, jj, ii)
+        REAL(realk), INTENT(in) :: t(kk, jj, ii), u(kk, jj, ii), &
+            v(kk, jj, ii), w(kk, jj, ii), bt(kk, jj, ii), dy(jj), &
+            ddx(ii), ddy(jj), ddz(kk), qtvbuf(kk, ii), tbuf(kk, ii)
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: k, i, j3, jstag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
-        REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
-        INTEGER(intk) :: idx, scbtype(nsca)
-        REAL(realk), POINTER, CONTIGUOUS :: qtv(:, :, :), t(:, :, :), &
-            bt(:, :, :), u(:, :, :), v(:, :, :), w(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: qtvbuf(:, :), tbuf(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dy(:), ddx(:), ddy(:), ddz(:)
-
-        ! Return early when no action is to be taken
-        SELECT CASE (ctyp)
-        CASE ("PAR", "SIO", "SWA")
-            CONTINUE
-        CASE DEFAULT
-            RETURN
-        END SELECT
-
-        ! Assure that required fields are present
-        IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3) &
-                .OR. .NOT. PRESENT(f4)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Fetch pointers
-        ! CALL f1%get_ptr(qtu, igrid)
-        CALL f2%get_ptr(qtv, igrid)
-        ! CALL f3%get_ptr(qtw, igrid)
-        CALL f4%get_ptr(t, igrid)
-
-        ! CALL f1%get_buffer(qtubuf, igrid, iface)
-        CALL f2%get_buffer(qtvbuf, igrid, iface)
-        ! CALL f3%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%get_buffer(tbuf, igrid, iface)
-
-        CALL get_fieldptr(u, "U", igrid)
-        CALL get_fieldptr(v, "V", igrid)
-        CALL get_fieldptr(w, "W", igrid)
-
-        CALL get_fieldptr(bt, "BT", igrid)
-
-        CALL get_fieldptr(dy, "DY", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
-
-        CALL get_mgdims(kk, jj, ii, igrid)
+        REAL(realk) :: area, adv, diff, gamma, gamma2dx, uquer, tout
 
         SELECT CASE (iface)
         CASE (3)
@@ -286,12 +298,13 @@ CONTAINS
             jstag2 = jj - 2
             dir = 1
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
 
         SELECT CASE (ctyp)
         CASE ("PAR")
             ! Wall-normal fluxes
+            !$omp loop collapse(2) bind(parallel) private(k, i, area1, area2, area3, area4, arecvtot, qtot)
             DO i = 3, ii-2, 2
                 DO k = 3, kk-2, 2
                     ! Open areas on sides of the 4 receiver cells
@@ -312,15 +325,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("SWA")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (wall)
-                CALL f4%get_attr(prmol, "PRMOL")
-
                 IF (ilesmodel == 0) THEN
                     gamma2dx = 2.0 * gmol / rho / prmol / dy(jstag2)
+                    !$omp loop collapse(2) bind(parallel) private(k, i, diff)
                     DO i = 1, ii
                         DO k = 1, kk
                             ! Setting the scalar diffusive flux from the wall
@@ -330,6 +339,7 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
+                    !$omp loop collapse(2) bind(parallel) private(k, i, area, uquer)
                     DO i = 2, ii
                         DO k = 2, kk
                             ! Setting the scalar flux with a wall model
@@ -346,6 +356,7 @@ CONTAINS
                     END DO
                 END IF
             CASE (1)  ! Fixed flux value (wall)
+                !$omp loop collapse(2) bind(parallel) private(k, i, area)
                 DO i = 1, ii
                     DO k = 1, kk
                         ! Wall buffer tbuf contains flux at this boundary
@@ -354,18 +365,15 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
 
         CASE ("SIO")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (inflow/outflow)
-                CALL f4%get_attr(prmol, "PRMOL")
                 gamma = gmol / rho / prmol
 
+                !$omp loop collapse(2) bind(parallel) private(k, i, tout, adv, diff, area)
                 DO i = 1, ii
                     DO k = 1, kk
                         IF (-dir*v(k, jstag2, i) >= 0.0) THEN
@@ -387,6 +395,7 @@ CONTAINS
                     END DO
                 END DO
             CASE (1)  ! Fixed flux value
+                !$omp loop collapse(2) bind(parallel) private(k, i, area)
                 DO i = 1, ii
                     DO k = 1, kk
                         ! Wall buffer tbuf contains flux at this boundary
@@ -395,68 +404,31 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
         END SELECT
     END SUBROUTINE bright
 
 
-    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
+    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, scb, prmol, kk, jj, ii, &
+            qtw, t, u, v, w, bt, dz, ddx, ddy, ddz, qtwbuf, tbuf)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
         CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
+        INTEGER(intk), INTENT(in) :: scb
+        REAL(realk), INTENT(in) :: prmol
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: qtw(kk, jj, ii)
+        REAL(realk), INTENT(in) :: t(kk, jj, ii), u(kk, jj, ii), &
+            v(kk, jj, ii), w(kk, jj, ii), bt(kk, jj, ii), dz(kk), &
+            ddx(ii), ddy(jj), ddz(kk), qtwbuf(jj, ii), tbuf(jj, ii)
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: j, i, k3, kstag2, dir
         REAL(realk) :: area1, area2, area3, area4, arecvtot, qtot
-        REAL(realk) :: area, prmol, adv, diff, gamma, gamma2dx, uquer, tout
-        INTEGER(intk) :: idx, scbtype(nsca)
-        REAL(realk), POINTER, CONTIGUOUS :: qtw(:, :, :), t(:, :, :), &
-            bt(:, :, :), u(:, :, :), v(:, :, :), w(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: qtwbuf(:, :), tbuf(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dz(:), ddx(:), ddy(:), ddz(:)
-
-        ! Return early when no action is to be taken
-        SELECT CASE (ctyp)
-        CASE ("PAR", "SIO", "SWA")
-            CONTINUE
-        CASE DEFAULT
-            RETURN
-        END SELECT
-
-        ! Assure that required fields are present
-        IF (.NOT. PRESENT(f2) .OR. .NOT. PRESENT(f3) &
-                .OR. .NOT. PRESENT(f4)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Fetch pointers
-        ! CALL f1%get_ptr(qtu, igrid)
-        ! CALL f2%get_ptr(qtv, igrid)
-        CALL f3%get_ptr(qtw, igrid)
-        CALL f4%get_ptr(t, igrid)
-
-        ! CALL f1%get_buffer(qtubuf, igrid, iface)
-        ! CALL f2%get_buffer(qtvbuf, igrid, iface)
-        CALL f3%get_buffer(qtwbuf, igrid, iface)
-        CALL f4%get_buffer(tbuf, igrid, iface)
-
-        CALL get_fieldptr(u, "U", igrid)
-        CALL get_fieldptr(v, "V", igrid)
-        CALL get_fieldptr(w, "W", igrid)
-
-        CALL get_fieldptr(bt, "BT", igrid)
-
-        CALL get_fieldptr(dz, "DZ", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
-
-        CALL get_mgdims(kk, jj, ii, igrid)
+        REAL(realk) :: area, adv, diff, gamma, gamma2dx, uquer, tout
 
         SELECT CASE (iface)
         CASE (5)
@@ -476,12 +448,13 @@ CONTAINS
             kstag2 = kk - 2
             dir = 1
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
 
         SELECT CASE (ctyp)
         CASE ("PAR")
             ! Wall-normal fluxes
+            !$omp loop collapse(2) bind(parallel) private(j, i, area1, area2, area3, area4, arecvtot, qtot)
             DO i = 3, ii-2, 2
                 DO j = 3, jj-2, 2
                     ! Open areas on sides of the 4 receiver cells
@@ -502,15 +475,11 @@ CONTAINS
                 END DO
             END DO
         CASE ("SWA")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (wall)
-                CALL f4%get_attr(prmol, "PRMOL")
-
                 IF (ilesmodel == 0) THEN
                     gamma2dx = 2.0 * gmol / rho / prmol / dz(kstag2)
+                    !$omp loop collapse(2) bind(parallel) private(j, i, diff)
                     DO i = 1, ii
                         DO j = 1, jj
                             ! Setting the scalar diffusive flux from the wall
@@ -520,6 +489,7 @@ CONTAINS
                         END DO
                     END DO
                 ELSE
+                    !$omp loop collapse(2) bind(parallel) private(j, i, area, uquer)
                     DO i = 2, ii
                         DO j = 2, jj
                             ! Setting the scalar flux with a wall model
@@ -536,6 +506,7 @@ CONTAINS
                     END DO
                 END IF
             CASE (1)  ! Fixed flux value (wall)
+                !$omp loop collapse(2) bind(parallel) private(j, i, area)
                 DO i = 1, ii
                     DO j = 1, jj
                         ! Wall buffer tbuf contains flux at this boundary
@@ -544,18 +515,15 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
 
         CASE ("SIO")
-            CALL get_bcprms(scbtype, igrid, iface, ibocd)
-            CALL f4%get_attr(idx, "SCAIDX")
-
-            SELECT CASE (scbtype(idx))
+            SELECT CASE (scb)
             CASE (0)  ! Fixed scalar value (inflow/outflow)
-                CALL f4%get_attr(prmol, "PRMOL")
                 gamma = gmol / rho / prmol
 
+                !$omp loop collapse(2) bind(parallel) private(j, i, tout, adv, diff, area)
                 DO i = 1, ii
                     DO j = 1, jj
                         IF (-dir*w(kstag2, j, i) >= 0.0) THEN
@@ -577,6 +545,7 @@ CONTAINS
                     END DO
                 END DO
             CASE (1)  ! Fixed flux value
+                !$omp loop collapse(2) bind(parallel) private(j, i, area)
                 DO i = 1, ii
                     DO j = 1, jj
                         ! Wall buffer tbuf contains flux at this boundary
@@ -585,7 +554,7 @@ CONTAINS
                     END DO
                 END DO
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
+                ! CALL errr(__FILE__, __LINE__)
             END SELECT
         END SELECT
     END SUBROUTINE bbottom

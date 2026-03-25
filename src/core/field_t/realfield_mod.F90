@@ -120,10 +120,10 @@ CONTAINS
         !     CALL errr(__FILE__, __LINE__)
         ! END IF
 
-        ! CALL this%get_ip(ip, igrid)
+        CALL this%get_ip(ip, igrid)
         ! CALL this%get_len(len, igrid)
         CALL get_imygrid(imygrid, igrid)
-        ip = this%ptr(imygrid)
+        !ip = this%ptr(imygrid)
         ! IF (len <= 0) CALL errr(__FILE__, __LINE__)
 
         CALL get_mgdims(kk, jj, ii, igrid)
@@ -460,6 +460,8 @@ CONTAINS
 
 
     SUBROUTINE get_buffer(this, ptr, igrid, iface)
+        !$omp declare target
+
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout), TARGET :: this
         REAL(realk), INTENT(out), POINTER, CONTIGUOUS :: ptr(:, :)
@@ -471,7 +473,7 @@ CONTAINS
 
         IF (.NOT. ALLOCATED(this%buffers)) THEN
             WRITE(*, *) "Buffers not initialized"
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
         CALL get_mgdims(kk, jj, ii, igrid)
@@ -483,7 +485,7 @@ CONTAINS
         IF (ibb == 0) THEN
             WRITE(*, *) "Buffer not allocated for this boundary condition"
             WRITE(*, *) "  iface: ", iface, " igrid: ", igrid
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
         SELECT CASE (iface)
@@ -495,7 +497,7 @@ CONTAINS
             ptr(1:jj, 1:ii) => this%buffers(ibb:ibb+jj*ii-1)
         CASE DEFAULT
             WRITE(*, '("Invalid face: ", I0)') iface
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_buffer
 END MODULE realfield_mod
