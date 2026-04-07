@@ -5,7 +5,7 @@ MODULE pressuresolver_mod
     USE ib_mod
     USE itinfo_mod, ONLY: itinfo_sample
     USE plog_mod
-    USE hyperplane_mod, ONLY: hyperplane_init, hyperplane_finish
+    USE hyperplane_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -129,8 +129,8 @@ CONTAINS
         END SELECT
 
         ! Always intialize SIP - it's always used at the coarsest level
-        CALL hyperplane_init()
         CALL init_sip()
+        CALL hyperplane_init()
 
         ! Initialize SOR if enabled
         IF (ityp == 1) THEN
@@ -585,7 +585,9 @@ CONTAINS
             CALL siplpr%get_ptr(lpr, igrid)
 
             ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
+            CALL sipiter1(kk, jj, ii, rhs_p, res_p, &
+                lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
+                lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
 
@@ -608,7 +610,8 @@ CONTAINS
             CALL siput%get_ptr(ut, igrid)
 
             ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
-            CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut, &
+            CALL sipiter2(kk, jj, ii, dp_p, res_p, &
+                ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
     END SUBROUTINE sip
@@ -863,7 +866,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
 
         ! Local variables
-        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, &
+        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, iacc, &
             idx, idx_km, idx_jm, idx_im
 
         ! Subroutine body
@@ -879,18 +882,21 @@ CONTAINS
             ! > Parallel operations on the hyperplane (k, j, i) = m
             DO ip = 1, len
 
+                ! Computing the contiguous access index
+                iacc = lm + ip
+
                 ! Computing the required indices
-                idx = idxsip(lm + ip)
+                idx = idxsip(iacc)
                 idx_km = idx - 1
                 idx_jm = idx - kk
                 idx_im = idx - (kk*jj)
 
                 ! Accounting for RHS
-                res(idx) = (rhs(idx) + res(idx)) * lpr(idx)
+                res(idx) = (rhs(idx) + res(idx)) * lpr(iacc)
 
                 ! Performing the forward substitution
-                res(idx) = res(idx) - lb(idx)*res(idx_km) - &
-                    ls(idx)*res(idx_jm) - lw(idx)*res(idx_im)
+                res(idx) = res(idx) - lb(iacc)*res(idx_km) - &
+                    ls(iacc)*res(idx_jm) - lw(iacc)*res(idx_im)
 
                 ! Original code:
                 ! res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
@@ -946,7 +952,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
 
         ! Local variables
-        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, &
+        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, iacc, &
             idx, idx_kp, idx_jp, idx_ip, i, j, k
 
         ! Subroutine body
@@ -962,15 +968,18 @@ CONTAINS
             ! > Parallel operations on the hyperplane (k, j, i) = m
             DO ip = 1, len
 
+                ! Computing the contiguous access index
+                iacc = lm + ip
+
                 ! Computing the required indices
-                idx = idxsip(lm + ip)
+                idx = idxsip(iacc)
                 idx_kp = idx + 1
                 idx_jp = idx + kk
                 idx_ip = idx + (kk*jj)
 
                 ! Performing the backward substitution
-                res(idx) = res(idx) - ut(idx)*res(idx_kp) - &
-                    un(idx)*res(idx_jp) - ue(idx)*res(idx_ip)
+                res(idx) = res(idx) - ut(iacc)*res(idx_kp) - &
+                    un(iacc)*res(idx_jp) - ue(iacc)*res(idx_ip)
 
                 ! Original code:
                 ! res(k, j, i) = res(k, j, i) - un(k, j, i)*res(k, j+1, i) &
