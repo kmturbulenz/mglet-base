@@ -1,0 +1,246 @@
+
+MODULE hyperplane_mod
+
+    USE core_mod
+
+    IMPLICIT NONE
+
+    TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: mip_sip_list(:)
+    TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: idx_sip_list(:)
+
+    PUBLIC :: hyperplane_init, hyperplane_finish
+
+CONTAINS
+
+    SUBROUTINE hyperplane_init()
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+
+        ! Allocation of the lists of stencils for all grids
+        ALLOCATE(mip_sip_list(nmygrids))
+        ALLOCATE(idx_sip_list(nmygrids))
+
+        ! Iteration over all local grids
+        DO i = 1, nmygrids
+
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            ! Allocation of the arrays for one grid
+            ALLOCATE(mip_sip_list(i)%arr(ii+jj+kk))
+            ALLOCATE(idx_sip_list(i)%arr(ii*jj*kk))
+
+            ! Populating the arrays for one grid
+            CALL hyperplane_init_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+                idx_sip_list(i)%arr)
+
+            ! Sorting the indices within each hyperplane for one grid
+            CALL hyperplane_sort_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+                idx_sip_list(i)%arr)
+
+            ! Checking the correctness of the arrays for one grid
+            CALL hyperplane_check_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+                idx_sip_list(i)%arr)
+        END DO
+
+    END SUBROUTINE hyperplane_init
+
+
+
+    SUBROUTINE hyperplane_finish()
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        ! Iteration over all local grids
+        DO i = 1, nmygrids
+            ! Deallocation of the arrays for one grid
+            DEALLOCATE(mip_sip_list(i)%arr)
+            DEALLOCATE(idx_sip_list(i)%arr)
+        END DO
+
+        ! Deallocation of the lists of stencils for all grids
+        DEALLOCATE(mip_sip_list)
+        DEALLOCATE(idx_sip_list)
+
+    END SUBROUTINE hyperplane_finish
+
+
+    !---------------------------------------------------------------------
+    !> Initialize index vectors for hyperplane traversal
+    SUBROUTINE hyperplane_init_grid(kk, jj, ii, mip, idxsip)
+
+        ! Subroutine arguments
+        INTEGER, INTENT(in)    :: kk, jj, ii
+        INTEGER, INTENT(inout) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
+
+        ! Local variables
+        INTEGER :: n3dmin, n3dmax
+        INTEGER :: lm, nkmin, nkmax, ic1, nimin, nimax
+        INTEGER :: m, k, j, i, idx
+
+        ! Only cover [i=3,ii-2], [j=3,jj-2], [k=3,kk-2]
+        n3dmin = 3 + 3 + 3
+        n3dmax = (ii-2) + (jj-2) + (kk-2)
+
+        ! Initialization (to facilitate error detection)
+        mip = 0
+        idxsip = -1
+
+        ! Iterate over hyperplanes H(k,j,i)=m
+        DO m = n3dmin, n3dmax
+
+            ic1 = 0
+            lm  = mip(m)
+            nkmin = MAX(m - (ii-2) - (jj-2), 3)
+            nkmax = MIN((m - 2*3), (kk-2))
+
+            DO k = nkmin, nkmax
+                nimin = MAX(m - (jj-2) - k, 3)
+                nimax = MIN(m - k - 1*3, (ii-2))
+
+                DO i = nimin, nimax
+
+                    ! Calculate remaining index
+                    j = m - k - i
+
+                    ! Check bounds
+                    IF (i < 3 .OR. i > (ii-2)) THEN
+                        WRITE(*,*) 'hyperplane_init_grid: i out of bounds', i
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    IF (j < 3 .OR. j > (jj-2)) THEN
+                        WRITE(*,*) 'hyperplane_init_grid: j out of bounds', j
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    IF (k < 3 .OR. k > (kk-2)) THEN
+                        WRITE(*,*) 'hyperplane_init_grid: k out of bounds', k
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+
+                    ! Increment counter
+                    ic1 = ic1 + 1
+                    ! Store linear index
+                    CALL sub2ind(idx, k, j, i, kk, jj, ii)
+                    idxsip(lm + ic1) = idx
+
+                END DO
+            END DO
+
+            mip(m+1) = mip(m) + ic1
+
+        END DO
+
+    END SUBROUTINE hyperplane_init_grid
+
+
+    !---------------------------------------------------------------------
+    !> Sort indices within each hyperplane
+    SUBROUTINE hyperplane_sort_grid(kk, jj, ii, mip, idxsip)
+
+        ! Subroutine arguments
+        INTEGER, INTENT(in) :: kk, jj, ii
+        INTEGER, INTENT(in) :: mip(ii+jj+kk)
+        INTEGER, INTENT(inout) :: idxsip(ii*jj*kk)
+
+        ! Local variables
+        INTEGER :: n3dmin, n3dmax, len, m, s, e
+
+        n3dmin = 3 + 3 + 3
+        n3dmax = (ii-2) + (jj-2) + (kk-2)
+
+        ! Iterate over hyperplanes H(k,j,i)=m and sorting within each plane
+        DO m = n3dmin, n3dmax
+            len = mip(m+1) - mip(m)
+            s   = mip(m) + 1
+            e   = mip(m+1)
+            CALL sort(len, idxsip(s:e))
+        END DO
+
+    END SUBROUTINE hyperplane_sort_grid
+
+
+    !---------------------------------------------------------------------
+    !> Simple selection sort (for testing -- not performant)
+    SUBROUTINE sort(n, vec)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: n
+        INTEGER(intk), INTENT(inout) :: vec(n)
+
+        ! Local variables
+        INTEGER(intk) :: ix, v_rand(n), v_asc(n)
+        LOGICAL :: mask(n)
+
+        v_rand(:) = vec(:)
+        mask = .TRUE.
+
+        DO ix = 1, n
+            v_asc(ix) = MINVAL(v_rand, mask)
+            mask(MINLOC(v_rand, mask)) = .FALSE.
+        END DO
+
+        DO ix = 1, n-1
+            IF (v_asc(ix+1) <= v_asc(ix)) THEN
+                WRITE(*,*) 'sort: sorting failed'
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END DO
+
+        vec(:) = v_asc(:)
+
+    END SUBROUTINE sort
+
+
+    !---------------------------------------------------------------------
+    !> Check index vector correctness
+    SUBROUTINE hyperplane_check_grid(kk, jj, ii, mip, idxsip)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i, len, m, idx, n3dmin, n3dmax, lm, ip
+        INTEGER(intk), ALLOCATABLE :: test(:, :, :)
+
+        ! Creating test grid
+        ALLOCATE(test(kk, jj, ii))
+        test = 0
+
+        n3dmin = 3 + 3 + 3
+        n3dmax = (ii-2) + (jj-2) + (kk-2)
+
+        DO m = n3dmin, n3dmax
+            len = mip(m+1) - mip(m)
+            lm  = mip(m)
+            DO ip = 1, len
+                idx = idxsip(lm + ip)
+                CALL ind2sub(idx, k, j, i, kk, jj, ii)
+                test(k, j, i) = test(k, j, i) + 1
+                IF (k+j+i /= m) THEN
+                    WRITE(*,*) 'hyperplane_check_grid: index error'
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END DO
+        END DO
+
+        ! Performing tests and deallocating test grid
+        IF (ANY(test > 1)) THEN
+            WRITE(*,*) 'hyperplane_check_grid: some indices are duplicated'
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        IF (ANY(test(3:kk-2, 3:jj-2, 3:ii-2) < 1)) THEN
+            WRITE(*,*) 'hyperplane_check_grid: some indices are missing'
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        IF (SUM(test) /= (kk-4)*(jj-4)*(ii-4)) THEN
+            WRITE(*,*) 'hyperplane_check_grid: summation failed'
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        DEALLOCATE(test)
+
+    END SUBROUTINE hyperplane_check_grid
+
+END MODULE hyperplane_mod
