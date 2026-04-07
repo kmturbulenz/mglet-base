@@ -5,6 +5,7 @@ MODULE pressuresolver_mod
     USE ib_mod
     USE itinfo_mod, ONLY: itinfo_sample
     USE plog_mod
+    USE hyperplane_mod, ONLY: hyperplane_init, hyperplane_finish
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -42,8 +43,12 @@ MODULE pressuresolver_mod
     ! A-versions: simple versions not considering the BP field
     ! B-versions: IB versions using the BP field
     INTERFACE sipiter1
-        MODULE PROCEDURE :: sipiter1_A, sipiter1_B
+        MODULE PROCEDURE :: sipiter1_A, sipiter1_B, sipiter1_HPB
     END INTERFACE sipiter1
+
+    INTERFACE sipiter2
+        MODULE PROCEDURE :: sipiter2_A, sipiter2_HPA
+    END INTERFACE sipiter2
 
     INTERFACE pressureftocone
         MODULE PROCEDURE :: pressureftocone_A, pressureftocone_B
@@ -124,6 +129,7 @@ CONTAINS
         END SELECT
 
         ! Always intialize SIP - it's always used at the coarsest level
+        CALL hyperplane_init()
         CALL init_sip()
 
         ! Initialize SOR if enabled
@@ -141,6 +147,7 @@ CONTAINS
 
     SUBROUTINE finish_pressuresolver()
         CALL finish_plog()
+        CALL hyperplane_finish()
     END SUBROUTINE finish_pressuresolver
 
 
@@ -537,6 +544,9 @@ CONTAINS
 
     SUBROUTINE sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
             sipue, sipun, siput, siplpr, bp)
+
+        USE hyperplane_mod, ONLY: mip_sip_list, idx_sip_list
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         INTEGER(intk), INTENT(in) :: iloop
@@ -553,18 +563,17 @@ CONTAINS
         TYPE(field_t), INTENT(in), OPTIONAL :: bp
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: i, il, igrid
         INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
-            lb(:, :, :), ue(:, :, :), un(:, :, :), ut(:, :, :), &
-            lpr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :), &
-            rhs_p(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), &
+            lb(:), ue(:), un(:), ut(:), lpr(:)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:), res_p(:), rhs_p(:)
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO il = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(il, ilevel)
+            CALL get_imygrid(i, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
             CALL res%get_ptr(res_p, igrid)
@@ -575,7 +584,9 @@ CONTAINS
             CALL siplb%get_ptr(lb, igrid)
             CALL siplpr%get_ptr(lpr, igrid)
 
-            CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
+            ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
+            CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
+                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
 
         IF (iloop < ninner) THEN
@@ -584,8 +595,9 @@ CONTAINS
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
+        DO il = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(il, ilevel)
+            CALL get_imygrid(i, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
             CALL dp%get_ptr(dp_p, igrid)
@@ -595,7 +607,9 @@ CONTAINS
             CALL sipun%get_ptr(un, igrid)
             CALL siput%get_ptr(ut, igrid)
 
-            CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
+            ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
+            CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut, &
+                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
     END SUBROUTINE sip
 
@@ -835,7 +849,61 @@ CONTAINS
     END SUBROUTINE sipiter1_B
 
 
-    PURE SUBROUTINE sipiter2(kk, jj, ii, phi, res, ue, un, ut)
+    PURE SUBROUTINE sipiter1_HPB(kk, jj, ii, rhs, res, lw, ls, lb, lpr, mip, &
+        idxsip)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: res(kk*jj*ii)
+        REAL(realk), INTENT(in) :: rhs(kk*jj*ii), lw(kk*jj*ii), ls(kk*jj*ii), &
+            lb(kk*jj*ii), lpr(kk*jj*ii)
+
+        ! For the hyperplane traversal
+        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
+
+        ! Local variables
+        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, &
+            idx, idx_km, idx_jm, idx_im
+
+        ! Subroutine body
+        n3dmin = 3 + 3 + 3
+        n3dmax = (ii-2) + (jj-2) + (kk-2)
+
+        ! Iterating over the hyperplanes H(k, j, i) = m
+        DO m = n3dmin, n3dmax
+
+            lm = mip(m)
+            len = mip(m+1) - lm
+
+            ! > Parallel operations on the hyperplane (k, j, i) = m
+            DO ip = 1, len
+
+                ! Computing the required indices
+                idx = idxsip(lm + ip)
+                idx_km = idx - 1
+                idx_jm = idx - kk
+                idx_im = idx - (kk*jj)
+
+                ! Accounting for RHS
+                res(idx) = (rhs(idx) + res(idx)) * lpr(idx)
+
+                ! Performing the forward substitution
+                res(idx) = res(idx) - lb(idx)*res(idx_km) - &
+                    ls(idx)*res(idx_jm) - lw(idx)*res(idx_im)
+
+                ! Original code:
+                ! res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
+                !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
+
+            END DO
+        END DO
+
+    END SUBROUTINE sipiter1_HPB
+
+
+
+    PURE SUBROUTINE sipiter2_A(kk, jj, ii, phi, res, ue, un, ut)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: phi(kk, jj, ii), res(kk, jj, ii)
@@ -864,7 +932,62 @@ CONTAINS
                 END DO
             END DO
         END DO
-    END SUBROUTINE sipiter2
+    END SUBROUTINE sipiter2_A
+
+
+    PURE SUBROUTINE sipiter2_HPA(kk, jj, ii, phi, res, ue, un, ut, mip, idxsip)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: phi(kk*jj*ii), res(kk*jj*ii)
+        REAL(realk), INTENT(in) :: ue(kk*jj*ii), un(kk*jj*ii), ut(kk*jj*ii)
+
+        ! For the hyperplane traversal
+        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
+
+        ! Local variables
+        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, &
+            idx, idx_kp, idx_jp, idx_ip, i, j, k
+
+        ! Subroutine body
+        n3dmin = 3 + 3 + 3
+        n3dmax = (ii-2) + (jj-2) + (kk-2)
+
+        ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
+        DO m = n3dmax, n3dmin, -1
+
+            lm = mip(m)
+            len = mip(m+1) - lm
+
+            ! > Parallel operations on the hyperplane (k, j, i) = m
+            DO ip = 1, len
+
+                ! Computing the required indices
+                idx = idxsip(lm + ip)
+                idx_kp = idx + 1
+                idx_jp = idx + kk
+                idx_ip = idx + (kk*jj)
+
+                ! Performing the backward substitution
+                res(idx) = res(idx) - ut(idx)*res(idx_kp) - &
+                    un(idx)*res(idx_jp) - ue(idx)*res(idx_ip)
+
+                ! Original code:
+                ! res(k, j, i) = res(k, j, i) - un(k, j, i)*res(k, j+1, i) &
+                !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
+
+            END DO
+        END DO
+
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    idx = (k-1)*jj*ii + (j-1)*ii + i
+                    phi(idx) = phi(idx) + res(idx)
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE sipiter2_HPA
 
 
     PURE SUBROUTINE relax(kk, jj, ii, dp, rhs, gsaw, gsae, gsas, gsan, &
