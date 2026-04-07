@@ -67,8 +67,8 @@ CONTAINS
     END SUBROUTINE hyperplane_finish
 
 
-    !---------------------------------------------------------------------
-    !> Initialize index vectors for hyperplane traversal
+    ! ---------------------------------------------------------------------
+    ! > Initialize index vectors for hyperplane traversal
     SUBROUTINE hyperplane_init_grid(kk, jj, ii, mip, idxsip)
 
         ! Subroutine arguments
@@ -107,15 +107,15 @@ CONTAINS
 
                     ! Check bounds
                     IF (i < 3 .OR. i > (ii-2)) THEN
-                        WRITE(*,*) 'hyperplane_init_grid: i out of bounds', i
+                        WRITE(*, *) 'hyperplane_init_grid: i out of bounds', i
                         CALL errr(__FILE__, __LINE__)
                     END IF
                     IF (j < 3 .OR. j > (jj-2)) THEN
-                        WRITE(*,*) 'hyperplane_init_grid: j out of bounds', j
+                        WRITE(*, *) 'hyperplane_init_grid: j out of bounds', j
                         CALL errr(__FILE__, __LINE__)
                     END IF
                     IF (k < 3 .OR. k > (kk-2)) THEN
-                        WRITE(*,*) 'hyperplane_init_grid: k out of bounds', k
+                        WRITE(*, *) 'hyperplane_init_grid: k out of bounds', k
                         CALL errr(__FILE__, __LINE__)
                     END IF
 
@@ -135,8 +135,8 @@ CONTAINS
     END SUBROUTINE hyperplane_init_grid
 
 
-    !---------------------------------------------------------------------
-    !> Sort indices within each hyperplane
+    ! ---------------------------------------------------------------------
+    ! > Sort indices within each hyperplane
     SUBROUTINE hyperplane_sort_grid(kk, jj, ii, mip, idxsip)
 
         ! Subroutine arguments
@@ -161,8 +161,8 @@ CONTAINS
     END SUBROUTINE hyperplane_sort_grid
 
 
-    !---------------------------------------------------------------------
-    !> Simple selection sort (for testing -- not performant)
+    ! ---------------------------------------------------------------------
+    ! > Simple selection sort (for testing -- not performant)
     SUBROUTINE sort(n, vec)
 
         ! Subroutine arguments
@@ -183,7 +183,7 @@ CONTAINS
 
         DO ix = 1, n-1
             IF (v_asc(ix+1) <= v_asc(ix)) THEN
-                WRITE(*,*) 'sort: sorting failed'
+                WRITE(*, *) 'sort: sorting failed'
                 CALL errr(__FILE__, __LINE__)
             END IF
         END DO
@@ -193,8 +193,8 @@ CONTAINS
     END SUBROUTINE sort
 
 
-    !---------------------------------------------------------------------
-    !> Check index vector correctness
+    ! ---------------------------------------------------------------------
+    ! > Check index vector correctness
     SUBROUTINE hyperplane_check_grid(kk, jj, ii, mip, idxsip)
 
         ! Subroutine arguments
@@ -220,7 +220,7 @@ CONTAINS
                 CALL ind2sub(idx, k, j, i, kk, jj, ii)
                 test(k, j, i) = test(k, j, i) + 1
                 IF (k+j+i /= m) THEN
-                    WRITE(*,*) 'hyperplane_check_grid: index error'
+                    WRITE(*, *) 'hyperplane_check_grid: index error'
                     CALL errr(__FILE__, __LINE__)
                 END IF
             END DO
@@ -228,15 +228,15 @@ CONTAINS
 
         ! Performing tests and deallocating test grid
         IF (ANY(test > 1)) THEN
-            WRITE(*,*) 'hyperplane_check_grid: some indices are duplicated'
+            WRITE(*, *) 'hyperplane_check_grid: some indices are duplicated'
             CALL errr(__FILE__, __LINE__)
         END IF
         IF (ANY(test(3:kk-2, 3:jj-2, 3:ii-2) < 1)) THEN
-            WRITE(*,*) 'hyperplane_check_grid: some indices are missing'
+            WRITE(*, *) 'hyperplane_check_grid: some indices are missing'
             CALL errr(__FILE__, __LINE__)
         END IF
         IF (SUM(test) /= (kk-4)*(jj-4)*(ii-4)) THEN
-            WRITE(*,*) 'hyperplane_check_grid: summation failed'
+            WRITE(*, *) 'hyperplane_check_grid: summation failed'
             CALL errr(__FILE__, __LINE__)
         END IF
         DEALLOCATE(test)
