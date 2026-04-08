@@ -565,9 +565,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, il, igrid
         INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), &
-            lb(:), ue(:), un(:), ut(:), lpr(:)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:), res_p(:), rhs_p(:)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_1d_p(:), res_1d_p(:), &
+            rhs_1d_p(:)
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
@@ -576,16 +575,12 @@ CONTAINS
             CALL get_imygrid(i, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL res%get_ptr(res_p, igrid)
-            CALL rhs%get_ptr(rhs_p, igrid)
-
-            CALL siplw%get_ptr(lw, igrid)
-            CALL sipls%get_ptr(ls, igrid)
-            CALL siplb%get_ptr(lb, igrid)
-            CALL siplpr%get_ptr(lpr, igrid)
+            ! Getting the arrays is 1D pointers
+            CALL res%get_ptr(res_1d_p, igrid)
+            CALL rhs%get_ptr(rhs_1d_p, igrid)
 
             ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            CALL sipiter1(kk, jj, ii, rhs_p, res_p, &
+            CALL sipiter1(kk, jj, ii, rhs_1d_p, res_1d_p, &
                 lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
                 lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
@@ -602,15 +597,12 @@ CONTAINS
             CALL get_imygrid(i, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL dp%get_ptr(dp_p, igrid)
-            CALL res%get_ptr(res_p, igrid)
-
-            CALL sipue%get_ptr(ue, igrid)
-            CALL sipun%get_ptr(un, igrid)
-            CALL siput%get_ptr(ut, igrid)
+            ! Getting the arrays is 1D pointers
+            CALL dp%get_ptr(dp_1d_p, igrid)
+            CALL res%get_ptr(res_1d_p, igrid)
 
             ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
-            CALL sipiter2(kk, jj, ii, dp_p, res_p, &
+            CALL sipiter2(kk, jj, ii, dp_1d_p, res_1d_p, &
                 ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
@@ -991,7 +983,7 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
-                    idx = (k-1)*jj*ii + (j-1)*ii + i
+                    idx = k + (j-1)*kk + (i-1)*kk*jj
                     phi(idx) = phi(idx) + res(idx)
                 END DO
             END DO
