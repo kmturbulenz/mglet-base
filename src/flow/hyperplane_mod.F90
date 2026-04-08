@@ -189,13 +189,13 @@ CONTAINS
     SUBROUTINE hyperplane_init_grid(kk, jj, ii, mip, idxsip)
 
         ! Subroutine arguments
-        INTEGER, INTENT(in) :: kk, jj, ii
-        INTEGER, INTENT(inout) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk), INTENT(inout) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
 
         ! Local variables
-        INTEGER :: n3dmin, n3dmax
-        INTEGER :: lm, nkmin, nkmax, ic1, nimin, nimax
-        INTEGER :: m, k, j, i, idx
+        INTEGER(intk) :: n3dmin, n3dmax
+        INTEGER(intk) :: lm, nkmin, nkmax, ic1, nimin, nimax
+        INTEGER(intk) :: m, k, j, i, idx
 
         ! Only cover [i=3,ii-2], [j=3,jj-2], [k=3,kk-2]
         n3dmin = 3 + 3 + 3
@@ -258,12 +258,12 @@ CONTAINS
     SUBROUTINE hyperplane_sort_grid(kk, jj, ii, mip, idxsip)
 
         ! Subroutine arguments
-        INTEGER, INTENT(in) :: kk, jj, ii
-        INTEGER, INTENT(in) :: mip(ii+jj+kk)
-        INTEGER, INTENT(inout) :: idxsip(ii*jj*kk)
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(intk), INTENT(inout) :: idxsip(ii*jj*kk)
 
         ! Local variables
-        INTEGER :: n3dmin, n3dmax, len, m, s, e
+        INTEGER(intk) :: n3dmin, n3dmax, len, m, s, e
 
         n3dmin = 3 + 3 + 3
         n3dmax = (ii-2) + (jj-2) + (kk-2)
