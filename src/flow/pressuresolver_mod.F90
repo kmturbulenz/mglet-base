@@ -982,7 +982,7 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
-                    idx = (k-1)*jj*ii + (j-1)*ii + i
+                    idx = k + (j-1)*kk + (i-1)*kk*jj
                     phi(idx) = phi(idx) + res(idx)
                 END DO
             END DO
