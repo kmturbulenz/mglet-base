@@ -28,7 +28,7 @@ jobs:
       options: "--cap-add=SYS_PTRACE --shm-size=4gb"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Build MGLET
       run: |
