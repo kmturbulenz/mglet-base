@@ -363,7 +363,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
     dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(smagorinsky)
 
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
@@ -517,7 +516,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(sabs)
 
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
