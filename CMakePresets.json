@@ -23,7 +23,7 @@
 
                 "MGLET_C_FLAGS": "-qno-openmp-simd",
                 "MGLET_CXX_FLAGS": "-qno-openmp-simd",
-                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,errors,stderrors;-qno-openmp-simd;-fpscomp;logicals",
+                "MGLET_Fortran_FLAGS": "-std18;-auto;-warn;all,noexternals,nounused,noerrors,stderrors;-qno-openmp-simd;-fpscomp;logicals",
 
                 "MGLET_C_FLAGS_RELEASE": "-g",
                 "MGLET_CXX_FLAGS_RELEASE": "-g",
@@ -41,6 +41,18 @@
             "inherits": "intel",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "intel-offload-release",
+            "displayName": "Intel oneAPI compilers (offload-release)",
+            "description": "Offload Release configuration using the Intel compilers",
+            "inherits": "intel-release",
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BINDTHREAD": "OFF",
+                "MGLET_OFFLOAD_Fortran_FLAGS": "-fopenmp-targets=spir64;-qno-openmp-simd",
+                "MGLET_LINK_FLAGS": "-fopenmp-targets=spir64"
             }
         },
         {
@@ -64,11 +76,11 @@
 
                 "MGLET_C_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized",
                 "MGLET_CXX_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized",
-                "MGLET_Fortran_FLAGS": "-Wall;-Wextra;-Wpedantic;-Werror;-Wno-maybe-uninitialized;-std=f2018;-fimplicit-none;-ffpe-trap=invalid,zero,overflow;-Wno-unused-dummy-argument;-Wno-uninitialized",
+                "MGLET_Fortran_FLAGS": "-Wall;-Wextra;-Wpedantic;-Wno-maybe-uninitialized;-std=f2018;-fimplicit-none;-ffpe-trap=invalid,zero,overflow;-Wno-unused-dummy-argument;-Wno-uninitialized",
 
-                "MGLET_C_FLAGS_RELEASE": "-g;-fopenmp-simd",
-                "MGLET_CXX_FLAGS_RELEASE": "-g;-fopenmp-simd",
-                "MGLET_Fortran_FLAGS_RELEASE": "-g;-fopenmp-simd",
+                "MGLET_C_FLAGS_RELEASE": "-g",
+                "MGLET_CXX_FLAGS_RELEASE": "-g",
+                "MGLET_Fortran_FLAGS_RELEASE": "-g",
 
                 "MGLET_C_FLAGS_DEBUG": "-Og;-g",
                 "MGLET_CXX_FLAGS_DEBUG": "-Og;-g",
@@ -172,6 +184,17 @@
             }
         },
         {
+            "name": "cray-offload-release",
+            "displayName": "Cray Compiler Environment (CCE) (offload-release)",
+            "description": "Offload Release configuration using the Cray Compiler Environment (CCE)",
+            "inherits": "cray-release",
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BINDTHREAD": "ON",
+                "MGLET_OFFLOAD_Fortran_FLAGS": "-fopenmp-force-usm"
+            }
+        },
+        {
             "name": "cray-debug",
             "displayName": "Cray Compiler Environment (CCE) (debug)",
             "description": "Debug configuration using the Cray Compiler Environment (CCE)",
@@ -195,9 +218,9 @@
                 "MGLET_CXX_FLAGS": "",
                 "MGLET_Fortran_FLAGS": "-fimplicit-none",
 
-                "MGLET_C_FLAGS_RELEASE": "-g",
-                "MGLET_CXX_FLAGS_RELEASE": "-g",
-                "MGLET_Fortran_FLAGS_RELEASE": "-g",
+                "MGLET_C_FLAGS_RELEASE": "",
+                "MGLET_CXX_FLAGS_RELEASE": "",
+                "MGLET_Fortran_FLAGS_RELEASE": "",
 
                 "MGLET_C_FLAGS_DEBUG": "-O0;-g",
                 "MGLET_CXX_FLAGS_DEBUG": "-O0;-g",
@@ -212,6 +235,18 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
 
+            }
+        },
+        {
+            "name": "llvm-offload-release",
+            "displayName": "LLVM compilers (clang, clang++, flang) (release)",
+            "description": "Offload Release configuration using the LLVM compilers (clang, clang++, flang)",
+            "inherits": "llvm-release",
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BINDTHREAD": "OFF",
+                "MGLET_OFFLOAD_Fortran_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda;-fopenmp-version=52",
+                "MGLET_LINK_FLAGS": "-fopenmp-targets=nvptx64-nvidia-cuda"
             }
         },
         {
