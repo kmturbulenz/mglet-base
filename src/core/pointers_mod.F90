@@ -193,6 +193,8 @@ CONTAINS
 
 
     SUBROUTINE get_len3(len, igrid)
+    !$omp declare target
+
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: len
 
