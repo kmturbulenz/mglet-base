@@ -53,7 +53,7 @@ MODULE grids_mod
     ! Public data arrays
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &
         nmygrids, mygrids, nmygridslvl, mygridslvl, nboconds, itypboconds, &
-        idprocofgrd
+        idprocofgrd, gridinfo
 
 CONTAINS
 
@@ -426,6 +426,8 @@ CONTAINS
 
 
     SUBROUTINE get_mgdims(kk, jj, ii, igrid)
+    !$omp declare target
+
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -444,12 +446,14 @@ CONTAINS
 
 
     SUBROUTINE get_imygrid(imygrid, igrid)
+    !$omp declare target
+        implicit none
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: imygrid
 
         imygrid = globalgrids(igrid)
 
-        IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
+        ! IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE get_imygrid
 
 

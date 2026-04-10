@@ -13,7 +13,7 @@ MODULE pointers_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ipbb(:, :)
 
     PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ibb, &
-        idim3d, idimbb, get_len3
+        idim3d, idimbb, get_len3, ip3d
 
 CONTAINS
     SUBROUTINE init_pointers()
@@ -136,6 +136,8 @@ CONTAINS
 
 
     SUBROUTINE get_len3(len, igrid)
+    !$omp declare target
+
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: len
 
