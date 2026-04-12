@@ -2,6 +2,7 @@ MODULE scacore_mod
     USE core_mod
     USE ib_mod, ONLY: ib, gc_t
     USE flow_mod, ONLY: has_flow
+    USE fieldmapper_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -40,10 +41,12 @@ MODULE scacore_mod
     LOGICAL, PROTECTED :: has_scalar = .FALSE.
     LOGICAL, PROTECTED :: solve_scalar = .FALSE.
     REAL(realk) :: prturb
+    !$omp declare target(prturb)
 
     ! Scalar/physical paramters
     INTEGER(intk), PROTECTED :: nsca
     TYPE(scalar_t), ALLOCATABLE, PROTECTED :: scalar(:)
+    !$omp declare target(scalar)
 
     PUBLIC :: init_scacore, finish_scacore, scalar_t, scalar, nsca, prturb, &
         has_scalar, solve_scalar, maskbt, scalar_source_t
@@ -159,10 +162,12 @@ CONTAINS
 
             CALL sc%finish()
         END DO
+        !$omp target enter data map(always, to: scalar)
 
         ! Optional values
         CALL scaconf%get_value("/solve", solve_scalar, .TRUE.)
         CALL scaconf%get_value("/prturb", prturb, 1.0)
+        !$omp target enter data map(always, to: prturb)
 
         IF (myid == 0) THEN
             WRITE(*, '("SCALAR TRANSPORT:")')
@@ -197,9 +202,11 @@ CONTAINS
                         CALL scaconf%get_value(jsonptr, rvalue)
                         CALL set_initial_value(t, rvalue)
                     END IF
+                    !$omp target update to(mapper(maparr): t)
 
                     CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
                     t_old%arr = t%arr
+                    !$omp target update to(mapper(maparr): t_old)
                 ELSE
                     CALL scaconf%set_value(jsonptr, 0.0_realk)
                 END IF
@@ -212,6 +219,11 @@ CONTAINS
             END IF
         END DO
 
+        CALL set_field("QTT")
+        CALL set_field("QTU", istag=1, buffers=.TRUE.)
+        CALL set_field("QTV", jstag=1, buffers=.TRUE.)
+        CALL set_field("QTW", kstag=1, buffers=.TRUE.)
+
         CALL scaconf%finish()
         IF (myid == 0) THEN
             WRITE(*, '()')
@@ -221,6 +233,7 @@ CONTAINS
         CALL set_field("BT", dwrite=.TRUE.)
         CALL get_field(bt, "BT")
         CALL blockbt(bt)
+        !$omp target update to(mapper(maparr): bt)
     END SUBROUTINE init_scacore
 
 
@@ -268,25 +281,35 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, ip3
         TYPE(field_t), POINTER :: bt_f
-        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :), bt(:, :, :)
 
         CALL get_field(bt_f, "BT")
 
+        !$omp target teams loop bind(teams) &
+        !$omp private(igrid, kk, jj, ii, ip3)
         DO i = 1, nmygrids
             igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL bt_f%get_ptr(bt, igrid)
-            CALL t_f%get_ptr(t, igrid)
+            kk = gridinfo(igrid)%kk
+            jj = gridinfo(igrid)%jj
+            ii = gridinfo(igrid)%ii
+            ip3 = ip3d(igrid)
 
-            CALL maskbt_grid(kk, jj, ii, t, bt)
+#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
+            !$omp parallel
+#endif
+            CALL maskbt_grid(kk, jj, ii, t_f%arr(ip3), bt_f%arr(ip3))
+#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
+            !$omp end parallel
+#endif
         END DO
+        !$omp end target teams loop
     END SUBROUTINE maskbt
 
 
-    PURE SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+    SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: t(kk, jj, ii)
@@ -296,6 +319,12 @@ CONTAINS
         INTEGER :: k, j, i
 
         ! TODO: Indices?
+        !$omp loop collapse(3) &
+#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
+        !$omp bind(thread)
+#else
+        !$omp bind(parallel)
+#endif
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -303,6 +332,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end loop
     END SUBROUTINE maskbt_grid
 
 

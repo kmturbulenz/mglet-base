@@ -35,8 +35,6 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION gradp2(uquer, dds)
-        !$omp declare simd(gradp2)
-
         ! Computes the gradient dds/2 away from the wall using the WW wall
         ! model
 
@@ -60,8 +58,6 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION tauwin(uquer, dds)
-        !$omp declare simd(tauwin)
-
         ! Function arguments
         REAL(realk), INTENT(IN) :: uquer, dds
 
@@ -87,8 +83,6 @@ CONTAINS
     ! usage!
     PURE ELEMENTAL REAL(realk) FUNCTION qwallfix(tbound, tfluid, uquer, dds, &
             prmol)
-        !$omp declare simd(qwallfix)
-
         ! Function arguments
         REAL(realk), INTENT(IN) :: tbound, tfluid, uquer, dds, prmol
 

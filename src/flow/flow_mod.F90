@@ -43,6 +43,11 @@ CONTAINS
         ! even when no flow is solved.
         IF (.NOT. solve_flow) RETURN
 
+#ifdef _MGLET_OFFLOAD_
+        ! Flow solver is not yet supported in offloaded builds
+        CALL errr(__FILE__, __LINE__)
+#endif
+
         ! These sould only be needed when flow is actually solved
         CALL set_timer(300, "FLOW")
         CALL set_timer(310, "FLOW_TSTLE4")

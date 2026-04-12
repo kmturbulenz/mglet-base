@@ -16,6 +16,7 @@ MODULE flowcore_mod
     REAL(realk), PROTECTED :: targetcflmax
     REAL(realk), PROTECTED :: gradp(3)
     LOGICAL, PROTECTED :: compbodyforce
+    !$omp declare target(gmol, rho)
 
     ! TODO: Allocatable length - some expressions can be LONG!
     CHARACTER(len=10240), PROTECTED :: uinf_expr(3) = ""
@@ -56,6 +57,7 @@ CONTAINS
             WRITE(*, *) "Viscosity must be positive: ", gmol
             CALL errr(__FILE__, __LINE__)
         END IF
+        !$omp target enter data map(always, to: gmol)
 
         ! Either uinf is real or expression
         IF (flowconf%is_real("/uinf/0")) THEN
@@ -100,6 +102,7 @@ CONTAINS
             WRITE(*, *) "Density must be positive: ", rho
             CALL errr(__FILE__, __LINE__)
         END IF
+        !$omp target enter data map(always, to: rho)
 
         CALL flowconf%get_value("/tu_level", tu_level, 0.1)
         IF (tu_level < 0.0) THEN

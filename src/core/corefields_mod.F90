@@ -3,6 +3,7 @@ MODULE corefields_mod
     USE err_mod, ONLY: errr
     USE field_mod
     USE fieldio2_mod
+    USE fieldmapper_mod
     USE fields_mod
     USE fort7_mod
     USE grids_mod
@@ -79,6 +80,15 @@ CONTAINS
 
         CALL read_gridspacing()
         CALL calc_reciprocals()
+
+#ifndef _CRAYFTN
+        !$omp target update to(mapper(maparr): rddx, rddy, rddz)
+        !$omp target update to(mapper(maparr): rdx, rdy, rdz)
+        !$omp target update to(mapper(maparr): ddx, ddy, ddz)
+        !$omp target update to(mapper(maparr): dx, dy, dz)
+        !$omp target update to(mapper(maparr): x, y, z)
+        !$omp target update to(mapper(maparr): xstag, ystag, zstag)
+#endif
     END SUBROUTINE init_corefields
 
 
@@ -156,7 +166,6 @@ CONTAINS
         ii = SIZE(rezip)
         IF (SIZE(dx) /= ii) CALL errr(__FILE__, __LINE__)
 
-        !$omp simd
         DO i = 1, ii
             rezip(i) = divide0(1.0_realk, dx(i))
         END DO

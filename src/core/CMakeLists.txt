@@ -17,6 +17,7 @@ add_library(core STATIC
     fieldio2_mod.F90
     field_t/basefield_mod.F90
     field_t/field_mod.F90
+    field_t/fieldmapper_mod.F90
     field_t/intfield_mod.F90
     field_t/realfield_mod.F90
     fields_mod.F90
@@ -27,6 +28,7 @@ add_library(core STATIC
     hdf5common_mod.F90
     jsoncpp_wrapper.cxx
     mgletmath_mod.F90
+    offload_mod.F90
     plugins_mod.F90
     pointers_mod.F90
     precision_mod.F90

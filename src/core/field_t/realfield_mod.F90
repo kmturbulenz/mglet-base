@@ -1,6 +1,6 @@
 MODULE realfield_mod
     USE err_mod, ONLY: errr
-    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
+    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
     USE pointers_mod, ONLY: idimbb, get_ibb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
@@ -85,42 +85,49 @@ CONTAINS
 
 
     SUBROUTINE get_grid1(this, ptr, igrid)
+        !$omp declare target
         ! Subroutine arguments
         CLASS(field_t), INTENT(in), TARGET :: this
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
-        INTEGER(intk) :: ip, len
+        INTEGER(intk) :: ip, len, imygrid
 
-        CALL this%get_ip(ip, igrid)
-        CALL this%get_len(len, igrid)
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        ! CALL this%get_ip(ip, igrid)
+        ! CALL this%get_len(len, igrid)
+        CALL get_imygrid(imygrid, igrid)
+        ip = this%ptr(imygrid)
+        len = this%length(imygrid)
+        ! IF (len <= 0) CALL errr(__FILE__, __LINE__)
 
         ptr(1:len) => this%arr(ip:ip+len-1)
     END SUBROUTINE get_grid1
 
 
     SUBROUTINE get_grid3(this, ptr, igrid)
+        !$omp declare target
         ! Subroutine arguments
         CLASS(field_t), INTENT(in), TARGET :: this
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, len
+        INTEGER(intk) :: kk, jj, ii, ip, imygrid
 
-        IF (.NOT. this%ndim == 3) THEN
-            WRITE(*, '("Field ", A, " is not 3D!")') TRIM(this%name)
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (.NOT. this%ndim == 3) THEN
+        !     WRITE(*, '("Field ", A, " is not 3D!")') TRIM(this%name)
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
-        CALL this%get_ip(ip, igrid)
-        CALL this%get_len(len, igrid)
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        ! CALL this%get_ip(ip, igrid)
+        ! CALL this%get_len(len, igrid)
+        CALL get_imygrid(imygrid, igrid)
+        ip = this%ptr(imygrid)
+        ! IF (len <= 0) CALL errr(__FILE__, __LINE__)
 
         CALL get_mgdims(kk, jj, ii, igrid)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+        ! IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 
         ptr(1:kk, 1:jj, 1:ii) => this%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3

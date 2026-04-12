@@ -1,6 +1,7 @@
 MODULE lesmodel_mod
     USE core_mod
     USE flowcore_mod
+    USE fieldmapper_mod
     USE ib_mod
     USE wernerwengle_mod
 
@@ -10,6 +11,7 @@ MODULE lesmodel_mod
     INTEGER(intk), PARAMETER :: nchar = 16
     CHARACTER(len=nchar) :: clesmodel
     INTEGER(intk), PROTECTED :: ilesmodel
+    !$omp declare target(ilesmodel)
 
     TYPE, EXTENDS(bound_t) :: boundg_t
     CONTAINS
@@ -60,6 +62,7 @@ CONTAINS
             WRITE(*, *) "Invalid LES model:", clesmodel
             CALL errr(__FILE__, __LINE__)
         END SELECT
+        !$omp target enter data map(always, to: ilesmodel)
 
         ! Override default model parameter
         CALL lesconf%get_value("/Cm", Cm, Cm)
@@ -81,6 +84,7 @@ CONTAINS
         ELSE
             CALL lesmodel(g)
         END IF
+        !$omp target update to(mapper(maparr): g)
     END SUBROUTINE init_lesmodel
 
 
@@ -255,7 +259,6 @@ CONTAINS
                     dwdz(k-2) = (w(k, j, i) - w(k-1, j, i))*rddz(k)
                 END DO
 
-                !$omp simd
                 DO k = 3, kk-2
                     delta(k-2) = cube_root(ddx(i)*ddy(j)*ddz(k))
                     delta(k-2) = delta(k-2)*bp(k, j, i)
@@ -334,7 +337,6 @@ CONTAINS
 
                 SELECT CASE (ilesmodel)
                 CASE (1)
-                    !$omp simd private(dm)
                     DO k = 3, kk-2
                         dm = smagorinsky(dudx(k-2), dudy(k-2), dudz(k-2), &
                             dvdx(k-2), dvdy(k-2), dvdz(k-2), &
@@ -363,8 +365,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
     dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(smagorinsky)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
@@ -517,8 +517,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
-        !$omp declare simd(sabs)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz

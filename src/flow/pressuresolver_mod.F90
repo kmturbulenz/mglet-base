@@ -897,7 +897,6 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
-                        !$omp simd private(aw, ae, as, an, ab, at, rap, res)
                         DO k = kstart, kstop, 2
                             ! Variations in numerical formulation, please
                             ! keep for future reference. Should be the same
@@ -950,7 +949,6 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
-                        !$omp simd private(res)
                         DO k = kstart, kstop, 2
                             res = (gsaw(i) * dp(k, j, i-1) &
                                   + gsae(i) * dp(k, j, i+1) &

@@ -14,6 +14,7 @@ MODULE grids_mod
     TYPE(bcond_t), ALLOCATABLE, TARGET :: left(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: bottom(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: top(:)
+    !$omp declare target(gridinfo)
 
     REAL(realk), ALLOCATABLE :: realprms(:)
     INTEGER(intk), ALLOCATABLE :: intprms(:)
@@ -30,12 +31,15 @@ MODULE grids_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygrids(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nmygridslvl(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygridslvl(:, :)
+    !$omp declare target(nmygrids, mygrids)
 
     INTEGER(intk), ALLOCATABLE, PROTECTED :: globalgrids(:)
+    !$omp declare target(globalgrids)
 
     ! From cobound.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nboconds(:, :)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: itypboconds(:, :, :)
+    !$omp declare target(itypboconds)
 
     ! From compi.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: idprocofgrd(:)
@@ -53,7 +57,7 @@ MODULE grids_mod
     ! Public data arrays
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &
         nmygrids, mygrids, nmygridslvl, mygridslvl, nboconds, itypboconds, &
-        idprocofgrd
+        idprocofgrd, gridinfo
 
 CONTAINS
 
@@ -199,6 +203,7 @@ CONTAINS
             ! Set pointers for 3D, 2D, 1D storage
             ! CALL set_pointer(igrid, kk, jj, ii)
         END DO
+        !$omp target enter data map(always, to: itypboconds)
     END SUBROUTINE init_gridstructure
 
 
@@ -300,12 +305,15 @@ CONTAINS
                 END IF
             END DO
         END DO
+        !$omp target enter data map(always, to: gridinfo)
+        !$omp target enter data map(always, to: mygrids, nmygrids)
 
         ALLOCATE(globalgrids(ngrid), source=-1_intk)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             globalgrids(igrid) = i
         END DO
+        !$omp target enter data map(always, to: globalgrids)
 
         IF (myid == 0) CALL setmpi_info()
     END SUBROUTINE setmpi
@@ -426,16 +434,17 @@ CONTAINS
 
 
     SUBROUTINE get_mgdims(kk, jj, ii, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         kk = gridinfo(igrid)%kk
         jj = gridinfo(igrid)%jj
@@ -444,12 +453,13 @@ CONTAINS
 
 
     SUBROUTINE get_imygrid(imygrid, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: imygrid
 
         imygrid = globalgrids(igrid)
 
-        IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
+        ! IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE get_imygrid
 
 
@@ -680,45 +690,48 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION iposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         iposition = gridinfo(igrid)%iposition
     END FUNCTION iposition
 
 
     INTEGER(intk) FUNCTION jposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         jposition = gridinfo(igrid)%jposition
     END FUNCTION jposition
 
 
     INTEGER(intk) FUNCTION kposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         kposition = gridinfo(igrid)%kposition
     END FUNCTION kposition
@@ -740,15 +753,16 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION level(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         level = gridinfo(igrid)%level
     END FUNCTION level
@@ -819,16 +833,17 @@ CONTAINS
 
 
     SUBROUTINE get_mgbasb1(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(out) :: nfro, nbac, nrgt, nlft, nbot, ntop
         INTEGER(intk), INTENT(in) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         nfro = itypboconds(1, 1, igrid)
         nbac = itypboconds(1, 2, igrid)
@@ -840,16 +855,17 @@ CONTAINS
 
 
     SUBROUTINE get_mgbasb2(bconds, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(out) :: bconds(6)
         INTEGER(intk), INTENT(in) :: igrid
 
-#ifdef _MGLET_DEBUG_
-        IF (igrid > ngrid .OR. igrid < 0) THEN
-            WRITE(*, *) "Invalid igrid: ", igrid
-            WRITE(*, *) "ngrid: ", ngrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
+! #ifdef _MGLET_DEBUG_
+!         IF (igrid > ngrid .OR. igrid < 0) THEN
+!             WRITE(*, *) "Invalid igrid: ", igrid
+!             WRITE(*, *) "ngrid: ", ngrid
+!             CALL errr(__FILE__, __LINE__)
+!         END IF
+! #endif
 
         bconds(1) = itypboconds(1, 1, igrid)
         bconds(2) = itypboconds(1, 2, igrid)

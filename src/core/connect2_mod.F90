@@ -14,6 +14,27 @@ MODULE connect2_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    ! Helpers to offload self connects
+    TYPE :: self_conn_t
+        REAL(realk), POINTER, CONTIGUOUS :: src(:, :, :) => NULL()
+        REAL(realk), POINTER, CONTIGUOUS :: dst(:, :, :) => NULL()
+        INTEGER(intk) :: src_istart, src_jstart, src_kstart
+        INTEGER(intk) :: src_iend, src_jend, src_kend
+        INTEGER(intk) :: dst_istart, dst_jstart, dst_kstart
+    END TYPE self_conn_t
+
+    TYPE :: self_conn_int_t
+        INTEGER(ifk), POINTER, CONTIGUOUS :: src(:, :, :) => NULL()
+        INTEGER(ifk), POINTER, CONTIGUOUS :: dst(:, :, :) => NULL()
+        INTEGER(intk) :: src_istart, src_jstart, src_kstart
+        INTEGER(intk) :: src_iend, src_jend, src_kend
+        INTEGER(intk) :: dst_istart, dst_jstart, dst_kstart
+    END TYPE self_conn_int_t
+
+    INTEGER(intk) :: nself_conns
+    TYPE(self_conn_t), ALLOCATABLE :: self_conns(:)
+    TYPE(self_conn_int_t), ALLOCATABLE :: self_conns_int(:)
+
     ! Maximum number of connections on one single process, either
     ! outgoing or incomming, on any single grid level
     INTEGER(intk) :: maxConns
@@ -524,7 +545,13 @@ CONTAINS
 
         ! Exchnage data
         CALL recv_all()
+        ! (Cray) For now we only support offloaded connect self on USM with the
+        !        Cray compilers.
+#if defined _CRAYFTN
+        CALL send_all_apu()
+#else
         CALL send_all()
+#endif
         CALL process_bufs()
 
         ! Clear counters and unset pointers. This is important to avoid
@@ -712,6 +739,45 @@ CONTAINS
             END IF
         END DO
     END SUBROUTINE send_all
+
+
+    ! Perform all send calls
+    SUBROUTINE send_all_apu()
+        INTEGER(intk) :: i, iprocnbr, igrid, ifacerecv, faceArea
+        LOGICAL :: exchange
+
+        ! Pack all buffers and send data
+        sendCounter = 0
+        messageLength = 0
+        nSend = 0
+
+        CALL connect_self_apu()
+
+        DO i = 1, iSend
+            exchange = decide(i, sendConns)
+            iprocnbr = sendConns(1, i)
+
+            IF (iprocnbr == myid .AND. exchange) CYCLE
+
+            IF (exchange) THEN
+                igrid         = sendConns(3, i)
+                ifacerecv     = sendConns(5, i)
+                faceArea      = face_area(igrid, ifacerecv)
+
+                CALL write_buffer(i)
+
+                messageLength = messageLength + nVars*faceArea
+            END IF
+
+            IF (messageLength > 0) THEN
+                IF (i == iSend) THEN
+                    CALL post_send(iprocnbr)
+                ELSE IF (sendConns(1, i + 1) /= iprocnbr) THEN
+                    CALL post_send(iprocnbr)
+                END IF
+            END IF
+        END DO
+    END SUBROUTINE send_all_apu
 
 
     ! Perform a single send call
@@ -1081,6 +1147,8 @@ CONTAINS
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
 
+        CALL start_timer(151)
+
         ! Set variables from send table
         igrid_d       = sendConns(3, sendId)
         igrid         = sendConns(4, sendId)
@@ -1162,6 +1230,8 @@ CONTAINS
                 jstart, jstop, kstart, kstop, istart_d, istop_d, &
                 jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
+
+        CALL stop_timer(151)
     END SUBROUTINE connect_self
 
 
@@ -1214,6 +1284,203 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE connect_self_single
+
+
+    SUBROUTINE connect_self_apu()
+        INTEGER(intk) :: i
+        INTEGER(intk) :: igrid_d, igrid_s, ifacerecv, ifacesend
+        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, &
+             kstart_d, kstop_d
+        LOGICAL :: exU, exV, exW, exp1
+
+        CALL start_timer(151)
+        CALL start_timer(152)
+
+        nself_conns = 0
+
+        DO i = 1, iSend
+            IF (sendConns(1, i) /= myid .OR. .NOT. decide(i, sendConns)) CYCLE
+
+            igrid_d = sendConns(3, i)
+            igrid_s = sendConns(4, i)
+            ifacerecv = sendConns(5, i)
+            ifacesend = sendConns(6, i)
+
+            IF (flag == 'W') THEN
+                exU = (ifacerecv == 1)
+                exV = (ifacerecv == 3)
+                exW = (ifacerecv == 5)
+                exp1 = (ifacerecv == 2) .OR. (ifacerecv == 4) .OR. &
+                    (ifacerecv == 6)
+            ELSE
+                exU = (sn .AND. ifacerecv < 3) .OR. (.NOT. sn)
+                exV = (sn .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. &
+                    (.NOT. sn)
+                exW = (sn .AND. ifacerecv > 4) .OR. (.NOT. sn)
+                exp1 = .TRUE.
+            END IF
+
+            CALL start_and_stop(igrid_s, facenbr(ifacerecv), &
+                istart, istop, jstart, jstop, kstart, kstop, nghost=1)
+            CALL corr_start_stop(igrid_s, ifacesend, ifacerecv, &
+                istart, istop, jstart, jstop, kstart, kstop)
+            CALL start_and_stop(igrid_d, ifacerecv, &
+                istart_d, istop_d, jstart_d, jstop_d, &
+                kstart_d, kstop_d)
+
+            IF (ASSOCIATED(u) .AND. exU) CALL add_self_conn(u, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+            IF (ASSOCIATED(v) .AND. exV) CALL add_self_conn(v, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+            IF (ASSOCIATED(w) .AND. exW) CALL add_self_conn(w, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+            IF (ASSOCIATED(p1) .AND. exp1) CALL add_self_conn(p1, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+            IF (ASSOCIATED(p2)) CALL add_self_conn(p2, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+            IF (ASSOCIATED(p3)) CALL add_self_conn(p3, &
+                igrid_s, igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, jstart_d, kstart_d)
+        END DO
+
+        CALL stop_timer(152)
+
+        IF (nself_conns == 0) THEN
+            CALL stop_timer(151)
+            RETURN
+        END IF
+
+        CALL connect_self_all()
+
+        CALL stop_timer(151)
+    END SUBROUTINE connect_self_apu
+
+
+    SUBROUTINE add_self_conn(field, ig_s, ig_d, &
+            istart, istop, jstart, jstop, kstart, kstop, &
+            istart_d, jstart_d, kstart_d)
+        CLASS(basefield_t), INTENT(inout) :: field
+        INTEGER(intk), INTENT(in) :: ig_s, ig_d
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk), INTENT(in) :: istart_d, jstart_d, kstart_d
+
+        nself_conns = nself_conns + 1
+
+        SELECT TYPE(field)
+        TYPE IS (field_t)
+            CALL field%get_ptr(self_conns(nself_conns)%src, ig_s)
+            CALL field%get_ptr(self_conns(nself_conns)%dst, ig_d)
+            self_conns(nself_conns)%src_istart = istart
+            self_conns(nself_conns)%src_iend   = istop
+            self_conns(nself_conns)%src_jstart = jstart
+            self_conns(nself_conns)%src_jend   = jstop
+            self_conns(nself_conns)%src_kstart = kstart
+            self_conns(nself_conns)%src_kend   = kstop
+            self_conns(nself_conns)%dst_istart = istart_d
+            self_conns(nself_conns)%dst_jstart = jstart_d
+            self_conns(nself_conns)%dst_kstart = kstart_d
+        TYPE IS (intfield_t)
+            CALL field%get_ptr(self_conns_int(nself_conns)%src, ig_s)
+            CALL field%get_ptr(self_conns_int(nself_conns)%dst, ig_d)
+            self_conns_int(nself_conns)%src_istart = istart
+            self_conns_int(nself_conns)%src_iend   = istop
+            self_conns_int(nself_conns)%src_jstart = jstart
+            self_conns_int(nself_conns)%src_jend   = jstop
+            self_conns_int(nself_conns)%src_kstart = kstart
+            self_conns_int(nself_conns)%src_kend   = kstop
+            self_conns_int(nself_conns)%dst_istart = istart_d
+            self_conns_int(nself_conns)%dst_jstart = jstart_d
+            self_conns_int(nself_conns)%dst_kstart = kstart_d
+        CLASS DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
+    END SUBROUTINE add_self_conn
+
+
+    SUBROUTINE connect_self_all()
+        INTEGER(intk) :: n, i, j, k
+        INTEGER(intk) :: ioff, joff, koff
+
+        CALL start_timer(153)
+
+        IF (.NOT. connect_integer) THEN
+            !$omp target teams loop bind(teams) &
+            !$omp private(ioff, joff, koff)
+            DO n = 1, nself_conns
+                ioff = self_conns(n)%src_istart - self_conns(n)%dst_istart
+                joff = self_conns(n)%src_jstart - self_conns(n)%dst_jstart
+                koff = self_conns(n)%src_kstart - self_conns(n)%dst_kstart
+                !$omp loop collapse(3) &
+#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
+                !$omp bind(thread)
+#else
+                !$omp bind(parallel)
+#endif
+                DO i = self_conns(n)%dst_istart, &
+                        self_conns(n)%dst_istart &
+                        + (self_conns(n)%src_iend - self_conns(n)%src_istart)
+                    DO j = self_conns(n)%dst_jstart, &
+                            self_conns(n)%dst_jstart &
+                            + (self_conns(n)%src_jend - &
+                                self_conns(n)%src_jstart)
+                        DO k = self_conns(n)%dst_kstart, &
+                                self_conns(n)%dst_kstart &
+                                + (self_conns(n)%src_kend - &
+                                    self_conns(n)%src_kstart)
+                            self_conns(n)%dst(k, j, i) = &
+                                self_conns(n)%src(k+koff, j+joff, i+ioff)
+                        END DO
+                    END DO
+                END DO
+                !$omp end loop
+            END DO
+            !$omp end target teams loop
+        ELSE
+            !$omp target teams loop bind(teams) &
+            !$omp private(ioff, joff, koff)
+            DO n = 1, nself_conns
+                ioff = self_conns_int(n)%src_istart - &
+                    self_conns_int(n)%dst_istart
+                joff = self_conns_int(n)%src_jstart - &
+                    self_conns_int(n)%dst_jstart
+                koff = self_conns_int(n)%src_kstart - &
+                    self_conns_int(n)%dst_kstart
+                !$omp loop collapse(3) &
+#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
+                !$omp bind(thread)
+#else
+                !$omp bind(parallel)
+#endif
+                DO i = self_conns_int(n)%dst_istart, &
+                        self_conns_int(n)%dst_istart &
+                        + (self_conns_int(n)%src_iend - &
+                            self_conns_int(n)%src_istart)
+                    DO j = self_conns_int(n)%dst_jstart, &
+                            self_conns_int(n)%dst_jstart &
+                            + (self_conns_int(n)%src_jend - &
+                                self_conns_int(n)%src_jstart)
+                        DO k = self_conns_int(n)%dst_kstart, &
+                                self_conns_int(n)%dst_kstart &
+                                + (self_conns_int(n)%src_kend - &
+                                    self_conns_int(n)%src_kstart)
+                            self_conns_int(n)%dst(k, j, i) = &
+                                self_conns_int(n)%src(k+koff, j+joff, i+ioff)
+                        END DO
+                    END DO
+                END DO
+                !$omp end loop
+            END DO
+            !$omp end target teams loop
+        END IF
+
+        CALL stop_timer(153)
+    END SUBROUTINE connect_self_all
 
 
     ! Process receive buffers as they arrive, wait for send
@@ -1288,6 +1555,11 @@ CONTAINS
         nCornerGeom = 0
 
         CALL set_timer(150, "CONNECT2")
+        CALL set_timer(151, "CONNECT2_SELF")
+#ifdef _MGLET_OFFLOAD_
+        CALL set_timer(152, "CONNECT2_SELF_APU_SETUP")
+        CALL set_timer(153, "CONNECT2_SELF_APU_KERNEL")
+#endif
 
         ! Maximum number of connections for "simple" cases is number
         ! of grids*26. However, due to the possible prescence of
@@ -1589,6 +1861,9 @@ CONTAINS
             WRITE(*, '()')
         END IF
 
+        ALLOCATE(self_conns(iSend * 6))
+        ALLOCATE(self_conns_int(iSend * 6))
+
         nRecv = 0
 
         ! Nullify pointers
@@ -1675,6 +1950,8 @@ CONTAINS
         DEALLOCATE(recvList)
         DEALLOCATE(sendReqs)
         DEALLOCATE(recvReqs)
+        DEALLOCATE(self_conns)
+        DEALLOCATE(self_conns_int)
     END SUBROUTINE finish_connect2
 
 

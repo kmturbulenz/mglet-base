@@ -22,6 +22,7 @@ MODULE core_mod
     ! in core functions
     USE hdf5common_mod
     USE mgletmath_mod
+    USE offload_mod
     USE plugins_mod
     USE pointers_mod
     USE precision_mod
@@ -92,6 +93,7 @@ CONTAINS
         ! Continue MGLET startup
 
         CALL init_precision()
+        CALL init_offload()
         CALL init_buildinfo()
         CALL init_timer()
 

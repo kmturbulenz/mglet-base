@@ -1868,8 +1868,6 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION swcle3d_one(ddz, u) RESULT(uo)
-        !$omp declare simd(swcle3d_one)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: ddz  ! wall normal
         REAL(realk), INTENT(in) :: u    ! velocity
