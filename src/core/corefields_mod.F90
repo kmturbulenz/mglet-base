@@ -81,12 +81,14 @@ CONTAINS
         CALL read_gridspacing()
         CALL calc_reciprocals()
 
+#ifndef _CRAYFTN
         !$omp target update to(mapper(maparr): rddx, rddy, rddz)
         !$omp target update to(mapper(maparr): rdx, rdy, rdz)
         !$omp target update to(mapper(maparr): ddx, ddy, ddz)
         !$omp target update to(mapper(maparr): dx, dy, dz)
         !$omp target update to(mapper(maparr): x, y, z)
         !$omp target update to(mapper(maparr): xstag, ystag, zstag)
+#endif
     END SUBROUTINE init_corefields
 
 
