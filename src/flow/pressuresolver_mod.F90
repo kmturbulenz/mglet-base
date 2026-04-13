@@ -581,7 +581,7 @@ CONTAINS
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
-        !$omp target teams loop bind(teams) private(igrid, i, kk, jj, ii, ip3)
+        !$omp target teams distribute private(igrid, i, kk, jj, ii, ip3)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -591,16 +591,15 @@ CONTAINS
             ii = gridinfo(igrid)%ii
             ip3 = ip3d(igrid)
 
-            !$omp parallel
+            ! > "parallel do" inside the function
             CALL sipiter1x(kk, jj, ii, &
                 rhs%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1), &
                 lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
                 lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            !$omp end parallel
 
         END DO
-        !$omp end target teams loop
+        !$omp end target teams distribute
 
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
@@ -608,7 +607,7 @@ CONTAINS
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
-        !$omp target teams loop bind(teams) private(igrid, i, kk, jj, ii, ip3)
+        !$omp target teams distribute private(igrid, i, kk, jj, ii, ip3)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -618,17 +617,17 @@ CONTAINS
             ii = gridinfo(igrid)%ii
             ip3 = ip3d(igrid)
 
-            !$omp parallel
+            ! > "parallel do" inside the function
             CALL sipiter2x(kk, jj, ii, &
                 dp%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1), &
                 ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            !$omp end parallel
 
         END DO
-        !$omp end target teams loop
+        !$omp end target teams distribute
 
 
+        !$omp target teams distribute private(igrid, kk, jj, ii, ip3)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -641,6 +640,8 @@ CONTAINS
                 dp%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1))
 
         END DO
+        !$omp end target teams distribute
+
 
     END SUBROUTINE sipx
 
@@ -670,18 +671,16 @@ CONTAINS
         n3dmin = 3 + 3 + 3
         n3dmax = (ii-2) + (jj-2) + (kk-2)
 
+        ! Iterating over the hyperplanes H(k, j, i) = m
         DO m = n3dmin, n3dmax
 
-            ! Computing the number of points in the current hyperplane
             lm = mip(m)
             lp = mip(m+1) - lm
-            ! IF (omp_get_num_threads() < lp) THEN
-            !     WRITE(*, *) "Case not yet considered"
-            ! END IF
 
-            ! Each thread will be responsible for one point in the hyperplane
-            ip = omp_get_thread_num() + 1
-            IF (ip <= lp) THEN
+            ! > Parallel operations on the hyperplane (k, j, i) = m
+
+            !$omp parallel do private(iacc, idx, idx_km, idx_jm, idx_im)
+            DO ip = 1, lp
 
                 ! Computing the contiguous access index
                 iacc = lm + ip
@@ -696,11 +695,15 @@ CONTAINS
                 res(idx) = (rhs(idx) + res(idx)) * lpr(iacc)
 
                 ! Performing the forward substitution
-                res(idx) = res(idx) - lb(iacc) * res(idx_km) - &
-                    ls(iacc) * res(idx_jm) - lw(iacc) * res(idx_im)
+                res(idx) = res(idx) - lb(iacc)*res(idx_km) - &
+                    ls(iacc)*res(idx_jm) - lw(iacc)*res(idx_im)
 
-            END IF
-            !$omp barrier
+                ! Original code:
+                ! res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
+                !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
+
+            END DO
+            !$omp end parallel do
 
         END DO
 
@@ -732,16 +735,13 @@ CONTAINS
         ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
         DO m = n3dmax, n3dmin, -1
 
-            ! Computing the number of points in the current hyperplane
             lm = mip(m)
             lp = mip(m+1) - lm
-            ! IF (omp_get_num_threads() < lp) THEN
-            !     WRITE(*, *) "Case not yet considered"
-            ! END IF
 
-            ! Each thread will be responsible for one point in the hyperplane
-            ip = omp_get_thread_num() + 1
-            IF (ip <= lp) THEN
+            ! > Parallel operations on the hyperplane (k, j, i) = m
+
+            !$omp parallel do private(iacc, idx, idx_kp, idx_jp, idx_ip)
+            DO ip = 1, lp
 
                 ! Computing the contiguous access index
                 iacc = lm + ip
@@ -756,8 +756,12 @@ CONTAINS
                 res(idx) = res(idx) - ut(iacc)*res(idx_kp) - &
                     un(iacc)*res(idx_jp) - ue(iacc)*res(idx_ip)
 
-            END IF
-            !$omp barrier
+                ! Original code:
+                ! res(k, j, i) = res(k, j, i) - un(k, j, i)*res(k, j+1, i) &
+                !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
+
+            END DO
+            !$omp end parallel do
 
         END DO
 
@@ -766,8 +770,7 @@ CONTAINS
 
 
     SUBROUTINE sipiter3x(kk, jj, ii, phi, res)
-
-        USE omp_lib, ONLY: omp_get_thread_num, omp_get_num_threads
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -775,6 +778,7 @@ CONTAINS
 
         INTEGER(intk) :: i, j, k, idx
 
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -783,6 +787,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
 
     END SUBROUTINE sipiter3x
 
