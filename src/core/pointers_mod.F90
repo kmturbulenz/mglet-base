@@ -200,9 +200,9 @@ CONTAINS
 
         INTEGER(intk) :: kk, jj, ii
 
-        IF (myid /= idprocofgrd(igrid)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! IF (myid /= idprocofgrd(igrid)) THEN
+        !     CALL errr(__FILE__, __LINE__)
+        ! END IF
 
         CALL get_mgdims(kk, jj, ii, igrid)
         len = kk*jj*ii
