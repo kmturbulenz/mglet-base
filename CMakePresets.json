@@ -265,8 +265,8 @@
             "displayName": "amdflang",
             "description": "Default build options using the LLVM compilers",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang",
-                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "amdclang",
+                "CMAKE_CXX_COMPILER": "amdclang++",
                 "CMAKE_Fortran_COMPILER": "amdflang",
 
                 "MGLET_C_FLAGS": "",
@@ -286,7 +286,7 @@
             "name": "amdflang-release",
             "displayName": "LLVM compilers (clang, clang++, flang) (release)",
             "description": "Release configuration using the LLVM compilers (clang, clang++, flang)",
-            "inherits": "llvm",
+            "inherits": "amdflang",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
@@ -300,7 +300,7 @@
                 "MGLET_OFFLOAD": "ON",
                 "MGLET_OFFLOAD_BINDTHREAD": "OFF",
                 "MGLET_OFFLOAD_Fortran_FLAGS": "--offload-arch=gfx942;-fopenmp-version=52",
-            "MGLET_LINK_FLAGS": "--offload-arch=gfx942"
+                "MGLET_LINK_FLAGS": "--offload-arch=gfx942"
             }
         },
         {
