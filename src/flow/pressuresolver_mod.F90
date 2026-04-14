@@ -1,10 +1,4 @@
-
 MODULE pressuresolver_mod
-
-!$omp requires unified_address
-!$omp requires unified_shared_memory
-
-    use omp_lib
     USE bound_flow_mod
     USE core_mod
     USE flowcore_mod
@@ -49,11 +43,11 @@ MODULE pressuresolver_mod
     ! A-versions: simple versions not considering the BP field
     ! B-versions: IB versions using the BP field
     ! INTERFACE sipiter1
-    !     MODULE PROCEDURE :: sipiter1_HPB
+    !     MODULE PROCEDURE :: sipiter1_A, sipiter1_B, sipiter1_HPB
     ! END INTERFACE sipiter1
 
     ! INTERFACE sipiter2
-    !     MODULE PROCEDURE :: sipiter2_HPA
+    !     MODULE PROCEDURE :: sipiter2_A, sipiter2_HPA
     ! END INTERFACE sipiter2
 
     INTERFACE pressureftocone
@@ -535,10 +529,6 @@ CONTAINS
                     gsrap, bp)
             ELSE
                 ! Use the SIP solver
-                ! CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
-                !     sipue, sipun, siput, siplpr, bp)
-
-                ! Use the SIP solver (on the GPU, wave-fornt idea)
                 CALL sipx(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
             END IF
@@ -555,7 +545,6 @@ CONTAINS
     SUBROUTINE sipx(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
             sipue, sipun, siput, siplpr, bp)
 
-        USE omp_lib
         USE hyperplane_mod, ONLY: mip_sip_list, idx_sip_list
 
         ! Subroutine arguments
@@ -574,7 +563,7 @@ CONTAINS
         TYPE(field_t), INTENT(in), OPTIONAL :: bp
 
         ! Local variables
-        INTEGER(intk) :: i, il, igrid, ip3
+        INTEGER(intk) :: i, il, igrid
         INTEGER(intk) :: kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: dp_1d_p(:), res_1d_p(:), &
             rhs_1d_p(:)
@@ -585,21 +574,19 @@ CONTAINS
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
-            i = igrid
-            kk = gridinfo(igrid)%kk
-            jj = gridinfo(igrid)%jj
-            ii = gridinfo(igrid)%ii
-            ip3 = ip3d(igrid)
+            CALL get_imygrid(i, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
-            ! > "parallel do" inside the function
-            CALL sipiter1x(kk, jj, ii, &
-                rhs%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1), &
+            ! Getting the arrays is 1D pointers
+            CALL res%get_ptr(res_1d_p, igrid)
+            CALL rhs%get_ptr(rhs_1d_p, igrid)
+
+            ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
+            CALL sipiter1x(kk, jj, ii, rhs_1d_p, res_1d_p, &
                 lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
                 lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-
         END DO
-        !$omp end target teams distribute
 
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
@@ -611,15 +598,15 @@ CONTAINS
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
-            i = igrid
-            kk = gridinfo(igrid)%kk
-            jj = gridinfo(igrid)%jj
-            ii = gridinfo(igrid)%ii
-            ip3 = ip3d(igrid)
+            CALL get_imygrid(i, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
-            ! > "parallel do" inside the function
-            CALL sipiter2x(kk, jj, ii, &
-                dp%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1), &
+            ! Getting the arrays is 1D pointers
+            CALL dp%get_ptr(dp_1d_p, igrid)
+            CALL res%get_ptr(res_1d_p, igrid)
+
+            ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
+            CALL sipiter2x(kk, jj, ii, dp_1d_p, res_1d_p, &
                 ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
 
@@ -631,17 +618,17 @@ CONTAINS
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
-            kk = gridinfo(igrid)%kk
-            jj = gridinfo(igrid)%jj
-            ii = gridinfo(igrid)%ii
-            ip3 = kk*jj*ii*(i-1) + 1
+            CALL get_imygrid(i, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL sipiter3x(kk, jj, ii, &
-                dp%arr(ip3:ip3+kk*jj*ii-1), res%arr(ip3:ip3+kk*jj*ii-1))
+            ! Getting the arrays is 1D pointers
+            CALL dp%get_ptr(dp_1d_p, igrid)
+            CALL res%get_ptr(res_1d_p, igrid)
+
+            CALL sipiter3x(kk, jj, ii, dp_1d_p, res_1d_p)
 
         END DO
         !$omp end target teams distribute
-
 
     END SUBROUTINE sipx
 
@@ -726,7 +713,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, m, lm, lp, ip, iacc, &
-            idx, idx_kp, idx_jp, idx_ip, i, j, k
+            idx, idx_kp, idx_jp, idx_ip
 
         ! Subroutine body
         n3dmin = 3 + 3 + 3
@@ -766,7 +753,6 @@ CONTAINS
         END DO
 
     END SUBROUTINE sipiter2x
-
 
 
     SUBROUTINE sipiter3x(kk, jj, ii, phi, res)
@@ -1054,108 +1040,6 @@ CONTAINS
     END SUBROUTINE laplacephi_grid
 
 
-    ! PURE SUBROUTINE sipiter0(kk, jj, ii, rhs, res, lpr)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
-    !     REAL(realk), INTENT(in) :: rhs(kk, jj, ii)
-    !     REAL(realk), INTENT(inout) :: res(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: lpr(kk, jj, ii)
-
-    !     ! Local variables
-    !     INTEGER(intk) :: k, j, i
-
-    !     DO i = 3, ii-2
-    !         DO j = 3, jj-2
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = (rhs(k, j, i) + res(k, j, i))*lpr(k, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE sipiter0
-
-
-    ! PURE SUBROUTINE sipiter1_A(kk, jj, ii, rhs, res, lw, ls, lb)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
-    !     REAL(realk), INTENT(inout) :: res(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: rhs(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: lw(kk, jj, ii), ls(kk, jj, ii), &
-    !         lb(kk, jj, ii)
-
-    !     ! Local variables
-    !     INTEGER(intk) :: k, j, i
-
-    !     DO i = 3, ii-2
-    !         DO j = 3, jj-2
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
-    !                     - ls(k, j, i)*res(k, j-1, i)
-    !             END DO
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = res(k, j, i) - lb(k, j, i)*res(k-1, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE sipiter1_A
-
-
-    ! PURE SUBROUTINE sipiter1_B(kk, jj, ii, rhs, res, lw, ls, lb, lpr)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
-    !     REAL(realk), INTENT(inout) :: res(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: rhs(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: lw(kk, jj, ii), ls(kk, jj, ii), &
-    !         lb(kk, jj, ii), lpr(kk, jj, ii)
-
-    !     ! Local variables
-    !     INTEGER(intk) :: k, j, i
-
-    !     DO i = 3, ii-2
-    !         DO j = 3, jj-2
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = (rhs(k, j, i) + res(k, j, i))*lpr(k, j, i)
-    !                 res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
-    !                     - ls(k, j, i)*res(k, j-1, i)
-    !             END DO
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = res(k, j, i) - lb(k, j, i)*res(k-1, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE sipiter1_B
-
-
-    ! PURE SUBROUTINE sipiter2_A(kk, jj, ii, phi, res, ue, un, ut)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
-    !     REAL(realk), INTENT(inout) :: phi(kk, jj, ii), res(kk, jj, ii)
-    !     REAL(realk), INTENT(in) :: ue(kk, jj, ii), un(kk, jj, ii), &
-    !         ut(kk, jj, ii)
-
-    !     ! Local variables
-    !     INTEGER(intk) :: k, j, i
-
-    !     DO i = ii-2, 3, -1
-    !         DO j = jj-2, 3, -1
-    !             DO k = 3, kk-2
-    !                 res(k, j, i) = res(k, j, i) - un(k, j, i)*res(k, j+1, i) &
-    !                     - ue(k, j, i)*res(k, j, i+1)
-    !             END DO
-    !             DO k = kk-2, 3, -1
-    !                 res(k, j, i) = res(k, j, i) - ut(k, j, i)*res(k+1, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-
-    !     DO i = 3, ii-2
-    !         DO j = 3, jj-2
-    !             DO k = 3, kk-2
-    !                 phi(k, j, i) = phi(k, j, i) + res(k, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE sipiter2_A
-
 
 
 
@@ -1190,6 +1074,7 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
+                        !$omp simd private(aw, ae, as, an, ab, at, rap, res)
                         DO k = kstart, kstop, 2
                             ! Variations in numerical formulation, please
                             ! keep for future reference. Should be the same
@@ -1242,6 +1127,7 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
+                        !$omp simd private(res)
                         DO k = kstart, kstop, 2
                             res = (gsaw(i) * dp(k, j, i-1) &
                                   + gsae(i) * dp(k, j, i+1) &
@@ -1849,186 +1735,4 @@ CONTAINS
             END DO
         END IF
     END SUBROUTINE mgpcorr_grid
-
-
-    SUBROUTINE sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
-            sipue, sipun, siput, siplpr, bp)
-
-        USE hyperplane_mod, ONLY: mip_sip_list, idx_sip_list
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        INTEGER(intk), INTENT(in) :: iloop
-        TYPE(field_t), INTENT(inout) :: dp
-        TYPE(field_t), INTENT(inout) :: res
-        TYPE(field_t), INTENT(in) :: rhs
-        TYPE(field_t), INTENT(in) :: siplw
-        TYPE(field_t), INTENT(in) :: sipls
-        TYPE(field_t), INTENT(in) :: siplb
-        TYPE(field_t), INTENT(in) :: sipue
-        TYPE(field_t), INTENT(in) :: sipun
-        TYPE(field_t), INTENT(in) :: siput
-        TYPE(field_t), INTENT(in) :: siplpr
-        TYPE(field_t), INTENT(in), OPTIONAL :: bp
-
-        ! Local variables
-        INTEGER(intk) :: i, il, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: dp_1d_p(:), res_1d_p(:), &
-            rhs_1d_p(:)
-
-        CALL laplacephi_level(ilevel, res, dp, bp)
-
-        DO il = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(il, ilevel)
-            CALL get_imygrid(i, igrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Getting the arrays is 1D pointers
-            CALL res%get_ptr(res_1d_p, igrid)
-            CALL rhs%get_ptr(rhs_1d_p, igrid)
-
-            ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            CALL sipiter1_HPB(kk, jj, ii, rhs_1d_p, res_1d_p, &
-                lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
-                lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-        END DO
-
-        IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
-        ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
-        END IF
-
-        DO il = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(il, ilevel)
-            CALL get_imygrid(i, igrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Getting the arrays is 1D pointers
-            CALL dp%get_ptr(dp_1d_p, igrid)
-            CALL res%get_ptr(res_1d_p, igrid)
-
-            ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
-            CALL sipiter2_HPA(kk, jj, ii, dp_1d_p, res_1d_p, &
-                ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-        END DO
-    END SUBROUTINE sip
-
-
-    PURE SUBROUTINE sipiter1_HPB(kk, jj, ii, rhs, res, lw, ls, lb, lpr, mip, &
-        idxsip)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: res(kk*jj*ii)
-        REAL(realk), INTENT(in) :: rhs(kk*jj*ii), lw(kk*jj*ii), ls(kk*jj*ii), &
-            lb(kk*jj*ii), lpr(kk*jj*ii)
-
-        ! For the hyperplane traversal
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
-
-        ! Local variables
-        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, iacc, &
-            idx, idx_km, idx_jm, idx_im
-
-        ! Subroutine body
-        n3dmin = 3 + 3 + 3
-        n3dmax = (ii-2) + (jj-2) + (kk-2)
-
-        ! Iterating over the hyperplanes H(k, j, i) = m
-        DO m = n3dmin, n3dmax
-
-            lm = mip(m)
-            len = mip(m+1) - lm
-
-            ! > Parallel operations on the hyperplane (k, j, i) = m
-            DO ip = 1, len
-
-                ! Computing the contiguous access index
-                iacc = lm + ip
-
-                ! Computing the required indices
-                idx = idxsip(iacc)
-                idx_km = idx - 1
-                idx_jm = idx - kk
-                idx_im = idx - (kk*jj)
-
-                ! Accounting for RHS
-                res(idx) = (rhs(idx) + res(idx)) * lpr(iacc)
-
-                ! Performing the forward substitution
-                res(idx) = res(idx) - lb(iacc)*res(idx_km) - &
-                    ls(iacc)*res(idx_jm) - lw(iacc)*res(idx_im)
-
-                ! Original code:
-                ! res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
-                !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
-
-            END DO
-        END DO
-
-    END SUBROUTINE sipiter1_HPB
-
-    PURE SUBROUTINE sipiter2_HPA(kk, jj, ii, phi, res, ue, un, ut, mip, idxsip)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: phi(kk*jj*ii), res(kk*jj*ii)
-        REAL(realk), INTENT(in) :: ue(kk*jj*ii), un(kk*jj*ii), ut(kk*jj*ii)
-
-        ! For the hyperplane traversal
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
-
-        ! Local variables
-        INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, iacc, &
-            idx, idx_kp, idx_jp, idx_ip, i, j, k
-
-        ! Subroutine body
-        n3dmin = 3 + 3 + 3
-        n3dmax = (ii-2) + (jj-2) + (kk-2)
-
-        ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
-        DO m = n3dmax, n3dmin, -1
-
-            lm = mip(m)
-            len = mip(m+1) - lm
-
-            ! > Parallel operations on the hyperplane (k, j, i) = m
-            DO ip = 1, len
-
-                ! Computing the contiguous access index
-                iacc = lm + ip
-
-                ! Computing the required indices
-                idx = idxsip(iacc)
-                idx_kp = idx + 1
-                idx_jp = idx + kk
-                idx_ip = idx + (kk*jj)
-
-                ! Performing the backward substitution
-                res(idx) = res(idx) - ut(iacc)*res(idx_kp) - &
-                    un(iacc)*res(idx_jp) - ue(iacc)*res(idx_ip)
-
-                ! Original code:
-                ! res(k, j, i) = res(k, j, i) - un(k, j, i)*res(k, j+1, i) &
-                !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
-
-            END DO
-        END DO
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    idx = k + (j-1)*kk + (i-1)*kk*jj
-                    phi(idx) = phi(idx) + res(idx)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE sipiter2_HPA
-
-
 END MODULE pressuresolver_mod
