@@ -1,6 +1,6 @@
 MODULE realfield_mod
     USE err_mod, ONLY: errr
-    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
+    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid, globalgrids
     USE pointers_mod, ONLY: idimbb, get_ibb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
@@ -84,43 +84,120 @@ CONTAINS
     END SUBROUTINE destructor
 
 
-    SUBROUTINE get_grid1(this, ptr, igrid)
+    ! SUBROUTINE get_grid1(this, ptr, igrid)
+    ! $omp declare target
+
+        ! Subroutine arguments
+        ! CLASS(field_t), INTENT(in), TARGET :: this
+        ! REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
+        ! INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        ! INTEGER(intk) :: ip, len
+
+        ! WARNUNG: Hier Roituinen des Basistypes
+        ! CALL this%get_ip(ip, igrid)
+        ! CALL this%get_len(len, igrid)
+        ! IF (len <= 0) CALL errr(__FILE__, __LINE__)
+
+        ! ptr(1:len) => this%arr(ip:ip+len-1)
+
+    ! END SUBROUTINE get_grid1
+
+
+    SUBROUTINE get_grid1(this, ptr, igrid, lin, info)
+    !$omp declare target
+
         ! Subroutine arguments
         CLASS(field_t), INTENT(in), TARGET :: this
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
         INTEGER(intk), INTENT(in) :: igrid
+        LOGICAL, OPTIONAL :: lin
+        LOGICAL, OPTIONAL :: info
 
         ! Local variables
-        INTEGER(intk) :: ip, len
+        INTEGER(intk) :: i, len, ip, ii, jj, kk
+        LOGICAL :: linearize
 
-        CALL this%get_ip(ip, igrid)
-        CALL this%get_len(len, igrid)
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        ! Setting for linearization
+        linearize = .FALSE.
+        IF (PRESENT(lin)) THEN
+            IF (lin) THEN
+                linearize = .TRUE.
+            END IF
+        END IF
 
-        ptr(1:len) => this%arr(ip:ip+len-1)
+        IF (.NOT. this%ndim == 1 .AND. .NOT. linearize) THEN
+            WRITE(*, '("Field is not 1D!")')
+            ! CALL errr(__FILE__, __LINE__)
+        END IF
+
+        IF (.NOT. this%ndim == 3 .AND. linearize) THEN
+            WRITE(*, '("Field is not 3D! No linearization")')
+            ! CALL errr(__FILE__, __LINE__)
+        END IF
+
+
+        i = globalgrids(igrid)
+        ip = this%ptr(i)
+        len = this%length(i)
+
+        IF (PRESENT(info)) THEN
+            IF (info) THEN
+               WRITE(*, *) "get_grid1", igrid, i, ip, len, linearize
+            END IF
+        END IF
+
+        IF (.NOT. linearize) THEN
+            IF (len <= 0) WRITE(*, *) "ERROR"
+            ptr(1:len) => this%arr(ip:ip+len-1)
+        ELSE
+            CALL get_mgdims(kk, jj, ii, igrid)
+            IF (len /= kk*jj*ii) WRITE(*, *) "ERROR"
+            ptr(1:kk*jj*ii) => this%arr(ip:ip+kk*jj*ii-1)
+        END IF
+
     END SUBROUTINE get_grid1
 
 
-    SUBROUTINE get_grid3(this, ptr, igrid)
+
+
+    SUBROUTINE get_grid3(this, ptr, igrid, lin, info)
+    !$omp declare target
+
         ! Subroutine arguments
         CLASS(field_t), INTENT(in), TARGET :: this
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
         INTEGER(intk), INTENT(in) :: igrid
+        LOGICAL, OPTIONAL :: lin
+        LOGICAL, OPTIONAL :: info
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, len
+        INTEGER(intk) :: kk, jj, ii, ip, len, i
+        LOGICAL :: linearize
+
+        IF (PRESENT(lin)) THEN
+            IF (lin) THEN
+                WRITE(*, *) "ERROR: No linearization for 3D fields"
+            END IF
+        END IF
 
         IF (.NOT. this%ndim == 3) THEN
             WRITE(*, '("Field ", A, " is not 3D!")') TRIM(this%name)
-            CALL errr(__FILE__, __LINE__)
+            ! CALL errr(__FILE__, __LINE__)
         END IF
 
-        CALL this%get_ip(ip, igrid)
-        CALL this%get_len(len, igrid)
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        CALL get_imygrid(i, igrid)
+        ip = this%ptr(i)
+        len = this%length(i)
 
         CALL get_mgdims(kk, jj, ii, igrid)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+        IF (len /= kk*jj*ii) WRITE(*, *) "Error"
+        IF (PRESENT(info)) THEN
+            IF (info) THEN
+                WRITE(*, *) "get_grid3", igrid, i, ip, len, linearize
+            END IF
+        END IF
 
         ptr(1:kk, 1:jj, 1:ii) => this%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3

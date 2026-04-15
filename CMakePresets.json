@@ -299,15 +299,15 @@
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
                 "MGLET_OFFLOAD_BINDTHREAD": "OFF",
-                "MGLET_OFFLOAD_Fortran_FLAGS": "--offload-arch=gfx942;-fopenmp-version=52",
-                "MGLET_LINK_FLAGS": "--offload-arch=gfx942"
+                "MGLET_OFFLOAD_Fortran_FLAGS": "--offload-arch=gfx942;-fopenmp-version=52;-g",
+                "MGLET_LINK_FLAGS": "--offload-arch=gfx942;-g"
             }
         },
         {
             "name": "amdflang-debug",
             "displayName": "LLVM compilers (clang, clang++, flang) (debug)",
             "description": "Debug configuration using the LLVM compilers (clang, clang++, flang)",
-            "inherits": "llvm",
+            "inherits": "amdflang",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
             }

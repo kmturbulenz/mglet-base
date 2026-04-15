@@ -570,7 +570,8 @@ CONTAINS
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
-        !$omp target teams distribute private(igrid, i, kk, jj, ii, ip3)
+        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
+        !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -578,15 +579,16 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-            CALL res%get_ptr(res_1d_p, igrid)
-            CALL rhs%get_ptr(rhs_1d_p, igrid)
+            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE., info=.False.)
+            CALL rhs%get_ptr(rhs_1d_p, igrid, lin=.TRUE., info=.False.)
 
-            ! CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
             CALL sipiter1x(kk, jj, ii, rhs_1d_p, res_1d_p, &
                 lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
                 lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
+        !$omp end target teams distribute
+
 
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
@@ -594,7 +596,8 @@ CONTAINS
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
-        !$omp target teams distribute private(igrid, i, kk, jj, ii, ip3)
+        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
+        !$omp private(igrid, i, kk, jj, ii, dp_1d_p, res_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -602,10 +605,9 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-            CALL dp%get_ptr(dp_1d_p, igrid)
-            CALL res%get_ptr(res_1d_p, igrid)
+            CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
+            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
 
-            ! CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
             CALL sipiter2x(kk, jj, ii, dp_1d_p, res_1d_p, &
                 ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
@@ -614,16 +616,16 @@ CONTAINS
         !$omp end target teams distribute
 
 
-        !$omp target teams distribute private(igrid, kk, jj, ii, ip3)
+        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
+        !$omp private(igrid, kk, jj, ii, dp_1d_p, res_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
-            CALL get_imygrid(i, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-            CALL dp%get_ptr(dp_1d_p, igrid)
-            CALL res%get_ptr(res_1d_p, igrid)
+            CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
+            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
 
             CALL sipiter3x(kk, jj, ii, dp_1d_p, res_1d_p)
 
@@ -780,23 +782,23 @@ CONTAINS
 
 
     ! SUBROUTINE sip_dummy1(kk, jj, ii, dp_1d_p, res_1d_p)
-    ! !$omp declare target
+    ! !$ump declare target
     !     INTEGER(intk), INTENT(in) :: kk, jj, ii
     !     REAL(realk), INTENT(inout) :: dp_1d_p(kk*jj*ii)
     !     REAL(realk), INTENT(in) :: res_1d_p(kk*jj*ii)
 
     !     INTEGER(intk) :: i
 
-    !     !$omp loop bind(parallel)
+    !     !$ump loop bind(parallel)
     !     DO i = 1, kk*jj*ii
     !         dp_1d_p(i) = res_1d_p(i)*2.0_realk
     !     END DO
-    !     !$omp end loop
+    !     !$ump end loop
 
     ! END SUBROUTINE sip_dummy1
 
     ! SUBROUTINE sip_dummy2(kk, jj, ii, dp_1d_p, res_1d_p)
-    ! !$omp declare target
+    ! !$ump declare target
     !     INTEGER(intk), INTENT(in) :: kk, jj, ii
     !     REAL(realk), INTENT(inout) :: dp_1d_p(kk*jj*ii)
     !     REAL(realk), INTENT(in) :: res_1d_p(kk*jj*ii)
@@ -805,11 +807,11 @@ CONTAINS
 
     !     DO j = 1, 10
 
-    !         !$omp loop bind(parallel)
+    !         !$ump loop bind(parallel)
     !         DO i = j, kk*jj*ii-j
     !             dp_1d_p(i) = res_1d_p(i)*j
     !         END DO
-    !         !$omp end loop
+    !         !$ump end loop
 
     !     END DO
 
@@ -817,7 +819,7 @@ CONTAINS
 
     ! SUBROUTINE sip_dummy3(kk, jj, ii, rhs, res, lw, ls, lb, lpr, mip, &
     !     idxsip)
-    !     !$omp declare target
+    !     !$ump declare target
 
     !     ! Subroutine arguments
     !     INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -845,7 +847,7 @@ CONTAINS
     !         lm = mip(m)
     !         len = mip(m+1) - lm
 
-    !         !$omp loop private(ip, iacc, idx, idx_km, idx_jm, idx_im)
+    !         !$ump loop private(ip, iacc, idx, idx_km, idx_jm, idx_im)
     !         DO ip = 1, len
 
     !             ! Computing the contiguous access index
@@ -867,7 +869,7 @@ CONTAINS
     !             !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
 
     !         END DO
-    !         !$omp end loop
+    !         !$ump end loop
 
 
     !     END DO
@@ -1074,7 +1076,7 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
-                        !$omp simd private(aw, ae, as, an, ab, at, rap, res)
+                        !$ump simd private(aw, ae, as, an, ab, at, rap, res)
                         DO k = kstart, kstop, 2
                             ! Variations in numerical formulation, please
                             ! keep for future reference. Should be the same
@@ -1127,7 +1129,7 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
-                        !$omp simd private(res)
+                        !$ump simd private(res)
                         DO k = kstart, kstop, 2
                             res = (gsaw(i) * dp(k, j, i-1) &
                                   + gsae(i) * dp(k, j, i+1) &

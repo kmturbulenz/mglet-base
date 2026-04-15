@@ -8,6 +8,8 @@ MODULE grids_mod
     PRIVATE
 
     TYPE(gridinfo_t), ALLOCATABLE, TARGET :: gridinfo(:)
+    !$omp declare target (gridinfo)
+
     TYPE(bcond_t), ALLOCATABLE, TARGET :: front(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: back(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: right(:)
@@ -32,6 +34,7 @@ MODULE grids_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygridslvl(:, :)
 
     INTEGER(intk), ALLOCATABLE, PROTECTED :: globalgrids(:)
+    !$omp declare target (globalgrids)
 
     ! From cobound.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nboconds(:, :)
@@ -48,7 +51,7 @@ MODULE grids_mod
     PUBLIC :: init_grids, finish_grids, get_bbox, get_gradpxflag, get_bcprms, &
         get_imygrid, get_mgdims, get_level, iposition, jposition, kposition, &
         iparent, get_neighbours, level, get_kk, get_jj, get_ii, get_mgbasb, &
-        get_bc_ctyp, get_gridvolume, get_nbcprms, rewrite_grids
+        get_bc_ctyp, get_gridvolume, get_nbcprms, rewrite_grids, globalgrids
 
     ! Public data arrays
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &

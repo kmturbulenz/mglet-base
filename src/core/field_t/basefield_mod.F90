@@ -233,6 +233,8 @@ CONTAINS
 
 
     SUBROUTINE get_ip(this, ip, igrid)
+    !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(in) :: this
         INTEGER(intk), INTENT(out) :: ip
@@ -248,6 +250,8 @@ CONTAINS
 
 
     SUBROUTINE get_len(this, len, igrid)
+    !$omp declare target
+
         ! Subroutine arguments
         CLASS(basefield_t), INTENT(in) :: this
         INTEGER(intk), INTENT(out) :: len
