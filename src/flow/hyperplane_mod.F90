@@ -30,10 +30,19 @@ CONTAINS
         INTEGER(intk) :: i, igrid, kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:)
         REAL(realk), POINTER, CONTIGUOUS :: ue(:), un(:), ut(:)
+        TYPE(field_t), POINTER :: lw_f, ls_f, lb_f, lpr_f, ue_f, un_f, ut_f
 
         ! Allocation of the lists of stencils for all grids
         ALLOCATE(mip_sip_list(nmygrids))
         ALLOCATE(idx_sip_list(nmygrids))
+
+        CALL get_field(lw_f, "SIPLW")
+        CALL get_field(ls_f, "SIPLS")
+        CALL get_field(lb_f, "SIPLB")
+        CALL get_field(lpr_f, "SIPLPR")
+        CALL get_field(ue_f, "SIPUE")
+        CALL get_field(un_f, "SIPUN")
+        CALL get_field(ut_f, "SIPUT")
 
         ! Iteration over all local grids
         DO i = 1, nmygrids
@@ -75,13 +84,13 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the already computed SIP coefficients for one grid
-            CALL get_fieldptr(lw, "SIPLW", igrid)
-            CALL get_fieldptr(ls, "SIPLS", igrid)
-            CALL get_fieldptr(lb, "SIPLB", igrid)
-            CALL get_fieldptr(lpr, "SIPLPR", igrid)
-            CALL get_fieldptr(ue, "SIPUE", igrid)
-            CALL get_fieldptr(un, "SIPUN", igrid)
-            CALL get_fieldptr(ut, "SIPUT", igrid)
+            CALL lw_f%get_ptr(lw, igrid, lin=.TRUE.)
+            CALL ls_f%get_ptr(ls, igrid, lin=.TRUE.)
+            CALL lb_f%get_ptr(lb, igrid, lin=.TRUE.)
+            CALL lpr_f%get_ptr(lpr, igrid, lin=.TRUE.)
+            CALL ue_f%get_ptr(ue, igrid, lin=.TRUE.)
+            CALL un_f%get_ptr(un, igrid, lin=.TRUE.)
+            CALL ut_f%get_ptr(ut, igrid, lin=.TRUE.)
 
             ALLOCATE(lw_sip_list(i)%arr(ii*jj*kk))
             ALLOCATE(ls_sip_list(i)%arr(ii*jj*kk))
