@@ -2,7 +2,7 @@ MODULE commbuf_mod
     USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: int8
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC
     USE MPI_f08
-#ifdef _MGLET_OFFLOAD_
+#ifdef _MGLET_DEVICE_BUFFER_
     USE omp_lib
 #endif
 
@@ -18,7 +18,7 @@ MODULE commbuf_mod
     INTEGER(int64), PROTECTED :: idim_mg_intbuf = 0
 
     ! A 1-byte integer data buffer as a core for simplicity
-#ifdef _MGLET_OFFLOAD_
+#ifdef _MGLET_DEVICE_BUFFER_
     TYPE(C_PTR) :: buffer
     INTEGER(intk) :: idev
 #else
@@ -62,7 +62,7 @@ CONTAINS
         NULLIFY(recvbuf)
         NULLIFY(intbuf)
         NULLIFY(recvbuf)
-#ifdef _MGLET_OFFLOAD_
+#ifdef _MGLET_DEVICE_BUFFER_
         CALL omp_target_free(buffer, idev)
         idev = -1
 #else
@@ -123,7 +123,7 @@ CONTAINS
         IF (ASSOCIATED(isendbuf)) NULLIFY(isendbuf)
         IF (ASSOCIATED(irecvbuf)) NULLIFY(irecvbuf)
 
-#ifdef _MGLET_OFFLOAD_
+#ifdef _MGLET_DEVICE_BUFFER_
         IF (omp_target_is_present(buffer, idev) /= 0) THEN
             CALL omp_target_free(buffer, idev)
             idev = -1
