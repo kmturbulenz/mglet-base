@@ -545,13 +545,7 @@ CONTAINS
 
         ! Exchnage data
         CALL recv_all()
-        ! (Cray) For now we only support offloaded connect self on USM with the
-        !        Cray compilers.
-#if defined _CRAYFTN
-        CALL send_all_apu()
-#else
         CALL send_all()
-#endif
         CALL process_bufs()
 
         ! Clear counters and unset pointers. This is important to avoid
@@ -1410,73 +1404,39 @@ CONTAINS
         CALL start_timer(153)
 
         IF (.NOT. connect_integer) THEN
-            !$omp target teams loop bind(teams) &
-            !$omp private(ioff, joff, koff)
+            !$omp target teams distribute private(ioff, joff, koff)
             DO n = 1, nself_conns
                 ioff = self_conns(n)%src_istart - self_conns(n)%dst_istart
                 joff = self_conns(n)%src_jstart - self_conns(n)%dst_jstart
                 koff = self_conns(n)%src_kstart - self_conns(n)%dst_kstart
-                !$omp loop collapse(3) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-                !$omp bind(thread)
-#else
-                !$omp bind(parallel)
-#endif
-                DO i = self_conns(n)%dst_istart, &
-                        self_conns(n)%dst_istart &
-                        + (self_conns(n)%src_iend - self_conns(n)%src_istart)
-                    DO j = self_conns(n)%dst_jstart, &
-                            self_conns(n)%dst_jstart &
-                            + (self_conns(n)%src_jend - &
-                                self_conns(n)%src_jstart)
-                        DO k = self_conns(n)%dst_kstart, &
-                                self_conns(n)%dst_kstart &
-                                + (self_conns(n)%src_kend - &
-                                    self_conns(n)%src_kstart)
-                            self_conns(n)%dst(k, j, i) = &
-                                self_conns(n)%src(k+koff, j+joff, i+ioff)
+                !$omp parallel do collapse(3)
+                DO i = self_conns(n)%dst_istart, self_conns(n)%dst_istart + (self_conns(n)%src_iend - self_conns(n)%src_istart)
+                    DO j = self_conns(n)%dst_jstart, self_conns(n)%dst_jstart + (self_conns(n)%src_jend - self_conns(n)%src_jstart)
+                        DO k = self_conns(n)%dst_kstart, self_conns(n)%dst_kstart + (self_conns(n)%src_kend - self_conns(n)%src_kstart)
+                            self_conns(n)%dst(k, j, i) = self_conns(n)%src(k+koff, j+joff, i+ioff)
                         END DO
                     END DO
                 END DO
-                !$omp end loop
+                !$omp end parallel do
             END DO
-            !$omp end target teams loop
+            !$omp end target teams distribute
         ELSE
-            !$omp target teams loop bind(teams) &
-            !$omp private(ioff, joff, koff)
+            !$omp target teams distribute private(ioff, joff, koff)
             DO n = 1, nself_conns
-                ioff = self_conns_int(n)%src_istart - &
-                    self_conns_int(n)%dst_istart
-                joff = self_conns_int(n)%src_jstart - &
-                    self_conns_int(n)%dst_jstart
-                koff = self_conns_int(n)%src_kstart - &
-                    self_conns_int(n)%dst_kstart
-                !$omp loop collapse(3) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-                !$omp bind(thread)
-#else
-                !$omp bind(parallel)
-#endif
-                DO i = self_conns_int(n)%dst_istart, &
-                        self_conns_int(n)%dst_istart &
-                        + (self_conns_int(n)%src_iend - &
-                            self_conns_int(n)%src_istart)
-                    DO j = self_conns_int(n)%dst_jstart, &
-                            self_conns_int(n)%dst_jstart &
-                            + (self_conns_int(n)%src_jend - &
-                                self_conns_int(n)%src_jstart)
-                        DO k = self_conns_int(n)%dst_kstart, &
-                                self_conns_int(n)%dst_kstart &
-                                + (self_conns_int(n)%src_kend - &
-                                    self_conns_int(n)%src_kstart)
-                            self_conns_int(n)%dst(k, j, i) = &
-                                self_conns_int(n)%src(k+koff, j+joff, i+ioff)
+                ioff = self_conns_int(n)%src_istart - self_conns_int(n)%dst_istart
+                joff = self_conns_int(n)%src_jstart - self_conns_int(n)%dst_jstart
+                koff = self_conns_int(n)%src_kstart - self_conns_int(n)%dst_kstart
+                !$omp parallel do collapse(3)
+                DO i = self_conns_int(n)%dst_istart, self_conns_int(n)%dst_istart + (self_conns_int(n)%src_iend - self_conns_int(n)%src_istart)
+                    DO j = self_conns_int(n)%dst_jstart, self_conns_int(n)%dst_jstart + (self_conns_int(n)%src_jend - self_conns_int(n)%src_jstart)
+                        DO k = self_conns_int(n)%dst_kstart, self_conns_int(n)%dst_kstart + (self_conns_int(n)%src_kend - self_conns_int(n)%src_kstart)
+                            self_conns_int(n)%dst(k, j, i) = self_conns_int(n)%src(k+koff, j+joff, i+ioff)
                         END DO
                     END DO
                 END DO
-                !$omp end loop
+                !$omp end parallel do
             END DO
-            !$omp end target teams loop
+            !$omp end target teams distribute
         END IF
 
         CALL stop_timer(153)

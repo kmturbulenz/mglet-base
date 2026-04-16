@@ -7,6 +7,7 @@ MODULE timeintegrate_scalar_mod
     USE bound_scalar_mod
     USE itinfo_scalar_mod
     USE gc_scastencils_mod
+    USE realfield_mod, ONLY: get_grid1_new, get_grid3_new
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -50,7 +51,7 @@ CONTAINS
             CALL get_field(dt_f, "D"//TRIM(scalar(l)%name))
             CALL get_field(told, TRIM(scalar(l)%name)//"_OLD")
 
-            !$omp target update to(mapper(maparr): t)
+            !!$omp target update to(mapper(maparr): t)
             CALL start_timer(430)
             ! Copy to "T_OLD" (not needed here but used for Boussinesq)
             !$omp target teams loop
@@ -59,14 +60,14 @@ CONTAINS
             END DO
             !$omp end target teams loop
             CALL stop_timer(430)
-            !$omp target update from(mapper(maparr): told)
+            !!$omp target update from(mapper(maparr): told)
 
-            !$omp target update to(mapper(maparr): t)
+            !!$omp target update to(mapper(maparr): t)
             CALL start_timer(435)
             ! TSTSCA4 zeroize qtu, qtv, qtw before use internally
             CALL tstsca4(qtu, qtv, qtw, t, scalar(l))
             CALL stop_timer(435)
-            !$omp target update from(mapper(maparr): qtu, qtv, qtw)
+            !!$omp target update from(mapper(maparr): qtu, qtv, qtw)
 
             ! This operation apply boundary conditions to qtu, qtv, qtw ONLY!
             ! Does not modify t-field at all!
@@ -78,13 +79,13 @@ CONTAINS
                 CALL bound_scaflux%bound(ilevel, qtu, qtv, qtw, t)
                 CALL stop_timer(445)
             END DO
-            !$omp target update to(mapper(maparr): t, qtu, qtv, qtw)
+            !!$omp target update to(mapper(maparr): t, qtu, qtv, qtw)
 
             CALL start_timer(450)
             ! fluxbalance zeroize qtt before use internally
             CALL fluxbalance(qtt, qtu, qtv, qtw)
             CALL stop_timer(450)
-            !$omp target update from(mapper(maparr): qtt)
+            !!$omp target update from(mapper(maparr): qtt)
 
             CALL start_timer(455)
             ! Additional source terms
@@ -102,7 +103,7 @@ CONTAINS
             ! the dt field before each step
             CALL rkscheme%get_coeffs(frhs, fu, dtrk, dtrki, irk)
 
-            !$omp target update to(mapper(maparr): qtt)
+            !!$omp target update to(mapper(maparr): qtt)
             CALL start_timer(465)
             ! dT_j = A_j*dT_(j-1) + QTT
             ! T_j = T_(j-1) + B_j*dT_j
@@ -118,7 +119,7 @@ CONTAINS
             ! Mask blocked cells
             CALL maskbt(t)
             CALL stop_timer(470)
-            !$omp target update from(mapper(maparr): t)
+            !!$omp target update from(mapper(maparr): t)
 
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
@@ -214,6 +215,8 @@ CONTAINS
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
         TYPE(field_t), POINTER :: u_f, v_f, w_f, g_f
         TYPE(field_t), POINTER :: bt_f, ddx_f, ddy_f, ddz_f, rdx_f, rdy_f, rdz_f
+        REAL, CONTIGUOUS, POINTER, DIMENSION(:, :, :) :: qtu, qtv, qtw, t, u, v, w, g, bt
+        REAL, CONTIGUOUS, POINTER, DIMENSION(:) :: ddx, ddy, ddz, rdx, rdy, rdz
 
         CALL start_timer(410)
 
@@ -230,49 +233,55 @@ CONTAINS
         CALL get_field(rdy_f, "RDY")
         CALL get_field(rdz_f, "RDZ")
 
-        !$omp target update to(mapper(maparr): u_f, v_f, w_f)
-        !$omp target update to(mapper(maparr): g_f)
+        !$omp target teams loop
+        DO i = 1, SIZE(qtu_f%arr)
+            qtu_f%arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
 
-        !$omp target teams loop bind(teams) &
-        !$omp private(igrid, kk, jj, ii, ip3, ipx, ipy, ipz, &
-        !$omp& nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp target teams loop
+        DO i = 1, SIZE(qtv_f%arr)
+            qtv_f%arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
+
+        !$omp target teams loop
+        DO i = 1, SIZE(qtw_f%arr)
+            qtw_f%arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
+
+        !$omp target teams distribute private(igrid, kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
+        !$omp& qtu, qtv, qtw, t, u, v, w, g, bt, ddx, ddy, ddz, rdx, rdy, rdz)
         DO i = 1, nmygrids
             igrid = mygrids(i)
 
-            ! (Cray) When offloading, the compiler fails to correctly work with
-            !        variables obtained from helper functions. Perhaps some
-            !        inlining issue. Thus, all variables are directly obtained
-            !        from their underlying data structure which is normally
-            !        hidden behind helpers.
-            kk = gridinfo(igrid)%kk
-            jj = gridinfo(igrid)%jj
-            ii = gridinfo(igrid)%ii
-            ip3 = ip3d(igrid)
-            ipx = ip1dx(igrid)
-            ipy = ip1dy(igrid)
-            ipz = ip1dz(igrid)
-            nfro = itypboconds(1, 1, igrid)
-            nbac = itypboconds(1, 2, igrid)
-            nrgt = itypboconds(1, 3, igrid)
-            nlft = itypboconds(1, 4, igrid)
-            nbot = itypboconds(1, 5, igrid)
-            ntop = itypboconds(1, 6, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
 
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp parallel
-#endif
-            CALL tstsca4_grid(kk, jj, ii, &
-                qtu_f%arr(ip3), qtv_f%arr(ip3), qtw_f%arr(ip3), &
-                t_f%arr(ip3), u_f%arr(ip3), v_f%arr(ip3), w_f%arr(ip3), &
-                g_f%arr(ip3), bt_f%arr(ip3), &
-                ddx_f%arr(ipx), ddy_f%arr(ipy), ddz_f%arr(ipz), &
-                rdx_f%arr(ipx), rdy_f%arr(ipy), rdz_f%arr(ipz), &
-                sca, nfro, nbac, nrgt, nlft, nbot, ntop)
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp end parallel
-#endif
+            CALL get_grid3_new(qtu_f, qtu, igrid)
+            CALL get_grid3_new(qtv_f, qtv, igrid)
+            CALL get_grid3_new(qtw_f, qtw, igrid)
+
+            CALL get_grid3_new(t_f, t, igrid)
+            CALL get_grid3_new(u_f, u, igrid)
+            CALL get_grid3_new(v_f, v, igrid)
+            CALL get_grid3_new(w_f, w, igrid)
+            CALL get_grid3_new(g_f, g, igrid)
+            CALL get_grid3_new(bt_f, bt, igrid)
+
+            CALL get_grid1_new(ddx_f, ddx, igrid)
+            CALL get_grid1_new(ddy_f, ddy, igrid)
+            CALL get_grid1_new(ddz_f, ddz, igrid)
+            CALL get_grid1_new(rdx_f, rdx, igrid)
+            CALL get_grid1_new(rdy_f, rdy, igrid)
+            CALL get_grid1_new(rdz_f, rdz, igrid)
+
+            CALL tstsca4_grid(kk, jj, ii, qtu, qtv, qtw, t, u, v, w, g, bt, &
+                ddx, ddy, ddz, rdx, rdy, rdz, sca, nfro, nbac, nrgt, nlft, &
+                nbot, ntop)
         END DO
-        !$omp end target teams loop
+        !$omp end target teams distribute
 
         CALL stop_timer(410)
     END SUBROUTINE tstsca4
@@ -298,11 +307,6 @@ CONTAINS
         REAL(realk) :: gsca, adv, diff, area
         ! REAL(realk) :: gscamol, gtgmolp, gtgmoln
 
-        ! Set INTENT(out) to zero
-        qtu = 0.0
-        qtv = 0.0
-        qtw = 0.0
-
         ! Usually, the fluxes across the grid boundaries are already set
         nfu = 0
         nbu = 0
@@ -324,12 +328,7 @@ CONTAINS
         IF (ilesmodel == 0) iles = 0
 
         ! X direction
-        !$omp loop collapse(3) private(gsca, adv, area, diff) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-        !$omp bind(thread)
-#else
-        !$omp bind(parallel)
-#endif
+        !$omp parallel do collapse(3) private(gsca, adv, area, diff)
         DO i = 3-nfu, ii-3+nbu
             DO j = 3, jj-2
                 ! Scalar diffusivity LES/DNS computation
@@ -367,15 +366,10 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
+        !$omp end parallel do
 
         ! Y direction
-        !$omp loop collapse(3) private(gsca, adv, area, diff) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-        !$omp bind(thread)
-#else
-        !$omp bind(parallel)
-#endif
+        !$omp parallel do collapse(3) private(gsca, adv, area, diff)
         DO i = 3, ii-2
             DO j = 3-nrv, jj-3+nlv
                 ! Scalar diffusivity LES/DNS computation
@@ -413,15 +407,10 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
+        !$omp end parallel do
 
         ! Z direction
-        !$omp loop collapse(3) private(gsca, adv, area, diff) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-        !$omp bind(thread)
-#else
-        !$omp bind(parallel)
-#endif
+        !$omp parallel do collapse(3) private(gsca, adv, area, diff)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 ! Scalar diffusivity LES/DNS computation
@@ -459,7 +448,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
+        !$omp end parallel do
 
 
         ! Special treatment at par boundaries
@@ -467,12 +456,7 @@ CONTAINS
         ! to finally get an upwind scheme in case of flow towards coarse grid
         IF (nfro == 8) THEN
             i =  3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO j = 3, jj-2
                 DO k = 3, kk-2
                     adv = (ddy(j)*ddz(k)) * (u(k, j, i) - ABS(u(k, j, i))) &
@@ -480,17 +464,12 @@ CONTAINS
                     qtu(k, j, i) = qtu(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
 
         IF (nbac == 8) THEN
             i = ii-3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO j = 3, jj-2
                 DO k = 3, kk-2
                     adv = (ddy(j)*ddz(k)) * (u(k, j, i) + ABS(u(k, j, i))) &
@@ -498,17 +477,12 @@ CONTAINS
                     qtu(k, j, i) = qtu(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
 
         IF (nrgt == 8) THEN
             j = 3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO i = 3, ii-2
                 DO k = 3, kk-2
                     adv = (ddx(i)*ddz(k)) * (v(k, j, i) - ABS(v(k, j, i))) &
@@ -516,17 +490,12 @@ CONTAINS
                     qtv(k, j, i) = qtv(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
 
         IF (nlft == 8) THEN
             j = jj-3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO i = 3, ii-2
                 DO k = 3, kk-2
                     adv = (ddx(i)*ddz(k)) * (v(k, j, i) + ABS(v(k, j, i))) &
@@ -534,17 +503,12 @@ CONTAINS
                     qtv(k, j, i) = qtv(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
 
         IF (nbot == 8) THEN
             k = 3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     adv = (ddx(i)*ddy(j)) * (w(k, j, i) - ABS(w(k, j, i))) &
@@ -552,17 +516,12 @@ CONTAINS
                     qtw(k, j, i) = qtw(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
 
         IF (ntop == 8) THEN
             k = kk-3
-            !$omp loop collapse(2) private(adv) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp bind(thread)
-#else
-            !$omp bind(parallel)
-#endif
+            !$omp parallel do collapse(2) private(adv)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     adv = (ddx(i)*ddy(j)) * (w(k, j, i) + ABS(w(k, j, i))) &
@@ -570,7 +529,7 @@ CONTAINS
                     qtw(k, j, i) = qtw(k, j, i) + adv
                 END DO
             END DO
-            !$omp end loop
+            !$omp end parallel do
         END IF
     END SUBROUTINE tstsca4_grid
 
@@ -584,6 +543,8 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
+        REAL, CONTIGUOUS, POINTER, DIMENSION(:, :, :) :: qtt, qtu, qtv, qtw
+        REAL, CONTIGUOUS, POINTER, DIMENSION(:) :: rddx, rddy, rddz
 
         CALL start_timer(411)
 
@@ -591,29 +552,29 @@ CONTAINS
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
 
-        !$omp target teams loop bind(teams) &
-        !$omp private(igrid, kk, jj, ii, ip3, ipx, ipy, ipz)
+        !$omp target teams loop
+        DO i = 1, SIZE(qtt_f%arr)
+            qtt_f%arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
+
+        !$omp target teams distribute private(igrid, kk, jj, ii, qtt, qtu, qtv, qtw, rddx, rddy, rddz)
         DO i = 1, nmygrids
             igrid = mygrids(i)
 
-            kk = gridinfo(igrid)%kk
-            jj = gridinfo(igrid)%jj
-            ii = gridinfo(igrid)%ii
-            ip3 = ip3d(igrid)
-            ipx = ip1dx(igrid)
-            ipy = ip1dy(igrid)
-            ipz = ip1dz(igrid)
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp parallel
-#endif
-            CALL fluxbalance_grid(kk, jj, ii, qtt_f%arr(ip3), qtu_f%arr(ip3), &
-                qtv_f%arr(ip3), qtw_f%arr(ip3), rddx_f%arr(ipx), &
-                rddy_f%arr(ipy), rddz_f%arr(ipz))
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp end parallel
-#endif
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_grid3_new(qtt_f, qtt, igrid)
+            CALL get_grid3_new(qtu_f, qtu, igrid)
+            CALL get_grid3_new(qtv_f, qtv, igrid)
+            CALL get_grid3_new(qtw_f, qtw, igrid)
+            CALL get_grid1_new(rddx_f, rddx, igrid)
+            CALL get_grid1_new(rddy_f, rddy, igrid)
+            CALL get_grid1_new(rddz_f, rddz, igrid)
+
+            CALL fluxbalance_grid(kk, jj, ii, qtt, qtu, qtv, qtw, &
+                rddx, rddy, rddz)
         END DO
-        !$omp end target teams loop
+        !$omp end target teams distribute
         CALL stop_timer(411)
     END SUBROUTINE fluxbalance
 
@@ -631,15 +592,7 @@ CONTAINS
         INTEGER(intk) :: i, j, k
         REAL(realk) :: netflux
 
-        ! Set INTENT(out) to zero
-        qtt = 0.0
-
-        !$omp loop collapse(3) private(netflux) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-        !$omp bind(thread)
-#else
-        !$omp bind(parallel)
-#endif
+        !$omp parallel do collapse(3) private(netflux)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -651,7 +604,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
+        !$omp end parallel do
     END SUBROUTINE fluxbalance_grid
 
 

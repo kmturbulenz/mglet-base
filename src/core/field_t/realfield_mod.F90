@@ -30,7 +30,7 @@ MODULE realfield_mod
         FINAL :: destructor
     END TYPE field_t
 
-    PUBLIC :: field_t
+    PUBLIC :: field_t, get_grid1_new, get_grid3_new
 
 CONTAINS
     SUBROUTINE init(this, name, description, ndim, istag, jstag, kstag, &
@@ -84,6 +84,24 @@ CONTAINS
     END SUBROUTINE destructor
 
 
+    SUBROUTINE get_grid1_new(field, ptr, igrid)
+        !$omp declare target
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in), TARGET :: field
+        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
+        INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        INTEGER(intk) :: ip, len, imygrid
+
+        CALL get_imygrid(imygrid, igrid)
+        ip = field%ptr(imygrid)
+        len = field%length(imygrid)
+
+        ptr(1:len) => field%arr(ip:ip+len-1)
+    END SUBROUTINE get_grid1_new
+
+
     SUBROUTINE get_grid1(this, ptr, igrid)
         !$omp declare target
         ! Subroutine arguments
@@ -131,6 +149,25 @@ CONTAINS
 
         ptr(1:kk, 1:jj, 1:ii) => this%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3
+
+
+    SUBROUTINE get_grid3_new(field, ptr, igrid)
+        !$omp declare target
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in), TARGET :: field
+        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
+        INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        INTEGER(intk) :: kk, jj, ii, ip, imygrid
+
+        CALL get_imygrid(imygrid, igrid)
+        ip = field%ptr(imygrid)
+
+        CALL get_mgdims(kk, jj, ii, igrid)
+
+        ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
+    END SUBROUTINE get_grid3_new
 
 
     REAL(realk) FUNCTION get_value(this, k, j, i, igrid)

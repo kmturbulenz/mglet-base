@@ -2,6 +2,9 @@ MODULE commbuf_mod
     USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: int8
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC
     USE MPI_f08
+#ifdef _MGLET_OFFLOAD_
+    USE omp_lib
+#endif
 
     USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes, &
         ifk, ifk_bytes
@@ -15,7 +18,12 @@ MODULE commbuf_mod
     INTEGER(int64), PROTECTED :: idim_mg_intbuf = 0
 
     ! A 1-byte integer data buffer as a core for simplicity
+#ifdef _MGLET_OFFLOAD_
+    TYPE(C_PTR) :: buffer
+    INTEGER(intk) :: idev
+#else
     INTEGER(int8), ALLOCATABLE, TARGET :: buffer(:)
+#endif
 
     ! Various buffers that all point to the same core buffer
     REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:) => NULL()
@@ -54,7 +62,12 @@ CONTAINS
         NULLIFY(recvbuf)
         NULLIFY(intbuf)
         NULLIFY(recvbuf)
+#ifdef _MGLET_OFFLOAD_
+        CALL omp_target_free(buffer, idev)
+        idev = -1
+#else
         DEALLOCATE(buffer)
+#endif
     END SUBROUTINE finish_commbuf
 
 
@@ -110,15 +123,25 @@ CONTAINS
         IF (ASSOCIATED(isendbuf)) NULLIFY(isendbuf)
         IF (ASSOCIATED(irecvbuf)) NULLIFY(irecvbuf)
 
+#ifdef _MGLET_OFFLOAD_
+        IF (omp_target_is_present(buffer, idev) /= 0) THEN
+            CALL omp_target_free(buffer, idev)
+            idev = -1
+        END IF
+        idev = omp_get_default_device()
+        buffer = omp_target_alloc(corrlength, idev)
+        cptr = buffer
+#else
         IF (ALLOCATED(buffer)) THEN
             DEALLOCATE(buffer)
         END IF
         ALLOCATE(buffer(corrlength))
+        cptr = C_LOC(buffer)
+#endif
 
         idim_mg_big = corrlength/real_bytes
         idim_mg_bufs = idim_mg_big/2
         idim_mg_intbuf = corrlength/int_bytes
-        cptr = C_LOC(buffer)
 
         CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
         sendbuf => bigbuf(1:idim_mg_bufs)

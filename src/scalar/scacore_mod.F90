@@ -285,9 +285,9 @@ CONTAINS
 
         CALL get_field(bt_f, "BT")
 
-        !$omp target teams loop bind(teams) &
-        !$omp private(igrid, kk, jj, ii, ip3)
+        !$omp target teams distribute private(igrid, kk, jj, ii, ip3)
         DO i = 1, nmygrids
+            !$omp parallel
             igrid = mygrids(i)
 
             kk = gridinfo(igrid)%kk
@@ -295,15 +295,10 @@ CONTAINS
             ii = gridinfo(igrid)%ii
             ip3 = ip3d(igrid)
 
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
-            !$omp parallel
-#endif
             CALL maskbt_grid(kk, jj, ii, t_f%arr(ip3), bt_f%arr(ip3))
-#if !defined(_MGLET_OFFLOAD_BINDTHREAD_)
             !$omp end parallel
-#endif
         END DO
-        !$omp end target teams loop
+        !$omp end target teams distribute
     END SUBROUTINE maskbt
 
 
@@ -318,12 +313,7 @@ CONTAINS
         INTEGER :: k, j, i
 
         ! TODO: Indices?
-        !$omp loop collapse(3) &
-#if defined(_MGLET_OFFLOAD_BINDTHREAD_)
-        !$omp bind(thread)
-#else
-        !$omp bind(parallel)
-#endif
+        !$omp do collapse(3)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -331,7 +321,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
+        !$omp end do
     END SUBROUTINE maskbt_grid
 
 
