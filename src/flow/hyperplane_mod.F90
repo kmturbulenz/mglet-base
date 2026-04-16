@@ -2,18 +2,25 @@
 MODULE hyperplane_mod
 
     USE core_mod
+    USE realfield_mod, ONLY: get_grid3_linear
 
     IMPLICIT NONE
 
     ! Infrastructure for hyperplane traversal
     TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: mip_sip_list(:)
+    !omp declare target(mip_sip_list)
     TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: idx_sip_list(:)
+    !omp declare target(idx_sip_list)
 
     ! Coefficients in [L] of ILU (including diagonal)
     TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lw_sip_list(:)
+    !omp declare target(lw_sip_list)
     TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: ls_sip_list(:)
+    !omp declare target(ls_sip_list)
     TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lb_sip_list(:)
+    !omp declare target(lb_sip_list)
     TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lpr_sip_list(:)
+    !omp declare target(lpr_sip_list)
 
     ! Coefficients in [L] of ILU
     TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: ue_sip_list(:)
@@ -84,13 +91,13 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the already computed SIP coefficients for one grid
-            CALL lw_f%get_ptr(lw, igrid, lin=.TRUE.)
-            CALL ls_f%get_ptr(ls, igrid, lin=.TRUE.)
-            CALL lb_f%get_ptr(lb, igrid, lin=.TRUE.)
-            CALL lpr_f%get_ptr(lpr, igrid, lin=.TRUE.)
-            CALL ue_f%get_ptr(ue, igrid, lin=.TRUE.)
-            CALL un_f%get_ptr(un, igrid, lin=.TRUE.)
-            CALL ut_f%get_ptr(ut, igrid, lin=.TRUE.)
+            CALL get_grid3_linear(lw, lw_f, igrid)
+            CALL get_grid3_linear(ls, ls_f, igrid)
+            CALL get_grid3_linear(lb, lb_f, igrid)
+            CALL get_grid3_linear(lpr, lpr_f, igrid)
+            CALL get_grid3_linear(ue, ue_f, igrid)
+            CALL get_grid3_linear(un, un_f, igrid)
+            CALL get_grid3_linear(ut, ut_f, igrid)
 
             ALLOCATE(lw_sip_list(i)%arr(ii*jj*kk))
             ALLOCATE(ls_sip_list(i)%arr(ii*jj*kk))
@@ -117,6 +124,9 @@ CONTAINS
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
 
         END DO
+
+        !$omp target enter data map(always, to: mip_sip_list, idx_sip_list, &
+        !$omp & lw_sip_list, ls_sip_list, lb_sip_list, lpr_sip_list)
 
     END SUBROUTINE hyperplane_init
 

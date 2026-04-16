@@ -156,6 +156,13 @@ CONTAINS
 
             CALL init_sor()
         END IF
+
+        ! All of these fields are initialized to zero automatically
+        ! CALL set_field("DP", buffers=.TRUE.)
+        ! CALL set_field("HILF", buffers=.TRUE.)
+        ! CALL set_field("RHS")
+        ! CALL set_field("RES")
+
     END SUBROUTINE init_pressuresolver
 
 
@@ -311,6 +318,7 @@ CONTAINS
 
     SUBROUTINE mgpoisl(u, v, w, p, dt, ittot, irk)
         USE MPI_f08
+        USE fieldmapper_mod
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: u
@@ -345,6 +353,12 @@ CONTAINS
 
         CALL dp%init_buffers()
         CALL hilf%init_buffers()
+
+        ! CALL get_field(dp, "DP")
+        ! CALL get_field(hilf, "HILF")
+        ! CALL get_field(rhs, "RHS")
+        ! CALL get_field(res, "RES")
+
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
@@ -602,9 +616,9 @@ CONTAINS
             CALL get_grid3_linear(rhs_1d_p, rhs, igrid)
 
             CALL sipiter1x(kk, jj, ii, rhs_1d_p, res_1d_p, &
-                lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
-                lb_sip_list(i)%arr, lpr_sip_list(i)%arr, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
+                lw_sip_list(i)%arr(1), ls_sip_list(i)%arr(1), &
+                lb_sip_list(i)%arr(1), lpr_sip_list(i)%arr(1), &
+                mip_sip_list(i)%arr(1), idx_sip_list(i)%arr(1))
         END DO
         !$omp end target teams distribute
         CALL roctxrangepop()
