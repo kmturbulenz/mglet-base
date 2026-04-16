@@ -60,7 +60,6 @@ MODULE grids_mod
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &
         nmygrids, mygrids, nmygridslvl, mygridslvl, nboconds, itypboconds, &
         idprocofgrd, gridinfo
-        idprocofgrd, gridinfo
 
 CONTAINS
 
