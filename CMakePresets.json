@@ -299,8 +299,8 @@
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
                 "MGLET_OFFLOAD_BINDTHREAD": "OFF",
-                "MGLET_OFFLOAD_Fortran_FLAGS": "--offload-arch=gfx942;-fopenmp-version=52;-g",
-                "MGLET_LINK_FLAGS": "--offload-arch=gfx942;-g"
+                "MGLET_OFFLOAD_Fortran_FLAGS": "--offload-arch=gfx942;-fopenmp-version=52",
+                "MGLET_LINK_FLAGS": "--offload-arch=gfx942;-L/opt/hlrs/testing/unsupported/therock/23.1.0/lib;-lrocprofiler-sdk-roctx"
             }
         },
         {
