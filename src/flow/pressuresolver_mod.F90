@@ -570,7 +570,7 @@ CONTAINS
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
-        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
+        !$omp target teams distribute &
         !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
 
@@ -596,7 +596,7 @@ CONTAINS
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
-        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
+        !$omp target teams distribute &
         !$omp private(igrid, i, kk, jj, ii, dp_1d_p, res_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
 
@@ -616,21 +616,21 @@ CONTAINS
         !$omp end target teams distribute
 
 
-        !$omp target teams distribute map(present: globalgrids, ls_sip_list, nboconds) &
-        !$omp private(igrid, kk, jj, ii, dp_1d_p, res_1d_p, il)
-        DO il = 1, nmygridslvl(ilevel)
+        ! !$omp target teams distribute &
+        ! !$omp private(igrid, kk, jj, ii, dp_1d_p, res_1d_p, il)
+        ! DO il = 1, nmygridslvl(ilevel)
 
-            igrid = mygridslvl(il, ilevel)
-            CALL get_mgdims(kk, jj, ii, igrid)
+        !     igrid = mygridslvl(il, ilevel)
+        !     CALL get_mgdims(kk, jj, ii, igrid)
 
-            ! Getting the arrays is 1D pointers
-            CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
-            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
+        !     ! Getting the arrays is 1D pointers
+        !     CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
+        !     CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
 
-            CALL sipiter3x(kk, jj, ii, dp_1d_p, res_1d_p)
+        !     CALL sipiter3x(kk, jj, ii, dp_1d_p, res_1d_p)
 
-        END DO
-        !$omp end target teams distribute
+        ! END DO
+        ! !$omp end target teams distribute
 
     END SUBROUTINE sipx
 
@@ -715,7 +715,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, m, lm, lp, ip, iacc, &
-            idx, idx_kp, idx_jp, idx_ip
+            idx, idx_kp, idx_jp, idx_ip, i, j, k
 
         ! Subroutine body
         n3dmin = 3 + 3 + 3
@@ -753,6 +753,18 @@ CONTAINS
             !$omp end parallel do
 
         END DO
+
+        !$omp parallel do collapse(3) private(i, j, k, idx)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    idx = k + (j-1)*kk + (i-1)*kk*jj
+                    phi(idx) = phi(idx) + res(idx)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
 
     END SUBROUTINE sipiter2x
 
