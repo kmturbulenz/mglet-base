@@ -186,11 +186,14 @@ CONTAINS
     END SUBROUTINE get_grid3
 
 
-    SUBROUTINE get_grid3_new(field, ptr, igrid)
+
+    SUBROUTINE get_grid3_linear(ptr, field, igrid)
         !$omp declare target
+
         ! Subroutine arguments
+        ! Not with CLASS(field_t), INTENT(in), TARGET :: this (IMPORT)
+        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
         TYPE(field_t), INTENT(in), TARGET :: field
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
@@ -201,8 +204,10 @@ CONTAINS
 
         CALL get_mgdims(kk, jj, ii, igrid)
 
-        ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
-    END SUBROUTINE get_grid3_new
+        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
+
+    END SUBROUTINE get_grid3_linear
+
 
 
     REAL(realk) FUNCTION get_value(this, k, j, i, igrid)

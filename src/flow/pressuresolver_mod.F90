@@ -6,6 +6,7 @@ MODULE pressuresolver_mod
     USE itinfo_mod, ONLY: itinfo_sample
     USE plog_mod
     USE hyperplane_mod
+    USE realfield_mod, ONLY: get_grid3_linear
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -585,7 +586,7 @@ CONTAINS
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
-
+        WRITE(0, *) "entering sip1"
         CALL roctxrangepush("sip1")
         !$omp target teams distribute &
         !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il)
@@ -596,8 +597,9 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE., info=.False.)
-            CALL rhs%get_ptr(rhs_1d_p, igrid, lin=.TRUE., info=.False.)
+
+            CALL get_grid3_linear(res_1d_p, res, igrid)
+            CALL get_grid3_linear(rhs_1d_p, rhs, igrid)
 
             CALL sipiter1x(kk, jj, ii, rhs_1d_p, res_1d_p, &
                 lw_sip_list(i)%arr, ls_sip_list(i)%arr, &
@@ -606,6 +608,7 @@ CONTAINS
         END DO
         !$omp end target teams distribute
         CALL roctxrangepop()
+        WRITE(0, *) "exiting sip1"
 
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
@@ -623,8 +626,8 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-            CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
-            CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
+            CALL get_grid3_linear(dp_1d_p, dp, igrid)
+            CALL get_grid3_linear(res_1d_p, res, igrid)
 
             CALL sipiter2x(kk, jj, ii, dp_1d_p, res_1d_p, &
                 ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
