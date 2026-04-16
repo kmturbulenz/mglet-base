@@ -10,6 +10,19 @@ MODULE pressuresolver_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    interface
+        subroutine roctxrangepush(message) bind(c, name="roctxRangePushA")
+        use iso_c_binding,   only: c_char
+        implicit none
+        character(c_char) :: message(*)
+        end subroutine roctxrangepush
+
+        subroutine roctxrangepop() bind(c, name="roctxRangePop")
+        implicit none
+        end subroutine roctxrangepop
+
+    end interface
+
     ! Type of pressure solver
     !   0 : Standard SIP
     !   1 : SIP on coarsest level, then SOR on subsequent levels
@@ -529,8 +542,10 @@ CONTAINS
                     gsrap, bp)
             ELSE
                 ! Use the SIP solver
+                CALL roctxrangepush("SIPX")
                 CALL sipx(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
+                CALL roctxrangepop()
             END IF
 
             CALL connect(ilevel, 1, s1=dp)
@@ -570,6 +585,8 @@ CONTAINS
 
         CALL laplacephi_level(ilevel, res, dp, bp)
 
+
+        CALL roctxrangepush("sip1")
         !$omp target teams distribute &
         !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
@@ -588,7 +605,7 @@ CONTAINS
                 mip_sip_list(i)%arr, idx_sip_list(i)%arr)
         END DO
         !$omp end target teams distribute
-
+        CALL roctxrangepop()
 
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
@@ -596,6 +613,7 @@ CONTAINS
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
 
+        CALL roctxrangepush("sip2")
         !$omp target teams distribute &
         !$omp private(igrid, i, kk, jj, ii, dp_1d_p, res_1d_p, il)
         DO il = 1, nmygridslvl(ilevel)
@@ -614,7 +632,7 @@ CONTAINS
 
         END DO
         !$omp end target teams distribute
-
+        CALL roctxrangepop()
 
         ! !$omp target teams distribute &
         ! !$omp private(igrid, kk, jj, ii, dp_1d_p, res_1d_p, il)
