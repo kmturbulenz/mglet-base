@@ -6,7 +6,8 @@ MODULE pressuresolver_mod
     USE itinfo_mod, ONLY: itinfo_sample
     USE plog_mod
     USE hyperplane_mod
-    USE realfield_mod, ONLY: get_grid3_linear
+    USE realfield_mod, ONLY: get_grid3_linear, get_grid1_new, get_grid3_new
+    USE intfield_mod, ONLY: get_grid3_ifk_linear
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -522,8 +523,8 @@ CONTAINS
         INTEGER(intk) :: iloop
         TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, &
             gsap, gsrap
-        TYPE(field_t), POINTER :: siplw, sipls, siplb, sipue, sipun, siput, &
-            siplpr
+        TYPE(field_t), POINTER :: lw_hp_f, ls_hp_f, lb_hp_f, lpr_hp_f, &
+            ue_hp_f, un_hp_f, ut_hp_f
 
         CALL start_timer(321)
 
@@ -539,13 +540,14 @@ CONTAINS
             CALL get_field(gsrap, "SOR_RAP")
         END IF
 
-        CALL get_field(siplw, "SIPLW")
-        CALL get_field(sipls, "SIPLS")
-        CALL get_field(siplb, "SIPLB")
-        CALL get_field(sipue, "SIPUE")
-        CALL get_field(sipun, "SIPUN")
-        CALL get_field(siput, "SIPUT")
-        CALL get_field(siplpr, "SIPLPR")
+        ! Getting the adapted coefficients for SIP
+        CALL get_field(lw_hp_f, "SIPLW_HP")
+        CALL get_field(ls_hp_f, "SIPLS_HP")
+        CALL get_field(lb_hp_f, "SIPLB_HP")
+        CALL get_field(lpr_hp_f, "SIPLPR_HP")
+        CALL get_field(ue_hp_f, "SIPUE_HP")
+        CALL get_field(un_hp_f, "SIPUN_HP")
+        CALL get_field(ut_hp_f, "SIPUT_HP")
 
         DO iloop = 1, ninner
             CALL bound_pressure%bound(ilevel, dp, bp)
@@ -558,8 +560,8 @@ CONTAINS
             ELSE
                 ! Use the SIP solver
                 CALL roctxrangepush("SIPX")
-                CALL sipx(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
-                    sipue, sipun, siput, siplpr, bp)
+                CALL sipx(ilevel, iloop, dp, res, rhs, lw_hp_f, ls_hp_f, &
+                    lb_hp_f, lpr_hp_f, ue_hp_f, un_hp_f, ut_hp_f, bp)
                 CALL roctxrangepop()
             END IF
 
@@ -572,8 +574,8 @@ CONTAINS
     END SUBROUTINE mgpoisit
 
 
-    SUBROUTINE sipx(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
-            sipue, sipun, siput, siplpr, bp)
+    SUBROUTINE sipx(ilevel, iloop, dp, res, rhs, lw_hp_f, ls_hp_f, lb_hp_f, &
+            lpr_hp_f, ue_hp_f, un_hp_f, ut_hp_f, bp)
 
         USE hyperplane_mod, ONLY: mip_sip_list, idx_sip_list
 
@@ -583,13 +585,13 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: dp
         TYPE(field_t), INTENT(inout) :: res
         TYPE(field_t), INTENT(in) :: rhs
-        TYPE(field_t), INTENT(in) :: siplw
-        TYPE(field_t), INTENT(in) :: sipls
-        TYPE(field_t), INTENT(in) :: siplb
-        TYPE(field_t), INTENT(in) :: sipue
-        TYPE(field_t), INTENT(in) :: sipun
-        TYPE(field_t), INTENT(in) :: siput
-        TYPE(field_t), INTENT(in) :: siplpr
+        TYPE(field_t), INTENT(in) :: lw_hp_f
+        TYPE(field_t), INTENT(in) :: ls_hp_f
+        TYPE(field_t), INTENT(in) :: lb_hp_f
+        TYPE(field_t), INTENT(in) :: lpr_hp_f
+        TYPE(field_t), INTENT(in) :: ue_hp_f
+        TYPE(field_t), INTENT(in) :: un_hp_f
+        TYPE(field_t), INTENT(in) :: ut_hp_f
         TYPE(field_t), INTENT(in), OPTIONAL :: bp
 
         ! Local variables
@@ -598,12 +600,19 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dp_1d_p(:), res_1d_p(:), &
             rhs_1d_p(:)
 
-        CALL laplacephi_level(ilevel, res, dp, bp)
+        INTEGER(ifk), CONTIGUOUS,POINTER :: mip_ptr(:), idx_ptr(:)
 
-        WRITE(0, *) "entering sip1"
+        REAL(realk), POINTER, CONTIGUOUS :: lw_hp(:), ls_hp(:), lb_hp(:), &
+            lpr_hp(:), ue_hp(:), un_hp(:), ut_hp(:)
+
+        CALL roctxrangepush("laplace")
+        CALL laplacephi_level(ilevel, res, dp, bp)
+        CALL roctxrangepop()
+
+        ! WRITE(0, *) "entering sip1"
         CALL roctxrangepush("sip1")
         !$omp target teams distribute &
-        !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il)
+        !$omp private(igrid, i, kk, jj, ii, res_1d_p, rhs_1d_p, il, mip_ptr, idx_ptr, lw_hp, ls_hp, lb_hp, lpr_hp)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -611,28 +620,35 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Getting the arrays is 1D pointers
-
             CALL get_grid3_linear(res_1d_p, res, igrid)
             CALL get_grid3_linear(rhs_1d_p, rhs, igrid)
 
+            CALL get_grid3_linear(lw_hp, lw_hp_f, igrid)
+            CALL get_grid3_linear(ls_hp, ls_hp_f, igrid)
+            CALL get_grid3_linear(lb_hp, lb_hp_f, igrid)
+            CALL get_grid3_linear(lpr_hp, lpr_hp_f, igrid)
+
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+
             CALL sipiter1x(kk, jj, ii, rhs_1d_p, res_1d_p, &
-                lw_sip_list(i)%arr(1), ls_sip_list(i)%arr(1), &
-                lb_sip_list(i)%arr(1), lpr_sip_list(i)%arr(1), &
-                mip_sip_list(i)%arr(1), idx_sip_list(i)%arr(1))
+                lw_hp, ls_hp, lb_hp, lpr_hp, mip_ptr, idx_ptr)
         END DO
         !$omp end target teams distribute
         CALL roctxrangepop()
-        WRITE(0, *) "exiting sip1"
+        ! WRITE(0, *) "exiting sip1"
 
+        CALL roctxrangepush("connect")
         IF (iloop < ninner) THEN
             CALL connect(ilevel, 1, s1=res)
         ELSE
             CALL connect(ilevel, 1, s1=res, forward=-1)
         END IF
+        CALL roctxrangepop()
 
         CALL roctxrangepush("sip2")
         !$omp target teams distribute &
-        !$omp private(igrid, i, kk, jj, ii, dp_1d_p, res_1d_p, il)
+        !$omp private(igrid, i, kk, jj, ii, dp_1d_p, res_1d_p, il, mip_ptr, idx_ptr, ue_hp, un_hp, ut_hp)
         DO il = 1, nmygridslvl(ilevel)
 
             igrid = mygridslvl(il, ilevel)
@@ -642,30 +658,19 @@ CONTAINS
             ! Getting the arrays is 1D pointers
             CALL get_grid3_linear(dp_1d_p, dp, igrid)
             CALL get_grid3_linear(res_1d_p, res, igrid)
+            CALL get_grid3_linear(ue_hp, ue_hp_f, igrid)
+            CALL get_grid3_linear(un_hp, un_hp_f, igrid)
+            CALL get_grid3_linear(ut_hp, ut_hp_f, igrid)
+
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
 
             CALL sipiter2x(kk, jj, ii, dp_1d_p, res_1d_p, &
-                ue_sip_list(i)%arr, un_sip_list(i)%arr, ut_sip_list(i)%arr, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
+                ue_hp, un_hp, ut_hp, mip_ptr, idx_ptr)
 
         END DO
         !$omp end target teams distribute
         CALL roctxrangepop()
-
-        ! !$omp target teams distribute &
-        ! !$omp private(igrid, kk, jj, ii, dp_1d_p, res_1d_p, il)
-        ! DO il = 1, nmygridslvl(ilevel)
-
-        !     igrid = mygridslvl(il, ilevel)
-        !     CALL get_mgdims(kk, jj, ii, igrid)
-
-        !     ! Getting the arrays is 1D pointers
-        !     CALL dp%get_ptr(dp_1d_p, igrid, lin=.TRUE.)
-        !     CALL res%get_ptr(res_1d_p, igrid, lin=.TRUE.)
-
-        !     CALL sipiter3x(kk, jj, ii, dp_1d_p, res_1d_p)
-
-        ! END DO
-        ! !$omp end target teams distribute
 
     END SUBROUTINE sipx
 
@@ -684,8 +689,8 @@ CONTAINS
             lb(kk*jj*ii), lpr(kk*jj*ii)
 
         ! For the hyperplane traversal
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(ifk), INTENT(in) :: idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, m, lm, lp, ip, iacc, &
@@ -698,8 +703,8 @@ CONTAINS
         ! Iterating over the hyperplanes H(k, j, i) = m
         DO m = n3dmin, n3dmax
 
-            lm = mip(m)
-            lp = mip(m+1) - lm
+            lm = INT(mip(m), intk)
+            lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
 
@@ -710,7 +715,7 @@ CONTAINS
                 iacc = lm + ip
 
                 ! Computing the required indices
-                idx = idxsip(iacc)
+                idx = INT(idxsip(iacc), intk)
                 idx_km = idx - 1
                 idx_jm = idx - kk
                 idx_im = idx - (kk*jj)
@@ -745,8 +750,8 @@ CONTAINS
         REAL(realk), INTENT(in) :: ue(kk*jj*ii), un(kk*jj*ii), ut(kk*jj*ii)
 
         ! For the hyperplane traversal
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(ifk), INTENT(in) :: idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, m, lm, lp, ip, iacc, &
@@ -759,8 +764,8 @@ CONTAINS
         ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
         DO m = n3dmax, n3dmin, -1
 
-            lm = mip(m)
-            lp = mip(m+1) - lm
+            lm = INT(mip(m), intk)
+            lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
 
@@ -771,7 +776,7 @@ CONTAINS
                 iacc = lm + ip
 
                 ! Computing the required indices
-                idx = idxsip(iacc)
+                idx = INT(idxsip(iacc), intk)
                 idx_kp = idx + 1
                 idx_jp = idx + kk
                 idx_ip = idx + (kk*jj)
@@ -804,27 +809,6 @@ CONTAINS
     END SUBROUTINE sipiter2x
 
 
-    SUBROUTINE sipiter3x(kk, jj, ii, phi, res)
-        !$omp declare target
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: phi(kk*jj*ii), res(kk*jj*ii)
-
-        INTEGER(intk) :: i, j, k, idx
-
-        !$omp parallel do collapse(3) private(i, j, k, idx)
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    idx = k + (j-1)*kk + (i-1)*kk*jj
-                    phi(idx) = phi(idx) + res(idx)
-                END DO
-            END DO
-        END DO
-        !$omp end parallel do
-
-    END SUBROUTINE sipiter3x
 
 
 
@@ -1016,20 +1000,33 @@ CONTAINS
         CALL get_field(gsat, "GSAT")
         CALL get_field(gsap, "GSAP")
 
+        !$omp target teams distribute &
+        !$omp private(igrid, i, kk, jj, ii, phi, res, aw, ae, as, an, ab, at, ap, bp)
         DO i = 1, nmygridslvl(ilevel)
+
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL phi_f%get_ptr(phi, igrid)
-            CALL res_f%get_ptr(res, igrid)
+            ! CALL phi_f%get_ptr(phi, igrid)
+            ! CALL res_f%get_ptr(res, igrid)
 
-            CALL gsaw%get_ptr(aw, igrid)
-            CALL gsae%get_ptr(ae, igrid)
-            CALL gsas%get_ptr(as, igrid)
-            CALL gsan%get_ptr(an, igrid)
-            CALL gsab%get_ptr(ab, igrid)
-            CALL gsat%get_ptr(at, igrid)
-            CALL gsap%get_ptr(ap, igrid)
+            ! CALL gsaw%get_ptr(aw, igrid)
+            ! CALL gsae%get_ptr(ae, igrid)
+            ! CALL gsas%get_ptr(as, igrid)
+            ! CALL gsan%get_ptr(an, igrid)
+            ! CALL gsab%get_ptr(ab, igrid)
+            ! CALL gsat%get_ptr(at, igrid)
+            ! CALL gsap%get_ptr(ap, igrid)
+
+            CALL get_grid3_new(phi, phi_f, igrid)
+            CALL get_grid3_new(res, res_f, igrid)
+            CALL get_grid1_new(aw, gsaw, igrid)
+            CALL get_grid1_new(ae, gsae, igrid)
+            CALL get_grid1_new(as, gsas, igrid)
+            CALL get_grid1_new(an, gsan, igrid)
+            CALL get_grid1_new(ab, gsab, igrid)
+            CALL get_grid1_new(at, gsat, igrid)
+            CALL get_grid3_new(ap, gsap, igrid)
 
             IF (PRESENT(bp_f)) THEN
                 CALL bp_f%get_ptr(bp, igrid)
@@ -1038,11 +1035,15 @@ CONTAINS
             CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
                 at, ab, ap, bp)
         END DO
+        !$omp end target teams distribute
+
     END SUBROUTINE laplacephi_level
 
 
     PURE SUBROUTINE laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
             at, ab, ap, bp)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: res(kk, jj, ii)
@@ -1056,6 +1057,7 @@ CONTAINS
         INTEGER :: k, j, i
 
         IF (PRESENT(bp)) THEN
+            !$omp parallel do collapse(3) private(i, j, k)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     DO k = 3, kk-2
@@ -1070,7 +1072,9 @@ CONTAINS
                     END DO
                 END DO
             END DO
+            !$omp end parallel do
         ELSE
+            !$omp parallel do collapse(3) private(i, j, k)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     DO k = 3, kk-2
@@ -1085,6 +1089,7 @@ CONTAINS
                     END DO
                 END DO
             END DO
+            !$omp end parallel do
         END IF
     END SUBROUTINE laplacephi_grid
 

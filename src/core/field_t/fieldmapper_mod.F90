@@ -1,5 +1,6 @@
 MODULE fieldmapper_mod
     USE realfield_mod, ONLY: field_t
+    USE intfield_mod, ONLY: intfield_t
     IMPLICIT NONE
     ! NOT private by default
 
@@ -26,6 +27,7 @@ MODULE fieldmapper_mod
     !$omp declare mapper(field_t :: t) &
     !$omp& map(t%arr, t%buffers, t%ptr, t%length)
     !$omp declare mapper(maparr: field_t :: t) map(t%arr)
+    !$omp declare mapper(map_intfield: intfield_t :: t) map(to: t%arr) map(to: t%ptr, t%length)
     !$omp declare mapper(mapbuffers: field_t :: t) map(t%buffers)
     !$omp declare mapper(mapfielddefer: field_t :: t) &
     !$omp& map(alloc: t%arr, t%buffers) map(to: t%ptr, t%length)

@@ -1,6 +1,6 @@
 MODULE intfield_mod
     USE err_mod, ONLY: errr
-    USE grids_mod, ONLY: get_mgdims
+    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid, globalgrids
     USE precision_mod, ONLY: intk, ifk, mglet_hdf5_ifk, mglet_mpi_ifk
     USE basefield_mod
 
@@ -19,7 +19,7 @@ MODULE intfield_mod
         FINAL :: destructor
     END TYPE intfield_t
 
-    PUBLIC :: intfield_t
+    PUBLIC :: intfield_t, get_grid3_ifk_linear
 
 CONTAINS
     SUBROUTINE init(this, name, description, ndim, istag, jstag, kstag, &
@@ -110,5 +110,27 @@ CONTAINS
 
         ptr(1:kk, 1:jj, 1:ii) => this%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3
+
+
+    SUBROUTINE get_grid3_ifk_linear(ptr, field, igrid)
+        !$omp declare target
+
+        ! Subroutine arguments
+        ! Not with CLASS(field_t), INTENT(in), TARGET :: this (IMPORT)
+        INTEGER(ifk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
+        TYPE(intfield_t), INTENT(in), TARGET :: field
+        INTEGER(intk), INTENT(in) :: igrid
+
+        ! Local variables
+        INTEGER(intk) :: kk, jj, ii, ip, imygrid
+
+        CALL get_imygrid(imygrid, igrid)
+        ip = field%ptr(imygrid)
+
+        CALL get_mgdims(kk, jj, ii, igrid)
+
+        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
+
+    END SUBROUTINE get_grid3_ifk_linear
 
 END MODULE intfield_mod

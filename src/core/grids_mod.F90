@@ -16,7 +16,6 @@ MODULE grids_mod
     TYPE(bcond_t), ALLOCATABLE, TARGET :: left(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: bottom(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: top(:)
-    !$omp declare target(gridinfo)
 
     REAL(realk), ALLOCATABLE :: realprms(:)
     INTEGER(intk), ALLOCATABLE :: intprms(:)

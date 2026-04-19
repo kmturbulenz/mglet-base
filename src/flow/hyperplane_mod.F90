@@ -3,31 +3,23 @@ MODULE hyperplane_mod
 
     USE core_mod
     USE realfield_mod, ONLY: get_grid3_linear
+    USE intfield_mod, ONLY: get_grid3_ifk_linear
+    USE fieldmapper_mod
 
     IMPLICIT NONE
 
     ! Infrastructure for hyperplane traversal
     TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: mip_sip_list(:)
-    !omp declare target(mip_sip_list)
+    !$omp declare target(mip_sip_list)
     TYPE(int_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: idx_sip_list(:)
-    !omp declare target(idx_sip_list)
+    !$omp declare target(idx_sip_list)
 
-    ! Coefficients in [L] of ILU (including diagonal)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lw_sip_list(:)
-    !omp declare target(lw_sip_list)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: ls_sip_list(:)
-    !omp declare target(ls_sip_list)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lb_sip_list(:)
-    !omp declare target(lb_sip_list)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: lpr_sip_list(:)
-    !omp declare target(lpr_sip_list)
+    TYPE(intfield_t) :: mip_hp_f
+    !$omp declare target(mip_hp_f)
+    TYPE(intfield_t) :: idx_hp_f
+    !$omp declare target(idx_hp_f)
 
-    ! Coefficients in [L] of ILU
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: ue_sip_list(:)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: un_sip_list(:)
-    TYPE(real_stencils_t), ALLOCATABLE, PROTECTED, TARGET :: ut_sip_list(:)
-
-    PUBLIC :: hyperplane_init, hyperplane_finish
+    PUBLIC :: hyperplane_init, hyperplane_finish, mip_hp_f, idx_hp_f
 
 CONTAINS
 
@@ -35,14 +27,39 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ue(:), un(:), ut(:)
+        REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:), &
+            ue(:), un(:), ut(:)
+
+        REAL(realk), POINTER, CONTIGUOUS :: lw_hp(:), ls_hp(:), lb_hp(:), &
+            lpr_hp(:), ue_hp(:), un_hp(:), ut_hp(:)
+
+        INTEGER(ifk), POINTER, CONTIGUOUS :: mip_hp(:), idx_hp(:)
+
         TYPE(field_t), POINTER :: lw_f, ls_f, lb_f, lpr_f, ue_f, un_f, ut_f
+        TYPE(field_t), POINTER :: lw_hp_f, ls_hp_f, lb_hp_f, lpr_hp_f, &
+            ue_hp_f, un_hp_f, ut_hp_f
+
 
         ! Allocation of the lists of stencils for all grids
         ALLOCATE(mip_sip_list(nmygrids))
         ALLOCATE(idx_sip_list(nmygrids))
 
+        ! Declarign the Hyperlane fields
+        ! Coefficients in [L] of ILU (including diagonal)
+        CALL set_field("SIPLW_HP")
+        CALL set_field("SIPLS_HP")
+        CALL set_field("SIPLB_HP")
+        CALL set_field("SIPLPR_HP")
+        ! Coefficients in [U] of ILU
+        CALL set_field("SIPUE_HP")
+        CALL set_field("SIPUN_HP")
+        CALL set_field("SIPUT_HP")
+
+        ! Hyperplane traversal indices (preliminary allocation)
+        CALL mip_hp_f%init("SIP_MIP_HP")
+        CALL idx_hp_f%init("SIP_IDX_HP")
+
+        ! Getting the original
         CALL get_field(lw_f, "SIPLW")
         CALL get_field(ls_f, "SIPLS")
         CALL get_field(lb_f, "SIPLB")
@@ -50,6 +67,15 @@ CONTAINS
         CALL get_field(ue_f, "SIPUE")
         CALL get_field(un_f, "SIPUN")
         CALL get_field(ut_f, "SIPUT")
+
+        ! Getting the adapted field
+        CALL get_field(lw_hp_f, "SIPLW_HP")
+        CALL get_field(ls_hp_f, "SIPLS_HP")
+        CALL get_field(lb_hp_f, "SIPLB_HP")
+        CALL get_field(lpr_hp_f, "SIPLPR_HP")
+        CALL get_field(ue_hp_f, "SIPUE_HP")
+        CALL get_field(un_hp_f, "SIPUN_HP")
+        CALL get_field(ut_hp_f, "SIPUT_HP")
 
         ! Iteration over all local grids
         DO i = 1, nmygrids
@@ -61,28 +87,31 @@ CONTAINS
             ALLOCATE(mip_sip_list(i)%arr(ii+jj+kk))
             ALLOCATE(idx_sip_list(i)%arr(ii*jj*kk))
 
+            CALL get_grid3_ifk_linear(mip_hp, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_hp, idx_hp_f, igrid)
+            mip_hp = 0
+            idx_hp = 1
+
             ! Populating the arrays for one grid
-            CALL hyperplane_init_grid(kk, jj, ii, mip_sip_list(i)%arr, &
-                idx_sip_list(i)%arr)
-
+            CALL hyperplane_init_grid(kk, jj, ii, mip_hp, idx_hp)
             ! Sorting the indices within each hyperplane for one grid
-            CALL hyperplane_sort_grid(kk, jj, ii, mip_sip_list(i)%arr, &
-                idx_sip_list(i)%arr)
-
+            CALL hyperplane_sort_grid(kk, jj, ii, mip_hp, idx_hp)
             ! Checking the correctness of the arrays for one grid
-            CALL hyperplane_check_grid(kk, jj, ii, mip_sip_list(i)%arr, &
-                idx_sip_list(i)%arr)
+            CALL hyperplane_check_grid(kk, jj, ii, mip_hp, idx_hp)
+
+            ! ! Populating the arrays for one grid
+            ! CALL hyperplane_init_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+            !     idx_sip_list(i)%arr)
+
+            ! ! Sorting the indices within each hyperplane for one grid
+            ! CALL hyperplane_sort_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+            !     idx_sip_list(i)%arr)
+
+            ! ! Checking the correctness of the arrays for one grid
+            ! CALL hyperplane_check_grid(kk, jj, ii, mip_sip_list(i)%arr, &
+            !     idx_sip_list(i)%arr)
         END DO
 
-        ! Allocation of the lists of stencils for all grids
-        ALLOCATE(lw_sip_list(nmygrids))
-        ALLOCATE(ls_sip_list(nmygrids))
-        ALLOCATE(lb_sip_list(nmygrids))
-        ALLOCATE(lpr_sip_list(nmygrids))
-
-        ALLOCATE(ue_sip_list(nmygrids))
-        ALLOCATE(un_sip_list(nmygrids))
-        ALLOCATE(ut_sip_list(nmygrids))
 
         ! Iteration over all local grids
         DO i = 1, nmygrids
@@ -99,34 +128,29 @@ CONTAINS
             CALL get_grid3_linear(un, un_f, igrid)
             CALL get_grid3_linear(ut, ut_f, igrid)
 
-            ALLOCATE(lw_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(ls_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(lb_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(lpr_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(ue_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(un_sip_list(i)%arr(ii*jj*kk))
-            ALLOCATE(ut_sip_list(i)%arr(ii*jj*kk))
+            CALL get_grid3_linear(lw_hp, lw_hp_f, igrid)
+            CALL get_grid3_linear(ls_hp, ls_hp_f, igrid)
+            CALL get_grid3_linear(lb_hp, lb_hp_f, igrid)
+            CALL get_grid3_linear(lpr_hp, lpr_hp_f, igrid)
+            CALL get_grid3_linear(ue_hp, ue_hp_f, igrid)
+            CALL get_grid3_linear(un_hp, un_hp_f, igrid)
+            CALL get_grid3_linear(ut_hp, ut_hp_f, igrid)
+
+            CALL get_grid3_ifk_linear(mip_hp, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_hp, idx_hp_f, igrid)
 
             ! Store the SIP coefficients for contiguous memory access
-            CALL reorder_for_access(kk, jj, ii, lw_sip_list(i)%arr, lw, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, ls_sip_list(i)%arr, ls, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, lb_sip_list(i)%arr, lb, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, lpr_sip_list(i)%arr, lpr, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, ue_sip_list(i)%arr, ue, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, un_sip_list(i)%arr, un, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
-            CALL reorder_for_access(kk, jj, ii, ut_sip_list(i)%arr, ut, &
-                mip_sip_list(i)%arr, idx_sip_list(i)%arr)
+            CALL reorder_for_access(kk, jj, ii, lw_hp, lw, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, ls_hp, ls, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, lb_hp, lb, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, lpr_hp, lpr, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, ue_hp, ue, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, un_hp, un, mip_hp, idx_hp)
+            CALL reorder_for_access(kk, jj, ii, ut_hp, ut, mip_hp, idx_hp)
 
         END DO
 
-        !$omp target enter data map(always, to: mip_sip_list, idx_sip_list, &
-        !$omp & lw_sip_list, ls_sip_list, lb_sip_list, lpr_sip_list)
+        !$omp target enter data map(mapper(map_intfield), always,to: mip_hp_f, idx_hp_f)
 
     END SUBROUTINE hyperplane_init
 
@@ -139,8 +163,8 @@ CONTAINS
         REAL(realk), INTENT(in) :: arr(kk*jj*ii)
 
         ! For the hyperplane traversal
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(in) :: idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(ifk), INTENT(in) :: idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, m, lm, len, ip, idx, iacc
@@ -175,30 +199,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i
 
-        ! Iteration over all local grids
-        DO i = 1, nmygrids
-            ! Deallocation of the arrays for one grid
-            DEALLOCATE(mip_sip_list(i)%arr)
-            DEALLOCATE(idx_sip_list(i)%arr)
-            DEALLOCATE(lw_sip_list(i)%arr)
-            DEALLOCATE(ls_sip_list(i)%arr)
-            DEALLOCATE(lb_sip_list(i)%arr)
-            DEALLOCATE(lpr_sip_list(i)%arr)
-            DEALLOCATE(ue_sip_list(i)%arr)
-            DEALLOCATE(un_sip_list(i)%arr)
-            DEALLOCATE(ut_sip_list(i)%arr)
-        END DO
-
-        ! Deallocation of the lists of stencils for all grids
-        DEALLOCATE(mip_sip_list)
-        DEALLOCATE(idx_sip_list)
-        DEALLOCATE(lw_sip_list)
-        DEALLOCATE(ls_sip_list)
-        DEALLOCATE(lb_sip_list)
-        DEALLOCATE(lpr_sip_list)
-        DEALLOCATE(ue_sip_list)
-        DEALLOCATE(un_sip_list)
-        DEALLOCATE(ut_sip_list)
+        CALL mip_hp_f%finish()
+        CALL idx_hp_f%finish()
 
     END SUBROUTINE hyperplane_finish
 
@@ -209,7 +211,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(inout) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(inout) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax
@@ -278,8 +280,8 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk)
-        INTEGER(intk), INTENT(inout) :: idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(in) :: mip(ii+jj+kk)
+        INTEGER(ifk), INTENT(inout) :: idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: n3dmin, n3dmax, len, m, s, e
@@ -304,7 +306,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: n
-        INTEGER(intk), INTENT(inout) :: vec(n)
+        INTEGER(ifk), INTENT(inout) :: vec(n)
 
         ! Local variables
         INTEGER(intk) :: ix, v_rand(n), v_asc(n)
@@ -336,7 +338,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(in) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
+        INTEGER(ifk), INTENT(in) :: mip(ii+jj+kk), idxsip(ii*jj*kk)
 
         ! Local variables
         INTEGER(intk) :: k, j, i, len, m, idx, n3dmin, n3dmax, lm, ip

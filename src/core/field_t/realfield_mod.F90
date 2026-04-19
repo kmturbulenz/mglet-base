@@ -104,11 +104,12 @@ CONTAINS
         ptr(1:len) => this%arr(ip:ip+len-1)
     END SUBROUTINE get_grid1
 
-    SUBROUTINE get_grid1_new(field, ptr, igrid)
+    SUBROUTINE get_grid1_new(ptr, field, igrid)
         !$omp declare target
+
         ! Subroutine arguments
-        TYPE(field_t), INTENT(in), TARGET :: field
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
+        TYPE(field_t), INTENT(in), TARGET :: field
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
@@ -150,11 +151,12 @@ CONTAINS
     END SUBROUTINE get_grid3
 
 
-    SUBROUTINE get_grid3_new(field, ptr, igrid)
+    SUBROUTINE get_grid3_new(ptr, field, igrid)
         !$omp declare target
         ! Subroutine arguments
-        TYPE(field_t), INTENT(in), TARGET :: field
+
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
+        TYPE(field_t), INTENT(in), TARGET :: field
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
@@ -166,6 +168,7 @@ CONTAINS
         CALL get_mgdims(kk, jj, ii, igrid)
 
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
+
     END SUBROUTINE get_grid3_new
 
 
