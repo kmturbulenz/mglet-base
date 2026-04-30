@@ -60,6 +60,7 @@ target_link_libraries(core
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
 )
 
 # Set include directories for specific files
