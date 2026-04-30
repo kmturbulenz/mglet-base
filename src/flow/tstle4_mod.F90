@@ -1868,7 +1868,9 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION swcle3d_one(ddz, u) RESULT(uo)
+#ifndef _MGLET_OFFLOAD_
         !$omp declare simd(swcle3d_one)
+#endif
 
         ! Function arguments
         REAL(realk), INTENT(in) :: ddz  ! wall normal

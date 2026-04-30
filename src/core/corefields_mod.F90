@@ -156,7 +156,9 @@ CONTAINS
         ii = SIZE(rezip)
         IF (SIZE(dx) /= ii) CALL errr(__FILE__, __LINE__)
 
+#ifndef _MGLET_OFFLOAD_
         !$omp simd
+#endif
         DO i = 1, ii
             rezip(i) = divide0(1.0_realk, dx(i))
         END DO
