@@ -52,6 +52,7 @@ target_include_directories(ib
 target_link_libraries(ib
     PRIVATE core
     PRIVATE ${MPI_Fortran_LIBRARIES}
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
 )
 
 set_source_files_properties(checkzelle_mod.F90 PROPERTIES COMPILE_FLAGS
