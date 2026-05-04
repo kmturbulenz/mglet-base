@@ -25,6 +25,7 @@ MODULE core_mod
     USE plugins_mod
     USE pointers_mod
     USE precision_mod
+    USE probeoffload_mod
     USE pvtk_mod
     USE qsort_mod
     USE readstl_mod
@@ -93,6 +94,9 @@ CONTAINS
 
         CALL init_precision()
         CALL init_buildinfo()
+#ifdef _MGLET_OFFLOAD_
+        CALL init_offload()
+#endif
         CALL init_timer()
 
         CALL set_timer(1, "MGLET")

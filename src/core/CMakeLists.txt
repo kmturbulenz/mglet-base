@@ -30,6 +30,7 @@ add_library(core STATIC
     plugins_mod.F90
     pointers_mod.F90
     precision_mod.F90
+    probeoffload_mod.F90
     pvtk.c
     pvtk_mod.F90
     qsort_mod.F90
