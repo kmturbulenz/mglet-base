@@ -8,37 +8,46 @@ MODULE grids_mod
     PRIVATE
 
     TYPE(gridinfo_t), ALLOCATABLE, TARGET :: gridinfo(:)
+    !$omp declare target(gridinfo)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: front(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: back(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: right(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: left(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: bottom(:)
     TYPE(bcond_t), ALLOCATABLE, TARGET :: top(:)
+    !$omp declare target(front, back, right, left, bottom, top)
 
     REAL(realk), ALLOCATABLE :: realprms(:)
     INTEGER(intk), ALLOCATABLE :: intprms(:)
+    !$omp declare target(realprms, intprms)
 
     ! Elements from former mgpar.h, colevel.h cobound.h and setmpi_mod
     INTEGER(intk), PROTECTED :: ngrid
     INTEGER(intk), PROTECTED :: minlevel
     INTEGER(intk), PROTECTED :: maxlevel
     INTEGER(intk), PROTECTED :: maxgrdsoflvl
+    !$omp declare target(ngrid, minlevel, maxlevel, maxgrdsoflvl)
 
     INTEGER(intk), ALLOCATABLE, PROTECTED :: noflevel(:), igrdoflevel(:, :)
+    !$omp declare target(noflevel, igrdoflevel)
 
     INTEGER(intk), PROTECTED :: nmygrids
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygrids(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nmygridslvl(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: mygridslvl(:, :)
+    !$omp declare target(nmygrids, mygrids, nmygridslvl, mygridslvl)
 
     INTEGER(intk), ALLOCATABLE, PROTECTED :: globalgrids(:)
+    !$omp declare target(globalgrids)
 
     ! From cobound.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: nboconds(:, :)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: itypboconds(:, :, :)
+    !$omp declare target(nboconds, itypboconds)
 
     ! From compi.h
     INTEGER(intk), ALLOCATABLE, PROTECTED :: idprocofgrd(:)
+    !$omp declare target(idprocofgrd)
 
     INTERFACE get_mgbasb
         MODULE PROCEDURE :: get_mgbasb1, get_mgbasb2
@@ -72,24 +81,32 @@ CONTAINS
         CALL hdf5common_open(filename, "r", file_id)
 
         CALL read_gridinfo(file_id, gridinfo, realprms, intprms, ngrid)
+        !$omp target enter data map(always, to: gridinfo, realprms, intprms)
+        !$omp target update to(ngrid)
 
         ALLOCATE(front(ngrid))
         CALL read_bcondinfo(file_id, "FRONT", front)
+        !$omp target enter data map(always, to: front)
 
         ALLOCATE(back(ngrid))
         CALL read_bcondinfo(file_id, "BACK", back)
+        !$omp target enter data map(always, to: back)
 
         ALLOCATE(right(ngrid))
         CALL read_bcondinfo(file_id, "RIGHT", right)
+        !$omp target enter data map(always, to: right)
 
         ALLOCATE(left(ngrid))
         CALL read_bcondinfo(file_id, "LEFT", left)
+        !$omp target enter data map(always, to: left)
 
         ALLOCATE(bottom(ngrid))
         CALL read_bcondinfo(file_id, "BOTTOM", bottom)
+        !$omp target enter data map(always, to: bottom)
 
         ALLOCATE(top(ngrid))
         CALL read_bcondinfo(file_id, "TOP", top)
+        !$omp target enter data map(always, to: top)
 
         CALL hdf5common_close(file_id)
 
@@ -102,16 +119,24 @@ CONTAINS
 
         ! Set colevel.h, minlevel, maxlevel, noflevel, igrdoflevel
         CALL setcolevel()
+        !$omp target enter data map(always, to: noflevel, igrdoflevel)
+        !$omp target update to(minlevel, maxlevel, maxgrdsoflvl)
 
         ! Distribute grids between processes, idprocofgrd
         CALL setmpi()
+        !$omp target enter data map(always, to: mygrids, nmygridslvl, &
+        !$omp& mygridslvl, globalgrids, idprocofgrd)
+        !$omp target update to(nmygrids)
 
         ! Set boundary conditions, pointers
         CALL init_gridstructure()
+        !$omp target enter data map(always, to: nboconds, itypboconds)
     END SUBROUTINE init_grids
 
 
     SUBROUTINE finish_grids()
+        !$omp target exit data map(delete: gridinfo, front, back, right, left, &
+        !$omp& bottom, top, realprms, intprms)
         DEALLOCATE(gridinfo)
         DEALLOCATE(front)
         DEALLOCATE(back)
@@ -122,6 +147,9 @@ CONTAINS
         DEALLOCATE(realprms)
         DEALLOCATE(intprms)
 
+        !$omp target exit data map(delete: noflevel, igrdoflevel, mygrids, &
+        !$omp& nmygridslvl, mygridslvl, globalgrids, nboconds, itypboconds, &
+        !$omp& idprocofgrd)
         DEALLOCATE(noflevel)
         DEALLOCATE(igrdoflevel)
         DEALLOCATE(mygrids)
@@ -137,6 +165,8 @@ CONTAINS
         minlevel = 0
         maxlevel = 0
         maxgrdsoflvl = 0
+        !$omp target update to(ngrid, nmygrids, minlevel, maxlevel, &
+        !$omp& maxgrdsoflvl)
     END SUBROUTINE finish_grids
 
 
