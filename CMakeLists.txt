@@ -56,10 +56,11 @@ else()
     message(STATUS "Compiling MGLET with 32 bit integers")
 endif()
 
-option(MGLET_OPENMP "Enable OpenMP (experimental)" OFF)
-if(MGLET_OPENMP)
-    message(STATUS "Enabling OpenMP")
+option(MGLET_OFFLOAD "Enable OpenMP offloading (experimental)" OFF)
+if(MGLET_OFFLOAD)
+    message(STATUS "Enabling OpenMP offloading")
     find_package(OpenMP REQUIRED)
+    add_compile_definitions(_MGLET_OFFLOAD_=1)
 endif()
 
 # CMake build options
@@ -88,6 +89,11 @@ set(MGLET_C_FLAGS_DEBUG "" CACHE STRING "MGLET C flags (debug)")
 set(MGLET_CXX_FLAGS_DEBUG "" CACHE STRING "MGLET CXX flags (debug)")
 set(MGLET_Fortran_FLAGS_DEBUG "" CACHE STRING "MGLET Fortran flags (debug)")
 
+if(MGLET_OFFLOAD)
+    set(MGLET_OFFLOAD_COMPILE_FLAGS "" CACHE STRING "MGLET Offload compile flags")
+    set(MGLET_OFFLOAD_ARCH_FLAGS "" CACHE STRING "MGLET Offload architecture flags")
+endif()
+
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<COMPILE_LANGUAGE:CXX>:${MGLET_CXX_FLAGS}>"
     "$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_Fortran_FLAGS}>"
@@ -111,10 +117,17 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
 )
 
-if (MGLET_OPENMP)
-    add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>"
-        "$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>"
-        "$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
+if (MGLET_OFFLOAD)
+    # Only add compile and link flags to Fortran, since we never want to
+    # interface to C/CXX in any MGLET library that is not specifically
+    # designed to be an offloading backend. If backends are added in the
+    # future, simply add compile and link options for C/CXX to the backend
+    # library itself.
+    add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
+        "$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
+    )
+    add_link_options("$<$<LINK_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
+        "$<$<LINK_LANGUAGE:Fortran>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
     )
 endif()
 

@@ -223,6 +223,79 @@
                 "CMAKE_BUILD_TYPE": "Debug"
 
             }
+        },
+        {
+            "name": "amd",
+            "hidden": true,
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang)",
+            "description": "Default build options using the AMD compilers",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "amdclang",
+                "CMAKE_CXX_COMPILER": "amdclang++",
+                "CMAKE_Fortran_COMPILER": "amdflang",
+
+                "MGLET_C_FLAGS": "",
+                "MGLET_CXX_FLAGS": "",
+                "MGLET_Fortran_FLAGS": "-fimplicit-none",
+
+                "MGLET_C_FLAGS_RELEASE": "-O3;-g",
+                "MGLET_CXX_FLAGS_RELEASE": "-O3;-g",
+                "MGLET_Fortran_FLAGS_RELEASE": "-O3;-g",
+
+                "MGLET_C_FLAGS_DEBUG": "-O0;-g",
+                "MGLET_CXX_FLAGS_DEBUG": "-O0;-g",
+                "MGLET_Fortran_FLAGS_DEBUG": "-O0;-g;-pedantic;-Wno-non-target-passed-to-target"
+            }
+        },
+        {
+            "name": "amd-release",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (release)",
+            "description": "Release configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": "amd",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+
+            }
+        },
+        {
+            "name": "amd-debug",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (debug)",
+            "description": "Debug configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": "amd",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+
+            }
+        },
+        {
+            "name": "gfx942",
+            "displayName": "Offload architecture gfx942",
+            "description": "Flags to target the gfx942 architecture using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "hidden": true,
+            "cacheVariables": {
+                "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
+                "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=gfx942"
+            }
+        },
+        {
+            "name": "amd-gfx942-release",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (release)",
+            "description": "Offloaded release configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-release", "gfx942"],
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON"
+
+            }
+        },
+        {
+            "name": "amd-gfx942-debug",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (debug)",
+            "description": "Offloaded debug configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-debug", "gfx942"],
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON"
+
+            }
         }
     ]
 }

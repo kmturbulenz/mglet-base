@@ -897,7 +897,9 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
+#ifndef _MGLET_OFFLOAD_
                         !$omp simd private(aw, ae, as, an, ab, at, rap, res)
+#endif
                         DO k = kstart, kstop, 2
                             ! Variations in numerical formulation, please
                             ! keep for future reference. Should be the same
@@ -950,7 +952,9 @@ CONTAINS
                             kstop = kk - 3
                         END IF
 
+#ifndef _MGLET_OFFLOAD_
                         !$omp simd private(res)
+#endif
                         DO k = kstart, kstop, 2
                             res = (gsaw(i) * dp(k, j, i-1) &
                                   + gsae(i) * dp(k, j, i+1) &

@@ -26,6 +26,7 @@ target_link_libraries(flow
     PRIVATE core
     PRIVATE ib
     PRIVATE ${MPI_Fortran_LIBRARIES}
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
 )
 
 set_source_files_properties(pressuresolver_mod.F90 PROPERTIES COMPILE_FLAGS
