@@ -7,6 +7,10 @@ add_library(flow STATIC
     flowstat_mod.F90
     gc_compbodyforce_mod.F90
     gc_flowstencils_mod.F90
+    sip_classic_mod.F90
+    sip_hyperplane_mod.F90
+    laplacephi_mod.F90
+    sor_mod.F90
     itinfo_mod.F90
     lesmodel_mod.F90
     plog_mod.F90

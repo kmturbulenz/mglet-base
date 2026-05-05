@@ -55,4 +55,5 @@ mglet
 
 # Build folder(s)
 build*
+out*
 
