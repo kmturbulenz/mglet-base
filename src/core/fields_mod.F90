@@ -4,6 +4,7 @@ MODULE fields_mod
     USE err_mod, ONLY: errr
     USE fieldio2_mod, ONLY: fieldio_read, fieldio_write, init_fieldio, &
         finish_fieldio
+    USE fieldmapper_mod
     USE fort7_mod
     USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
         hdf5common_group_open, hdf5common_group_close
@@ -44,7 +45,7 @@ MODULE fields_mod
 
     PUBLIC :: init_fields, finish_fields, set_field, get_field, get_fieldptr, &
         fields_begin_read, fields_begin_write, fields_write, &
-        fields_end_rw, get_fileh
+        fields_end_rw, get_fileh, is_field_mapped
 
 CONTAINS
     SUBROUTINE init_fields()
@@ -59,8 +60,13 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i
+        LOGICAL :: mapped
 
         DO i = 1, nfields
+            CALL is_field_mapped(mapped, fields(i))
+            IF (mapped) THEN
+                !$omp target exit data map(delete: fields(i))
+            END IF
             CALL fields(i)%finish()
         END DO
     END SUBROUTINE finish_fields
@@ -151,7 +157,7 @@ CONTAINS
 
     SUBROUTINE set_field(name, description, ndim, istag, jstag, kstag, &
             units, dread, required, dwrite, buffers, active_level, get_len, &
-            found)
+            device, found)
 
         ! Subroutine arguments
         CHARACTER(len=*), INTENT(in) :: name
@@ -167,11 +173,12 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: buffers
         LOGICAL, INTENT(in), OPTIONAL :: active_level(:)
         PROCEDURE(get_len_i), OPTIONAL :: get_len
+        LOGICAL, INTENT(in), OPTIONAL :: device
         LOGICAL, INTENT(out), OPTIONAL :: found
 
         ! Local variables
         TYPE(field_t), POINTER :: dummy
-        LOGICAL :: exists
+        LOGICAL :: exists, map_device
 
         ! Check that field does not exist before
         CALL get_field(dummy, name, exists)
@@ -203,6 +210,16 @@ CONTAINS
             ELSE
                 CALL errr(__FILE__, __LINE__)
             END IF
+        END IF
+
+        ! Map field to device by default, opt. out with device=.FALSE.
+        IF (PRESENT(device)) THEN
+            map_device = device
+        ELSE
+            map_device = .TRUE.
+        END IF
+        IF (map_device) THEN
+            !$omp target enter data map(to: fields(nfields))
         END IF
     END SUBROUTINE set_field
 
@@ -350,4 +367,34 @@ CONTAINS
         fileh = file_id
     END SUBROUTINE get_fileh
 
+    SUBROUTINE is_field_mapped(mapped, field, devicenum)
+#ifdef _MGLET_OFFLOAD_
+        USE omp_lib
+        USE ISO_C_BINDING, ONLY: C_PTR, C_LOC
+#endif
+        ! Subroutine arguments
+        LOGICAL, INTENT(out) :: mapped
+        TYPE(field_t), TARGET, INTENT(in) :: field
+        INTEGER(intk), OPTIONAL, INTENT(in) :: devicenum
+
+#ifdef _MGLET_OFFLOAD_
+        ! Local variables
+        INTEGER(intk) :: devnum
+        TYPE(C_PTR) :: cptr
+
+        IF (PRESENT(devicenum)) THEN
+            devnum = devicenum
+        ELSE
+            devnum = omp_get_default_device()
+        END IF
+
+        ! Do not call C_LOC on non C-operable type, but rather on a non-zero
+        ! length contiguous array as per the Fortran standard. If field%arr is
+        ! mapped, then the related field members are mapped as well.
+        cptr = C_LOC(field%arr)
+        mapped = omp_target_is_present(cptr, devnum) /= 0
+#else
+        mapped = .FALSE.
+#endif
+    END SUBROUTINE is_field_mapped
 END MODULE fields_mod
