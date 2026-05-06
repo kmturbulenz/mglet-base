@@ -456,6 +456,7 @@ CONTAINS
 
 
     SUBROUTINE get_mgdims(kk, jj, ii, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -474,6 +475,7 @@ CONTAINS
 
 
     SUBROUTINE get_imygrid(imygrid, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: imygrid
 
@@ -484,6 +486,7 @@ CONTAINS
 
 
     SUBROUTINE get_bbox(minx, maxx, miny, maxy, minz, maxz, igrid)
+        !$omp declare target
         REAL(realk), INTENT(OUT) :: minx, maxx, miny, maxy, minz, maxz
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -505,6 +508,7 @@ CONTAINS
 
 
     SUBROUTINE get_gridvolume(volume, igrid)
+        !$omp declare target
         ! Subroutine arguments
         REAL(realk), INTENT(out) :: volume
         INTEGER(intk), INTENT(in) :: igrid
@@ -518,6 +522,7 @@ CONTAINS
 
 
     SUBROUTINE get_gradpxflag(flag, igrid)
+        !$omp declare target
         USE simdfunctions_mod, ONLY: l_to_i
 
         INTEGER(intk), INTENT(OUT) :: flag
@@ -694,6 +699,7 @@ CONTAINS
 
 
     SUBROUTINE get_level(level, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: level
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -710,6 +716,7 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION iposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
 #ifdef _MGLET_DEBUG_
@@ -725,6 +732,7 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION jposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
 #ifdef _MGLET_DEBUG_
@@ -740,6 +748,7 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION kposition(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
 #ifdef _MGLET_DEBUG_
@@ -755,6 +764,7 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION iparent(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
 #ifdef _MGLET_DEBUG_
@@ -770,6 +780,7 @@ CONTAINS
 
 
     INTEGER(intk) FUNCTION level(igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
 #ifdef _MGLET_DEBUG_
@@ -785,6 +796,7 @@ CONTAINS
 
 
     SUBROUTINE get_neighbours(neighbours, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: neighbours(26)
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -801,6 +813,7 @@ CONTAINS
 
 
     SUBROUTINE get_kk(kk, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: kk
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -817,6 +830,7 @@ CONTAINS
 
 
     SUBROUTINE get_jj(jj, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: jj
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -833,6 +847,7 @@ CONTAINS
 
 
     SUBROUTINE get_ii(ii, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(OUT) :: ii
         INTEGER(intk), INTENT(IN) :: igrid
 
@@ -849,6 +864,7 @@ CONTAINS
 
 
     SUBROUTINE get_mgbasb1(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(out) :: nfro, nbac, nrgt, nlft, nbot, ntop
         INTEGER(intk), INTENT(in) :: igrid
 
@@ -870,6 +886,7 @@ CONTAINS
 
 
     SUBROUTINE get_mgbasb2(bconds, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(out) :: bconds(6)
         INTEGER(intk), INTENT(in) :: igrid
 
