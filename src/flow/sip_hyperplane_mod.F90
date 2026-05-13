@@ -5,7 +5,6 @@ MODULE sip_hyperplane_mod
     USE, INTRINSIC :: ieee_arithmetic
 
     USE core_mod
-    USE get_grid_mod
     USE laplacephi_mod
 
     IMPLICIT NONE(type, external)
@@ -15,7 +14,8 @@ MODULE sip_hyperplane_mod
     TYPE(intfield_t), PROTECTED, TARGET :: mip_hp_f
     TYPE(intfield_t), PROTECTED, TARGET :: idx_hp_f
 
-    PUBLIC :: sip_hyperplane_init, sip_hyperplane_finish, sip_hyperplane
+    PUBLIC :: sip_hyperplane_init, sip_hyperplane_finish, &
+        sipiter1, sipiter2, mip_hp_f, idx_hp_f
 
 CONTAINS
 
@@ -454,93 +454,6 @@ CONTAINS
         DEALLOCATE(test)
 
     END SUBROUTINE sip_hyperplane_check_grid
-
-
-    SUBROUTINE sip_hyperplane(ilevel, iloop, ninner, dp, res, rhs, &
-            lw_hp_f, ls_hp_f, lb_hp_f, lpr_hp_f, ue_hp_f, un_hp_f, ut_hp_f, bp)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        INTEGER(intk), INTENT(in) :: iloop
-        INTEGER(intk), INTENT(in) :: ninner
-        TYPE(field_t), INTENT(inout) :: dp
-        TYPE(field_t), INTENT(inout) :: res
-        TYPE(field_t), INTENT(in) :: rhs
-        TYPE(field_t), INTENT(in) :: lw_hp_f
-        TYPE(field_t), INTENT(in) :: ls_hp_f
-        TYPE(field_t), INTENT(in) :: lb_hp_f
-        TYPE(field_t), INTENT(in) :: lpr_hp_f
-        TYPE(field_t), INTENT(in) :: ue_hp_f
-        TYPE(field_t), INTENT(in) :: un_hp_f
-        TYPE(field_t), INTENT(in) :: ut_hp_f
-        TYPE(field_t), INTENT(in), OPTIONAL :: bp
-
-        ! Local variables
-        INTEGER(intk) :: i, il, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: dp_1d_p(:), res_1d_p(:), &
-            rhs_1d_p(:)
-
-        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
-
-        REAL(realk), POINTER, CONTIGUOUS :: lw_hp(:), ls_hp(:), lb_hp(:), &
-            lpr_hp(:), ue_hp(:), un_hp(:), ut_hp(:)
-
-
-        CALL laplacephi_level(ilevel, res, dp, bp)
-
-        DO il = 1, nmygridslvl(ilevel)
-
-            igrid = mygridslvl(il, ilevel)
-            CALL get_imygrid(i, igrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Getting the arrays is 1D pointers
-            CALL get_grid3_real_linear(res_1d_p, res, igrid)
-            CALL get_grid3_real_linear(rhs_1d_p, rhs, igrid)
-
-            CALL get_grid3_real_linear(lw_hp, lw_hp_f, igrid)
-            CALL get_grid3_real_linear(ls_hp, ls_hp_f, igrid)
-            CALL get_grid3_real_linear(lb_hp, lb_hp_f, igrid)
-            CALL get_grid3_real_linear(lpr_hp, lpr_hp_f, igrid)
-
-            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-
-            CALL sipiter1(kk, jj, ii, rhs_1d_p, res_1d_p, &
-                lw_hp, ls_hp, lb_hp, lpr_hp, mip_ptr, idx_ptr)
-        END DO
-
-        IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
-        ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
-        END IF
-
-        DO il = 1, nmygridslvl(ilevel)
-
-            igrid = mygridslvl(il, ilevel)
-            CALL get_imygrid(i, igrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Getting the arrays is 1D pointers
-            CALL get_grid3_real_linear(dp_1d_p, dp, igrid)
-            CALL get_grid3_real_linear(res_1d_p, res, igrid)
-
-            CALL get_grid3_real_linear(ue_hp, ue_hp_f, igrid)
-            CALL get_grid3_real_linear(un_hp, un_hp_f, igrid)
-            CALL get_grid3_real_linear(ut_hp, ut_hp_f, igrid)
-
-            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-
-            CALL sipiter2(kk, jj, ii, dp_1d_p, res_1d_p, &
-                ue_hp, un_hp, ut_hp, mip_ptr, idx_ptr)
-
-        END DO
-
-    END SUBROUTINE sip_hyperplane
-
 
 
     SUBROUTINE sipiter1(kk, jj, ii, rhs, res, lw, ls, lb, lpr, mip, idxsip)
