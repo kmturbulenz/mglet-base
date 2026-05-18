@@ -65,7 +65,7 @@ CONTAINS
         DO i = 1, nfields
             CALL is_field_mapped(mapped, fields(i))
             IF (mapped) THEN
-                !$omp target exit data map(delete: fields(i))
+                !$omp target exit data map(mapper(default), delete: fields(i))
             END IF
             CALL fields(i)%finish()
         END DO
@@ -219,7 +219,7 @@ CONTAINS
             map_device = .TRUE.
         END IF
         IF (map_device) THEN
-            !$omp target enter data map(to: fields(nfields))
+            !$omp target enter data map(mapper(default), to: fields(nfields))
         END IF
     END SUBROUTINE set_field
 
