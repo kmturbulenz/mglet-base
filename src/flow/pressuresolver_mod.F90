@@ -6,16 +6,17 @@ MODULE pressuresolver_mod
     USE itinfo_mod, ONLY: itinfo_sample
     USE plog_mod
     USE laplacephi_mod
-    USE sip_hyperplane_mod
-    USE sip_classic_mod
+    USE sip_hyperplane_mod, sipiter1_hp => sipiter1, sipiter2_hp => sipiter2
+    USE sip_classic_mod, sipiter1_cl => sipiter1, sipiter2_cl => sipiter2
     USE sor_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
 
     ! Type of pressure solver
-    !   0 : Standard SIP
+    !   0 : Hyperplane SIP
     !   1 : SIP on coarsest level, then SOR on subsequent levels
+    !   2 : Classic SIP
     INTEGER(intk) :: ityp
 
     ! Number of inner iterations/sweeps in pressure solver
@@ -391,42 +392,112 @@ CONTAINS
         CALL get_field(siplw, "SIPLW")
         CALL get_field(sipls, "SIPLS")
         CALL get_field(siplb, "SIPLB")
-        CALL get_field(siplpr, "SIPLPR")
         CALL get_field(sipue, "SIPUE")
         CALL get_field(sipun, "SIPUN")
         CALL get_field(siput, "SIPUT")
+        CALL get_field(siplpr, "SIPLPR")
 
         DO iloop = 1, ninner
             CALL bound_pressure%bound(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
-
                 ! The SOR relaxation is usually not efficient at the
                 ! coarsest level, hence only apply at the finer levels
                 CALL sor(ilevel, dp, rhs, gsaw, gsae, gsas, gsan, gsab, gsat, &
                     gsrap, bp)
-
-            ELSE IF (ityp == 2) THEN
-
-                ! Use the classic SIP solver
-                CALL sip_classic(ilevel, iloop, ninner, dp, res, rhs, &
-                    siplw, sipls, siplb, siplpr, sipue, sipun, siput, bp)
-
             ELSE
-
-                ! Use the hyperplane SIP solver
-                CALL sip_hyperplane(ilevel, iloop, ninner, dp, res, rhs, &
-                    siplw, sipls, siplb, siplpr, sipue, sipun, siput, bp)
-
+                ! Use the SIP solver
+                CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
+                    sipue, sipun, siput, siplpr, bp)
             END IF
 
             CALL connect(ilevel, 1, s1=dp)
         END DO
 
         CALL bound_pressure%bound(ilevel, dp, bp)
-        CALL stop_timer(321)
 
+        CALL stop_timer(321)
     END SUBROUTINE mgpoisit
+
+
+    SUBROUTINE sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
+            sipue, sipun, siput, siplpr, bp)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        INTEGER(intk), INTENT(in) :: iloop
+        TYPE(field_t), INTENT(inout) :: dp
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(in) :: siplw
+        TYPE(field_t), INTENT(in) :: sipls
+        TYPE(field_t), INTENT(in) :: siplb
+        TYPE(field_t), INTENT(in) :: sipue
+        TYPE(field_t), INTENT(in) :: sipun
+        TYPE(field_t), INTENT(in) :: siput
+        TYPE(field_t), INTENT(in) :: siplpr
+        TYPE(field_t), INTENT(in), OPTIONAL :: bp
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
+            lb(:, :, :), ue(:, :, :), un(:, :, :), ut(:, :, :), &
+            lpr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :), &
+            rhs_p(:, :, :)
+        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+
+        CALL laplacephi_level(ilevel, res, dp, bp)
+
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL res%get_ptr(res_p, igrid)
+            CALL rhs%get_ptr(rhs_p, igrid)
+
+            CALL siplw%get_ptr(lw, igrid)
+            CALL sipls%get_ptr(ls, igrid)
+            CALL siplb%get_ptr(lb, igrid)
+            CALL siplpr%get_ptr(lpr, igrid)
+
+            IF (ityp == 2) THEN
+                CALL sipiter1_cl(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
+            ELSE
+                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+                CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
+                    mip_ptr, idx_ptr)
+            END IF
+        END DO
+
+        IF (iloop < ninner) THEN
+            CALL connect(ilevel, 1, s1=res)
+        ELSE
+            CALL connect(ilevel, 1, s1=res, forward=-1)
+        END IF
+
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL dp%get_ptr(dp_p, igrid)
+            CALL res%get_ptr(res_p, igrid)
+
+            CALL sipue%get_ptr(ue, igrid)
+            CALL sipun%get_ptr(un, igrid)
+            CALL siput%get_ptr(ut, igrid)
+
+            IF (ityp == 2) THEN
+                CALL sipiter2_cl(kk, jj, ii, dp_p, res_p, ue, un, ut)
+            ELSE
+                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+                CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
+                    mip_ptr, idx_ptr)
+            END IF
+        END DO
+    END SUBROUTINE sip
 
 
     SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)

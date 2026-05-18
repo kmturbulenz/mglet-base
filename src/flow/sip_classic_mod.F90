@@ -10,16 +10,7 @@ MODULE sip_classic_mod
 
     LOGICAL :: is_init = .FALSE.
 
-    ! A-versions: simple versions not considering the BP field
-    ! B-versions: IB versions using the BP field
-    INTERFACE sipiter1
-        MODULE PROCEDURE :: sipiter1_A, sipiter1_B
-    END INTERFACE sipiter1
-
-    PUBLIC :: sip_classic_init, sip_classic_finish, sip_classic, &
-        sipiter0, sipiter1, sipiter2
-
-        ! sipiter{0,1,2} decleared public to avoid "unused fucntion" warnings
+    PUBLIC :: sip_classic_init, sip_classic_finish, sipiter1, sipiter2
 
 CONTAINS
 
@@ -149,122 +140,7 @@ CONTAINS
     END SUBROUTINE sip_classic_finish
 
 
-    SUBROUTINE sip_classic(ilevel, iloop, ninner, dp, res, rhs, &
-            siplw, sipls, siplb, siplpr, sipue, sipun, siput, bp)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        INTEGER(intk), INTENT(in) :: iloop
-        INTEGER(intk), INTENT(in) :: ninner
-        TYPE(field_t), INTENT(inout) :: dp
-        TYPE(field_t), INTENT(inout) :: res
-        TYPE(field_t), INTENT(in) :: rhs
-        TYPE(field_t), INTENT(in) :: siplw
-        TYPE(field_t), INTENT(in) :: sipls
-        TYPE(field_t), INTENT(in) :: siplb
-        TYPE(field_t), INTENT(in) :: siplpr
-        TYPE(field_t), INTENT(in) :: sipue
-        TYPE(field_t), INTENT(in) :: sipun
-        TYPE(field_t), INTENT(in) :: siput
-        TYPE(field_t), INTENT(in), OPTIONAL :: bp
-
-        ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
-            lb(:, :, :), ue(:, :, :), un(:, :, :), ut(:, :, :), &
-            lpr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :), &
-            rhs_p(:, :, :)
-
-        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
-
-        CALL laplacephi_level(ilevel, res, dp, bp)
-
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL res%get_ptr(res_p, igrid)
-            CALL rhs%get_ptr(rhs_p, igrid)
-
-            CALL siplw%get_ptr(lw, igrid)
-            CALL sipls%get_ptr(ls, igrid)
-            CALL siplb%get_ptr(lb, igrid)
-            CALL siplpr%get_ptr(lpr, igrid)
-
-            CALL sipiter1(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            ! >>> corresponds to sipiter1_B
-        END DO
-
-        IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
-        ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
-        END IF
-
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL dp%get_ptr(dp_p, igrid)
-            CALL res%get_ptr(res_p, igrid)
-
-            CALL sipue%get_ptr(ue, igrid)
-            CALL sipun%get_ptr(un, igrid)
-            CALL siput%get_ptr(ut, igrid)
-
-            CALL sipiter2(kk, jj, ii, dp_p, res_p, ue, un, ut)
-        END DO
-    END SUBROUTINE sip_classic
-
-
-    PURE SUBROUTINE sipiter0(kk, jj, ii, rhs, res, lpr)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: rhs(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: res(kk, jj, ii)
-        REAL(realk), INTENT(in) :: lpr(kk, jj, ii)
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    res(k, j, i) = (rhs(k, j, i) + res(k, j, i))*lpr(k, j, i)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE sipiter0
-
-
-    PURE SUBROUTINE sipiter1_A(kk, jj, ii, rhs, res, lw, ls, lb)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: res(kk, jj, ii)
-        REAL(realk), INTENT(in) :: rhs(kk, jj, ii)
-        REAL(realk), INTENT(in) :: lw(kk, jj, ii), ls(kk, jj, ii), &
-            lb(kk, jj, ii)
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    res(k, j, i) = res(k, j, i) - lw(k, j, i)*res(k, j, i-1) &
-                        - ls(k, j, i)*res(k, j-1, i)
-                END DO
-                DO k = 3, kk-2
-                    res(k, j, i) = res(k, j, i) - lb(k, j, i)*res(k-1, j, i)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE sipiter1_A
-
-
-    PURE SUBROUTINE sipiter1_B(kk, jj, ii, rhs, res, lw, ls, lb, lpr)
+    PURE SUBROUTINE sipiter1(kk, jj, ii, rhs, res, lw, ls, lb, lpr)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: res(kk, jj, ii)
@@ -287,7 +163,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-    END SUBROUTINE sipiter1_B
+    END SUBROUTINE sipiter1
 
 
     PURE SUBROUTINE sipiter2(kk, jj, ii, phi, res, ue, un, ut)

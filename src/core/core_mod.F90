@@ -17,6 +17,7 @@ MODULE core_mod
     USE field_mod
     USE fields_mod
     USE fort7_mod
+    USE get_grid_mod
     USE grids_mod
     ! Should not be neccesary to export gridio_mod - since this is only used
     ! in core functions
