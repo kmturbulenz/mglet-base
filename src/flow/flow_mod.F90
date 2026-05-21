@@ -143,34 +143,32 @@ CONTAINS
             CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=0.0_realk)
         END DO
 
-        ! The rest of this routine is initializing the flow field - we do not
-        ! want to overwrite results read from a restart file
-        IF (dread) RETURN
-
         ! Set initial condition
-        IF (uinf_is_expr) THEN
-            CALL init_uvw_expr(u, v, w)
-        ELSE
-            CALL init_uvw_uinf(u, v, w)
+        IF (.NOT. dread) THEN
+            IF (uinf_is_expr) THEN
+                CALL init_uvw_expr(u, v, w)
+            ELSE
+                CALL init_uvw_uinf(u, v, w)
+            END IF
+            p%arr = 0.0_realk
         END IF
-        p%arr = 0.0_realk
 
         CALL zero_ghostlayers(u)
         CALL zero_ghostlayers(v)
         CALL zero_ghostlayers(w)
 
         DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 2, u, v, w, p, corners=.TRUE.)
-        END DO
-
-        DO ilevel = minlevel+1, maxlevel
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
+            CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
             CALL ftoc(ilevel, u, v, w, p)
         END DO
+
+        ! connect after ftoc (minlevel:maxlevel-1 would be enough)
+        CALL connect(layers=2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
     END SUBROUTINE init_uvwp
 
 
