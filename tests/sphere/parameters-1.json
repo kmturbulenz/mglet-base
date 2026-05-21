@@ -1,17 +1,16 @@
 {
     "time": {
-        "mtstep": 200,
+        "mtstep": 100,
         "dt": 0.05,
         "itinfo": 10,
         "tstat": 5.0,
         "read": false,
         "write": true,
-        "continue": true
+        "continue": false
     },
     "io": {
         "grids": "grids.h5",
-        "infile": "fields.h5",
-        "outfile": "fields.h5"
+        "outfile": "fields-checkpoint.h5"
     },
     "ib": {
         "type": "ghostcell",
