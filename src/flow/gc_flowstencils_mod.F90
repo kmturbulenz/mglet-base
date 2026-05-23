@@ -31,7 +31,7 @@ MODULE gc_flowstencils_mod
     TYPE(real_stencils_t), ALLOCATABLE, TARGET :: woldsol(:), woldsolvel(:)
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
-        finish_flowstencils
+        finish_flowstencils, setpointvaluemarkers
 
 CONTAINS
     SUBROUTINE create_flowstencils(gc)
@@ -1388,6 +1388,93 @@ CONTAINS
                 pwv%arr(ip3), pww%arr(ip3))
         END DO
     END SUBROUTINE setpointvalues_all
+
+
+    SUBROUTINE setpointvaluemarkers(pwub, pwvb, pwwb)
+
+        USE, INTRINSIC :: IEEE_ARITHMETIC
+
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: pwub, pwvb, pwwb
+
+        ! Local variables
+        TYPE(field_t), POINTER :: bu, bv, bw
+        INTEGER(intk) :: i, igrid, ip3
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk) :: marker
+        CHARACTER(len=1), PARAMETER :: ityp = 'X'
+
+        ! Setting the markers (Dangerous?)
+        marker = IEEE_VALUE(marker, IEEE_QUIET_NAN)
+        pwub%arr = marker
+        pwvb%arr = marker
+        pwwb%arr = marker
+
+        CALL get_field(bu, "BU")
+        CALL get_field(bv, "BV")
+        CALL get_field(bw, "BW")
+
+        ! Replacing NAN by 0.0, other values by 1.0
+        DO i = 1, SIZE(pwub%arr)
+            IF ( bu%arr(i) > 0.5 ) THEN
+                pwub%arr(i) = 1.0
+            END IF
+        END DO
+
+        DO i = 1, SIZE(pwvb%arr)
+            IF ( bv%arr(i) > 0.5 ) THEN
+                pwvb%arr(i) = 1.0
+            END IF
+        END DO
+
+        DO i = 1, SIZE(pwwb%arr)
+            IF ( bw%arr(i) > 0.5 ) THEN
+                pwwb%arr(i) = 1.0
+            END IF
+        END DO
+
+        ! Executing the standard routines
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            ! U-component
+            CALL wmxpolquadvel(igrid, 1, kk, jj, ii, ityp, pwub%arr(ip3), &
+                pwvb%arr(ip3), pwwb%arr(ip3))
+            ! V-component
+            CALL wmxpolquadvel(igrid, 2, kk, jj, ii, ityp, pwub%arr(ip3), &
+                pwvb%arr(ip3), pwwb%arr(ip3))
+            ! W-component
+            CALL wmxpolquadvel(igrid, 3, kk, jj, ii, ityp, pwub%arr(ip3), &
+                pwvb%arr(ip3), pwwb%arr(ip3))
+        END DO
+
+        ! Replacing NAN by 0.0, other values by 1.0
+        DO i = 1, SIZE(pwub%arr)
+            IF (pwub%arr(i) /= pwub%arr(i)) THEN
+                pwub%arr(i) = 0.0
+            ELSE
+                pwub%arr(i) = 1.0
+            END IF
+        END DO
+
+        DO i = 1, SIZE(pwvb%arr)
+            IF (pwvb%arr(i) /= pwvb%arr(i)) THEN
+                pwvb%arr(i) = 0.0
+            ELSE
+                pwvb%arr(i) = 1.0
+            END IF
+        END DO
+
+        DO i = 1, SIZE(pwwb%arr)
+            IF (pwwb%arr(i) /= pwwb%arr(i)) THEN
+                pwwb%arr(i) = 0.0
+            ELSE
+                pwwb%arr(i) = 1.0
+            END IF
+        END DO
+
+    END SUBROUTINE setpointvaluemarkers
 
 
     SUBROUTINE setibvalues(u, v, w)
