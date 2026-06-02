@@ -56,9 +56,9 @@ CONTAINS
         REAL(realk), ALLOCATABLE :: velocity(:, :)
 
         TYPE(field_t), POINTER :: bp, bu, bv, bw
-        TYPE(field_t) :: knoten
-        TYPE(field_t) :: au, av, aw
-        TYPE(field_t) :: kanteu, kantev, kantew
+        TYPE(field_t), POINTER :: knoten
+        TYPE(field_t), POINTER :: au, av, aw
+        TYPE(field_t), POINTER :: kanteu, kantev, kantew
 
         ! Read configuration etc.
         CALL this%init()
@@ -76,16 +76,16 @@ CONTAINS
         ALLOCATE(triaw(ntrimax*idim3d))
         ALLOCATE(bzelltyp(idim3d))
 
-        CALL kanteu%init("KANTEU", jstag=1, kstag=1)
-        CALL kantev%init("KANTEV", istag=1, kstag=1)
-        CALL kantew%init("KANTEW", istag=1, jstag=1)
+        CALL push_field(au, "AU", istag=1)
+        CALL push_field(av, "AV", jstag=1)
+        CALL push_field(aw, "AW", kstag=1)
 
-        CALL au%init("AU", istag=1)
-        CALL av%init("AV", jstag=1)
-        CALL aw%init("AW", kstag=1)
+        CALL push_field(kanteu, "KANTEU", jstag=1, kstag=1)
+        CALL push_field(kantev, "KANTEV", istag=1, kstag=1)
+        CALL push_field(kantew, "KANTEW", istag=1, jstag=1)
 
         ! Important with proper staggering for parent to work
-        CALL knoten%init("KNOTEN", istag=1, jstag=1, kstag=1)
+        CALL push_field(knoten, "KNOTEN", istag=1, jstag=1, kstag=1)
 
         IF (myid == 0) THEN
             WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
@@ -156,15 +156,15 @@ CONTAINS
         CALL bubvbw(bp, bu, bv, bw)
 
         IF (TRIM(this%blocking_type) == "checkblock") THEN
-            CALL knoten%finish()
+            CALL pop_field(knoten)
 
-            CALL au%finish()
-            CALL av%finish()
-            CALL aw%finish()
+            CALL pop_field(kantew)
+            CALL pop_field(kantev)
+            CALL pop_field(kanteu)
 
-            CALL kanteu%finish()
-            CALL kantev%finish()
-            CALL kantew%finish()
+            CALL pop_field(aw)
+            CALL pop_field(av)
+            CALL pop_field(au)
 
             DEALLOCATE(triau)
             DEALLOCATE(triav)
@@ -211,14 +211,15 @@ CONTAINS
             knoten, kanteu, kantev, kantew, bzelltyp, au, av, aw, icells, &
             icellspointer, ncells, bodyid, ucell, stencils, .TRUE.)
 
+        CALL pop_field(knoten)
+        CALL pop_field(kantew)
+        CALL pop_field(kantev)
+        CALL pop_field(kanteu)
+
         ! Deallocate fields that are no longer needed
-        CALL kanteu%finish()
-        CALL kantev%finish()
-        CALL kantew%finish()
         DEALLOCATE(triau)
         DEALLOCATE(triav)
         DEALLOCATE(triaw)
-        CALL knoten%finish()
 
         CALL stencils%set_stlnames(this%topol%geometries)
         CALL this%topol%finish()
@@ -243,9 +244,9 @@ CONTAINS
         DEALLOCATE(bodyid)
         DEALLOCATE(bzelltyp)
 
-        CALL au%finish()
-        CALL av%finish()
-        CALL aw%finish()
+        CALL pop_field(aw)
+        CALL pop_field(av)
+        CALL pop_field(au)
 
         IF (myid == 0) THEN
             WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
@@ -312,10 +313,9 @@ CONTAINS
         INTEGER(intk) :: ilevel, igrid, i, kk, jj, ii, ip3, ipp, ncells
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
         REAL(realk), POINTER, CONTIGUOUS :: bodyid_3d(:, :, :)
-        TYPE(field_t) :: bodyid_3d_f
+        TYPE(field_t), POINTER :: bodyid_3d_f
 
-        CALL bodyid_3d_f%init("BODYID")
-        CALL bodyid_3d_f%init_buffers()
+        CALL push_field(bodyid_3d_f, "BODYID")
 
         ! Copy from list to 3D field
         DO ilevel = minlevel, maxlevel
@@ -376,7 +376,7 @@ CONTAINS
             END DO
         END DO
 
-        CALL bodyid_3d_f%finish()
+        CALL pop_field(bodyid_3d_f)
     END SUBROUTINE update_bodyid
 
 

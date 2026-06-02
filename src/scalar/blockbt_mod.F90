@@ -20,7 +20,7 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: bt_f
 
         ! Local variables
-        TYPE(field_t) :: hilf_f
+        TYPE(field_t), POINTER :: hilf_f
         TYPE(field_t), POINTER :: bp_f
         REAL(realk), POINTER, CONTIGUOUS :: bt(:, :, :), bp(:, :, :), &
             hilf(:, :, :)
@@ -29,7 +29,7 @@ CONTAINS
         INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         CALL get_field(bp_f, "BP")
-        CALL hilf_f%init("HILF")
+        CALL push_field(hilf_f, "HILF")
 
         ! Checking if any neighboring cell (shared face) has bp=1
         ! [only those cells can have a flux stencil associated with them]
@@ -66,7 +66,7 @@ CONTAINS
             CALL connect(ilevel, 2, s1=bt_f, corners=.TRUE.)
         END DO
 
-        CALL hilf_f%finish()
+        CALL pop_field(hilf_f)
     END SUBROUTINE blockbt
 
 
