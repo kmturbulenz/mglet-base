@@ -79,18 +79,18 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: ilevel
-        TYPE(field_t) :: hilf
+        TYPE(field_t), POINTER :: hilf
         TYPE(field_t), POINTER :: finecell
 
         CALL set_field("FINECELL")
         CALL get_field(finecell, "FINECELL")
         finecell%arr = 1.0
 
-        CALL hilf%init("HILF")
+        CALL push_field(hilf, "HILF")
         DO ilevel = maxlevel, minlevel, -1
             CALL ftoc(ilevel, hilf, finecell, 'P')
         END DO
         CALL connect(layers=2, s1=finecell, corners=.TRUE.)
-        CALL hilf%finish()
+        CALL pop_field(hilf)
     END SUBROUTINE set_finecell
 END MODULE ib_mod

@@ -184,7 +184,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: irk
 
         ! Local variables
-        TYPE(field_t) :: dp, hilf, rhs, res
+        TYPE(field_t), POINTER :: dp, hilf, rhs, res
         TYPE(field_t), POINTER :: bp
         INTEGER(intk) :: ilevel, ipcount, ipc, i
         REAL(realk) :: prefak, maxrhs, maxrhsall
@@ -200,13 +200,10 @@ CONTAINS
         END IF
 
         ! All of these fields are initialized to zero automatically
-        CALL dp%init("DP")
-        CALL hilf%init("HILF")
-        CALL rhs%init("RHS")
-        CALL res%init("RES")
-
-        CALL dp%init_buffers()
-        CALL hilf%init_buffers()
+        CALL push_field(dp, "DP")
+        CALL push_field(hilf, "HILF")
+        CALL push_field(rhs, "RHS")
+        CALL push_field(res, "RES")
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
@@ -347,10 +344,10 @@ CONTAINS
             CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
-        CALL res%finish()
-        CALL rhs%finish()
-        CALL hilf%finish()
-        CALL dp%finish()
+        CALL pop_field(res)
+        CALL pop_field(rhs)
+        CALL pop_field(hilf)
+        CALL pop_field(dp)
 
         DEALLOCATE(maxrhslvl)
         CALL stop_timer(320)

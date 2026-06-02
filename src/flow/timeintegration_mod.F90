@@ -33,8 +33,7 @@ CONTAINS
         INTEGER(intk) :: ilevel
         REAL(realk) :: frhs, fu, dtrk, dtrki, timerk
         TYPE(field_t), POINTER :: u, v, w, ut, vt, wt, pwu, pwv, pww, p, g
-        TYPE(field_t), POINTER :: du, dv, dw
-        TYPE(field_t) :: uo, vo, wo
+        TYPE(field_t), POINTER :: du, dv, dw, uo, vo, wo
 
         ! Just return if no flow is to be solved
         IF (.NOT. solve_flow) RETURN
@@ -56,9 +55,9 @@ CONTAINS
         CALL get_field(dv, "DV")
         CALL get_field(dw, "DW")
 
-        CALL uo%init("UO")
-        CALL vo%init("VO")
-        CALL wo%init("WO")
+        CALL push_field(uo, "UO")
+        CALL push_field(vo, "VO")
+        CALL push_field(wo, "WO")
 
         ! Transporting velocities for the convective terms
         ! Only CC use a different transporting velocity
@@ -135,6 +134,10 @@ CONTAINS
         END IF
 
         ! TODO: mgplevel
+
+        CALL pop_field(wo)
+        CALL pop_field(vo)
+        CALL pop_field(uo)
 
         CALL stop_timer(300)
     END SUBROUTINE timeintegrate_flow
