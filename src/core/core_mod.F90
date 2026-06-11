@@ -18,6 +18,7 @@ MODULE core_mod
     USE fields_mod
     USE fort7_mod
     USE get_grid_mod
+    USE gpuruntime_mod
     USE grids_mod
     ! Should not be neccesary to export gridio_mod - since this is only used
     ! in core functions
@@ -62,6 +63,11 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: ierr
         LOGICAL :: saved_fpe_mode(SIZE(ieee_all))
+
+#ifdef _MGLET_ENABLE_GPU_RUNTIME_
+        ! Initialize backends before MPI since MPI may rely on them
+        CALL gpu_runtime_init()
+#endif
 
         ! Fetch the IEEE halting modes and disable all of them temporarily for
         ! the MPI_Init and h5open_f calls. This is to avoid the MPI and HDF5
@@ -150,6 +156,9 @@ CONTAINS
 
         CALL h5close_f(ierr)
         CALL MPI_Finalize()
+#ifdef _MGLET_ENABLE_GPU_RUNTIME_
+        CALL gpu_runtime_finalize()
+#endif
     END SUBROUTINE finish_core
 
 

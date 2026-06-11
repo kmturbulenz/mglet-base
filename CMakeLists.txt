@@ -63,6 +63,25 @@ if(MGLET_OFFLOAD)
     add_compile_definitions(_MGLET_OFFLOAD_=1)
 endif()
 
+set(MGLET_GPU_BACKEND "none" CACHE STRING "GPU backend: none, cuda, rocm")
+set_property(CACHE MGLET_GPU_BACKEND PROPERTY STRINGS none cuda rocm)
+
+if(NOT MGLET_GPU_BACKEND STREQUAL "none")
+    message(STATUS "Enabling GPU backend: '${MGLET_GPU_BACKEND}'")
+
+    option(MGLET_ENABLE_GPU_RUNTIME "Enable GPU runtime support" OFF)
+    if(MGLET_ENABLE_GPU_RUNTIME)
+        message(STATUS "Enabling GPU runtime '${MGLET_GPU_BACKEND}'")
+        add_compile_definitions(_MGLET_ENABLE_GPU_RUNTIME_=1)
+    endif()
+
+    option(MGLET_PROFILE_MARKERS "Enable markers for all MGLET timers for profiling" OFF)
+    if(MGLET_PROFILE_MARKERS)
+        message(STATUS "Enabling MGLET profiling markers")
+        add_compile_definitions(_MGLET_PROFILE_MARKERS_=1)
+    endif()
+endif()
+
 # CMake build options
 set(MGLET_ENVPREFIX "" CACHE STRING "Prefix for all MGLET environment variables")
 if(NOT MGLET_ENVPREFIX STREQUAL "")
@@ -117,7 +136,7 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
 )
 
-if (MGLET_OFFLOAD)
+if(MGLET_OFFLOAD)
     # Only add compile and link flags to Fortran, since we never want to
     # interface to C/CXX in any MGLET library that is not specifically
     # designed to be an offloading backend. If backends are added in the

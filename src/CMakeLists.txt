@@ -1,4 +1,5 @@
 # Add separate libraries/subdirectories
+add_subdirectory("backends")
 add_subdirectory("core")
 add_subdirectory("flow")
 add_subdirectory("ib")
@@ -22,6 +23,7 @@ target_link_libraries(mgletlib
     PUBLIC ib
     PUBLIC plugins
     PUBLIC scalar
+    PUBLIC backends
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
 )
