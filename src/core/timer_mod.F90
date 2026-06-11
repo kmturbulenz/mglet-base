@@ -1,8 +1,9 @@
 MODULE timer_mod
+    USE buildinfo_mod, ONLY: mglet_dbg_envvar
     USE comms_mod
     USE err_mod
     USE precision_mod
-    USE buildinfo_mod, ONLY: mglet_dbg_envvar
+    USE profilemarker_mod
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_double, c_int, c_long_long, &
         c_f_pointer
     USE MPI_f08
@@ -126,6 +127,10 @@ CONTAINS
             CALL err_abort(255, "Timer"//CHAR(idx)//"not stopped", __FILE__, &
                 __LINE__)
         END IF
+
+#ifdef _MGLET_PROFILE_MARKERS_
+        CALL profile_marker_push(timers(idx)%desc)
+#endif
     END SUBROUTINE start_timer
 
 
@@ -171,6 +176,10 @@ CONTAINS
             stackIdx = stack(stackpos)
             timers(stackIdx)%exTic = toc
         END IF
+
+#ifdef _MGLET_PROFILE_MARKERS_
+        CALL profile_marker_pop()
+#endif
     END SUBROUTINE stop_timer
 
 
