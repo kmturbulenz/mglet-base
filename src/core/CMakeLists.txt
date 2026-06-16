@@ -14,6 +14,7 @@ add_library(core STATIC
     err_mod.F90
     expression_mod.F90
     exprtk_wrapper.cxx
+    fieldhelper_mod.F90
     fieldio2_mod.F90
     field_t/basefield_mod.F90
     field_t/field_mod.F90
@@ -22,7 +23,6 @@ add_library(core STATIC
     field_t/realfield_mod.F90
     fields_mod.F90
     fort7_mod.F90
-    get_grid_mod.F90
     getrusage_wrapper.c
     gridio_mod.F90
     grids_mod.F90
