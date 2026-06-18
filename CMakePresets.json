@@ -268,11 +268,12 @@
             }
         },
         {
-            "name": "gfx942",
+            "name": "amd-gfx942",
             "displayName": "Offload architecture gfx942",
             "description": "Flags to target the gfx942 architecture using the AMD compilers (amdclang, amdclang++, amdflang)",
             "hidden": true,
             "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
                 "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
                 "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=gfx942"
             }
@@ -280,22 +281,37 @@
         {
             "name": "amd-gfx942-release",
             "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (release)",
-            "description": "Offloaded release configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
-            "inherits": ["amd-release", "gfx942"],
-            "cacheVariables": {
-                "MGLET_OFFLOAD": "ON"
-
-            }
+            "description": "Offload release configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-release", "amd-gfx942"]
         },
         {
             "name": "amd-gfx942-debug",
             "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (debug)",
-            "description": "Offloaded debug configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
-            "inherits": ["amd-debug", "gfx942"],
+            "description": "Offload debug configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-debug", "amd-gfx942"]
+        },
+        {
+            "name": "amd-gfx1201",
+            "displayName": "Offload architecture gfx1201",
+            "description": "Flags to target the gfx1201 architecture using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "hidden": true,
             "cacheVariables": {
-                "MGLET_OFFLOAD": "ON"
-
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
+                "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=gfx1201"
             }
+        },
+        {
+            "name": "amd-gfx1201-release",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (release)",
+            "description": "Offload release configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-release", "amd-gfx1201"]
+        },
+        {
+            "name": "amd-gfx1201-debug",
+            "displayName": "AMD compilers (amdclang, amdclang++, amdflang) (debug)",
+            "description": "Offload debug configuration using the AMD compilers (amdclang, amdclang++, amdflang)",
+            "inherits": ["amd-debug", "amd-gfx1201"]
         }
     ]
 }
