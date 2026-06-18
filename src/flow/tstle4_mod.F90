@@ -138,7 +138,7 @@ CONTAINS
     !     Computational Fluid Dynamics, ECCOMAS CFD 2006
     SUBROUTINE tstle4_kon(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
             dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-            nfro, nbac, nrgt, nlft, nbot, ntop, bu, bv, bw)
+            nfro, nbac, nrgt, nlft, nbot, ntop)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
@@ -151,8 +151,6 @@ CONTAINS
         REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
         REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
         INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
-        REAL(realk), INTENT(in), OPTIONAL :: bu(kk, jj, ii), bv(kk, jj, ii), &
-            bw(kk, jj, ii)
 
         ! Local variables
         INTEGER(intk) :: k, j, i
@@ -160,12 +158,6 @@ CONTAINS
         REAL(realk) :: ax, ay, az
         REAL(realk) :: fw, fe, ft, fb, fn, fs
         REAL(realk) :: qw, qe, qt, qb, qn, qs
-
-        ! Sanity check
-        IF (PRESENT(bu) .NEQV. PRESENT(bv) .OR. &
-                PRESENT(bu) .NEQV. PRESENT(bw)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
 
         nfu = 0
         nbu = 0
@@ -210,18 +202,8 @@ CONTAINS
                     qt = 0.5*ft*(u(k, j, i) + u(k+1, j, i))
                     qb = 0.5*fb*(u(k-1, j, i) + u(k, j, i))
 
-                    uo(k, j, i) = -(qe-qw+qn-qs+qt-qb)
+                    uo(k, j, i) = -(qe-qw+qn-qs+qt-qb)*rdx(i)*rddy(j)*rddz(k)
                 END DO
-
-                IF (PRESENT(bu)) THEN
-                    DO k = 3, kk-2
-                        uo(k, j, i) = bu(k, j, i)*uo(k, j, i)
-                    END DO
-                ELSE
-                    DO k = 3, kk-2
-                        uo(k, j, i) = rdx(i)*rddy(j)*rddz(k)*uo(k, j, i)
-                    END DO
-                END IF
             END DO
         END DO
 
@@ -248,18 +230,8 @@ CONTAINS
                     qt = 0.5*ft*(v(k, j, i) + v(k+1, j, i))
                     qb = 0.5*fb*(v(k-1, j, i) + v(k, j, i))
 
-                    vo(k, j, i) = -(qe-qw+qn-qs+qt-qb)
+                    vo(k, j, i) = -(qe-qw+qn-qs+qt-qb)*rddx(i)*rdy(j)*rddz(k)
                 END DO
-
-                IF (PRESENT(bv)) THEN
-                    DO k = 3, kk-2
-                        vo(k, j, i) = bv(k, j, i)*vo(k, j, i)
-                    END DO
-                ELSE
-                    DO k = 3, kk-2
-                        vo(k, j, i) = rddx(i)*rdy(j)*rddz(k)*vo(k, j, i)
-                    END DO
-                END IF
             END DO
         END DO
 
@@ -286,18 +258,8 @@ CONTAINS
                     qt = 0.5*ft*(w(k, j, i) + w(k+1, j, i))
                     qb = 0.5*fb*(w(k-1, j, i) + w(k, j, i))
 
-                    wo(k, j, i) = -(qe-qw+qn-qs+qt-qb)
+                    wo(k, j, i) = -(qe-qw+qn-qs+qt-qb)*rddx(i)*rddy(j)*rdz(k)
                 END DO
-
-                IF (PRESENT(bw)) THEN
-                    DO k = 3-nbw, kk-3+ntw
-                        wo(k, j, i) = bw(k, j, i)*wo(k, j, i)
-                    END DO
-                ELSE
-                    DO k = 3-nbw, kk-3+ntw
-                        wo(k, j, i) = rddx(i)*rddy(j)*rdz(k)*wo(k, j, i)
-                    END DO
-                END IF
             END DO
         END DO
     END SUBROUTINE tstle4_kon
