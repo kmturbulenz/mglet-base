@@ -23,7 +23,7 @@ MODULE intfield_mod
 
 CONTAINS
     SUBROUTINE init(this, name, description, ndim, istag, jstag, kstag, &
-            units, dread, required, dwrite, active_level, get_len)
+            units, dread, required, dwrite, active_level, get_len, zero)
         ! Subroutine arguments
         CLASS(intfield_t), INTENT(out) :: this
         CHARACTER(len=*), INTENT(in) :: name
@@ -38,9 +38,10 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: dwrite
         LOGICAL, INTENT(in), OPTIONAL :: active_level(:)
         PROCEDURE(get_len_i), OPTIONAL :: get_len
+        LOGICAL, INTENT(in), OPTIONAL :: zero
 
         ! Local variables
-        ! none...
+        LOGICAL :: zero2
 
         CALL this%init_corefield(name, description, ndim, istag, jstag, kstag, &
             units, dread, required, dwrite, active_level, get_len)
@@ -48,8 +49,16 @@ CONTAINS
         this%hdf5_dtype = mglet_hdf5_ifk
         this%mpi_dtype = mglet_mpi_ifk
 
+        IF (PRESENT(zero)) THEN
+            zero2 = zero
+        ELSE
+            zero2 = .TRUE.
+        END IF
+
         ALLOCATE(this%arr(this%idim))
-        this%arr = 0.0
+        IF (zero2) THEN
+            this%arr = 0_ifk
+        END IF
     END SUBROUTINE init
 
 

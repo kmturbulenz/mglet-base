@@ -16,6 +16,7 @@ MODULE core_mod
     USE fieldio2_mod
     USE field_mod
     USE fieldhelper_mod
+    USE fieldpool_mod
     USE fields_mod
     USE fort7_mod
     USE grids_mod
@@ -115,6 +116,7 @@ CONTAINS
         CALL init_pointers()
         CALL init_commbuf()
         CALL init_fields()
+        CALL init_fieldpool()
         CALL init_corefields()
         CALL init_connect2()
 
@@ -135,6 +137,7 @@ CONTAINS
 
         CALL finish_connect2()
         CALL finish_corefields()
+        CALL finish_fieldpool()
         CALL finish_fields()
         CALL finish_commbuf()
         CALL finish_pointers()
