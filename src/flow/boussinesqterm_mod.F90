@@ -81,7 +81,7 @@ CONTAINS
             CALL wo_f%get_ptr(wo, igrid)
             CALL scafield%get_ptr(t, igrid)
 
-            CALL boussinesqterm_grid(kk, jj, ii, uo, wo, wo, t, nfro, nbac, &
+            CALL boussinesqterm_grid(kk, jj, ii, uo, vo, wo, t, nfro, nbac, &
                 nrgt, nlft, nbot, ntop)
         END DO
 
