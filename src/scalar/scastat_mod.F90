@@ -85,7 +85,8 @@ CONTAINS
         ! Local Variables
         INTEGER(intk), PARAMETER :: units_dx(*) = [0, -1, 0, 0, 0, 0, 0]
         INTEGER(intk) :: units_tx(7), units_txtx(7)
-        TYPE(field_t) :: tx_f  ! derivative of a scalar in any direction
+        ! derivative of a scalar in any direction
+        TYPE(field_t), POINTER :: tx_f
         TYPE(field_t), POINTER :: t_f
         INTEGER(intk) :: istag, jstag, kstag
         CHARACTER(len=3) :: ivar
@@ -122,14 +123,14 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_txtx)
-        CALL tx_f%init('tmp', istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(tx_f, 'tmp', istag=istag, jstag=jstag, kstag=kstag, &
             units=units_tx)
 
         ! central difference on scalar (= no staggering)
         CALL differentiate(tx_f, t_f, ivar)
 
         field%arr = tx_f%arr**2
-        CALL tx_f%finish()
+        CALL pop_field(tx_f)
     END SUBROUTINE comp_txtx_avg
 
 

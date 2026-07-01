@@ -26,21 +26,18 @@ CONTAINS
         INTEGER(intk) :: ilevel, l
         REAL(realk) :: frhs, fu, dtrk, dtrki
         TYPE(field_t), POINTER :: t, told, dt_f
-        TYPE(field_t) :: qtt, qtu, qtv, qtw
+        TYPE(field_t), POINTER :: qtt, qtu, qtv, qtw
 
         IF (.NOT. solve_scalar) RETURN
         CALL start_timer(400)
         CALL start_timer(401)
 
         ! Local temporary storage ("scrap")
-        CALL qtt%init("QTT")
-        CALL qtu%init("QTU", istag=1)
-        CALL qtv%init("QTV", jstag=1)
-        CALL qtw%init("QTW", kstag=1)
+        CALL push_field(qtt, "QTT")
+        CALL push_field(qtu, "QTU", istag=1)
+        CALL push_field(qtv, "QTV", jstag=1)
+        CALL push_field(qtw, "QTW", kstag=1)
 
-        CALL qtu%init_buffers()
-        CALL qtv%init_buffers()
-        CALL qtw%init_buffers()
         CALL stop_timer(401)
 
         CALL start_timer(402)
@@ -101,10 +98,10 @@ CONTAINS
         END DO
         CALL stop_timer(402)
 
-        CALL qtt%finish()
-        CALL qtu%finish()
-        CALL qtv%finish()
-        CALL qtw%finish()
+        CALL pop_field(qtw)
+        CALL pop_field(qtv)
+        CALL pop_field(qtu)
+        CALL pop_field(qtt)
 
         CALL stop_timer(400)
     END SUBROUTINE timeintegrate_scalar

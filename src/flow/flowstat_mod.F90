@@ -551,7 +551,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local variables
-        TYPE(field_t) :: ux_f
+        TYPE(field_t), POINTER :: ux_f
         INTEGER(intk), PARAMETER :: units(*) = [1, -1, -3, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
         TYPE(field_t), POINTER :: u_f, p_f
@@ -590,13 +590,13 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL ux_f%init(name_ux, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
+        CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
 
         CALL differentiate(ux_f, u_f, ivar)
 
         CALL field%multiply(ux_f, p_f)
-        CALL ux_f%finish()
+        CALL pop_field(ux_f)
     END SUBROUTINE comp_uxp_avg
 
 
@@ -607,7 +607,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local variables
-        TYPE(field_t) :: ux_f  ! It can represent any velocity component
+        TYPE(field_t), POINTER :: ux_f  ! Can represent any velocity component
         INTEGER(intk), PARAMETER :: units(*) = [0, 0, -2, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
         TYPE(field_t), POINTER :: u_f
@@ -685,12 +685,12 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL ux_f%init(name_ux, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
+        CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
         CALL differentiate(ux_f, u_f, ivar)
 
         field%arr = ux_f%arr**2
-        CALL ux_f%finish()
+        CALL pop_field(ux_f)
     END SUBROUTINE comp_uxux_avg
 
 
@@ -701,7 +701,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local Variables
-        TYPE(field_t) :: ux_f, vx_f
+        TYPE(field_t), POINTER :: ux_f, vx_f
         INTEGER(intk), PARAMETER :: units(*) = [0, 0, -2, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
         ! v_f can be any velocity component different than u_f
@@ -811,10 +811,10 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL ux_f%init(name_ux, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
-        CALL vx_f%init(name_vx, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
+        CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
+        CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
 
         CALL differentiate(ux_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
@@ -824,8 +824,8 @@ CONTAINS
         ! TO DO: if location is not the same multiply method should be used.
 
         field%arr = ux_f%arr * vx_f%arr
-        CALL ux_f%finish()
-        CALL vx_f%finish()
+        CALL pop_field(vx_f)
+        CALL pop_field(ux_f)
     END SUBROUTINE comp_uxvx_avg
 
 
@@ -836,7 +836,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: dt
 
         ! Local Variables
-        TYPE(field_t) :: uy_f, vx_f, temp_f
+        TYPE(field_t), POINTER :: uy_f, vx_f, temp_f
         INTEGER(intk), PARAMETER :: units(*) = [0, 0, -2, 0, 0, 0, 0]
         INTEGER(intk), PARAMETER :: units_ux(*) = [0, 0, -1, 0, 0, 0, 0]
         TYPE(field_t), POINTER :: u_f, v_f, p_f
@@ -881,12 +881,12 @@ CONTAINS
 
         CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL uy_f%init(name_uy, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
-        CALL vx_f%init(name_vx, istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
-        CALL temp_f%init('tmp', istag=istag, jstag=jstag, kstag=kstag, &
-            units=units_ux)
+        CALL push_field(uy_f, name_uy, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
+        CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
+        CALL push_field(temp_f, 'tmp', istag=istag, jstag=jstag, &
+            kstag=kstag, units=units_ux)
 
         CALL differentiate(uy_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
@@ -895,9 +895,9 @@ CONTAINS
         CALL get_field(p_f, "P")
         CALL field%multiply(temp_f, p_f)
 
-        CALL uy_f%finish()
-        CALL vx_f%finish()
-        CALL temp_f%finish()
+        CALL pop_field(temp_f)
+        CALL pop_field(vx_f)
+        CALL pop_field(uy_f)
     END SUBROUTINE comp_uyvxp_avg
 
 END MODULE flowstat_mod
