@@ -7,9 +7,10 @@ MODULE gc_scastencils_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: scaxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: scaxpolr(:), scaxpolrvel(:)
+    INTEGER(intk), ALLOCATABLE, TARGET :: scaxpoli(:, :)
+    REAL(realk), ALLOCATABLE, TARGET :: scaxpolr(:, :), scaxpolrvel(:, :)
     INTEGER(intk), ALLOCATABLE :: scanblg(:)
+    !$omp declare target(scaxpoli, scaxpolr, scaxpolrvel, scanblg)
 
     INTEGER(intk), PARAMETER :: nperi = 6 ! = up to 6 peripheral stencil points
     INTEGER(intk), PARAMETER :: isize = 3 + nperi
@@ -19,20 +20,23 @@ MODULE gc_scastencils_mod
 
 CONTAINS
     SUBROUTINE create_scastencils(gc)
-
         ! Subroutine arguments
         TYPE(gc_t), INTENT(in) :: gc
 
         ! Local variables
-        INTEGER(intk) :: ilevel
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:)
+        INTEGER(intk) :: nstencils_estimate
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipp, ncells
+        INTEGER(intk) :: bconds(6)
+        REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
+        REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:)
+        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
-        CALL get_fieldptr(bp, "BP")
-
-        ! Always allocate - createstencils should be called only once.
-        ALLOCATE(scaxpoli(nmygrids))
-        ALLOCATE(scaxpolr(nmygrids))
-        ALLOCATE(scaxpolrvel(nmygrids))
+        ! Allocate space for stencils with possible overhead
+        CALL estimate_nstencils(nstencils_estimate, gc%icells)
+        ALLOCATE(scaxpoli(nstencils_estimate*isize, nmygrids))
+        ALLOCATE(scaxpolr(nstencils_estimate*rsize, nmygrids))
+        ALLOCATE(scaxpolrvel(nstencils_estimate*rsize, nmygrids))
         ALLOCATE(scanblg(nmygrids))
 
         ! Stencil structure (standard-sized stencil):
@@ -54,50 +58,10 @@ CONTAINS
         ! R(N+2) = additive constant (e.g. for Dirichlet conditions)
         ! -> therefore: rsize = 2 + nperi
 
-        DO ilevel = minlevel, maxlevel
-            CALL createstencils_level(ilevel, bp, gc%bzelltyp, gc%icells, &
-                gc%icellspointer, gc%nvecs, gc%arealist, gc%bodyid)
-        END DO
-
-        ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
-        IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
-            CALL writestencils()
-        END IF
-    END SUBROUTINE create_scastencils
-
-
-    SUBROUTINE finish_scastencils()
-        DEALLOCATE(scaxpoli)
-        DEALLOCATE(scaxpolr)
-        DEALLOCATE(scaxpolrvel)
-        DEALLOCATE(scanblg)
-    END SUBROUTINE finish_scastencils
-
-
-    SUBROUTINE createstencils_level(ilevel, bp, bzelltyp, icells, &
-            icellspointer, nvecs, arealist, bodyid)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: bp(*)
-        INTEGER(intk), INTENT(in) :: bzelltyp(*)
-        INTEGER(intk), CONTIGUOUS, INTENT(in) :: icells(:)
-        INTEGER(intk), CONTIGUOUS, INTENT(in) :: icellspointer(:)
-        REAL(realk), CONTIGUOUS, INTENT(in) :: nvecs(:, :)
-        REAL(realk), CONTIGUOUS, INTENT(in) :: arealist(:)
-        INTEGER(intk), CONTIGUOUS, INTENT(in) :: bodyid(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipp, ncells
-        INTEGER(intk) :: bconds(6)
-        REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xstag(:), ystag(:), zstag(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-
-        DO i = 1, nmygridslvl(ilevel)
-            igrid = mygridslvl(i, ilevel)
-            ipp = icellspointer(igrid)
-            ncells = icells(igrid)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            ipp = gc%icellspointer(igrid)
+            ncells = gc%icells(igrid)
 
             CALL get_fieldptr(x, "X", igrid)
             CALL get_fieldptr(y, "Y", igrid)
@@ -111,17 +75,71 @@ CONTAINS
             CALL get_fieldptr(ddy, "DDY", igrid)
             CALL get_fieldptr(ddz, "DDZ", igrid)
 
+            CALL get_fieldptr(bp, "BP", igrid)
+
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
             CALL get_mgbasb(bconds, igrid)
 
             CALL tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
-                ddx, ddy, ddz, bp(ip3), bzelltyp(ip3), bconds, ncells, &
-                nvecs(:, ipp:ipp+ncells-1), arealist(ipp:ipp+ncells-1), &
-                bodyid(ipp:ipp+ncells-1))
+                ddx, ddy, ddz, bp, gc%bzelltyp(ip3), bconds, ncells, &
+                gc%nvecs(:, ipp:ipp+ncells-1), gc%arealist(ipp:ipp+ncells-1), &
+                gc%bodyid(ipp:ipp+ncells-1))
         END DO
-    END SUBROUTINE createstencils_level
+
+        ! Potential optimization when stencils have to be created more often:
+        ! Only transfer the actually used number of stencils per grid
+        !$omp target enter data map(always, to: scaxpoli, scaxpolr, &
+        !$omp& scaxpolrvel, scanblg)
+
+
+        ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
+        IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
+            CALL writestencils()
+        END IF
+    END SUBROUTINE create_scastencils
+
+
+    SUBROUTINE finish_scastencils()
+        !$omp target exit data map(always, delete: scaxpoli, scaxpolr, &
+        !$omp& scaxpolrvel, scanblg)
+        DEALLOCATE(scaxpoli)
+        DEALLOCATE(scaxpolr)
+        DEALLOCATE(scaxpolrvel)
+        DEALLOCATE(scanblg)
+    END SUBROUTINE finish_scastencils
+
+
+    SUBROUTINE estimate_nstencils(nstencils, icells)
+        ! Local variables
+        INTEGER(intk), INTENT(out) :: nstencils
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: icells(:)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        INTEGER(intk) :: istencils
+
+        nstencils = 0
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            istencils = estimate_istencils(icells(igrid), kk, jj, ii)
+            nstencils = MAX(nstencils, istencils)
+        END DO
+    END SUBROUTINE estimate_nstencils
+
+
+    PURE FUNCTION estimate_istencils(icells, kk, jj, ii) RESULT(istencils)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: icells
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk) :: istencils
+
+        istencils = NINT(icells*1.1 + MAX(kk, jj, ii)**2)
+    END FUNCTION estimate_istencils
 
 
     SUBROUTINE tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
@@ -160,8 +178,8 @@ CONTAINS
         INTEGER(intk) :: initial_pntxpoli, initial_pntxpolr
 
         ! Allocating the arrays with possible overhead
-        xpolisize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*isize
-        xpolrsize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*rsize
+        xpolisize = estimate_istencils(icells, kk, jj, ii)*isize
+        xpolrsize = estimate_istencils(icells, kk, jj, ii)*rsize
         ALLOCATE(xpoli(xpolisize))
         ALLOCATE(xpolr(xpolrsize))
         ALLOCATE(xpolrvel(xpolrsize))
@@ -332,13 +350,9 @@ CONTAINS
         END DO
 
         CALL get_imygrid(imygrid, igrid)
-        ALLOCATE(scaxpoli(imygrid)%arr(pntxpoli))
-        ALLOCATE(scaxpolr(imygrid)%arr(pntxpolr))
-        ALLOCATE(scaxpolrvel(imygrid)%arr(pntxpolr))
-
-        scaxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-        scaxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-        scaxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
+        scaxpoli(1:pntxpoli, imygrid) = xpoli(1:pntxpoli)
+        scaxpolr(1:pntxpolr, imygrid) = xpolr(1:pntxpolr)
+        scaxpolrvel(1:pntxpolr, imygrid) = xpolrvel(1:pntxpolr)
         scanblg(imygrid) = counter
 
         ! Final size check
@@ -947,181 +961,217 @@ CONTAINS
 
 
     SUBROUTINE set_scastencils(ctyp, sca, t, qtt)
+        USE fieldmapper_mod
         ! Subroutine arguments
         CHARACTER(len=1), INTENT(in) :: ctyp
         TYPE(scalar_t), INTENT(in) :: sca
         TYPE(field_t), INTENT(inout), OPTIONAL :: t, qtt
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: t_p(:, :, :), qtt_p(:, :, :)
+        REAL(realk), CONTIGUOUS, POINTER :: xpolr(:, :)
 
         CALL start_timer(412)
 
-        NULLIFY(t_p)
-        NULLIFY(qtt_p)
+        IF (.NOT. PRESENT(t) .AND. .NOT. PRESENT(qtt)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
+        SELECT CASE(ctyp)
+        CASE("C")
+            ! Warning: Setting stencils for scalar cell values is no longer
+            ! supported and tested.
+            xpolr => scaxpolr
+        CASE("P")
+            xpolr => scaxpolrvel
+        CASE DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
 
-            ! Repeated lines of code, while more elegant solutions
-            ! are possible. Accepted as easier for the compiler...
-            IF (PRESENT(t)) THEN
-                CALL t%get_ptr(t_p, igrid)
-                SELECT CASE(ctyp)
-                CASE("C")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolr(i)%arr, t=t_p)
-                CASE("P")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, t=t_p)
-                CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
-                END SELECT
-            END IF
+        IF (PRESENT(t)) THEN
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update to(mapper(field_t__map_arr): t)
+            CALL set_scastencils_t(xpolr, sca, t)
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update from(mapper(field_t__map_arr): t)
+        END IF
 
-            IF (PRESENT(qtt)) THEN
-                CALL qtt%get_ptr(qtt_p, igrid)
-                SELECT CASE(ctyp)
-                CASE("C")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolr(i)%arr, qtt=qtt_p)
-                CASE("P")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, qtt=qtt_p)
-                CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
-                END SELECT
-            END IF
-
-        END DO
+        IF (PRESENT(qtt)) THEN
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update to(mapper(field_t__map_arr): qtt)
+            CALL set_scastencils_qtt(xpolr, sca, qtt)
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update from(mapper(field_t__map_arr): qtt)
+        END IF
 
         CALL stop_timer(412)
     END SUBROUTINE set_scastencils
 
 
-    SUBROUTINE wmxpolsoltsca(kk, jj, ii, ncells, sca, xpoli, xpolr, t, qtt)
+    SUBROUTINE set_scastencils_t(xpolr, sca, t_f)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii, ncells
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:, :)
         TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(inout), OPTIONAL :: t(kk*jj*ii), qtt(kk*jj*ii)
+        TYPE(field_t), INTENT(inout) :: t_f
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
+
+        !$omp target teams distribute private(igrid, kk, jj, ii, t) &
+        !$omp& map(to: sca%geometries)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL get_grid3_real(t, t_f, igrid)
+
+            ! Pass stencil i as index to avoid slicing (:, i), which the
+            ! compiler does not accept with a CONTIGUOUS shape
+            !$omp parallel
+            CALL wmxpoltsca_t(kk, jj, ii, scanblg(i), sca, scaxpoli, xpolr, i, &
+                t)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE set_scastencils_t
+
+
+    SUBROUTINE wmxpoltsca_t(kk, jj, ii, ncells, sca, xpoli, xpolr, istencil, &
+        var)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk), INTENT(in) :: ncells
+        TYPE(scalar_t), INTENT(in) :: sca
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: xpoli(:, :)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:, :)
+        INTEGER(intk), INTENT(in) :: istencil
+        REAL(realk), INTENT(inout) :: var(kk*jj*ii)
 
         ! Local variables
         INTEGER(intk) :: cellcount, start_pntxpoli, start_pntxpolr
-
-        IF (PRESENT(t)) THEN
-            DO cellcount = 1, ncells
-                start_pntxpoli = (cellcount-1)*isize
-                start_pntxpolr = (cellcount-1)*rsize
-                CALL wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, &
-                    start_pntxpolr, xpoli, xpolr, t)
-            END DO
-        END IF
-
-        IF (PRESENT(qtt)) THEN
-            DO cellcount = 1, ncells
-                start_pntxpoli = (cellcount-1)*isize
-                start_pntxpolr = (cellcount-1)*rsize
-                CALL wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, &
-                    start_pntxpolr, xpoli, xpolr, qtt)
-            END DO
-        END IF
-    END SUBROUTINE wmxpolsoltsca
-
-
-    SUBROUTINE wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
-        xpoli, xpolr, var)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in) :: start_pntxpoli
-        INTEGER(intk), INTENT(in) :: start_pntxpolr
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(inout) :: var(kk*jj*ii)
-
-        ! Local variables
         INTEGER(intk) :: intcell, body, bctype, stencils, n, stcell
         REAL(realk) :: bcval, coeff, val
 
-        ! 1st integer: identifier of the interface cell
-        intcell = xpoli(start_pntxpoli + 1)
+        !$omp do private(start_pntxpoli, start_pntxpolr, intcell, body, &
+        !$omp& bctype, bcval, stencils, val, n, stcell, coeff)
+        DO cellcount = 1, ncells
+            start_pntxpoli = (cellcount-1)*isize
+            start_pntxpolr = (cellcount-1)*rsize
 
-        ! 2nd integer: body ID
-        body = xpoli(start_pntxpoli + 2)
+            ! 1st integer: identifier of the interface cell
+            intcell = xpoli(start_pntxpoli + 1, istencil)
 
-        ! Look up boundary condition at bodyid
-        bctype = 1
-        bcval = 0.0
-        IF (body > 0) THEN
-            bctype = sca%geometries(body)%flag
-            bcval = sca%geometries(body)%value
-        END IF
+            ! 2nd integer: body ID
+            body = xpoli(start_pntxpoli + 2, istencil)
 
-        ! 3rd integer: cells used for the stencil (may also be 0)
-        stencils = xpoli(start_pntxpoli + 3)
+            ! Look up boundary condition at bodyid
+            bctype = 1
+            bcval = 0.0
+            IF (body > 0) THEN
+                bctype = sca%geometries(body)%flag
+                bcval = sca%geometries(body)%value
+            END IF
 
-        ! Computing the fixed value
-        val = 0.0
-        DO n = 1, stencils
-            stcell = xpoli(start_pntxpoli + 3 + n)
-            coeff = xpolr(start_pntxpolr + 1 + n)
-            val = val + var(stcell)*coeff
+            ! 3rd integer: cells used for the stencil (may also be 0)
+            stencils = xpoli(start_pntxpoli + 3, istencil)
+
+            ! Computing the fixed value
+            val = 0.0
+            DO n = 1, stencils
+                stcell = xpoli(start_pntxpoli + 3 + n, istencil)
+                coeff = xpolr(start_pntxpolr + 1 + n, istencil)
+                val = val + var(stcell)*coeff
+            END DO
+
+            ! additive constant "acoeffvel"
+            coeff = xpolr(start_pntxpolr + (2 + nperi), istencil)
+
+            ! Set value at cell if BC is fixed value
+            IF (bctype == 0) THEN
+                val = val + coeff*bcval
+                var(intcell) = val
+            END IF
         END DO
-
-        ! additive constant "acoeffvel"
-        coeff = xpolr(start_pntxpolr + (2 + nperi))
-
-        ! Set value at cell if BC is fixed value
-        IF (bctype == 0) THEN
-            val = val + coeff*bcval
-            var(intcell) = val
-        END IF
+        !$omp end do
     END SUBROUTINE wmxpoltsca_t
 
 
-    SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
-            xpoli, xpolr, var)
+    SUBROUTINE set_scastencils_qtt(xpolr, sca, qtt_f)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:, :)
+        TYPE(scalar_t), INTENT(in) :: sca
+        TYPE(field_t), INTENT(inout) :: qtt_f
 
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: qtt(:, :, :)
+
+        !$omp target teams distribute private(igrid, kk, jj, ii, qtt) &
+        !$omp& map(to: sca%geometries)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL get_grid3_real(qtt, qtt_f, igrid)
+
+            ! Pass stencil i as index to avoid slicing (:, i), which the
+            ! compiler does not accept with a CONTIGUOUS shape
+            !$omp parallel
+            CALL wmxpoltsca_qtt(kk, jj, ii, scanblg(i), sca, scaxpoli, xpolr, &
+                i, qtt)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE set_scastencils_qtt
+
+
+    SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, ncells, sca, xpoli, xpolr, istencil, &
+        var)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
+        INTEGER(intk), INTENT(in) :: ncells
         TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in) :: start_pntxpoli
-        INTEGER(intk), INTENT(in) :: start_pntxpolr
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: xpoli(:, :)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:, :)
+        INTEGER(intk), INTENT(in) :: istencil
         REAL(realk), INTENT(inout) :: var(kk*jj*ii)
 
         ! Local variables
+        INTEGER(intk) :: cellcount, start_pntxpoli, start_pntxpolr
         INTEGER(intk) :: intcell, body, bctype
         REAL(realk) :: areabyvol, bcval
 
-        ! 1st integer: identifier of the interface cell
-        intcell = xpoli(start_pntxpoli + 1)
+        !$omp do private(start_pntxpoli, start_pntxpolr, intcell, body, &
+        !$omp& bctype, bcval, areabyvol)
+        DO cellcount = 1, ncells
+            start_pntxpoli = (cellcount-1)*isize
+            start_pntxpolr = (cellcount-1)*rsize
 
-        ! 2nd integer: body ID
-        body = xpoli(start_pntxpoli + 2)
+            ! 1st integer: identifier of the interface cell
+            intcell = xpoli(start_pntxpoli + 1, istencil)
 
-        ! Look up boundary condition at bodyid
-        bctype = 1
-        bcval = 0.0
-        IF (body > 0) THEN
-            bctype = sca%geometries(body)%flag
-            bcval = sca%geometries(body)%value
-        END IF
+            ! 2nd integer: body ID
+            body = xpoli(start_pntxpoli + 2, istencil)
 
-        ! 1st real: areabyvol required for the flux
-        areabyvol = xpolr(start_pntxpolr + 1)
+            ! Look up boundary condition at bodyid
+            bctype = 1
+            bcval = 0.0
+            IF (body > 0) THEN
+                bctype = sca%geometries(body)%flag
+                bcval = sca%geometries(body)%value
+            END IF
 
-        ! Add flux to list of fluxes
-        IF (bctype == 1) THEN
-            var(intcell) = var(intcell) + areabyvol*bcval
-        END IF
+            ! 1st real: areabyvol required for the flux
+            areabyvol = xpolr(start_pntxpolr + 1, istencil)
+
+            ! Add flux to list of fluxes
+            IF (bctype == 1) THEN
+                var(intcell) = var(intcell) + areabyvol*bcval
+            END IF
+        END DO
+        !$omp end do
     END SUBROUTINE wmxpoltsca_qtt
 
 
@@ -1165,8 +1215,8 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
 
         CALL get_imygrid(imygrid, igrid)
-        xpoli => scaxpoli(imygrid)%arr
-        xpolr => scaxpolrvel(imygrid)%arr
+        xpoli => scaxpoli(:, imygrid)
+        xpolr => scaxpolrvel(:, imygrid)
         ncells = scanblg(imygrid)
 
         ! If no cells are present we return here...
