@@ -11,6 +11,10 @@ MODULE gc_scastencils_mod
     TYPE(real_stencils_t), ALLOCATABLE, TARGET :: scaxpolr(:), scaxpolrvel(:)
     INTEGER(intk), ALLOCATABLE :: scanblg(:)
 
+    INTEGER(intk), PARAMETER :: nperi = 6 ! = up to 6 peripheral stencil points
+    INTEGER(intk), PARAMETER :: isize = 3 + nperi
+    INTEGER(intk), PARAMETER :: rsize = 2 + nperi
+
     PUBLIC :: create_scastencils, finish_scastencils, set_scastencils
 
 CONTAINS
@@ -30,6 +34,25 @@ CONTAINS
         ALLOCATE(scaxpolr(nmygrids))
         ALLOCATE(scaxpolrvel(nmygrids))
         ALLOCATE(scanblg(nmygrids))
+
+        ! Stencil structure (standard-sized stencil):
+
+        ! I1 = cell to be treated
+        ! I2 = body id of cell to be treated
+        ! I3 = number of peripheral stencil points (N)
+        ! I4 = 1D-index of peripheral stencil point 1
+        ! I5 = 1D-index of peripheral stencil point 2 (or -1 if N<2)
+        ! ...
+        ! I(N+3) = 1D-index of peripheral stencil point N
+        ! -> therefore: isize = 3 + nperi
+
+        ! R1 = surface area divided by cell volume
+        ! R2 = coefficient for peripheral stencil point 1 (or dummy if N<1)
+        ! R3 = coefficient for peripheral stencil point 2 (or dummy if N<2)
+        ! ...
+        ! R(N+1) = coefficient for peripheral stencil point N (or dummy)
+        ! R(N+2) = additive constant (e.g. for Dirichlet conditions)
+        ! -> therefore: rsize = 2 + nperi
 
         DO ilevel = minlevel, maxlevel
             CALL createstencils_level(ilevel, bp, gc%bzelltyp, gc%icells, &
@@ -134,10 +157,11 @@ CONTAINS
         REAL(realk) :: area, areabyvol
         INTEGER(intk), ALLOCATABLE :: xpoli(:)
         REAL(realk), ALLOCATABLE :: xpolr(:), xpolrvel(:)
+        INTEGER(intk) :: initial_pntxpoli, initial_pntxpolr
 
         ! Allocating the arrays with possible overhead
-        xpolisize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*(2+velpts)
-        xpolrsize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*velpts
+        xpolisize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*isize
+        xpolrsize = NINT(icells*1.1 + MAX(kk, jj, ii)**2)*rsize
         ALLOCATE(xpoli(xpolisize))
         ALLOCATE(xpolr(xpolrsize))
         ALLOCATE(xpolrvel(xpolrsize))
@@ -146,7 +170,7 @@ CONTAINS
         counter = 0
         pntxpoli = 0
         xpoli = 0
-        pntxpolr = 0.0
+        pntxpolr = 0
         xpolr = 0.0
 
         ! Index stencil for looking for neighbour cells.
@@ -155,7 +179,11 @@ CONTAINS
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
+                    ! Storing the initial values of the index counters
+                    initial_pntxpoli = pntxpoli
+                    initial_pntxpolr = pntxpolr
 
+                    ! Starting the stencil generation
                     CALL findinterface2(k, j, i, kk, jj, ii, bp, found, &
                         foundx1, foundx2, foundy1, foundy2, foundz1, &
                         foundz2, foundnr)
@@ -281,6 +309,24 @@ CONTAINS
                         END IF
                     END IF
 
+                    ! Cycle if no new stencil was created at all
+                    IF (pntxpoli - initial_pntxpoli == 0 .AND. &
+                        pntxpolr - initial_pntxpolr == 0) THEN
+                            CYCLE
+                    END IF
+
+                    ! Ensuring that standard-sized stencils were created
+                    IF (pntxpoli - initial_pntxpoli /= isize) THEN
+                        WRITE(*, *) "Error: No standard-sized stencil ", &
+                            pntxpoli, " initial: ", initial_pntxpoli
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    IF (pntxpolr - initial_pntxpolr /= rsize) THEN
+                        WRITE(*, *) "Error: No standard-sized stencil ", &
+                            pntxpolr, " initial: ", initial_pntxpolr
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+
                 END DO
             END DO
         END DO
@@ -294,6 +340,22 @@ CONTAINS
         scaxpolr(imygrid)%arr = xpolr(1:pntxpolr)
         scaxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
         scanblg(imygrid) = counter
+
+        ! Final size check
+        IF (counter > 0) THEN
+            IF (pntxpoli /= isize * counter) THEN
+                WRITE(*, *) "Error: pntxpoli / counter = ", pntxpoli, counter
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            IF (pntxpolr /= rsize * counter) THEN
+                WRITE(*, *) "Error: pntxpolr / counter = ", pntxpolr, counter
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        ELSE
+            IF (pntxpoli /= 0 .OR. pntxpolr /= 0) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END IF
 
         DEALLOCATE(xpoli)
         DEALLOCATE(xpolr)
@@ -321,33 +383,30 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk), PARAMETER :: velpts = 1
-        INTEGER(intk) :: xpolisize, xpolrsize
-        INTEGER(intk) :: cellind
+        INTEGER(intk) :: xpolisize, xpolrsize, n
 
         xpolisize = SIZE(xpoli)
         xpolrsize = SIZE(xpolr)
 
-        IF (pntxpoli+velpts+2 > xpolisize) THEN
+        ! Check if there is enough space in the arrays to store the new stencil
+        IF (pntxpoli+isize > xpolisize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-        IF (pntxpolr+velpts+1 > xpolrsize) THEN
+        IF (pntxpolr+rsize > xpolrsize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-
-        ! TODO: sub2ind
-        cellind = 1+(k-1)+(j-1)*kk+(i-1)*jj*kk
 
         ! 1st integer: linearized index of cell to be interpolated
         pntxpoli = pntxpoli + 1
-        xpoli(pntxpoli) = cellind
+        CALL sub2ind(xpoli(pntxpoli), k, j, i, kk, jj, ii)
 
-        ! 2nd integer: body id of this stencils
+        ! 2nd integer: body id of this stencil
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = body
 
         ! 3rd integer: number of the peripheral stencil points (N)
         pntxpoli = pntxpoli + 1
-        xpoli(pntxpoli) = velpts  ! = 1
+        xpoli(pntxpoli) = velpts  ! = 1 (formally)
 
         ! 1st real: setting area/volume of the interface within the cell
         ! (additional in comparison to the velocity stencil)
@@ -355,18 +414,33 @@ CONTAINS
         xpolr(pntxpolr) = areabyvol
         xpolrvel(pntxpolr) = areabyvol
 
-        ! -- replaces iteration over velpoints --
-        pntxpoli = pntxpoli + 1
-        xpoli(pntxpoli) = cellind
-
-        pntxpolr = pntxpolr + 1
-        xpolr(pntxpolr) = 1.0
-        xpolrvel(pntxpolr) = 1.0
+        ! here with iteration over all N peripheral stencil points
+        ! (velpts here carries the value of "chosenvelpts")
+        DO n = 1, nperi
+            ! Keep incrementing the index counter anyway
+            pntxpoli = pntxpoli + 1
+            pntxpolr = pntxpolr + 1
+            IF (n <= velpts) THEN
+                IF (n /= 1) CALL errr(__FILE__, __LINE__)
+                CALL sub2ind(xpoli(pntxpoli), k, j, i, kk, jj, ii)
+                xpolr(pntxpolr) = 1.0
+                xpolrvel(pntxpolr) = 1.0
+            ELSE
+                ! Setting unused dummy values (yields standard-sized stencils)
+                xpoli(pntxpoli) = -1
+                xpolr(pntxpolr) = -HUGE(0.0_realk)
+                xpolrvel(pntxpolr) = -HUGE(0.0_realk)
+            END IF
+        END DO
 
         ! 3rd real: setting the additive constant
         pntxpolr = pntxpolr + 1
         xpolr(pntxpolr) = 0.0
         xpolrvel(pntxpolr) =  0.0
+
+        ! >>> Integer counter += isize
+        ! >>> Real counter += rsize
+
     END SUBROUTINE tscastencilcoeffarea
 
 
@@ -452,6 +526,8 @@ CONTAINS
             xstag, ystag, zstag, ddx, ddy, ddz, bzelltyp, istc, jstc, kstc, &
             velpts, nvecs, coeffstc, acoeffstc, coeffstctsca, &
             acoeffstctsca, found)
+
+        USE, INTRINSIC :: IEEE_ARITHMETIC, ONLY: IEEE_IS_FINITE
 
         !  Function computes the interpolation coefficients for the stencils:
         !  - coeffstc = required for scalar cell value (these coefficients are
@@ -656,20 +732,20 @@ CONTAINS
             found = -12
         END IF
 
-        ! test coeffient for NAN
+        ! test coefficients for invalid floating-point values
         nanstenc = 0
         DO n = 1, velpts
-            IF (ABS(coeffstctsca(n)) < 0.0) THEN
+            IF (.NOT. IEEE_IS_FINITE(coeffstctsca(n))) THEN
                 nanstenc = 1
             END IF
-            IF (ABS(coeffstc(n)) < 0.0) THEN
+            IF (.NOT. IEEE_IS_FINITE(coeffstc(n))) THEN
                 nanstenc = 1
             END IF
         END DO
-        IF (ABS(acoeffstctsca) < 0.0) THEN
+        IF (.NOT. IEEE_IS_FINITE(acoeffstctsca)) THEN
             nanstenc = 1
         END IF
-        IF (ABS(acoeffstc) < 0.0) THEN
+        IF (.NOT. IEEE_IS_FINITE(acoeffstc)) THEN
             nanstenc = 1
         END IF
 
@@ -731,18 +807,19 @@ CONTAINS
         xpolisize = SIZE(xpoli)
         xpolrsize = SIZE(xpolr)
 
-        IF (pntxpoli+velpts+3 > xpolisize) THEN
+        ! Check if the arrays are large enough to hold the new stencil data
+        IF (pntxpoli+isize > xpolisize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-        IF (pntxpolr+velpts+2 > xpolrsize) THEN
+        IF (pntxpolr+rsize > xpolrsize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        ! TODO: sub2ind
+        ! 1st integer: linearized index of cell to be treated
         pntxpoli = pntxpoli + 1
-        xpoli(pntxpoli) = 1+(k-1)+(j-1)*kk+(i-1)*jj*kk
+        CALL sub2ind(xpoli(pntxpoli), k, j, i, kk, jj, ii)
 
-        ! 2nd integer: body id of this stencils
+        ! 2nd integer: body id of this stencil
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = body
 
@@ -756,21 +833,39 @@ CONTAINS
         xpolr(pntxpolr) = areabyvol
         xpolrvel(pntxpolr) = areabyvol
 
+        ! Check that the number of peripheral stencil points <= nperi
+        IF (velpts > nperi) THEN
+            WRITE(*, *) "Number of peripheral stencil points > ", nperi
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
         ! here with iteration over all N peripheral stencil points
         ! (velpts here carries the value of "chosenvelpts")
-        DO n = 1, velpts
+        DO n = 1, nperi
+            ! Keep incrementing the index counter anyway
             pntxpoli = pntxpoli + 1
-            xpoli(pntxpoli) = 1+(kstc(n)-1)+(jstc(n)-1)*kk+(istc(n)-1)*jj*kk
-
             pntxpolr = pntxpolr + 1
-            xpolr(pntxpolr) = coeffstc(n)
-            xpolrvel(pntxpolr) = coeffstcvel(n)
+            IF (n <= velpts) THEN
+                ! Setting the used values
+                xpoli(pntxpoli) = kstc(n) + (jstc(n)-1)*kk + (istc(n)-1)*jj*kk
+                xpolr(pntxpolr) = coeffstc(n)
+                xpolrvel(pntxpolr) = coeffstcvel(n)
+            ELSE
+                ! Setting unused dummy values (yields standard-sized stencils)
+                xpoli(pntxpoli) = -1
+                xpolr(pntxpolr) = -HUGE(0.0_realk)
+                xpolrvel(pntxpolr) = -HUGE(0.0_realk)
+            END IF
         END DO
 
         ! last real: setting the additive constant
         pntxpolr = pntxpolr + 1
         xpolr(pntxpolr) = acoeffstc
         xpolrvel(pntxpolr) = acoeffstcvel
+
+        ! >>> Integer counter += isize
+        ! >>> Real counter += rsize
+
     END SUBROUTINE tscastencilcoefffull
 
 
@@ -788,26 +883,27 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk), PARAMETER :: velpts = 0
-        INTEGER(intk) :: xpolisize, xpolrsize
+        INTEGER(intk) :: xpolisize, xpolrsize, n
 
         xpolisize = SIZE(xpoli)
         xpolrsize = SIZE(xpolr)
 
-        IF (pntxpoli+velpts+2 > xpolisize) THEN
+        ! Checking if the arrays are large enough to hold the new stencil data
+        IF (pntxpoli+isize > xpolisize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-        IF (pntxpolr+velpts+1 > xpolrsize) THEN
+        IF (pntxpolr+rsize > xpolrsize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
         ! increasing the index counter only by one
         ! (no iteration over points as in function above)
 
-        ! TODO: sub2ind
+        ! 1st integer: linearized index of cell to be treated
         pntxpoli = pntxpoli + 1
-        xpoli(pntxpoli) = 1+(k-1)+(j-1)*kk+(i-1)*jj*kk
+        CALL sub2ind(xpoli(pntxpoli), k, j, i, kk, jj, ii)
 
-        ! 2nd integer: body id of this stencils
+        ! 2nd integer: body id of this stencil
         pntxpoli = pntxpoli + 1
         xpoli(pntxpoli) = body
 
@@ -821,12 +917,32 @@ CONTAINS
         xpolr(pntxpolr) = areabyvol
         xpolrvel(pntxpolr) = areabyvol
 
-        ! -- no iteration over velpoints --
+        ! here with iteration over all N peripheral stencil points
+        ! (velpts here carries the value of "chosenvelpts")
+        DO n = 1, nperi
+            ! Keep incrementing the index counter anyway
+            pntxpoli = pntxpoli + 1
+            pntxpolr = pntxpolr + 1
+            IF (n <= velpts) THEN
+                ! Setting the used values
+                WRITE(*, *) "This case never applies as VELPTS = 0"
+                CALL errr(__FILE__, __LINE__)
+            ELSE
+                ! Setting unused dummy values (yields standard-sized stencils)
+                xpoli(pntxpoli) = -1
+                xpolr(pntxpolr) = -HUGE(0.0_realk)
+                xpolrvel(pntxpolr) = -HUGE(0.0_realk)
+            END IF
+        END DO
 
         ! 3rd real: setting the additive constant (here: equal to the final cell value)
         pntxpolr = pntxpolr + 1
         xpolr(pntxpolr) = 1.0
         xpolrvel(pntxpolr) =  1.0
+
+        ! >>> Integer counter += isize
+        ! >>> Real counter += rsize
+
     END SUBROUTINE tscastencilcoeffrescue
 
 
@@ -840,7 +956,6 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: t_p(:, :, :), qtt_p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:)
 
         CALL start_timer(412)
 
@@ -849,23 +964,38 @@ CONTAINS
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
-
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            IF (PRESENT(t)) CALL t%get_ptr(t_p, igrid)
-            IF (PRESENT(qtt)) CALL qtt%get_ptr(qtt_p, igrid)
+            ! Repeated lines of code, while more elegant solutions
+            ! are possible. Accepted as easier for the compiler...
+            IF (PRESENT(t)) THEN
+                CALL t%get_ptr(t_p, igrid)
+                SELECT CASE(ctyp)
+                CASE("C")
+                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
+                        scaxpoli(i)%arr, scaxpolr(i)%arr, t=t_p)
+                CASE("P")
+                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
+                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, t=t_p)
+                CASE DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+                END SELECT
+            END IF
 
-            SELECT CASE(ctyp)
-            CASE("C")
-                xpolr => scaxpolr(i)%arr
-            CASE("P")
-                xpolr => scaxpolrvel(i)%arr
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-            END SELECT
+            IF (PRESENT(qtt)) THEN
+                CALL qtt%get_ptr(qtt_p, igrid)
+                SELECT CASE(ctyp)
+                CASE("C")
+                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
+                        scaxpoli(i)%arr, scaxpolr(i)%arr, qtt=qtt_p)
+                CASE("P")
+                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
+                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, qtt=qtt_p)
+                CASE DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+                END SELECT
+            END IF
 
-            CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, scaxpoli(i)%arr, &
-                xpolr, t_p, qtt_p)
         END DO
 
         CALL stop_timer(412)
@@ -881,36 +1011,36 @@ CONTAINS
         REAL(realk), INTENT(inout), OPTIONAL :: t(kk*jj*ii), qtt(kk*jj*ii)
 
         ! Local variables
-        INTEGER(intk) :: cellcount, pntxpoli, pntxpolr
+        INTEGER(intk) :: cellcount, start_pntxpoli, start_pntxpolr
 
         IF (PRESENT(t)) THEN
-            pntxpoli = 1
-            pntxpolr = 1
             DO cellcount = 1, ncells
-                CALL wmxpoltsca_t(kk, jj, ii, sca, pntxpoli, pntxpolr, &
-                    xpoli, xpolr, t)
+                start_pntxpoli = (cellcount-1)*isize
+                start_pntxpolr = (cellcount-1)*rsize
+                CALL wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, &
+                    start_pntxpolr, xpoli, xpolr, t)
             END DO
         END IF
 
         IF (PRESENT(qtt)) THEN
-            pntxpoli = 1
-            pntxpolr = 1
             DO cellcount = 1, ncells
-                CALL wmxpoltsca_qtt(kk, jj, ii, sca, pntxpoli, pntxpolr, &
-                    xpoli, xpolr, qtt)
+                start_pntxpoli = (cellcount-1)*isize
+                start_pntxpolr = (cellcount-1)*rsize
+                CALL wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, &
+                    start_pntxpolr, xpoli, xpolr, qtt)
             END DO
         END IF
     END SUBROUTINE wmxpolsoltsca
 
 
-    SUBROUTINE wmxpoltsca_t(kk, jj, ii, sca, pntxpoli, pntxpolr, xpoli, &
-        xpolr, var)
+    SUBROUTINE wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
+        xpoli, xpolr, var)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(inout) :: pntxpoli
-        INTEGER(intk), INTENT(inout) :: pntxpolr
+        INTEGER(intk), INTENT(in) :: start_pntxpoli
+        INTEGER(intk), INTENT(in) :: start_pntxpolr
         INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
         REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
         REAL(realk), INTENT(inout) :: var(kk*jj*ii)
@@ -920,46 +1050,32 @@ CONTAINS
         REAL(realk) :: bcval, coeff, val
 
         ! 1st integer: identifier of the interface cell
-        intcell = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
+        intcell = xpoli(start_pntxpoli + 1)
 
         ! 2nd integer: body ID
-        body = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
+        body = xpoli(start_pntxpoli + 2)
 
         ! Look up boundary condition at bodyid
+        bctype = 1
+        bcval = 0.0
         IF (body > 0) THEN
             bctype = sca%geometries(body)%flag
             bcval = sca%geometries(body)%value
-        ELSE
-            ! default: adiabatic
-            ! TODO: Add body 0 to above list
-            bctype = 1
-            bcval = 0.0
         END IF
 
         ! 3rd integer: cells used for the stencil (may also be 0)
-        stencils = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
-
-        ! 1st real: areabyvol required for the flux
-        ! areabyvol = xpolr(pntxpolr)
-        pntxpolr = pntxpolr + 1
+        stencils = xpoli(start_pntxpoli + 3)
 
         ! Computing the fixed value
         val = 0.0
         DO n = 1, stencils
-            stcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            coeff = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-
+            stcell = xpoli(start_pntxpoli + 3 + n)
+            coeff = xpolr(start_pntxpolr + 1 + n)
             val = val + var(stcell)*coeff
         END DO
 
-        coeff = xpolr(pntxpolr)   ! additive constant "acoeffvel"
-        pntxpolr = pntxpolr + 1
+        ! additive constant "acoeffvel"
+        coeff = xpolr(start_pntxpolr + (2 + nperi))
 
         ! Set value at cell if BC is fixed value
         IF (bctype == 0) THEN
@@ -969,53 +1085,38 @@ CONTAINS
     END SUBROUTINE wmxpoltsca_t
 
 
-    SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, sca, pntxpoli, pntxpolr, xpoli, &
-            xpolr, var)
+    SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
+            xpoli, xpolr, var)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(inout) :: pntxpoli
-        INTEGER(intk), INTENT(inout) :: pntxpolr
+        INTEGER(intk), INTENT(in) :: start_pntxpoli
+        INTEGER(intk), INTENT(in) :: start_pntxpolr
         INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
         REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
         REAL(realk), INTENT(inout) :: var(kk*jj*ii)
 
         ! Local variables
-        INTEGER(intk) :: intcell, body, bctype, stencils
+        INTEGER(intk) :: intcell, body, bctype
         REAL(realk) :: areabyvol, bcval
 
         ! 1st integer: identifier of the interface cell
-        intcell = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
+        intcell = xpoli(start_pntxpoli + 1)
 
         ! 2nd integer: body ID
-        body = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
+        body = xpoli(start_pntxpoli + 2)
 
         ! Look up boundary condition at bodyid
+        bctype = 1
+        bcval = 0.0
         IF (body > 0) THEN
             bctype = sca%geometries(body)%flag
             bcval = sca%geometries(body)%value
-        ELSE
-            ! default: adiabatic
-            ! TODO: Add body 0 to above list
-            bctype = 1
-            bcval = 0.0
         END IF
 
-        ! 3rd integer: number of cells used for the stencil (may also be 0)
-        stencils = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
-
         ! 1st real: areabyvol required for the flux
-        areabyvol = xpolr(pntxpolr)
-        pntxpolr = pntxpolr + 1
-
-        ! Increment counter for unused variables
-        pntxpoli = pntxpoli + stencils     ! 'stcell'
-        pntxpolr = pntxpolr + stencils     ! 'coeff'
-        pntxpolr = pntxpolr + 1            ! Additive constant "acoeffvel"
+        areabyvol = xpolr(start_pntxpolr + 1)
 
         ! Add flux to list of fluxes
         IF (bctype == 1) THEN
@@ -1079,7 +1180,7 @@ CONTAINS
         CALL get_fieldptr(dz, "DZ", igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
         CALL writestencilsvtk(igrid, kk, jj, ii, ncells, xpoli, xpolr, &
-            x, y, z, dz, dy, dz)
+            x, y, z, dx, dy, dz)
     END SUBROUTINE writestencils_grid
 
 
@@ -1097,7 +1198,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: cellcount, intcell, stencils, nstencils, n, stcell, &
-            pntxpoli, pntxpolr, icell, istag(3)
+            icell, istag(3)
         INTEGER(intk) :: unit
         INTEGER(intk) :: k, j, i
         CHARACTER(len=mglet_filename_max) :: filename
@@ -1115,50 +1216,45 @@ CONTAINS
         WRITE(unit, '("ASCII")')
         WRITE(unit, '("DATASET UNSTRUCTURED_GRID")')
 
+        ! I1 = cell to be treated
+        ! I2 = body id of cell to be treated
+        ! I3 = number of peripheral stencil points (N = nperi)
+        ! I4 = 1D-index of peripheral stencil point 1 (or -1 if N<1)
+        ! I5 = 1D-index of peripheral stencil point 2 (or -1 if N<2)
+        ! ...
+        ! I(N+3) = 1D-index of peripheral stencil point N (or -1 if N<N)
+        ! -> therefore: isize = 3 + nperi
+
+        ! R1 = surface area divided by cell volume
+        ! R2 = coefficient for peripheral stencil point 1 (or dummy if N<1)
+        ! R3 = coefficient for peripheral stencil point 2 (or dummy if N<2)
+        ! ...
+        ! R(N+1) = coefficient for peripheral stencil point N (or dummy if N<N)
+        ! R(N+2) = additive constant (e.g. for Dirichlet conditions)
+        ! -> therefore: rsize = 2 + nperi
+
+
         ! Count nstencils
         nstencils = 0
-        pntxpoli = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! not needing this one either
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
             nstencils = nstencils + stencils
-            pntxpoli = pntxpoli + stencils
         END DO
 
         WRITE(unit, '("POINTS ", I0, " float")') nblgcells + nstencils
 
         ! Write points
-        pntxpoli = 1
-        DO cellcount = 1, nblgcells
-            ! intcell the same for all components
-            intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+        DO cellcount = 0, nblgcells-1
+            intcell = xpoli(isize*cellcount+1)
             CALL ind2sub(intcell, k, j, i, kk, jj, ii)
             WRITE(unit, '(G0, 1X, G0, 1X, G0)') &
                 x(i) + istag(1)*dx(i)/2.0, &
                 y(j) + istag(2)*dy(j)/2.0, &
                 z(k) + istag(3)*dz(k)/2.0
 
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+            stencils = xpoli(isize*cellcount+3)
             DO n = 1, stencils
-                stcell = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
+                stcell = xpoli(isize*cellcount+3+n)
                 CALL ind2sub(stcell, k, j, i, kk, jj, ii)
                 WRITE(unit, '(G0, 1X, G0, 1X, G0)') &
                     x(i) + istag(1)*dx(i)/2.0, &
@@ -1178,21 +1274,10 @@ CONTAINS
 
         ! Lines
         icell = 0
-        pntxpoli = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
             DO n = 1, stencils
                 WRITE(unit, '(I0, 1X, I0, 1X, I0)') 2, icell, icell+n
-                pntxpoli = pntxpoli + 1
             END DO
             icell = icell + 1 + stencils
         END DO
@@ -1211,40 +1296,18 @@ CONTAINS
         WRITE(unit, '("SCALARS stencils int 1")')
         WRITE(unit, '("LOOKUP_TABLE default")')
 
-        pntxpoli = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
             WRITE(unit, '(I0)') stencils
-            pntxpoli = pntxpoli + 1
-
             DO n = 1, stencils
                 WRITE(unit, '("-1")')
-                pntxpoli = pntxpoli + 1
             END DO
         END DO
 
-        pntxpoli = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
             DO n = 1, stencils
                 WRITE(unit, '(I0)') stencils
-                pntxpoli = pntxpoli + 1
             END DO
         END DO
 
@@ -1252,61 +1315,20 @@ CONTAINS
         WRITE(unit, '("SCALARS coefficient float 1")')
         WRITE(unit, '("LOOKUP_TABLE default")')
 
-        pntxpoli = 1
-        pntxpolr = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
 
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! >>> ghost cell
-            WRITE(unit, '(G0)') xpolr(pntxpolr+stencils)
-
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
+            WRITE(unit, '(G0)') xpolr(rsize*cellcount+2+nperi)
             DO n = 1, stencils
-                ! stcell = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                ! coeff = xpolr(pntxpolr)
-                ! stencil cell
-                WRITE(unit, '(G0)') xpolr(pntxpolr)
-                pntxpolr = pntxpolr + 1
+                WRITE(unit, '(G0)') xpolr(rsize*cellcount+1+n)
             END DO
-
-            ! coeff = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
         END DO
 
-        pntxpoli = 1
-        pntxpolr = 1
-        DO cellcount = 1, nblgcells
-            ! not needing this one
-            ! intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! body = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            stencils = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
+        DO cellcount = 0, nblgcells-1
+            stencils = xpoli(isize*cellcount+3)
             DO n = 1, stencils
-                ! stcell = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                ! coeff = xpolr(pntxpolr)
-                ! >>> stencil cell
-                WRITE(unit, '(G0)') xpolr(pntxpolr)
-                pntxpolr = pntxpolr + 1
+                WRITE(unit, '(G0)') xpolr(rsize*cellcount+1+n)
             END DO
-
-            ! coeff = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
         END DO
 
         ! Phew...
