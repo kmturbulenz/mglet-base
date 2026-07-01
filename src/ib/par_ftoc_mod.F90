@@ -6,6 +6,34 @@ MODULE par_ftoc_mod
     PRIVATE
 
     ! The information in the first dimension is sorted as follows:
+    !   Field 1: Start index in i-direction
+    !   Field 2: Stop index in i-direction
+    !   Field 3: Start index in j-direction
+    !   Field 4: Stop index in j-direction
+    !   Field 5: Start index in k-direction
+    !   Field 6: Stop index in k-direction
+    !   Field 7: ID of grid
+    !   Field 8: Level of grid
+    !   Field 9: Offset in the send buffer to pack to
+    INTEGER(intk), ALLOCATABLE, DIMENSION(:, :) :: packops_v1, packops_v2, &
+        packops_v3
+    !$omp declare target(packops_v1, packops_v2, packops_v3)
+
+    ! The information in the first dimension is sorted as follows:
+    !   Field 1: Start index in i-direction
+    !   Field 2: Stop index in i-direction
+    !   Field 3: Start index in j-direction
+    !   Field 4: Stop index in j-direction
+    !   Field 5: Start index in k-direction
+    !   Field 6: Stop index in k-direction
+    !   Field 7: ID of coarse grid
+    !   Field 8: Level of fine grid
+    !   Field 9: Offset in the recv buffer to unpack from
+    INTEGER(intk), ALLOCATABLE, DIMENSION(:, :) :: unpackops_v1, unpackops_v2, &
+        unpackops_v3
+    !$omp declare target(unpackops_v1, unpackops_v2, unpackops_v3)
+
+    ! The information in the first dimension is sorted as follows:
     !   Field 1: Rank of sending process
     !   Field 2: Rank of receiving process
     !   Field 3: ID of sending grid
@@ -17,10 +45,8 @@ MODULE par_ftoc_mod
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
 
-    ! Lists that hold the messages that are ACTUALLY sendt and received
+    ! Number of messages that are ACTUALLY sent and received
     INTEGER(intk) :: nsend, nrecv
-    INTEGER(int32), ALLOCATABLE :: recvlist(:)
-    INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
     ! Number of send and receive connections
     INTEGER(intk) :: isend = 0, irecv = 0
@@ -58,8 +84,13 @@ CONTAINS
         END IF
 
         CALL recv_all(ilevel)
-        CALL send_all(ilevel, v1, v2, v3, sumflag)
-        CALL process_bufs(v1, v2, v3)
+
+        CALL pack_v1(ilevel, v1, sumflag)
+        CALL pack_v2(ilevel, v2, sumflag)
+        CALL pack_v3(ilevel, v3, sumflag)
+
+        CALL send_all(ilevel)
+        CALL process_bufs(ilevel, v1, v2, v3)
 
         nrecv = 0
         nsend = 0
@@ -68,337 +99,179 @@ CONTAINS
     END SUBROUTINE par_ftoc_norm
 
 
-    ! Perform all Recv-calls
-    SUBROUTINE recv_all(ilevel)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-
+    SUBROUTINE precompute_packops()
         ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igridf, iface, facearea
-        INTEGER(int32) :: recvcounter, messagelength
+        INTEGER(intk) :: i, igrid, iface, buf_offset
+        INTEGER(intk) :: n1, n2, n3, i1, i2, i3
+        INTEGER(intk) :: target_level, maxlev
 
-        ! Post all receive calls
-        recvcounter = 0
-        messagelength = 0
-        nrecv = 0
-        recvidxlist = -HUGE(1_intk)
-        recvlist = 0
-
-        DO i = 1, irecv
-            ! Receiving grid
-            igridf = recvconns(3, i)        ! The sender/fine grid - the one with the PAR
-            IF (ilevel == level(igridf)) THEN
-                iprocnbr = recvconns(1, i)  ! The sender process (fine side)
-                iface = recvconns(5, i)     ! The face being sent - used to compute message length
-
-                facearea = face_area(igridf, iface)
-                recvidxlist(1, i) = iprocnbr
-                recvidxlist(2, i) = facearea
-                recvidxlist(3, i) = recvcounter + messagelength
-                messagelength = messagelength + facearea
-
-                IF (recvcounter + messagelength > idim_mg_bufs) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-            END IF
-
-            IF (messagelength > 0) THEN
-                IF (i == irecv) THEN
-                    CALL post_recv(iprocnbr, messagelength, recvcounter)
-                ELSE IF (recvconns(1, i + 1) /= iprocnbr) THEN
-                    CALL post_recv(iprocnbr, messagelength, recvcounter)
-                END IF
-            END IF
-        END DO
-    END SUBROUTINE recv_all
-
-
-    ! Perform a single Recv
-    SUBROUTINE post_recv(iprocnbr, messagelength, recvcounter)
-        ! Identifier of receive connection
-        INTEGER(int32), INTENT(in) :: iprocnbr
-        INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(inout) :: recvcounter
-
-        ! Local variables (for convenience)
-        ! none...
-
-        nrecv = nrecv + 1
-        recvlist(nrecv) = iprocnbr
-        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
-
-        recvcounter = recvcounter + messagelength
-        messagelength = 0
-    END SUBROUTINE post_recv
-
-
-    ! Perform all send calls
-    SUBROUTINE send_all(ilevel, v1, v2, v3, sum)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: v1, v2, v3
-        LOGICAL, INTENT(in) :: sum
-
-        ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igridf
-        INTEGER(int32) :: sendcounter, messagelength
-
-        ! Pack all buffers and send data
-        sendcounter = 0
-        messagelength = 0
-        nSend = 0
-
+        ! Count packops per component
+        n1 = 0
+        n2 = 0
+        n3 = 0
         DO i = 1, isend
-            igridf = sendconns(3, i)
-            iprocnbr = sendconns(2, i)
-            IF (ilevel == level(igridf)) THEN
-                CALL write_buffer(i, v1, v2, v3, sum, messagelength, &
-                    sendcounter)
-            END IF
-
-            IF (messagelength > 0) THEN
-                IF (i == iSend) THEN
-                    CALL post_send(iprocnbr, messagelength, sendcounter)
-                ELSE IF (sendconns(2, i + 1) /= iprocnbr) THEN
-                    CALL post_send(iprocnbr, messagelength, sendcounter)
-                END IF
-            END IF
+            iface = sendconns(5, i)
+            SELECT CASE (iface)
+            CASE (1, 2)
+                n1 = n1 + 1
+            CASE (3, 4)
+                n2 = n2 + 1
+            CASE (5, 6)
+                n3 = n3 + 1
+            END SELECT
         END DO
-    END SUBROUTINE send_all
+
+        ALLOCATE(packops_v1(9, n1))
+        ALLOCATE(packops_v2(9, n2))
+        ALLOCATE(packops_v3(9, n3))
+
+        ! Find max level
+        maxlev = 0
+        DO i = 1, isend
+            maxlev = MAX(maxlev, level(sendconns(3, i)))
+        END DO
+
+        ! Fill packops per component
+        i1 = 0
+        i2 = 0
+        i3 = 0
+        DO target_level = 1, maxlev
+            buf_offset = 0
+            DO i = 1, isend
+                igrid = sendconns(3, i)
+                IF (level(igrid) /= target_level) CYCLE
+                iface = sendconns(5, i)
+
+                SELECT CASE (iface)
+                CASE (1, 2)
+                    i1 = i1 + 1
+                    CALL set_packop(packops_v1(:, i1), igrid, iface, &
+                        buf_offset)
+                CASE (3, 4)
+                    i2 = i2 + 1
+                    CALL set_packop(packops_v2(:, i2), igrid, iface, &
+                        buf_offset)
+                CASE (5, 6)
+                    i3 = i3 + 1
+                    CALL set_packop(packops_v3(:, i3), igrid, iface, &
+                        buf_offset)
+                END SELECT
+
+                buf_offset = buf_offset + face_area(igrid, iface)
+            END DO
+        END DO
+
+        !$omp target enter data map(always, to: packops_v1, packops_v2, &
+        !$omp& packops_v3)
+    END SUBROUTINE precompute_packops
 
 
-    ! Perform a single send call
-    SUBROUTINE post_send(iprocnbr, messagelength, sendcounter)
+    SUBROUTINE set_packop(packop, igrid, iface, buf_offset)
         ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: iprocnbr
-        INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(inout) :: sendcounter
-
-        ! Local variables (for convenience)
-        ! none...
-
-        nsend = nsend + 1
-        CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(nsend))
-
-        sendcounter = sendcounter + messagelength
-        messagelength = 0
-    END SUBROUTINE post_send
-
-
-    ! Write Send buffers
-    !
-    ! Write the relevant fields into the send buffers
-    SUBROUTINE write_buffer(id, v1, v2, v3, sum, messagelength, sendcounter)
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: id
-        TYPE(field_t), INTENT(inout), TARGET :: v1, v2, v3
-        LOGICAL, INTENT(in) :: sum
-        INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(in) :: sendcounter
+        INTEGER(intk), INTENT(out) :: packop(9)
+        INTEGER(intk), INTENT(in) :: igrid, iface, buf_offset
 
         ! Local variables
-        TYPE(field_t), POINTER :: field
-        INTEGER(intk) :: igridf, iface
-        INTEGER(int32) :: facearea, offset
+        INTEGER(intk) :: kstart, kstop, jstart, jstop, istart, istop
 
-        ! Set variables from send table - *fine* grid and face
-        igridf = sendconns(3, id)
-        iface = sendconns(5, id)
+        CALL start_and_stop(kstart, kstop, jstart, jstop, istart, istop, &
+            igrid, iface)
 
-        ! Check that buffer does not overflow
-        facearea = face_area(igridf, iface)
-        IF (sendcounter + messagelength + facearea > idim_mg_bufs) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Only send interface-normal vector element
-        SELECT CASE (iface)
-        CASE (1, 2)
-            field => v1
-        CASE (3, 4)
-            field => v2
-        CASE (5, 6)
-            field => v3
-        END SELECT
-
-        ! Pack
-        offset = sendcounter + messagelength + 1
-        CALL pack_single(sendbuf(offset:offset+facearea-1), field, &
-            igridf, iface, sum)
-        messagelength = messagelength + facearea
-    END SUBROUTINE write_buffer
+        packop(1) = istart
+        packop(2) = istop
+        packop(3) = jstart
+        packop(4) = jstop
+        packop(5) = kstart
+        packop(6) = kstop
+        packop(7) = igrid
+        packop(8) = level(igrid)
+        packop(9) = buf_offset
+    END SUBROUTINE set_packop
 
 
-    SUBROUTINE pack_single(buf, field, igrid, iface, sum)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout), CONTIGUOUS :: buf(:)
-        TYPE(field_t), INTENT(inout) :: field
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(in) :: iface
-        LOGICAL, INTENT(in) :: sum
-
+    SUBROUTINE precompute_unpackops()
         ! Local variables
-        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
-        INTEGER(intk) :: k, j, i
-        INTEGER(intk) :: icount
-        REAL(realk) :: sum_ua, sum_a
-        REAL(realk), POINTER, CONTIGUOUS :: ff(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
+        INTEGER(intk) :: i, igridf, igridc, iface, ifacerecv, buf_offset
+        INTEGER(intk) :: n1, n2, n3, i1, i2, i3
+        INTEGER(intk) :: target_level, maxlev
 
-        icount = 0
-        CALL field%get_ptr(ff, igrid)
-        CALL start_and_stop(ksta, ksto, jsta, jsto, ista, isto, igrid, iface)
-
-        IF (sum) THEN
+        ! Count unpacks per component
+        n1 = 0
+        n2 = 0
+        n3 = 0
+        DO i = 1, irecv
+            iface = recvconns(5, i)
             SELECT CASE (iface)
             CASE (1, 2)
-                i = ista  ! ista and isto are the same in this case
-                DO j = jsta, jsto, 2
-                    DO k = ksta, ksto, 2
-                        icount = icount + 1
-                        buf(icount) = ff(k, j, i) + ff(k, j+1, i) &
-                            + ff(k+1, j, i) + ff(k+1, j+1, i)
-                    END DO
-                END DO
+                n1 = n1 + 1
             CASE (3, 4)
-                j = jsta  ! jsta and jsto are the same in this case
-                DO i = ista, isto, 2
-                    DO k = ksta, ksto, 2
-                        icount = icount + 1
-                        buf(icount) = ff(k, j, i) + ff(k, j, i+1) &
-                            + ff(k+1, j, i) + ff(k+1, j, i+1)
-                    END DO
-                END DO
+                n2 = n2 + 1
             CASE (5, 6)
-                k = ksta  ! ksta and ksto are the same in this case
-                DO i = ista, isto, 2
-                    DO j = jsta, jsto, 2
-                        icount = icount + 1
-                        buf(icount) = ff(k, j, i) + ff(k, j+1, i) &
-                            + ff(k, j, i+1) + ff(k, j+1, i+1)
-                    END DO
-                END DO
+                n3 = n3 + 1
             END SELECT
-        ELSE
-            CALL get_fieldptr(ddx, "DDX", igrid)
-            CALL get_fieldptr(ddy, "DDY", igrid)
-            CALL get_fieldptr(ddz, "DDZ", igrid)
+        END DO
 
-            SELECT CASE (iface)
-            CASE (1, 2)
-                i = ista  ! ista and isto are the same in this case
-                DO j = jsta, jsto, 2
-                    DO k = ksta, ksto, 2
-                        sum_ua = ff(k, j, i)*ddy(j)*ddz(k) &
-                            + ff(k, j+1, i)*ddy(j+1)*ddz(k) &
-                            + ff(k+1, j, i)*ddy(j)*ddz(k+1) &
-                            + ff(k+1, j+1, i)*ddy(j+1)*ddz(k+1)
+        ALLOCATE(unpackops_v1(9, n1))
+        ALLOCATE(unpackops_v2(9, n2))
+        ALLOCATE(unpackops_v3(9, n3))
 
-                        sum_a = (ddy(j) + ddy(j+1))*(ddz(k) + ddz(k+1))
+        ! Find max level
+        maxlev = 0
+        DO i = 1, irecv
+            maxlev = MAX(maxlev, level(recvconns(3, i)))
+        END DO
 
-                        icount = icount + 1
-                        buf(icount) = sum_ua/sum_a
-                    END DO
-                END DO
-            CASE (3, 4)
-                j = jsta  ! jsta and jsto are the same in this case
-                DO i = ista, isto, 2
-                    DO k = ksta, ksto, 2
-                        sum_ua = ff(k, j, i)*ddx(i)*ddz(k) &
-                            + ff(k, j, i+1)*ddx(i+1)*ddz(k) &
-                            + ff(k+1, j, i)*ddx(i)*ddz(k+1) &
-                            + ff(k+1, j, i+1)*ddx(i+1)*ddz(k+1)
+        ! Fill unpackops per component, with per-level dense buf_offset
+        i1 = 0
+        i2 = 0
+        i3 = 0
+        DO target_level = 1, maxlev
+            buf_offset = 0
+            DO i = 1, irecv
+                igridf = recvconns(3, i)
+                IF (level(igridf) /= target_level) CYCLE
+                igridc = recvconns(4, i)
+                iface = recvconns(5, i)
+                ifacerecv = recvconns(6, i)
 
-                        sum_a = (ddx(i) + ddx(i+1))*(ddz(k) + ddz(k+1))
+                SELECT CASE (iface)
+                CASE (1, 2)
+                    i1 = i1 + 1
+                    CALL set_unpackop(unpackops_v1(:, i1), igridf, igridc, &
+                        iface, ifacerecv, buf_offset)
+                CASE (3, 4)
+                    i2 = i2 + 1
+                    CALL set_unpackop(unpackops_v2(:, i2), igridf, igridc, &
+                        iface, ifacerecv, buf_offset)
+                CASE (5, 6)
+                    i3 = i3 + 1
+                    CALL set_unpackop(unpackops_v3(:, i3), igridf, igridc, &
+                        iface, ifacerecv, buf_offset)
+                END SELECT
 
-                        icount = icount + 1
-                        buf(icount) = sum_ua/sum_a
-                    END DO
-                END DO
-            CASE (5, 6)
-                k = ksta  ! ksta and ksto are the same in this case
-                DO i = ista, isto, 2
-                    DO j = jsta, jsto, 2
-                        sum_ua = ff(k, j, i)*ddx(i)*ddy(j) &
-                            + ff(k, j+1, i)*ddx(i)*ddy(j+1) &
-                            + ff(k, j, i+1)*ddx(i+1)*ddy(j) &
-                            + ff(k, j+1, i+1)*ddx(i+1)*ddy(j+1)
+                buf_offset = buf_offset + face_area(igridf, iface)
+            END DO
+        END DO
 
-                        sum_a = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1))
-
-                        icount = icount + 1
-                        buf(icount) = sum_ua/sum_a
-                    END DO
-                END DO
-            END SELECT
-        END IF
-    END SUBROUTINE pack_single
+        !$omp target enter data map(always, to: unpackops_v1, unpackops_v2, &
+        !$omp& unpackops_v3)
+    END SUBROUTINE precompute_unpackops
 
 
-    ! Read Receive buffers
-    !
-    ! Write the contents of the receive buffers back in their
-    ! matching fields
-    SUBROUTINE read_buffer(id, v1, v2, v3)
-
+    SUBROUTINE set_unpackop(unpackop, igridf, igridc, iface, ifacerecv, &
+            buf_offset)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: id
-        TYPE(field_t), INTENT(inout), TARGET :: v1, v2, v3
+        INTEGER(intk), INTENT(out) :: unpackop(9)
+        INTEGER(intk), INTENT(in) :: igridf, igridc, iface, ifacerecv
+        INTEGER(intk), INTENT(in) :: buf_offset
 
         ! Local variables
-        TYPE(field_t), POINTER :: field
-        INTEGER(intk) :: igridf, igridc, iface, ifacerecv
-        INTEGER(int32) :: facearea
-        INTEGER(int32) :: offset
-
-        ! Set variables from send table - *fine* grid and face
-        igridf = recvconns(3, id)
-
-        ! Only send interface-normal vector element
-        iface = recvconns(5, id)  ! Face being sent - not received!
-        SELECT CASE (iface)
-        CASE (1, 2)
-            field => v1
-        CASE (3, 4)
-            field => v2
-        CASE (5, 6)
-            field => v3
-        END SELECT
-
-        ! Receiving face is difference from sending face - can also be
-        ! internal - in that case it is -1
-        igridc = recvconns(4, id)
-        ifacerecv = recvconns(6, id)
-
-        ! Unpack
-        offset = recvidxlist(3, id) + 1
-        facearea = face_area(igridf, iface)
-        CALL unpack_single(recvbuf(offset:offset+facearea-1), field, &
-            igridf, igridc, iface, ifacerecv)
-    END SUBROUTINE read_buffer
-
-
-    SUBROUTINE unpack_single(buf, field, igridf, igridc, iface, ifacerecv)
-        ! Subroutine arguments
-        REAL(realk), INTENT(in), CONTIGUOUS :: buf(:)
-        TYPE(field_t), INTENT(inout) :: field
-        INTEGER(intk), INTENT(in) :: igridf
-        INTEGER(intk), INTENT(in) :: igridc
-        INTEGER(intk), INTENT(in) :: iface
-        INTEGER(intk), INTENT(in) :: ifacerecv
-
-        ! Local variables
-        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
         INTEGER(intk) :: ipos, jpos, kpos
-        INTEGER(intk) :: k, j, i
         INTEGER(intk) :: kkc, jjc, iic
         INTEGER(intk) :: kkf, jjf, iif
-        INTEGER(intk) :: icount
-        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
 
-        CALL get_mgdims(kkf, jjf, iif, igridf)   ! Dimensions of fine grid
+        CALL get_mgdims(kkf, jjf, iif, igridf)
         ipos = iposition(igridf)  ! Position of fine grid within coarse grid
         jpos = jposition(igridf)
         kpos = kposition(igridf)
@@ -415,7 +288,7 @@ CONTAINS
             ! Internal to the grid. We need to inspect the position of the
             ! fine grid within the coarse grid to determine the start and
             ! stop indices.
-            SELECT CASE (iface)  ! The sending face determine position
+            SELECT CASE (iface)  ! The sending face determines position
             CASE (1)
                 ista = ipos-1
                 isto = ista
@@ -439,7 +312,7 @@ CONTAINS
             ! The PAR on the fine-grid lies on top of an external face of this
             ! grid (it has to be a CON - everything else would be an error).
             CALL get_mgdims(kkc, jjc, iic, igridc)   ! Dimensions of coarse grid
-            SELECT CASE (ifacerecv)  ! The receiving face determine position
+            SELECT CASE (ifacerecv)  ! The receiving face determines position
             CASE (1)
                 ista = 2
                 isto = 2
@@ -461,53 +334,502 @@ CONTAINS
             END SELECT
         END IF
 
-        ! Unpack
-        icount = 0
-        CALL field%get_ptr(fc, igridc)
-        DO i = ista, isto
-            DO j = jsta, jsto
-                DO k = ksta, ksto
-                    icount = icount + 1
-                    fc(k, j, i) = buf(icount)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE unpack_single
+        unpackop(1) = ista
+        unpackop(2) = isto
+        unpackop(3) = jsta
+        unpackop(4) = jsto
+        unpackop(5) = ksta
+        unpackop(6) = ksto
+        unpackop(7) = igridc
+        unpackop(8) = level(igridf)
+        unpackop(9) = buf_offset
+    END SUBROUTINE set_unpackop
 
 
-    ! Process receive buffers as they arrive, wait for send
-    ! buffers to be free
-    SUBROUTINE process_bufs(v1, v2, v3)
+    SUBROUTINE pack_v1(ilevel, v1, sum)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: v1, v2, v3
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v1
+        LOGICAL, INTENT(in) :: sum
 
         ! Local variables
-        INTEGER(int32) :: idx, i
-        TYPE(MPI_Status) :: recvstatus
-        INTEGER(int32) :: recvmessagelen
-        INTEGER(int32) :: unpacklen
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: jstride, kcount
+        INTEGER(intk) :: ista, jsta, ksta, iend, jend, kend
+        INTEGER(intk) :: igrid, lvl, buf_offset
+        REAL(realk) :: sum_ua, sum_a
+        REAL(realk), POINTER, CONTIGUOUS :: ff(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ddy(:), ddz(:)
+        TYPE(field_t), POINTER :: ddy_f, ddz_f
 
-        DO WHILE (.TRUE.)
-            IF (nrecv == 0) EXIT
-            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
-            IF (idx == MPI_UNDEFINED) EXIT
+        CALL get_field(ddy_f, "DDY")
+        CALL get_field(ddz_f, "DDZ")
 
-            CALL MPI_Get_count(recvstatus, mglet_mpi_real, recvmessagelen)
+        npack = SIZE(packops_v1, dim=2)
 
-            unpacklen = 0
-            DO i = 1, irecv
-                IF (recvidxlist(1, i) == recvlist(idx)) THEN
-                    CALL read_buffer(i, v1, v2, v3)
-                    unpacklen = unpacklen + recvidxlist(2, i)
-                END IF
-            END DO
+        !$omp target teams distribute private(ff, ddy, ddz, i, j, k, kcount, &
+        !$omp& igrid, lvl, ista, jsta, ksta, iend, jend, kend, buf_offset, &
+        !$omp& jstride, sum_ua, sum_a, idx)
+        DO ipack = 1, npack
+            CALL get_packop(ista, iend, jsta, jend, ksta, kend, &
+                igrid, lvl, buf_offset, packops_v1(:, ipack))
 
-            IF (recvmessagelen /= unpacklen) THEN
-                CALL errr(__FILE__, __LINE__)
+            IF (lvl /= ilevel) CYCLE
+
+            CALL get_grid3_real(ff, v1, igrid)
+            CALL get_grid1_real(ddy, ddy_f, igrid)
+            CALL get_grid1_real(ddz, ddz_f, igrid)
+
+            i = ista
+            kcount = (kend - ksta) / 2 + 1
+
+            IF (sum) THEN
+                !$omp parallel do collapse(2) private(jstride, idx)
+                DO j = jsta, jend, 2
+                    DO k = ksta, kend, 2
+                        ! Recompute to collapse
+                        jstride = ((j - jsta) / 2) * kcount
+                        idx = buf_offset + jstride + (k - ksta) / 2 + 1
+                        sendbuf(idx) = &
+                            ff(k, j, i) + ff(k, j+1, i) &
+                            + ff(k+1, j, i) + ff(k+1, j+1, i)
+                    END DO
+                END DO
+                !$omp end parallel do
+            ELSE
+                !$omp parallel do collapse(2) private(jstride, sum_ua, sum_a, &
+                !$omp& idx)
+                DO j = jsta, jend, 2
+                    DO k = ksta, kend, 2
+                        ! Recompute to collapse
+                        jstride = ((j - jsta) / 2) * kcount
+                        sum_ua = ff(k, j, i) * ddy(j) * ddz(k) &
+                            + ff(k, j+1, i) * ddy(j+1) * ddz(k) &
+                            + ff(k+1, j, i) * ddy(j) * ddz(k+1) &
+                            + ff(k+1, j+1, i) * ddy(j+1) * ddz(k+1)
+                        sum_a  = (ddy(j) + ddy(j+1)) * (ddz(k) + ddz(k+1))
+
+                        idx = buf_offset + jstride + (k - ksta)/2 + 1
+                        sendbuf(idx) = sum_ua / sum_a
+                    END DO
+                END DO
+                !$omp end parallel do
             END IF
         END DO
-        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+        !$omp end target teams distribute
+    END SUBROUTINE pack_v1
+
+
+    SUBROUTINE pack_v2(ilevel, v2, sum)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v2
+        LOGICAL, INTENT(in) :: sum
+
+        ! Local variables
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: istride, kcount
+        INTEGER(intk) :: ista, jsta, ksta, iend, jend, kend
+        INTEGER(intk) :: igrid, lvl, buf_offset
+        REAL(realk) :: sum_ua, sum_a
+        REAL(realk), POINTER, CONTIGUOUS :: ff(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddz(:)
+        TYPE(field_t), POINTER :: ddx_f, ddz_f
+
+        CALL get_field(ddx_f, "DDX")
+        CALL get_field(ddz_f, "DDZ")
+
+        npack = SIZE(packops_v2, dim=2)
+
+        !$omp target teams distribute private(ff, ddx, ddz, i, j, k, kcount, &
+        !$omp& igrid, lvl, ista, jsta, ksta, iend, jend, kend, buf_offset, &
+        !$omp& istride, sum_ua, sum_a, idx)
+        DO ipack = 1, npack
+            CALL get_packop(ista, iend, jsta, jend, ksta, kend, &
+                igrid, lvl, buf_offset, packops_v2(:, ipack))
+
+            IF (lvl /= ilevel) CYCLE
+
+            CALL get_grid3_real(ff, v2, igrid)
+            CALL get_grid1_real(ddx, ddx_f, igrid)
+            CALL get_grid1_real(ddz, ddz_f, igrid)
+
+            j = jsta
+            kcount = (kend - ksta) / 2 + 1
+
+            IF (sum) THEN
+                !$omp parallel do collapse(2) private(istride, idx)
+                DO i = ista, iend, 2
+                    DO k = ksta, kend, 2
+                        ! Recompute to collapse later
+                        istride = ((i - ista) / 2) * kcount
+                        idx = buf_offset + istride + (k - ksta) / 2 + 1
+                        sendbuf(idx) = &
+                            ff(k, j, i) + ff(k, j, i+1) &
+                            + ff(k+1, j, i) + ff(k+1, j, i+1)
+                    END DO
+                END DO
+                !$omp end parallel do
+            ELSE
+                !$omp parallel do collapse(2) private(istride, sum_ua, sum_a, &
+                !$omp& idx)
+                DO i = ista, iend, 2
+                    DO k = ksta, kend, 2
+                        ! Recompute to collapse later
+                        istride = ((i - ista) / 2) * kcount
+                        sum_ua = ff(k, j, i) * ddx(i) * ddz(k) &
+                            + ff(k, j, i+1) * ddx(i+1) * ddz(k) &
+                            + ff(k+1, j, i) * ddx(i) * ddz(k+1) &
+                            + ff(k+1, j, i+1) * ddx(i+1) * ddz(k+1)
+                        sum_a = (ddx(i) + ddx(i+1)) * (ddz(k) + ddz(k+1))
+
+                        idx = buf_offset + istride + (k - ksta) / 2 + 1
+                        sendbuf(idx) = sum_ua / sum_a
+                    END DO
+                END DO
+                !$omp end parallel do
+            END IF
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE pack_v2
+
+
+    SUBROUTINE pack_v3(ilevel, v3, sum)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v3
+        LOGICAL, INTENT(in) :: sum
+
+        ! Local variables
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: istride, jcount
+        INTEGER(intk) :: ista, jsta, ksta, iend, jend, kend
+        INTEGER(intk) :: igrid, lvl, buf_offset
+        REAL(realk) :: sum_ua, sum_a
+        REAL(realk), POINTER, CONTIGUOUS :: ff(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:)
+        TYPE(field_t), POINTER :: ddx_f, ddy_f
+
+        CALL get_field(ddx_f, "DDX")
+        CALL get_field(ddy_f, "DDY")
+
+        npack = SIZE(packops_v3, dim=2)
+
+        !$omp target teams distribute private(ff, ddx, ddy, i, j, k, jcount, &
+        !$omp& igrid, lvl, ista, jsta, ksta, iend, jend, kend, buf_offset, &
+        !$omp& istride, sum_ua, sum_a, idx)
+        DO ipack = 1, npack
+            CALL get_packop(ista, iend, jsta, jend, ksta, kend, &
+                igrid, lvl, buf_offset, packops_v3(:, ipack))
+
+            IF (lvl /= ilevel) CYCLE
+
+            CALL get_grid3_real(ff, v3, igrid)
+            CALL get_grid1_real(ddx, ddx_f, igrid)
+            CALL get_grid1_real(ddy, ddy_f, igrid)
+
+            k = ksta
+            jcount = (jend - jsta) / 2 + 1
+
+            IF (sum) THEN
+                !$omp parallel do collapse(2) private(istride, idx)
+                DO i = ista, iend, 2
+                    DO j = jsta, jend, 2
+                        ! Recompute to collapse later
+                        istride = ((i - ista) / 2) * jcount
+                        idx = buf_offset + istride + (j - jsta) / 2 + 1
+                        sendbuf(idx) = &
+                            ff(k, j, i) + ff(k, j+1, i) &
+                            + ff(k, j, i+1) + ff(k, j+1, i+1)
+                    END DO
+                END DO
+                !$omp end parallel do
+            ELSE
+                !$omp parallel do collapse(2) private(istride, sum_ua, sum_a, &
+                !$omp& idx)
+                DO i = ista, iend, 2
+                    DO j = jsta, jend, 2
+                        ! Recompute to collapse later
+                        istride = ((i - ista) / 2) * jcount
+                        sum_ua = ff(k, j, i) * ddx(i) * ddy(j) &
+                            + ff(k, j+1, i) * ddx(i) * ddy(j+1) &
+                            + ff(k, j, i+1) * ddx(i+1) * ddy(j) &
+                            + ff(k, j+1, i+1) * ddx(i+1) * ddy(j+1)
+                        sum_a = (ddx(i) + ddx(i+1)) * (ddy(j) + ddy(j+1))
+
+                        idx = buf_offset + istride + (j - jsta) / 2 + 1
+                        sendbuf(idx) = sum_ua / sum_a
+                    END DO
+                END DO
+                !$omp end parallel do
+            END IF
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE pack_v3
+
+
+    ! Perform all Recv-calls
+    SUBROUTINE recv_all(ilevel)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr, igridf, iface
+        INTEGER(int32) :: recvcounter, messagelength
+
+        ! Post all receive calls
+        recvcounter = 0
+        messagelength = 0
+        nrecv = 0
+
+        DO i = 1, irecv
+            ! Receiving grid
+            igridf = recvconns(3, i)        ! The sender/fine grid - the one with the PAR
+            IF (ilevel == level(igridf)) THEN
+                iprocnbr = recvconns(1, i)  ! The sender process (fine side)
+                iface = recvconns(5, i)     ! The face being sent - used to compute message length
+
+                messagelength = messagelength + face_area(igridf, iface)
+
+                IF (recvcounter + messagelength > idim_mg_bufs) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+
+            IF (messagelength > 0) THEN
+                IF (i == irecv) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
+                ELSE IF (recvconns(1, i + 1) /= iprocnbr) THEN
+                    CALL post_recv(iprocnbr, messagelength, recvcounter)
+                END IF
+            END IF
+        END DO
+    END SUBROUTINE recv_all
+
+
+    ! Perform a single Recv
+    SUBROUTINE post_recv(iprocnbr, messagelength, recvcounter)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: recvcounter
+
+        ! Local variables (for convenience)
+        ! none...
+
+        nrecv = nrecv + 1
+        !$omp target data use_device_addr(recvbuf)
+        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
+        !$omp end target data
+
+        recvcounter = recvcounter + messagelength
+        messagelength = 0
+    END SUBROUTINE post_recv
+
+
+    ! Perform all send calls
+    SUBROUTINE send_all(ilevel)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr, igridf, iface
+        INTEGER(int32) :: sendcounter, messagelength
+
+        sendcounter = 0
+        messagelength = 0
+        nsend = 0
+
+        DO i = 1, isend
+            igridf = sendconns(3, i)
+            iprocnbr = sendconns(2, i)
+
+            IF (ilevel == level(igridf)) THEN
+                iface = sendconns(5, i)
+                messagelength = messagelength + face_area(igridf, iface)
+
+                IF (sendcounter + messagelength > idim_mg_bufs) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+
+            IF (messagelength > 0) THEN
+                IF (i == isend) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
+                ELSE IF (sendconns(2, i + 1) /= iprocnbr) THEN
+                    CALL post_send(iprocnbr, messagelength, sendcounter)
+                END IF
+            END IF
+        END DO
+    END SUBROUTINE send_all
+
+
+    ! Perform a single send call
+    SUBROUTINE post_send(iprocnbr, messagelength, sendcounter)
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: sendcounter
+
+        ! Local variables (for convenience)
+        ! none...
+
+        nsend = nsend + 1
+        !$omp target data use_device_addr(sendbuf)
+        CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(nsend))
+        !$omp end target data
+
+        sendcounter = sendcounter + messagelength
+        messagelength = 0
+    END SUBROUTINE post_send
+
+
+    ! Process receive buffers after all receives complete,
+    ! then wait for send buffers to be free
+    SUBROUTINE process_bufs(ilevel, v1, v2, v3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v1, v2, v3
+
+        IF (nrecv > 0) THEN
+            CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
+
+            CALL unpack_v1(ilevel, v1)
+            CALL unpack_v2(ilevel, v2)
+            CALL unpack_v3(ilevel, v3)
+        END IF
+
+        IF (nsend > 0) THEN
+            CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+        END IF
     END SUBROUTINE process_bufs
+
+
+    SUBROUTINE unpack_v1(ilevel, v1)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v1
+
+        ! Local variables
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: jstride, kcount
+        INTEGER(intk) :: ista, iend, jsta, jend, ksta, kend
+        INTEGER(intk) :: igridc, levelf, buf_offset
+        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+
+        npack = SIZE(unpackops_v1, dim=2)
+
+        !$omp target teams distribute private(fc, kcount, ista, iend, jsta, &
+        !$omp& jend, ksta, kend, igridc, levelf, buf_offset, i, j, k, &
+        !$omp& jstride, idx)
+        DO ipack = 1, npack
+            CALL get_unpackop(ista, iend, jsta, jend, ksta, kend, &
+                igridc, levelf, buf_offset, unpackops_v1(:, ipack))
+
+            IF (levelf /= ilevel) CYCLE
+            CALL get_grid3_real(fc, v1, igridc)
+            kcount = (kend - ksta) + 1
+
+            !$omp parallel do collapse(3) private(jstride, idx)
+            DO i = ista, iend
+                DO j = jsta, jend
+                    DO k = ksta, kend
+                        ! Recompute to collapse later
+                        jstride = (j - jsta) * kcount
+                        idx = buf_offset + jstride + (k - ksta) + 1
+                        fc(k, j, i) = recvbuf(idx)
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE unpack_v1
+
+
+    SUBROUTINE unpack_v2(ilevel, v2)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v2
+
+        ! Local variables
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: istride, kcount
+        INTEGER(intk) :: ista, iend, jsta, jend, ksta, kend
+        INTEGER(intk) :: igridc, levelf, buf_offset
+        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+
+        npack = SIZE(unpackops_v2, dim=2)
+
+        !$omp target teams distribute private(fc, kcount, ista, iend, jsta, &
+        !$omp& jend, ksta, kend, igridc, levelf, buf_offset, i, j, k, &
+        !$omp& istride, idx)
+        DO ipack = 1, npack
+            CALL get_unpackop(ista, iend, jsta, jend, ksta, kend, &
+                igridc, levelf, buf_offset, unpackops_v2(:, ipack))
+
+            IF (levelf /= ilevel) CYCLE
+            CALL get_grid3_real(fc, v2, igridc)
+            kcount = (kend - ksta) + 1
+
+            !$omp parallel do collapse(3) private(istride, idx)
+            DO i = ista, iend
+                DO j = jsta, jend
+                    DO k = ksta, kend
+                        istride = (i - ista) * kcount
+                        idx = buf_offset + istride + (k - ksta) + 1
+                        fc(k, j, i) = recvbuf(idx)
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE unpack_v2
+
+
+    SUBROUTINE unpack_v3(ilevel, v3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: v3
+
+        ! Local variables
+        INTEGER(intk) :: ipack, npack, i, j, k, idx
+        INTEGER(intk) :: istride, jcount
+        INTEGER(intk) :: ista, iend, jsta, jend, ksta, kend
+        INTEGER(intk) :: igridc, levelf, buf_offset
+        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+
+        npack = SIZE(unpackops_v3, dim=2)
+
+        !$omp target teams distribute private(fc, jcount, ista, iend, jsta, &
+        !$omp& jend, ksta, kend, igridc, levelf, buf_offset, i, j, k, &
+        !$omp& istride, idx)
+        DO ipack = 1, npack
+            CALL get_unpackop(ista, iend, jsta, jend, ksta, kend, &
+                igridc, levelf, buf_offset, unpackops_v3(:, ipack))
+
+            IF (levelf /= ilevel) CYCLE
+            CALL get_grid3_real(fc, v3, igridc)
+            jcount = (jend - jsta) + 1
+
+            !$omp parallel do collapse(3) private(istride, idx)
+            DO i = ista, iend
+                DO j = jsta, jend
+                    DO k = ksta, kend
+                        ! Recompute to collapse later
+                        istride = (i - ista) * jcount
+                        idx = buf_offset + istride + (j - jsta) + 1
+                        fc(k, j, i) = recvbuf(idx)
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE unpack_v3
 
 
     SUBROUTINE init_par_ftoc()
@@ -534,12 +856,8 @@ CONTAINS
 
         ! The maximum number of concurrent communications are the number
         ! of processes
-        ALLOCATE(recvidxlist(3, maxconns))
-        ALLOCATE(recvlist(numprocs))
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
-        recvidxlist = 0
-        recvlist = 0
 
         ALLOCATE(sendcounts(0:numprocs-1))
         ALLOCATE(sdispls(0:numprocs-1))
@@ -727,6 +1045,9 @@ CONTAINS
             recvconns, recvcounts, rdispls, MPI_INTEGER, &
             MPI_COMM_WORLD)
 
+        CALL precompute_packops()
+        CALL precompute_unpackops()
+
         is_init = .TRUE.
         nsend = 0
         nrecv = 0
@@ -810,14 +1131,59 @@ CONTAINS
     END SUBROUTINE start_and_stop
 
 
+    SUBROUTINE get_packop(ista, iend, jsta, jend, ksta, kend, igrid, &
+        lvl, buf_offset, packop)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(out) :: ista, iend, jsta, jend, ksta, kend
+        INTEGER(intk), INTENT(out) :: igrid, lvl, buf_offset
+        INTEGER(intk), INTENT(in) :: packop(9)
+
+        ista = packop(1)
+        iend = packop(2)
+        jsta = packop(3)
+        jend = packop(4)
+        ksta = packop(5)
+        kend = packop(6)
+        igrid = packop(7)
+        lvl = packop(8)
+        buf_offset = packop(9)
+    END SUBROUTINE get_packop
+
+
+    SUBROUTINE get_unpackop(ista, isto, jsta, jsto, ksta, ksto, igridc, &
+        levelf, buf_offset, unpackop)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(out) :: ista, isto, jsta, jsto, ksta, ksto
+        INTEGER(intk), INTENT(out) :: igridc, levelf, buf_offset
+        INTEGER(intk), INTENT(in) :: unpackop(9)
+
+        ista = unpackop(1)
+        isto = unpackop(2)
+        jsta = unpackop(3)
+        jsto = unpackop(4)
+        ksta = unpackop(5)
+        ksto = unpackop(6)
+        igridc = unpackop(7)
+        levelf = unpackop(8)
+        buf_offset = unpackop(9)
+    END SUBROUTINE get_unpackop
+
+
     SUBROUTINE finish_par_ftoc()
         DEALLOCATE(sendconns)
         DEALLOCATE(recvconns)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
-        DEALLOCATE(recvlist)
-        DEALLOCATE(recvidxlist)
+        !$omp target exit data map(always, delete: packops_v1, packops_v2, &
+        !$omp& packops_v3)
+        !$omp target exit data map(always, delete: unpackops_v1, unpackops_v2, &
+        !$omp& unpackops_v3)
+        DEALLOCATE(packops_v1)
+        DEALLOCATE(packops_v2)
+        DEALLOCATE(packops_v3)
+        DEALLOCATE(unpackops_v1)
+        DEALLOCATE(unpackops_v2)
+        DEALLOCATE(unpackops_v3)
         is_init = .FALSE.
     END SUBROUTINE finish_par_ftoc
-
 END MODULE par_ftoc_mod
