@@ -10,6 +10,7 @@ MODULE gc_scastencils_mod
     INTEGER(intk), ALLOCATABLE, TARGET :: scaxpoli(:, :)
     REAL(realk), ALLOCATABLE, TARGET :: scaxpolr(:, :), scaxpolrvel(:, :)
     INTEGER(intk), ALLOCATABLE :: scanblg(:)
+    !$omp declare target(scaxpoli, scaxpolr, scaxpolrvel, scanblg)
 
     INTEGER(intk), PARAMETER :: nperi = 6 ! = up to 6 peripheral stencil points
     INTEGER(intk), PARAMETER :: isize = 3 + nperi
@@ -87,6 +88,12 @@ CONTAINS
                 gc%bodyid(ipp:ipp+ncells-1))
         END DO
 
+        ! Potential optimization when stencils have to be created more often:
+        ! Only transfer the actually used number of stencils per grid
+        !$omp target enter data map(always, to: scaxpoli, scaxpolr, &
+        !$omp& scaxpolrvel, scanblg)
+
+
         ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
             CALL writestencils()
@@ -95,6 +102,8 @@ CONTAINS
 
 
     SUBROUTINE finish_scastencils()
+        !$omp target exit data map(always, delete: scaxpoli, scaxpolr, &
+        !$omp& scaxpolrvel, scanblg)
         DEALLOCATE(scaxpoli)
         DEALLOCATE(scaxpolr)
         DEALLOCATE(scaxpolrvel)
@@ -952,6 +961,7 @@ CONTAINS
 
 
     SUBROUTINE set_scastencils(ctyp, sca, t, qtt)
+        USE fieldmapper_mod
         ! Subroutine arguments
         CHARACTER(len=1), INTENT(in) :: ctyp
         TYPE(scalar_t), INTENT(in) :: sca
@@ -978,11 +988,19 @@ CONTAINS
         END SELECT
 
         IF (PRESENT(t)) THEN
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update to(mapper(field_t__map_arr): t)
             CALL set_scastencils_t(xpolr, sca, t)
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update from(mapper(field_t__map_arr): t)
         END IF
 
         IF (PRESENT(qtt)) THEN
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update to(mapper(field_t__map_arr): qtt)
             CALL set_scastencils_qtt(xpolr, sca, qtt)
+            ! TODO(offload): Remove once surrounding routines are offloaded
+            !$omp target update from(mapper(field_t__map_arr): qtt)
         END IF
 
         CALL stop_timer(412)
@@ -999,6 +1017,8 @@ CONTAINS
         INTEGER(intk) :: i, igrid, kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
 
+        !$omp target teams distribute private(igrid, kk, jj, ii, t) &
+        !$omp& map(to: sca%geometries)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -1007,14 +1027,18 @@ CONTAINS
 
             ! Pass stencil i as index to avoid slicing (:, i), which the
             ! compiler does not accept with a CONTIGUOUS shape
+            !$omp parallel
             CALL wmxpoltsca_t(kk, jj, ii, scanblg(i), sca, scaxpoli, xpolr, i, &
                 t)
+            !$omp end parallel
         END DO
+        !$omp end target teams distribute
     END SUBROUTINE set_scastencils_t
 
 
     SUBROUTINE wmxpoltsca_t(kk, jj, ii, ncells, sca, xpoli, xpolr, istencil, &
         var)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         INTEGER(intk), INTENT(in) :: ncells
@@ -1029,6 +1053,8 @@ CONTAINS
         INTEGER(intk) :: intcell, body, bctype, stencils, n, stcell
         REAL(realk) :: bcval, coeff, val
 
+        !$omp do private(start_pntxpoli, start_pntxpolr, intcell, body, &
+        !$omp& bctype, bcval, stencils, val, n, stcell, coeff)
         DO cellcount = 1, ncells
             start_pntxpoli = (cellcount-1)*isize
             start_pntxpolr = (cellcount-1)*rsize
@@ -1067,6 +1093,7 @@ CONTAINS
                 var(intcell) = val
             END IF
         END DO
+        !$omp end do
     END SUBROUTINE wmxpoltsca_t
 
 
@@ -1080,6 +1107,8 @@ CONTAINS
         INTEGER(intk) :: i, igrid, kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: qtt(:, :, :)
 
+        !$omp target teams distribute private(igrid, kk, jj, ii, qtt) &
+        !$omp& map(to: sca%geometries)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -1088,14 +1117,18 @@ CONTAINS
 
             ! Pass stencil i as index to avoid slicing (:, i), which the
             ! compiler does not accept with a CONTIGUOUS shape
+            !$omp parallel
             CALL wmxpoltsca_qtt(kk, jj, ii, scanblg(i), sca, scaxpoli, xpolr, &
                 i, qtt)
+            !$omp end parallel
         END DO
+        !$omp end target teams distribute
     END SUBROUTINE set_scastencils_qtt
 
 
     SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, ncells, sca, xpoli, xpolr, istencil, &
         var)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         INTEGER(intk), INTENT(in) :: ncells
@@ -1110,6 +1143,8 @@ CONTAINS
         INTEGER(intk) :: intcell, body, bctype
         REAL(realk) :: areabyvol, bcval
 
+        !$omp do private(start_pntxpoli, start_pntxpolr, intcell, body, &
+        !$omp& bctype, bcval, areabyvol)
         DO cellcount = 1, ncells
             start_pntxpoli = (cellcount-1)*isize
             start_pntxpolr = (cellcount-1)*rsize
@@ -1136,6 +1171,7 @@ CONTAINS
                 var(intcell) = var(intcell) + areabyvol*bcval
             END IF
         END DO
+        !$omp end do
     END SUBROUTINE wmxpoltsca_qtt
 
 
