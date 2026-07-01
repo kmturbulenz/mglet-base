@@ -6,6 +6,7 @@ add_library(core STATIC
     commbuf_mod.F90
     comms_mod.F90
     config_mod.F90
+    connect/connect_core_mod.F90
     connect/connect2_mod.F90
     corefields_mod.F90
     core_mod.F90
