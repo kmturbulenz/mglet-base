@@ -1,16 +1,15 @@
 MODULE connect2_mod
-    USE precision_mod
     USE MPI_f08
+    USE precision_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf, isendbuf, irecvbuf
     USE err_mod, ONLY: errr
-    USE timer_mod, ONLY: start_timer, set_timer, stop_timer
-    ! USE pointers_mod, ONLY: get_ip3
+    USE timer_mod, ONLY: start_timer, stop_timer
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
-    USE qsort_mod, ONLY: sort_conns
     USE connect_core_mod
+    USE conn_mod, ONLY: init_conn, finish_conn
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -402,52 +401,6 @@ CONTAINS
     END SUBROUTINE connect_impl
 
 
-    FUNCTION decide(i, list) RESULT(exchange)
-        INTEGER(intk), INTENT(in) :: i
-        INTEGER(intk), INTENT(in) :: list(:, :)
-
-        INTEGER(intk) :: ifacerecv, ilevel
-        LOGICAL :: exchange
-
-        exchange = .TRUE.
-        ifacerecv = list(5, i)
-
-        IF (i > SIZE(list, 2)) THEN
-            exchange = .FALSE.
-            RETURN
-        END IF
-
-        ! Levels
-        ilevel = level(list(3, i))
-        IF (ilevel > maxConLvl .OR. ilevel < minConLvl) THEN
-            exchange = .FALSE.
-        END IF
-
-        ! Only exchange geometry
-#ifndef _IB_CUTCELL_MOVING_
-        IF (geometry .AND. list(8, i) == 0) THEN
-            exchange = .FALSE.
-        END IF
-#endif
-
-        ! Corners
-        IF ((.NOT. vertices) .AND. (ifacerecv > 6)) THEN
-            exchange = .FALSE.
-        END IF
-
-        ! Forward
-        IF (fwd == 1 .AND. &
-            (ifacerecv == 2 .OR. ifacerecv == 4 .OR. ifacerecv == 6)) THEN
-            exchange = .FALSE.
-        ELSE IF (fwd == -1 .AND. &
-            (ifacerecv == 1 .OR. ifacerecv == 3 .OR. ifacerecv == 5)) THEN
-            exchange = .FALSE.
-        END IF
-
-        RETURN
-    END FUNCTION decide
-
-
     ! Perform all Recv-calls
     SUBROUTINE recv_all()
 
@@ -461,7 +414,8 @@ CONTAINS
         recvIdxList = 0
 
         DO i = 1, iRecv
-            exchange = decide(i, recvConns)
+            exchange = decide(i, recvconns, geometry, vertices, fwd, &
+                minconlvl, maxconlvl)
             iprocnbr = recvConns(2, i)
 
             ! Communication with self is handled specially in
@@ -534,8 +488,9 @@ CONTAINS
         nSend = 0
 
         DO i = 1, iSend
-            exchange = decide(i, sendConns)
-            iprocnbr = sendConns(1, i)
+            exchange = decide(i, sendconns, geometry, vertices, fwd, &
+                minconlvl, maxconlvl)
+            iprocnbr = sendconns(1, i)
 
             ! Communication with self copies directly from source to
             ! destination grid - then skip the rest
@@ -1084,10 +1039,11 @@ CONTAINS
 
     SUBROUTINE init_connect2()
         CALL init_connect_core()
+        CALL init_conn()
 
         ! The maximum number of concurrent communications are the number
         ! of processes
-        ALLOCATE(recvidxlist(3, maxconns))
+        ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
         ALLOCATE(sendlist(numprocs))
         ALLOCATE(recvlist(numprocs))
         ALLOCATE(sendreqs(numprocs))
@@ -1118,6 +1074,7 @@ CONTAINS
         DEALLOCATE(sendReqs)
         DEALLOCATE(recvReqs)
 
+        CALL finish_conn()
         CALL finish_connect_core()
     END SUBROUTINE finish_connect2
 END MODULE connect2_mod

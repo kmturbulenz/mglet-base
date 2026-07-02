@@ -1,21 +1,15 @@
 MODULE connect_core_mod
-    USE precision_mod
     USE MPI_f08
-    USE commbuf_mod, ONLY: sendbuf, recvbuf, isendbuf, irecvbuf
+    USE precision_mod
     USE err_mod, ONLY: errr
-    USE timer_mod, ONLY: start_timer, set_timer, stop_timer
+    USE timer_mod, ONLY: set_timer
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
-    USE field_mod
     USE qsort_mod, ONLY: sort_conns
 
     IMPLICIT NONE (type, external)
     PRIVATE
-
-    ! Maximum number of connections on one single process, either
-    ! outgoing or incomming, on any single grid level
-    INTEGER(intk), PROTECTED :: maxconns
 
     ! Lists that hold the Send and Recv connections per grid level
     ! This list must be pre-compiled before the first call to 'connect'
@@ -165,40 +159,25 @@ MODULE connect_core_mod
 
     PUBLIC :: init_connect_core, finish_connect_core, sendconns, recvconns, &
         isend, irecv, start_and_stop, start_and_stop_face, face_area, &
-        maxconns, facelist, facenbr, corr_start_stop
+        facelist, facenbr, corr_start_stop, decide
 
 CONTAINS
 
 
     SUBROUTINE init_connect_core()
+        ! Local variables
         INTEGER(intk) :: i, iface, igrid
         INTEGER(intk) :: iface1, iface2, iface3
         INTEGER(intk) :: itypbc1, itypbc2, itypbc3
         INTEGER(intk) :: iprocnbr, itypbc, inbrface, inbrgrid
-        INTEGER(intk) :: nplane, nrecv
+        INTEGER(intk) :: nrecv, maxconns
 
         INTEGER(int32), ALLOCATABLE :: maxtag(:)
         INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
         INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
-
-        INTEGER(intk) :: nfacetot
-        INTEGER(intk) :: nfacegeom
-        INTEGER(intk) :: nlinetot
-        INTEGER(intk) :: nlinegeom
-        INTEGER(intk) :: ncornertot
-        INTEGER(intk) :: ncornergeom
-
+        INTEGER(intk), ALLOCATABLE :: recvconns2(:, :)
         INTEGER(intk) :: neighbours(26)
-
-        LOGICAL :: exchange
         INTEGER :: iexchange
-
-        nfacetot = 0
-        nfacegeom = 0
-        nlinetot = 0
-        nlinegeom = 0
-        ncornertot = 0
-        ncornergeom = 0
 
         CALL set_timer(150, "CONNECT")
 
@@ -206,10 +185,8 @@ CONTAINS
         ! of grids*26. However, due to the possible prescence of
         ! precursors etc, we add a few more.
         maxconns = INT((nmygrids+1)*26.0*1.2, intk)
-        ALLOCATE(sendconns(8, maxconns))
-        ALLOCATE(recvconns(8, maxconns))
-        sendconns = 0
-        recvconns = 0
+        ALLOCATE(recvconns2(8, maxconns))
+        recvconns2 = 0
 
         ALLOCATE(maxtag(0:numprocs-1))
         ALLOCATE(sendcounts(0:numprocs-1))
@@ -222,8 +199,6 @@ CONTAINS
         recvcounts = 0
         rdispls = 0
 
-        ! It is really important that nplane = 2 also in preconnect
-        nplane = 2
         nrecv = 0
 
         DO i = 1, nmygrids
@@ -259,31 +234,22 @@ CONTAINS
                         CYCLE
                     END IF
                     iprocnbr = idprocofgrd(inbrgrid)
-                    nfacetot = nfacetot + 1
-
-                    ! Check face
-                    iexchange = 0
-                    exchange = .TRUE.
-
-                    IF (exchange) THEN
-                        iexchange = 1
-                        nfacegeom = nfacegeom + 1
-                    END IF
+                    iexchange = 1
 
                     nrecv = nrecv + 1
                     maxtag(iprocnbr) = maxtag(iprocnbr) + 1
 
-                    recvconns(1, nrecv) = myid      ! Receiving process (this process)
-                    recvconns(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
-                    recvconns(3, nrecv) = igrid     ! Receiving grid (on current process)
-                    recvconns(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
-                    recvconns(5, nrecv) = iface     ! Which face receive (1..26)
-                    recvconns(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
-                    recvconns(7, nrecv) = maxtag(iprocnbr)  ! Message tag
-                    recvconns(8, nrecv) = iexchange  ! Geometry exchange flag
+                    recvconns2(1, nrecv) = myid      ! Receiving process (this process)
+                    recvconns2(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
+                    recvconns2(3, nrecv) = igrid     ! Receiving grid (on current process)
+                    recvconns2(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
+                    recvconns2(5, nrecv) = iface     ! Which face receive (1..26)
+                    recvconns2(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
+                    recvconns2(7, nrecv) = maxtag(iprocnbr)  ! Message tag
+                    recvconns2(8, nrecv) = iexchange  ! Geometry exchange flag
 
                     sendcounts(iprocnbr) = sendcounts(iprocnbr) &
-                        + SIZE(recvconns, 1)
+                        + SIZE(recvconns2, 1)
                 END IF
             END DO
 
@@ -303,29 +269,22 @@ CONTAINS
                         CYCLE
                     END IF
                     iprocnbr = idprocofgrd(inbrgrid)
-                    nlinetot = nlinetot + 1
-                    iexchange = 0
-
-                    exchange = .TRUE.
-                    IF (exchange) THEN
-                        iexchange = 1
-                        nlinegeom = nlinegeom + 1
-                    END IF
+                    iexchange = 1
 
                     nrecv = nrecv + 1
                     maxtag(iprocnbr) = maxtag(iprocnbr) + 1
 
-                    recvconns(1, nrecv) = myid      ! Receiving process (this process)
-                    recvconns(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
-                    recvconns(3, nrecv) = igrid     ! Receiving grid (on current process)
-                    recvconns(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
-                    recvconns(5, nrecv) = iface     ! Which face receive (1..26)
-                    recvconns(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
-                    recvconns(7, nrecv) = maxtag(iprocnbr)  ! Message tag
-                    recvconns(8, nrecv) = iexchange  ! Geometry exchange flag
+                    recvconns2(1, nrecv) = myid      ! Receiving process (this process)
+                    recvconns2(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
+                    recvconns2(3, nrecv) = igrid     ! Receiving grid (on current process)
+                    recvconns2(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
+                    recvconns2(5, nrecv) = iface     ! Which face receive (1..26)
+                    recvconns2(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
+                    recvconns2(7, nrecv) = maxtag(iprocnbr)  ! Message tag
+                    recvconns2(8, nrecv) = iexchange  ! Geometry exchange flag
 
                     sendcounts(iprocnbr) = sendcounts(iprocnbr) &
-                        + SIZE(recvconns, 1)
+                        + SIZE(recvconns2, 1)
                 END IF
             END DO
 
@@ -347,29 +306,22 @@ CONTAINS
                         CYCLE
                     END IF
                     iprocnbr = idprocofgrd(inbrgrid)
-                    ncornertot = ncornertot + 1
-                    iexchange = 0
-                    exchange = .TRUE.
-
-                    IF (exchange) THEN
-                        iexchange = 1
-                        ncornergeom = ncornergeom + 1
-                    END IF
+                    iexchange = 1
 
                     nrecv = nrecv + 1
                     maxtag(iprocnbr) = maxtag(iprocnbr) + 1
 
-                    recvconns(1, nrecv) = myid      ! Receiving process (this process)
-                    recvconns(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
-                    recvconns(3, nrecv) = igrid     ! Receiving grid (on current process)
-                    recvconns(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
-                    recvconns(5, nrecv) = iface     ! Which face receive (1..26)
-                    recvconns(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
-                    recvconns(7, nrecv) = maxtag(iprocnbr)  ! Message tag
-                    recvconns(8, nrecv) = iexchange  ! Geometry exchange flag
+                    recvconns2(1, nrecv) = myid      ! Receiving process (this process)
+                    recvconns2(2, nrecv) = iprocnbr  ! Sending process (neighbour process)
+                    recvconns2(3, nrecv) = igrid     ! Receiving grid (on current process)
+                    recvconns2(4, nrecv) = inbrgrid  ! Sending grid (on neighbour process)
+                    recvconns2(5, nrecv) = iface     ! Which face receive (1..26)
+                    recvconns2(6, nrecv) = inbrface  ! Which face receive from (sending face) (1..26)
+                    recvconns2(7, nrecv) = maxtag(iprocnbr)  ! Message tag
+                    recvconns2(8, nrecv) = iexchange  ! Geometry exchange flag
 
                     sendcounts(iprocnbr) = sendcounts(iprocnbr) &
-                        + SIZE(recvconns, 1)
+                        + SIZE(recvconns2, 1)
                 END IF
             END DO
         END DO
@@ -377,7 +329,7 @@ CONTAINS
         irecv = nrecv
 
         ! Sort recvconns by process ID
-        CALL sort_conns(recvconns(:, 1:nrecv), 2)
+        CALL sort_conns(recvconns2(:, 1:nrecv), 2)
 
         ! Calculate sdispl offset
         DO i = 1, numprocs-1
@@ -394,45 +346,20 @@ CONTAINS
             rdispls(i) = rdispls(i-1) + recvcounts(i-1)
         END DO
 
-        ! Check that number of connections fit in array
+        ! Allocate sendconns to the correct size
         isend = (rdispls(numprocs-1) + recvcounts(numprocs-1)) &
-            /SIZE(sendconns, 1)
-        IF (isend > maxconns) THEN
-            write(*, *) "Number of connections exceeded on process ", myid
-            write(*, *) "maxconns =", maxconns, "nmygrids =", nmygrids, &
-                "isend = ", isend
-            CALL errr(__FILE__, __LINE__)
-        END IF
+            /SIZE(recvconns2, 1)
+        ALLOCATE(sendconns(SIZE(recvconns2, 1), isend), SOURCE=0)
 
         ! Exchange connection information
-        CALL MPI_Alltoallv(recvconns(1, 1), sendcounts, sdispls, MPI_INTEGER, &
-            sendconns(1, 1), recvcounts, rdispls, MPI_INTEGER, &
+        CALL MPI_Alltoallv(recvconns2, sendcounts, sdispls, MPI_INTEGER, &
+            sendconns, recvcounts, rdispls, MPI_INTEGER, &
             MPI_COMM_WORLD)
 
-        ! Agglomerate statistics
-        CALL MPI_Allreduce(MPI_IN_PLACE, nfacetot, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-        CALL MPI_Allreduce(MPI_IN_PLACE, nfacegeom, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-        CALL MPI_Allreduce(MPI_IN_PLACE, nlinetot, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-        CALL MPI_Allreduce(MPI_IN_PLACE, nlinegeom, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-        CALL MPI_Allreduce(MPI_IN_PLACE, ncornertot, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-        CALL MPI_Allreduce(MPI_IN_PLACE, ncornergeom, 1, mglet_mpi_int, &
-            MPI_SUM, MPI_COMM_WORLD)
-
-        IF (myid == 0) THEN
-            WRITE(*, '("CONNECT STATISTICS:")')
-            WRITE(*, '(4X, "Faces:         ", I7, 4X, "with geometry: ", I7)') &
-                nfacetot, nfacegeom
-            WRITE(*, '(4X, "Lines:         ", I7, 4X, "with geometry: ", I7)') &
-                nlinetot, nlinegeom
-            WRITE(*, '(4X, "Corners:       ", I7, 4X, "with geometry: ", I7)') &
-                ncornertot, ncornergeom
-            WRITE(*, '()')
-        END IF
+        ! Allocate the recvconns array to the correct size and copy the data
+        ! from recvconns2
+        ALLOCATE(recvconns(8, irecv), SOURCE=recvconns2(:, 1:irecv))
+        DEALLOCATE(recvconns2)
     END SUBROUTINE init_connect_core
 
 
@@ -480,8 +407,8 @@ CONTAINS
                     itypbc2 = itypboconds(1, iface2, nbrgrid)
                     itypbc3 = itypboconds(1, iface3, nbrgrid)
 
-                    ! If none of the neighboring faces are CON or CO1, the connect
-                    ! should not be carried out - check next neighbour
+                    ! If none of the neighboring faces are CON or CO1, the
+                    ! connect should not be carried out - check next neighbour
                     IF ((.NOT. (itypbc1 == 7 .OR. itypbc1 == 19)) .AND. &
                             (.NOT. (itypbc2 == 7 .OR. itypbc2 == 19)) .AND. &
                             (.NOT. (itypbc3 == 7 .OR. itypbc3 == 19))) THEN
@@ -691,5 +618,50 @@ CONTAINS
 
         RETURN
     END FUNCTION face_area
+
+
+    FUNCTION decide(i, list, geometry, vertices, fwd, minconlvl, maxconlvl) &
+            RESULT(exchange)
+        INTEGER(intk), INTENT(in) :: i
+        INTEGER(intk), INTENT(in) :: list(:, :)
+        LOGICAL, INTENT(in) :: geometry, vertices
+        INTEGER(intk), INTENT(in) :: fwd, minconlvl, maxconlvl
+
+        INTEGER(intk) :: ifacerecv, ilevel
+        LOGICAL :: exchange
+
+        exchange = .TRUE.
+        ifacerecv = list(5, i)
+
+        IF (i > SIZE(list, 2)) THEN
+            exchange = .FALSE.
+            RETURN
+        END IF
+
+        ! Levels
+        ilevel = level(list(3, i))
+        IF (ilevel > maxconlvl .OR. ilevel < minconlvl) THEN
+            exchange = .FALSE.
+        END IF
+
+        ! Only exchange geometry
+        IF (geometry .AND. list(8, i) == 0) THEN
+            exchange = .FALSE.
+        END IF
+
+        ! Corners
+        IF ((.NOT. vertices) .AND. (ifacerecv > 6)) THEN
+            exchange = .FALSE.
+        END IF
+
+        ! Forward
+        IF (fwd == 1 .AND. &
+            (ifacerecv == 2 .OR. ifacerecv == 4 .OR. ifacerecv == 6)) THEN
+            exchange = .FALSE.
+        ELSE IF (fwd == -1 .AND. &
+            (ifacerecv == 1 .OR. ifacerecv == 3 .OR. ifacerecv == 5)) THEN
+            exchange = .FALSE.
+        END IF
+    END FUNCTION decide
 
 END MODULE connect_core_mod
