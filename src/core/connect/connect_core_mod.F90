@@ -30,8 +30,10 @@ MODULE connect_core_mod
     !   Field 7: Message tag (for MPI)
     !   Field 8: Geometry exchange flag
     INTEGER(intk), ALLOCATABLE, PROTECTED :: sendconns(:, :), recvconns(:, :)
+    !$omp declare target(sendconns, recvconns)
 
     ! Number of send and receive connections
+    ! (not used from conn_mod so not declare target)
     INTEGER(intk), PROTECTED :: isend = 0, irecv = 0
 
     INTEGER(intk), PARAMETER :: facelist(4, 26) = RESHAPE([ &
@@ -360,6 +362,8 @@ CONTAINS
         ! from recvconns2
         ALLOCATE(recvconns(8, irecv), SOURCE=recvconns2(:, 1:irecv))
         DEALLOCATE(recvconns2)
+
+        !$omp target enter data map(always, to: sendconns, recvconns)
     END SUBROUTINE init_connect_core
 
 
@@ -427,6 +431,8 @@ CONTAINS
 
 
     SUBROUTINE finish_connect_core()
+        !$omp target exit data map(always, delete: sendconns, recvconns)
+
         isend = 0
         irecv = 0
         DEALLOCATE(sendconns)
