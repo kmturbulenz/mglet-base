@@ -47,6 +47,8 @@ MODULE par_ftoc_mod
 
     ! Number of messages that are ACTUALLY sent and received
     INTEGER(intk) :: nsend, nrecv
+    INTEGER(int32), ALLOCATABLE :: recvlist(:)
+    INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
     ! Number of send and receive connections
     INTEGER(intk) :: isend = 0, irecv = 0
@@ -574,13 +576,15 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
 
         ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igridf, iface
+        INTEGER(intk) :: i, iprocnbr, igridf, iface, facearea
         INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
         recvcounter = 0
         messagelength = 0
         nrecv = 0
+        recvidxlist = -HUGE(1_intk)
+        recvlist = 0
 
         DO i = 1, irecv
             ! Receiving grid
@@ -589,7 +593,11 @@ CONTAINS
                 iprocnbr = recvconns(1, i)  ! The sender process (fine side)
                 iface = recvconns(5, i)     ! The face being sent - used to compute message length
 
-                messagelength = messagelength + face_area(igridf, iface)
+                facearea = face_area(igridf, iface)
+                recvidxlist(1, i) = iprocnbr
+                recvidxlist(2, i) = facearea
+                recvidxlist(3, i) = recvcounter + messagelength
+                messagelength = messagelength + facearea
 
                 IF (recvcounter + messagelength > idim_mg_bufs) THEN
                     CALL errr(__FILE__, __LINE__)
@@ -618,6 +626,7 @@ CONTAINS
         ! none...
 
         nrecv = nrecv + 1
+        recvlist(nrecv) = iprocnbr
         !$omp target data use_device_addr(recvbuf)
         CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
@@ -693,6 +702,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(inout) :: v1, v2, v3
 
+#ifdef _MGLET_OFFLOAD_
         IF (nrecv > 0) THEN
             CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
 
@@ -700,11 +710,173 @@ CONTAINS
             CALL unpack_v2(ilevel, v2)
             CALL unpack_v3(ilevel, v3)
         END IF
+#else
+        INTEGER(intk) :: idx, recvmessagelen, unpacklen, i
+        TYPE(MPI_Status) :: recvstatus
+
+        DO WHILE (.TRUE.)
+            IF (nrecv == 0) EXIT
+            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
+            IF (idx == MPI_UNDEFINED) EXIT
+
+            CALL MPI_Get_count(recvstatus, mglet_mpi_real, recvmessagelen)
+
+            unpacklen = 0
+            DO i = 1, irecv
+                IF (recvidxlist(1, i) == recvlist(idx)) THEN
+                    CALL read_buffer(i, v1, v2, v3)
+                    unpacklen = unpacklen + recvidxlist(2, i)
+                END IF
+            END DO
+
+            IF (recvmessagelen /= unpacklen) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END DO
+#endif
 
         IF (nsend > 0) THEN
             CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
         END IF
     END SUBROUTINE process_bufs
+
+
+        ! Read Receive buffers
+    !
+    ! Write the contents of the receive buffers back in their
+    ! matching fields
+    SUBROUTINE read_buffer(id, v1, v2, v3)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: id
+        TYPE(field_t), INTENT(inout), TARGET :: v1, v2, v3
+
+        ! Local variables
+        TYPE(field_t), POINTER :: field
+        INTEGER(intk) :: igridf, igridc, iface, ifacerecv
+        INTEGER(int32) :: facearea
+        INTEGER(int32) :: offset
+
+        ! Set variables from send table - *fine* grid and face
+        igridf = recvconns(3, id)
+
+        ! Only send interface-normal vector element
+        iface = recvconns(5, id)  ! Face being sent - not received!
+        SELECT CASE (iface)
+        CASE (1, 2)
+            field => v1
+        CASE (3, 4)
+            field => v2
+        CASE (5, 6)
+            field => v3
+        END SELECT
+
+        ! Receiving face is difference from sending face - can also be
+        ! internal - in that case it is -1
+        igridc = recvconns(4, id)
+        ifacerecv = recvconns(6, id)
+
+        ! Unpack
+        offset = recvidxlist(3, id) + 1
+        facearea = face_area(igridf, iface)
+        CALL unpack_single(recvbuf(offset:offset+facearea-1), field, &
+            igridf, igridc, iface, ifacerecv)
+    END SUBROUTINE read_buffer
+
+
+    SUBROUTINE unpack_single(buf, field, igridf, igridc, iface, ifacerecv)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in), CONTIGUOUS :: buf(:)
+        TYPE(field_t), INTENT(inout) :: field
+        INTEGER(intk), INTENT(in) :: igridf
+        INTEGER(intk), INTENT(in) :: igridc
+        INTEGER(intk), INTENT(in) :: iface
+        INTEGER(intk), INTENT(in) :: ifacerecv
+
+        ! Local variables
+        INTEGER(intk) :: ista, isto, jsta, jsto, ksta, ksto
+        INTEGER(intk) :: ipos, jpos, kpos
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: kkc, jjc, iic
+        INTEGER(intk) :: kkf, jjf, iif
+        INTEGER(intk) :: icount
+        REAL(realk), POINTER, CONTIGUOUS :: fc(:, :, :)
+
+        CALL get_mgdims(kkf, jjf, iif, igridf)   ! Dimensions of fine grid
+        ipos = iposition(igridf)  ! Position of fine grid within coarse grid
+        jpos = jposition(igridf)
+        kpos = kposition(igridf)
+
+        ! Select the entire fine grid in the coarse grid
+        ista = ipos
+        isto = (ipos + (iif-4)/2 - 1)
+        jsta = jpos
+        jsto = (jpos + (jjf-4)/2 - 1)
+        ksta = kpos
+        ksto = (kpos + (kkf-4)/2 - 1)
+
+        IF (ifacerecv < 0) THEN
+            ! Internal to the grid. We need to inspect the position of the
+            ! fine grid within the coarse grid to determine the start and
+            ! stop indices.
+            SELECT CASE (iface)  ! The sending face determine position
+            CASE (1)
+                ista = ipos-1
+                isto = ista
+            CASE (2)
+                ista = isto
+                ! isto unchanged
+            CASE (3)
+                jsta = jpos-1
+                jsto = jsta
+            CASE (4)
+                jsta = jsto
+                ! jsto unchanged
+            CASE (5)
+                ksta = kpos-1
+                ksto = ksta
+            CASE (6)
+                ksta = ksto
+                ! ksto unchanged
+            END SELECT
+        ELSE
+            ! The PAR on the fine-grid lies on top of an external face of this
+            ! grid (it has to be a CON - everything else would be an error).
+            CALL get_mgdims(kkc, jjc, iic, igridc)   ! Dimensions of coarse grid
+            SELECT CASE (ifacerecv)  ! The receiving face determine position
+            CASE (1)
+                ista = 2
+                isto = 2
+            CASE (2)
+                ista = iic-2
+                isto = iic-2
+            CASE (3)
+                jsta = 2
+                jsto = 2
+            CASE (4)
+                jsta = jjc-2
+                jsto = jjc-2
+            CASE (5)
+                ksta = 2
+                ksto = 2
+            CASE (6)
+                ksta = kkc-2
+                ksto = kkc-2
+            END SELECT
+        END IF
+
+        ! Unpack
+        icount = 0
+        CALL field%get_ptr(fc, igridc)
+        DO i = ista, isto
+            DO j = jsta, jsto
+                DO k = ksta, ksto
+                    icount = icount + 1
+                    fc(k, j, i) = buf(icount)
+                END DO
+            END DO
+        END DO
+    END SUBROUTINE unpack_single
 
 
     SUBROUTINE unpack_v1(ilevel, v1)
@@ -856,6 +1028,8 @@ CONTAINS
 
         ! The maximum number of concurrent communications are the number
         ! of processes
+        ALLOCATE(recvidxlist(3, maxconns))
+        ALLOCATE(recvlist(numprocs))
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
 
@@ -1174,6 +1348,8 @@ CONTAINS
         DEALLOCATE(recvconns)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
+        DEALLOCATE(recvlist)
+        DEALLOCATE(recvidxlist)
         !$omp target exit data map(always, delete: packops_v1, packops_v2, &
         !$omp& packops_v3)
         !$omp target exit data map(always, delete: unpackops_v1, unpackops_v2, &
