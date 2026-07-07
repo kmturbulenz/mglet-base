@@ -135,11 +135,16 @@ CONTAINS
         CALL set_field("SIPUT")
         CALL set_field("SIPLPR")
 
+#ifdef _MGLET_OFFLOAD_
+        if (ityp /= 0) THEN
+            WRITE(*, *) "MGLET_OFFLOAD only supports hyperplane sip."
+            CALL errr(__FILE__, __LINE__)
+        END IF
+#endif
 
         IF (ityp == 2) THEN
             ! Using the classic SIP solver
             CALL sip_classic_init()
-
         ELSE
             ! Using the hyperplane solver
             CALL sip_hyperplane_init()
@@ -435,16 +440,58 @@ CONTAINS
         TYPE(field_t), INTENT(in), OPTIONAL :: bp
 
         ! Local variables
+        ! none...
+
+        CALL laplacephi_level(ilevel, res, dp, bp)
+
+        IF (ityp == 2) THEN
+            CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
+                siplpr)
+        ELSE
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(rhs, res, message="pre:sipiter1_hp")
+            CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
+                siplb, siplpr)
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(res, message="from:res%arr")
+        END IF
+
+        IF (iloop < ninner) THEN
+            CALL connect(ilevel, 1, s1=res)
+        ELSE
+            CALL connect(ilevel, 1, s1=res, forward=-1)
+        END IF
+
+        IF (ityp == 2) THEN
+            CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
+        ELSE
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(dp, res, message="pre:sipiter2_hp")
+            CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
+                siput)
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(dp, res, message="post:sipiter2_hp")
+        END IF
+    END SUBROUTINE sip
+
+
+    SUBROUTINE sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
+            siplpr)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(in) :: siplw
+        TYPE(field_t), INTENT(in) :: sipls
+        TYPE(field_t), INTENT(in) :: siplb
+        TYPE(field_t), INTENT(in) :: siplpr
+
+        ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
-            lb(:, :, :), ue(:, :, :), un(:, :, :), ut(:, :, :), &
-            lpr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :), &
-            rhs_p(:, :, :)
-        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
-
-        CALL laplacephi_level(ilevel, res, dp, bp)
+            lb(:, :, :), lpr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -458,21 +505,71 @@ CONTAINS
             CALL siplb%get_ptr(lb, igrid)
             CALL siplpr%get_ptr(lpr, igrid)
 
-            IF (ityp == 2) THEN
-                CALL sipiter1_cl(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            ELSE
-                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-                CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
-                    mip_ptr, idx_ptr)
-            END IF
+            CALL sipiter1_cl(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
         END DO
+    END SUBROUTINE sipiter1_classic_level
 
-        IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
-        ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
-        END IF
+
+    SUBROUTINE sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
+            siplb, siplpr)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(in) :: siplw
+        TYPE(field_t), INTENT(in) :: sipls
+        TYPE(field_t), INTENT(in) :: siplb
+        TYPE(field_t), INTENT(in) :: siplpr
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
+            lb(:, :, :), lpr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
+        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+
+        CALL roctxrangepush("sipiter1_hp")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& res_p, rhs_p, lw, ls, lb, lpr, mip_ptr, idx_ptr)
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL get_grid3_real(res_p, res, igrid)
+            CALL get_grid3_real(rhs_p, rhs, igrid)
+
+            CALL get_grid3_real(lw, siplw, igrid)
+            CALL get_grid3_real(ls, sipls, igrid)
+            CALL get_grid3_real(lb, siplb, igrid)
+            CALL get_grid3_real(lpr, siplpr, igrid)
+
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+
+            CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
+                mip_ptr, idx_ptr)
+        END DO
+        !$omp end target teams distribute
+        CALL roctxrangepop()
+    END SUBROUTINE sipiter1_hyperplane_level
+
+
+    SUBROUTINE sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: dp
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: sipue
+        TYPE(field_t), INTENT(in) :: sipun
+        TYPE(field_t), INTENT(in) :: siput
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: ue(:, :, :), un(:, :, :), &
+            ut(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -485,16 +582,52 @@ CONTAINS
             CALL sipun%get_ptr(un, igrid)
             CALL siput%get_ptr(ut, igrid)
 
-            IF (ityp == 2) THEN
-                CALL sipiter2_cl(kk, jj, ii, dp_p, res_p, ue, un, ut)
-            ELSE
-                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-                CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
-                    mip_ptr, idx_ptr)
-            END IF
+            CALL sipiter2_cl(kk, jj, ii, dp_p, res_p, ue, un, ut)
         END DO
-    END SUBROUTINE sip
+    END SUBROUTINE sipiter2_classic_level
+
+
+    SUBROUTINE sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
+            siput)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: dp
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: sipue
+        TYPE(field_t), INTENT(in) :: sipun
+        TYPE(field_t), INTENT(in) :: siput
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: ue(:, :, :), un(:, :, :), &
+            ut(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
+        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+
+        CALL roctxrangepush("sipiter2_hp")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL get_grid3_real(dp_p, dp, igrid)
+            CALL get_grid3_real(res_p, res, igrid)
+
+            CALL get_grid3_real(ue, sipue, igrid)
+            CALL get_grid3_real(un, sipun, igrid)
+            CALL get_grid3_real(ut, siput, igrid)
+
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+
+            CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
+                mip_ptr, idx_ptr)
+        END DO
+        !$omp end target teams distribute
+        CALL roctxrangepop()
+    END SUBROUTINE sipiter2_hyperplane_level
 
 
     SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
