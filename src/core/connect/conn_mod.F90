@@ -650,6 +650,8 @@ CONTAINS
                 jstart, jstop, kstart, kstop)
         END IF
 
+        ! Only offload (1:ioperation_final)
+
         ! >>> At this point, the workpackage should be ready or offload
         ! ntask = number of operations
         ! field = {1, 6} for v1, v2, v3, s1, s2, s3
