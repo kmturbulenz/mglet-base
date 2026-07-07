@@ -526,6 +526,8 @@ CONTAINS
                 jstart, jstop, kstart, kstop)
         END IF
 
+        ! >>> At this point, the workpackage should be ready or offload
+
         ! Check that message length is calculated correctly
         IF ((icount - offset) /= recvidxlist(2, recvid)) THEN
             WRITE(*, *) "icount:", icount, &
@@ -533,6 +535,129 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE read_buffer
+
+
+    ! Read Receive buffers
+    !
+    ! Write the contents of the receive buffers back in their
+    ! matching fields
+    SUBROUTINE read_buffer_preparation(recvid, nplane, normal, flag, &
+             v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: recvid
+        INTEGER(int32), INTENT(in) :: nplane
+        LOGICAL, INTENT(in) :: normal
+        CHARACTER(len=1), INTENT(in) :: flag
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+
+        ! Indices of start- and stop of iteration over boundary face
+        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+
+        ! Grid to send from
+        ! Must be intk because it intreface with MGLET
+        INTEGER(intk) :: igrid, ifacerecv
+
+        ! Message sizes
+        ! Must be int32 because it iterface with MPI
+        INTEGER(int32) :: offset, icount
+
+        ! Flags to indicate exchange of U, V, W
+        LOGICAL :: exU, exV, exW, exp1
+
+        ! Set variables from send table
+        igrid = recvconns(3, recvid)
+        ifacerecv = recvconns(5, recvid)
+
+        ioperation = 0
+
+        ! Get start- and stop indices of grid
+        CALL start_and_stop(igrid, ifacerecv, &
+            istart, istop, jstart, jstop, kstart, kstop, nplane, flag)
+
+        ! Zeroise message size counter
+        offset = recvidxlist(3, recvid)
+        icount = offset
+
+        IF (flag == 'W') THEN
+            exU = (ifacerecv == 1)
+        ELSE
+            exU = (normal .AND. ifacerecv < 3) .OR. (.NOT. normal)
+        END IF
+        IF (PRESENT(v1) .AND. exU) THEN
+
+            ! here as an example
+            ioperation_stored = ioperation + 1
+            icount_stored = icount
+            igrid_stored = igrid
+            field_stored = 1
+            istart_stored = istart
+            istop_stored = istop
+            jstart_stored = jstart
+            jstop_stored = jstop
+            kstart_stored = kstart
+            kstop_stored = kstop
+
+            ! incrementing the counter
+            icount = icount + (istop - istart + 1)*(jstop - jstart + 1)*(kstop - kstart + 1)
+
+        END IF
+
+        IF (flag == 'W') THEN
+            exV = (ifacerecv == 3)
+        ELSE
+            exV = (normal .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. &
+                (.NOT. normal)
+        END IF
+        IF (PRESENT(v2) .AND. exV) THEN
+            CALL read_single_buffer(v2, icount, igrid, istart, istop, &
+                jstart, jstop, kstart, kstop)
+        END IF
+
+        IF (flag == 'W') THEN
+            exW = (ifacerecv == 5)
+        ELSE
+            exW = (normal .AND. ifacerecv > 4) .OR. (.NOT. normal)
+        END IF
+        IF (PRESENT(v3) .AND. exW) THEN
+            CALL read_single_buffer(v3, icount, igrid, istart, istop, &
+                jstart, jstop, kstart, kstop)
+        END IF
+
+        IF (flag == 'W') THEN
+            exp1 = (ifacerecv == 2) .OR. (ifacerecv == 4) .OR. &
+                (ifacerecv == 6)
+        ELSE
+            exp1 = .TRUE.
+        END IF
+        IF (PRESENT(s1) .AND. exp1) THEN
+            CALL read_single_buffer(s1, icount, igrid, istart, istop, &
+                jstart, jstop, kstart, kstop)
+        END IF
+
+        IF (PRESENT(s2)) THEN
+            CALL read_single_buffer(s2, icount, igrid, istart, istop, &
+                jstart, jstop, kstart, kstop)
+        END IF
+
+        IF (PRESENT(s3)) THEN
+            CALL read_single_buffer(s3, icount, igrid, istart, istop, &
+                jstart, jstop, kstart, kstop)
+        END IF
+
+        ! >>> At this point, the workpackage should be ready or offload
+        ! ntask = number of operations
+        ! field = {1, 6} for v1, v2, v3, s1, s2, s3
+        ! igrid = grid to operate on
+        ! istart, istop, jstart, jstop, kstart, kstop = indices to operate on
+
+        ! Check that message length is calculated correctly
+        IF ((icount - offset) /= recvidxlist(2, recvid)) THEN
+            WRITE(*, *) "icount:", icount, &
+                "recvidxlist(2, recvid):", recvidxlist(2, recvid)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE read_buffer_preparation
+
 
 
     SUBROUTINE read_single_buffer(field, icount, igrid, istart, istop, &
