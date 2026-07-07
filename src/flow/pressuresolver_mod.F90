@@ -267,10 +267,14 @@ CONTAINS
             ! either.
             CALL connect(layers=1, s1=hilf)
 
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(hilf, rhs, message="to:hilf%arr|rhs%arr")
             ! res <- laplace(hilf)
-            CALL laplacephi(res, hilf, bp)
+            CALL laplacephi(res, hilf)
             ! rhs <- rhs + res
             CALL rescal(rhs, res)
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, rhs, rhs, 'R')
@@ -408,9 +412,13 @@ CONTAINS
                 CALL sor(ilevel, dp, rhs, gsaw, gsae, gsas, gsan, gsab, gsat, &
                     gsrap, bp)
             ELSE
+                ! TODO(offload): Remove once surrounding subroutines are offloaded
+                CALL map_arr_to_device(dp, rhs, message="to:dp%arr|rhs%arr")
                 ! Use the SIP solver
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
+                ! TODO(offload): Remove once surrounding subroutines are offloaded
+                CALL map_arr_from_device(dp, res, message="from:dp%arr|res%arr")
             END IF
 
             CALL connect(ilevel, 1, s1=dp)
@@ -442,14 +450,12 @@ CONTAINS
         ! Local variables
         ! none...
 
-        CALL laplacephi_level(ilevel, res, dp, bp)
+        CALL laplacephi_level(ilevel, res, dp)
 
         IF (ityp == 2) THEN
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
                 siplpr)
         ELSE
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(rhs, res, message="pre:sipiter1_hp")
             CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
                 siplb, siplpr)
             ! TODO(offload): Remove once surrounding subroutines are offloaded
@@ -466,11 +472,9 @@ CONTAINS
             CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
         ELSE
             ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(dp, res, message="pre:sipiter2_hp")
+            CALL map_arr_to_device(res, message="to:res%arr")
             CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
                 siput)
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_from_device(dp, res, message="post:sipiter2_hp")
         END IF
     END SUBROUTINE sip
 
@@ -1047,25 +1051,34 @@ CONTAINS
     END SUBROUTINE maxabscal_grid
 
 
-    SUBROUTINE rescal(rhs, res)
+    SUBROUTINE rescal(rhs_f, res_f)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: rhs
-        TYPE(field_t), INTENT(in) :: res
+        TYPE(field_t), INTENT(inout) :: rhs_f
+        TYPE(field_t), INTENT(in) :: res_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, ip3
+        INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: rhs(:, :, :), res(:, :, :)
 
+        CALL roctxrangepush("rescal")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, rhs, res)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL rescal_grid(kk, jj, ii, rhs%arr(ip3), res%arr(ip3))
+
+            CALL get_grid3_real(rhs, rhs_f, igrid)
+            CALL get_grid3_real(res, res_f, igrid)
+
+            CALL rescal_grid(kk, jj, ii, rhs, res)
         END DO
+        !$omp end target teams distribute
+        CALL roctxrangepop()
     END SUBROUTINE rescal
 
 
     PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: rhs(kk, jj, ii)
@@ -1075,6 +1088,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
+        !$omp parallel do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -1082,6 +1096,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE rescal_grid
 
 
@@ -1116,6 +1131,7 @@ CONTAINS
             CALL rdx_f%get_ptr(rdx, igrid)
             CALL rdy_f%get_ptr(rdy, igrid)
             CALL rdz_f%get_ptr(rdz, igrid)
+
             IF (PRESENT(bp_f)) THEN
                 CALL bp_f%get_ptr(bp, igrid)
             END IF

@@ -1,6 +1,7 @@
 MODULE noib_mod
     USE core_mod
     USE ibmodel_mod, ONLY: ibmodel_t
+    USE fieldhelper_mod, ONLY: map_arr_to_device
     USE noib_restrict_mod, ONLY: noib_restrict_t
 
     IMPLICIT NONE(type, external)
@@ -24,7 +25,8 @@ CONTAINS
         CLASS(ibmodel_t), ALLOCATABLE, INTENT(out) :: ib
 
         ! Local variables
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:), sdiv(:)
+        TYPE(field_t), POINTER :: bp_f
+        REAL(realk), POINTER, CONTIGUOUS :: sdiv(:)
 
         IF (myid == 0) THEN
             WRITE(*, '(A)') "Using 'noib' immersed boundary method"
@@ -41,8 +43,9 @@ CONTAINS
         ! critical, for instance initialization of pressure solver variables
         ! etc.
         CALL set_field("BP")
-        CALL get_fieldptr(bp, "BP")
-        bp = 1.0
+        CALL get_field(bp_f, "BP")
+        bp_f%arr = 1.0
+        CALL map_arr_to_device(bp_f)
 
         CALL set_field("SDIV")
         CALL get_fieldptr(sdiv, "SDIV")
@@ -76,6 +79,7 @@ CONTAINS
 
 
     SUBROUTINE giteig()
+        USE fieldmapper_mod
         ! Subroutine arguments
         ! none...
 
@@ -90,6 +94,8 @@ CONTAINS
             at(:), ab(:)
         REAL(realk), POINTER, CONTIGUOUS :: ap(:, :, :)
         REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
+        TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, gsap
+        TYPE(field_t), POINTER :: dx_f, dy_f, dz_f, bp_f
 
         ! 1-D fields used in the pressure solver
         CALL set_field("GSAW", ndim=1, get_len=get_ii)
@@ -98,28 +104,40 @@ CONTAINS
         CALL set_field("GSAN", ndim=1, get_len=get_jj)
         CALL set_field("GSAB", ndim=1, get_len=get_kk)
         CALL set_field("GSAT", ndim=1, get_len=get_kk)
+        CALL get_field(gsaw, "GSAW")
+        CALL get_field(gsae, "GSAE")
+        CALL get_field(gsas, "GSAS")
+        CALL get_field(gsan, "GSAN")
+        CALL get_field(gsab, "GSAB")
+        CALL get_field(gsat, "GSAT")
 
         ! 3-D fields in the pressure solver
         CALL set_field("GSAP")
+        CALL get_field(gsap, "GSAP")
+
+        CALL get_field(dx_f, "DX")
+        CALL get_field(dy_f, "DY")
+        CALL get_field(dz_f, "DZ")
+        CALL get_field(bp_f, "BP")
 
         DO igr = 1, nmygrids
             igrid = mygrids(igr)
 
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL get_fieldptr(dx, "DX", igrid)
-            CALL get_fieldptr(dy, "DY", igrid)
-            CALL get_fieldptr(dz, "DZ", igrid)
-            CALL get_fieldptr(bp, "BP", igrid)
+            CALL dx_f%get_ptr(dx, igrid)
+            CALL dy_f%get_ptr(dy, igrid)
+            CALL dz_f%get_ptr(dz, igrid)
+            CALL bp_f%get_ptr(bp, igrid)
 
-            CALL get_fieldptr(aw, "GSAW", igrid)
-            CALL get_fieldptr(ae, "GSAE", igrid)
-            CALL get_fieldptr(as, "GSAS", igrid)
-            CALL get_fieldptr(an, "GSAN", igrid)
-            CALL get_fieldptr(ab, "GSAB", igrid)
-            CALL get_fieldptr(at, "GSAT", igrid)
+            CALL gsaw%get_ptr(aw, igrid)
+            CALL gsae%get_ptr(ae, igrid)
+            CALL gsas%get_ptr(as, igrid)
+            CALL gsan%get_ptr(an, igrid)
+            CALL gsab%get_ptr(ab, igrid)
+            CALL gsat%get_ptr(at, igrid)
 
-            CALL get_fieldptr(ap, "GSAP", igrid)
+            CALL gsap%get_ptr(ap, igrid)
 
             DO i = 3, ii-2
                 ae(i) = 2.0/((dx(i-1)+dx(i))*dx(i))
@@ -226,6 +244,9 @@ CONTAINS
                 at(kk-2) = 0.0
             END IF
         END DO
+
+        !$omp target update to(mapper(field_t__map_arr): gsaw, gsae, gsas, &
+        !$omp& gsan, gsab, gsat, gsap)
     END SUBROUTINE giteig
 
 
