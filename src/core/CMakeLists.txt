@@ -39,6 +39,7 @@ add_library(core STATIC
     qsort_mod.F90
     readstl.cxx
     readstl_mod.F90
+    roctxprofile_mod.F90
     rungekutta_mod.F90
     shmem_mod.F90
     simdfunctions_mod.F90
@@ -63,6 +64,7 @@ target_link_libraries(core
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<BOOL:${MGLET_ROCTX_PROFILING}>:rocprofiler-sdk-roctx::rocprofiler-sdk-roctx>
 )
 
 # Set include directories for specific files

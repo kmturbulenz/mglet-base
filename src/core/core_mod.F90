@@ -31,6 +31,7 @@ MODULE core_mod
     USE pvtk_mod
     USE qsort_mod
     USE readstl_mod
+    USE roctxprofile_mod
     USE rungekutta_mod
     USE shmem_mod
     USE simdfunctions_mod

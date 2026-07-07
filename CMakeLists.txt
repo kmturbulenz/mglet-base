@@ -63,6 +63,13 @@ if(MGLET_OFFLOAD)
     add_compile_definitions(_MGLET_OFFLOAD_=1)
 endif()
 
+option(MGLET_ROCTX_PROFILING "Enable roctx profiling" OFF)
+if(MGLET_ROCTX_PROFILING)
+    message(STATUS "Enabling roctx profiling")
+    add_compile_definitions(_MGLET_ROCTX_PROFILING_=1)
+    find_package(rocprofiler-sdk-roctx REQUIRED)
+endif()
+
 # CMake build options
 set(MGLET_ENVPREFIX "" CACHE STRING "Prefix for all MGLET environment variables")
 if(NOT MGLET_ENVPREFIX STREQUAL "")
