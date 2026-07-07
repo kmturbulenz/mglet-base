@@ -19,7 +19,7 @@ MODULE conn_mod
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
     INTEGER(intk) :: nsend, nrecv
 
-    PUBLIC :: conn, init_conn, finish_conn
+    PUBLIC :: conn, init_conn, finish_conn, read_buffer_preparation
 
 CONTAINS
 
@@ -157,6 +157,8 @@ CONTAINS
         messagelength = 0
         nrecv = 0
         recvidxlist = 0
+
+        WRITE(*, *) "recvconns size:", SIZE(recvconns, 2)
 
         DO i = 1, SIZE(recvconns, 2)
             exchange = decide(i, recvconns, geometry, vertices, fwd, &
@@ -564,11 +566,15 @@ CONTAINS
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
 
+
+        ! Array for the workpackage:
+        ! -> wp(10, SIZE(recvconns, 2))
+
         ! Set variables from send table
         igrid = recvconns(3, recvid)
         ifacerecv = recvconns(5, recvid)
 
-        ioperation = 0
+        ! ioperation = 0
 
         ! Get start- and stop indices of grid
         CALL start_and_stop(igrid, ifacerecv, &
@@ -585,20 +591,20 @@ CONTAINS
         END IF
         IF (PRESENT(v1) .AND. exU) THEN
 
-            ! here as an example
-            ioperation_stored = ioperation + 1
-            icount_stored = icount
-            igrid_stored = igrid
-            field_stored = 1
-            istart_stored = istart
-            istop_stored = istop
-            jstart_stored = jstart
-            jstop_stored = jstop
-            kstart_stored = kstart
-            kstop_stored = kstop
+            ! ! here as an example
+            ! ioperation_stored = ioperation + 1
+            ! icount_stored = icount
+            ! igrid_stored = igrid
+            ! field_stored = 1
+            ! istart_stored = istart
+            ! istop_stored = istop
+            ! jstart_stored = jstart
+            ! jstop_stored = jstop
+            ! kstart_stored = kstart
+            ! kstop_stored = kstop
 
-            ! incrementing the counter
-            icount = icount + (istop - istart + 1)*(jstop - jstart + 1)*(kstop - kstart + 1)
+            ! ! incrementing the counter
+            ! icount = icount + (istop - istart + 1)*(jstop - jstart + 1)*(kstop - kstart + 1)
 
         END IF
 
