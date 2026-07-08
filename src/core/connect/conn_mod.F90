@@ -27,7 +27,7 @@ MODULE conn_mod
     INTEGER(int32), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
         selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
 
-    PUBLIC :: conn, init_conn, finish_conn, read_buffer_preparation
+    PUBLIC :: conn, init_conn, finish_conn
 
 CONTAINS
 
@@ -51,6 +51,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
+        INTEGER(int32) :: nsendtasks, nselftasks, nmpisendtasks, nrecvtasks
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
 
@@ -149,10 +150,10 @@ CONTAINS
         ! Prepare the sendtasks, selftasks and mpisendtasks arrays
         CALL prepare_sendtasks_all(sendtasks, nsendtasks, &
             selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
-            minconlvl, maxconlvl, nplane, vertices,
+            minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        ! --- Update the sendtasks to GPU here...?
+        ! --- Update the sendtasks(1: nsendtasks) to GPU here...?
 
         CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
 
@@ -172,7 +173,7 @@ CONTAINS
 
         ! >>> By that time, the MPI messages have arrived
 
-        ! --- Update the sendtasks to GPU here...?
+        ! --- Update the recvtasks(1: nrecvtasks)  to GPU here...?
 
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
@@ -231,7 +232,7 @@ CONTAINS
         INTEGER(intk) :: i, iprocnbr, igrid, ifacerecv, facearea
         INTEGER(intk) :: isendtask, iselftask
         LOGICAL :: exchange, geometry
-        INTEGER(int32) :: sendcounter, messagelength
+        INTEGER(int32) :: sendcounter, messagelength, impisendtasks
 
         geometry = .FALSE.
 
@@ -334,6 +335,7 @@ CONTAINS
         ! Must be int32 because it iterface with MPI
         INTEGER(int32) :: thismessagelength, facearea
         INTEGER(int32) :: icount, offset
+        INTEGER(int32) :: fieldid
 
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
@@ -537,6 +539,7 @@ CONTAINS
             messagelength = mpisendtasks(2, itask)
             sendcounter   = mpisendtasks(3, itask)
 
+            ! replaces "post_mpi_send"
             CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
                 sendreqs(itask))
@@ -552,25 +555,6 @@ CONTAINS
 
     END SUBROUTINE send_mpi_all
 
-    ! Perform a single non-blocking MPI send call
-    SUBROUTINE post_mpi_send(iprocnbr, messagelength, sendcounter)
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: iprocnbr
-        INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(inout) :: sendcounter
-
-        ! Local variables
-        ! none...
-
-        nsend = nsend + 1
-        sendlist(nsend) = iprocnbr
-
-        CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
-            mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(nsend))
-
-        sendcounter = sendcounter + messagelength
-        messagelength = 0
-    END SUBROUTINE post_mpi_send
 
 
     ! Perform a single non-blocking MPI send call
@@ -601,149 +585,6 @@ CONTAINS
         messagelength = 0
 
     END SUBROUTINE add_mpisend_task
-
-
-    ! Write Send buffers
-    !
-    ! Write the relevant fields into the send buffers
-    SUBROUTINE write_buffer(sendid, messagelength, sendcounter, nplane, &
-            normal, flag, nvars, v1, v2, v3, s1, s2, s3)
-
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: sendid
-        INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(inout) :: sendcounter
-        INTEGER(int32), INTENT(in) :: nplane
-        LOGICAL, INTENT(in) :: normal
-        CHARACTER(len=1), INTENT(in) :: flag
-        INTEGER(intk), INTENT(in) :: nvars
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
-
-        ! Indices of start- and stop of iteration over boundary face
-        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
-
-        ! Grid to send from
-        ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, ifacerecv, ifacesend
-
-        ! Message sizes
-        ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: thismessagelength, facearea
-        INTEGER(int32) :: icount, offset
-
-        ! Flags to indicate exchange of U, V, W
-        LOGICAL :: exU, exV, exW, exp1
-
-        ! Set variables from send table
-        igrid = sendconns(4, sendid)
-        ifacerecv = sendconns(5, sendid)
-        ifacesend = sendconns(6, sendid)
-
-        ! Get start- and stop indices of grid
-        CALL start_and_stop(igrid, facenbr(ifacerecv), istart, istop, &
-            jstart, jstop, kstart, kstop, nplane, flag, nghost=1)
-        CALL corr_start_stop(igrid, ifacesend, ifacerecv, &
-            istart, istop, jstart, jstop, kstart, kstop, nplane, flag)
-
-        facearea = (istop-istart+1)*(jstop-jstart+1)*(kstop-kstart+1)
-        thismessagelength = nvars*facearea
-
-        ! Check that buffer does not overflow
-        IF (sendcounter + messagelength + thismessagelength &
-                > SIZE(sendbuf)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Reset message size counter
-        offset = sendcounter + messagelength
-        icount = offset
-
-        ! Fill buffers
-        IF (flag == 'W') THEN
-            exU = (ifacerecv == 1)
-        ELSE
-            exU = (normal .AND. ifacerecv < 3) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v1) .AND. exU) THEN
-            CALL write_single_buffer(v1, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        IF (flag == 'W') THEN
-            exV = (ifacerecv == 3)
-        ELSE
-            exV = (normal .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. &
-                (.NOT. normal)
-        END IF
-        IF (PRESENT(v2) .AND. exV) THEN
-            CALL write_single_buffer(v2, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        IF (flag == 'W') THEN
-            exW = (ifacerecv == 5)
-        ELSE
-            exW = (normal .AND. ifacerecv > 4) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v3) .AND. exW) THEN
-            CALL write_single_buffer(v3, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        IF (flag == 'W') THEN
-            exp1 = (ifacerecv == 2) .OR. (ifacerecv == 4) .OR. &
-                (ifacerecv == 6)
-        ELSE
-            exp1 = .TRUE.
-        END IF
-        IF (PRESENT(s1) .AND. exp1) THEN
-            CALL write_single_buffer(s1, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        IF (PRESENT(s2)) THEN
-            CALL write_single_buffer(s2, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        IF (PRESENT(s3)) THEN
-            CALL write_single_buffer(s3, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        ! Check that message length was calculated correctly
-        IF (thismessagelength /= (icount - offset)) THEN
-            write(*, *) "thismessagelength:", thismessagelength, &
-                "icount:", icount
-            CALL errr(__FILE__, __LINE__)
-        END IF
-    END SUBROUTINE write_buffer
-
-
-    SUBROUTINE write_single_buffer(field, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop)
-
-        ! Subroutine arguments
-        TYPE(field_t), INTENT(in) :: field
-        INTEGER(intk), INTENT(inout) :: icount
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, &
-            kstart, kstop
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
-
-        CALL field%get_ptr(rarr, igrid)
-        DO i = istart, istop
-            DO j = jstart, jstop
-                DO k = kstart, kstop
-                    icount = icount + 1
-                    sendbuf(icount) = rarr(k, j, i)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE write_single_buffer
 
 
     SUBROUTINE process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
@@ -1045,112 +886,79 @@ CONTAINS
     END SUBROUTINE process_selftasks
 
 
-    ! Read Receive buffers
-    !
-    ! Write the contents of the receive buffers back in their
-    ! matching fields
-    SUBROUTINE read_buffer(recvid, nplane, normal, flag, v1, v2, v3, &
-            s1, s2, s3)
+
+
+
+
+
+    ! Process receive buffers as they arrive, wait for send
+    ! buffers to be free
+    SUBROUTINE prepare_recvtasks_all(recvtasks, nrecvtasks, nplane, normal, &
+            flag, v1, v2, v3, s1, s2, s3)
+
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: recvid
+        INTEGER(int32), INTENT(inout) :: recvtasks(buffertasksize, maxtasks)
+        INTEGER(int32), INTENT(out) :: nrecvtasks
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
         CHARACTER(len=1), INTENT(in) :: flag
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
 
-        ! Indices of start- and stop of iteration over boundary face
-        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+        ! Local variables
+        INTEGER(int32) :: idx, i
+        TYPE(MPI_Status) :: recvstatus
+        INTEGER(int32) :: recvmessagelen
+        INTEGER(int32) :: unpacklen
+        INTEGER(int32) :: irecvtask
 
-        ! Grid to send from
-        ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, ifacerecv
+        irecvtask = 0
 
-        ! Message sizes
-        ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: offset, icount
+        DO WHILE (.TRUE.)
+            IF (nrecv == 0) EXIT
 
-        ! Flags to indicate exchange of U, V, W
-        LOGICAL :: exU, exV, exW, exp1
+            ! Get index of an already arrived message
+            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
 
-        ! Set variables from send table
-        igrid = recvconns(3, recvid)
-        ifacerecv = recvconns(5, recvid)
+            IF (idx /= MPI_UNDEFINED) THEN
+                CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
+                    recvmessagelen)
 
-        ! Get start- and stop indices of grid
-        CALL start_and_stop(igrid, ifacerecv, &
-            istart, istop, jstart, jstop, kstart, kstop, nplane, flag)
+                unpacklen = 0
+                DO i = 1, SIZE(recvidxlist, 2)
+                    IF (recvidxlist(1, i) == recvlist(idx) &
+                            .AND. recvidxlist(2, i) > 0) THEN
 
-        ! Zeroise message size counter
-        offset = recvidxlist(3, recvid)
-        icount = offset
+                        ! >>> adding entries to recvtasks (no execution)
+                        ! (replaces "read_buffer")
+                        CALL prepare_recvtasks(recvtasks, irecvtask, &
+                            i, nplane, normal, flag, v1, v2, v3, s1, s2, s3)
 
-        IF (flag == 'W') THEN
-            exU = (ifacerecv == 1)
-        ELSE
-            exU = (normal .AND. ifacerecv < 3) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v1) .AND. exU) THEN
-            CALL read_single_buffer(v1, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
+                        unpacklen = unpacklen + recvidxlist(2, i)
+                    END IF
+                END DO
 
-        IF (flag == 'W') THEN
-            exV = (ifacerecv == 3)
-        ELSE
-            exV = (normal .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. &
-                (.NOT. normal)
-        END IF
-        IF (PRESENT(v2) .AND. exV) THEN
-            CALL read_single_buffer(v2, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
+                ! Security check -- not possible before message arrival
+                IF (recvmessagelen /= unpacklen) THEN
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            ELSE
+                EXIT
+            END IF
+        END DO
 
-        IF (flag == 'W') THEN
-            exW = (ifacerecv == 5)
-        ELSE
-            exW = (normal .AND. ifacerecv > 4) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v3) .AND. exW) THEN
-            CALL read_single_buffer(v3, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
+        ! Enfore the completion of all send requests
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
-        IF (flag == 'W') THEN
-            exp1 = (ifacerecv == 2) .OR. (ifacerecv == 4) .OR. &
-                (ifacerecv == 6)
-        ELSE
-            exp1 = .TRUE.
-        END IF
-        IF (PRESENT(s1) .AND. exp1) THEN
-            CALL read_single_buffer(s1, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
+        ! Setting the number of recvtasks to the actual number of tasks
+        nrecvtasks = irecvtask
 
-        IF (PRESENT(s2)) THEN
-            CALL read_single_buffer(s2, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
+        ! Add a harmful dummy task at (ntasks+1) to detect execution overshoot
+        recvtasks(:, nrecvtasks+1) = -1
 
-        IF (PRESENT(s3)) THEN
-            CALL read_single_buffer(s3, icount, igrid, istart, istop, &
-                jstart, jstop, kstart, kstop)
-        END IF
-
-        ! >>> At this point, the workpackage should be ready or offload
-
-        ! Check that message length is calculated correctly
-        IF ((icount - offset) /= recvidxlist(2, recvid)) THEN
-            WRITE(*, *) "icount:", icount, &
-                "recvidxlist(2, recvid):", recvidxlist(2, recvid)
-            CALL errr(__FILE__, __LINE__)
-        END IF
-    END SUBROUTINE read_buffer
+    END SUBROUTINE prepare_recvtasks_all
 
 
-    ! Read Receive buffers
-    !
-    ! Write the contents of the receive buffers back in their
-    ! matching fields
     SUBROUTINE prepare_recvtasks(recvtasks, irecvtask, recvid, nplane, &
             normal, flag, v1, v2, v3, s1, s2, s3)
 
@@ -1270,298 +1078,6 @@ CONTAINS
 
 
 
-    SUBROUTINE read_single_buffer(field, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop)
-
-        ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
-        INTEGER(intk), INTENT(inout) :: icount
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, &
-            kstart, kstop
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
-
-        CALL field%get_ptr(rarr, igrid)
-        DO i = istart, istop
-            DO j = jstart, jstop
-                DO k = kstart, kstop
-                    icount = icount + 1
-                    rarr(k, j, i) = recvbuf(icount)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE read_single_buffer
-
-
-    ! Connect to self
-    !
-    ! Directly copes data from source to destination buffer
-    SUBROUTINE connect_self(sendid, nplane, normal, flag, v1, v2, v3, &
-            s1, s2, s3)
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: sendid
-        INTEGER(int32), INTENT(in) :: nplane
-        LOGICAL, INTENT(in) :: normal
-        CHARACTER(len=1), INTENT(in) :: flag
-        TYPE(field_t), INTENT(inout), OPTIONAL :: v1, v2, v3, s1, s2, s3
-
-        ! Indices of start- and stop of iteration over boundary face
-        ! Source face
-        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
-
-        ! Indices of start- and stop of iteration over boundary face
-        ! Destination face
-        INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
-
-        ! Grid to send from
-        ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, igrid_d, ifacerecv, ifacesend
-
-        ! Message sizes
-        ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: dest_size, source_size
-
-        ! Flags to indicate exchange of U, V, W
-        LOGICAL :: exU, exV, exW, exp1
-
-        ! Set variables from send table
-        igrid_d = sendconns(3, sendid)
-        igrid = sendconns(4, sendid)
-        ifacerecv = sendconns(5, sendid)
-        ifacesend = sendconns(6, sendid)
-
-        ! Get start- and stop indices of source grid
-        CALL start_and_stop(igrid, facenbr(ifacerecv), &
-            istart, istop, jstart, jstop, kstart, kstop, nplane, flag, nghost=1)
-        CALL corr_start_stop(igrid, ifacesend, ifacerecv, &
-            istart, istop, jstart, jstop, kstart, kstop, nplane, flag)
-
-        ! Get start- and stop indices of destination grid
-        CALL start_and_stop(igrid_d, ifacerecv, &
-            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
-            nplane, flag)
-
-        ! Sanity check of message length
-        source_size = (istop-istart+1)*(jstop-jstart+1)*(kstop-kstart+1)
-        dest_size = (istop_d-istart_d+1) &
-            *(jstop_d-jstart_d+1)*(kstop_d-kstart_d+1)
-        IF (source_size /= dest_size) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        IF (flag == 'W') THEN
-            exU = (ifacerecv == 1)
-        ELSE
-            exU = (normal .AND. ifacerecv < 3) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v1) .AND. exU) THEN
-            CALL connect_self_single(v1, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-
-        IF (flag == 'W') THEN
-            exV = (ifacerecv == 3)
-        ELSE
-            exV = (normal .AND. (ifacerecv > 2 .AND. ifacerecv < 5)) .OR. &
-                (.NOT. normal)
-        END IF
-        IF (PRESENT(v2) .AND. exV) THEN
-            CALL connect_self_single(v2, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-
-        IF (flag == 'W') THEN
-            exW = (ifacerecv == 5)
-        ELSE
-            exW = (normal .AND. ifacerecv > 4) .OR. (.NOT. normal)
-        END IF
-        IF (PRESENT(v3) .AND. exW) THEN
-            CALL connect_self_single(v3, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-
-        IF (flag == 'W') THEN
-            exp1 = (ifacerecv == 2) .OR. (ifacerecv == 4) .OR. &
-                (ifacerecv == 6)
-        ELSE
-            exp1 = .TRUE.
-        END IF
-        IF (PRESENT(s1) .AND. exp1) THEN
-            CALL connect_self_single(s1, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-
-        IF (PRESENT(s2)) THEN
-            CALL connect_self_single(s2, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-
-        IF (PRESENT(s3)) THEN
-            CALL connect_self_single(s3, igrid, igrid_d, istart, istop, &
-                jstart, jstop, kstart, kstop, istart_d, istop_d, &
-                jstart_d, jstop_d, kstart_d, kstop_d)
-        END IF
-    END SUBROUTINE connect_self
-
-
-    SUBROUTINE connect_self_single(field, igrid, igrid_d, istart, istop, &
-            jstart, jstop, kstart, kstop, istart_d, istop_d, jstart_d, &
-            jstop_d, kstart_d, kstop_d)
-
-        ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
-        INTEGER(intk), INTENT(in) :: igrid, igrid_d
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, &
-            kstart, kstop
-        INTEGER(intk), INTENT(in) :: istart_d, istop_d, jstart_d, jstop_d, &
-            kstart_d, kstop_d
-
-        ! Local variables
-        REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
-        INTEGER(intk) :: i, j, k, ioff, joff, koff
-
-        koff = kstart - kstart_d
-        joff = jstart - jstart_d
-        ioff = istart - istart_d
-
-        CALL field%get_ptr(src_rarr, igrid)
-        CALL field%get_ptr(dst_rarr, igrid_d)
-        DO i = istart_d, istop_d
-            DO j = jstart_d, jstop_d
-                DO k = kstart_d, kstop_d
-                    dst_rarr(k, j, i) = &
-                        src_rarr(k + koff, j + joff, i + ioff)
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE connect_self_single
-
-
-    ! Process receive buffers as they arrive, wait for send
-    ! buffers to be free
-    SUBROUTINE process_bufs(nplane, normal, flag, v1, v2, v3, s1, s2, s3)
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: nplane
-        LOGICAL, INTENT(in) :: normal
-        CHARACTER(len=1), INTENT(in) :: flag
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
-            v1, v2, v3, s1, s2, s3
-
-        ! Local variables
-        INTEGER(int32) :: idx, i
-        TYPE(MPI_Status) :: recvstatus
-        INTEGER(int32) :: recvmessagelen
-        INTEGER(int32) :: unpacklen
-
-        DO WHILE (.TRUE.)
-            IF (nrecv == 0) EXIT
-            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
-
-            IF (idx /= MPI_UNDEFINED) THEN
-                CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
-                    recvmessagelen)
-
-                unpackLen = 0
-                DO i = 1, SIZE(recvidxlist, 2)
-                    IF (recvidxlist(1, i) == recvlist(idx) &
-                            .AND. recvidxlist(2, i) > 0) THEN
-                        CALL read_buffer(i, nplane, normal, flag, v1, v2, v3, &
-                            s1, s2, s3)
-                        unpacklen = unpacklen + recvidxlist(2, i)
-                    END IF
-                END DO
-
-                IF (recvmessagelen /= unpacklen) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-            ELSE
-                EXIT
-            END IF
-        END DO
-        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-    END SUBROUTINE process_bufs
-
-
-    ! Process receive buffers as they arrive, wait for send
-    ! buffers to be free
-    SUBROUTINE prepare_recvtasks_all(recvtasks, nrecvtasks, nplane, normal, &
-            flag, v1, v2, v3, s1, s2, s3)
-
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(inout) :: recvtasks(buffertasksize, maxtasks)
-        INTEGER(int32), INTENT(out) :: nrecvtasks
-        INTEGER(int32), INTENT(in) :: nplane
-        LOGICAL, INTENT(in) :: normal
-        CHARACTER(len=1), INTENT(in) :: flag
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
-            v1, v2, v3, s1, s2, s3
-
-        ! Local variables
-        INTEGER(int32) :: idx, i
-        TYPE(MPI_Status) :: recvstatus
-        INTEGER(int32) :: recvmessagelen
-        INTEGER(int32) :: unpacklen
-        INTEGER(int32) :: irecvtask
-
-        irecvtask = 0
-
-        DO WHILE (.TRUE.)
-            IF (nrecv == 0) EXIT
-
-            ! Get index of an already arrived message
-            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
-
-            IF (idx /= MPI_UNDEFINED) THEN
-                CALL MPI_Get_count(recvstatus, mglet_mpi_real, &
-                    recvmessagelen)
-
-                unpacklen = 0
-                DO i = 1, SIZE(recvidxlist, 2)
-                    IF (recvidxlist(1, i) == recvlist(idx) &
-                            .AND. recvidxlist(2, i) > 0) THEN
-
-                        ! >>> adding entries to recvtasks (no execution)
-                        ! (replaces "read_buffer")
-                        CALL prepare_recvtasks(recvtasks, irecvtask, &
-                            i, nplane, normal, flag, v1, v2, v3, s1, s2, s3)
-
-                        unpacklen = unpacklen + recvidxlist(2, i)
-                    END IF
-                END DO
-
-                ! Security check -- not possible before message arrival
-                IF (recvmessagelen /= unpacklen) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-            ELSE
-                EXIT
-            END IF
-        END DO
-
-        ! Enfore the completion of all send requests
-        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
-        ! Setting the number of recvtasks to the actual number of tasks
-        nrecvtasks = irecvtask
-
-        ! Add a harmful dummy task at (ntasks+1) to detect execution overshoot
-        recvtasks(:, nrecvtasks+1) = -1
-
-    END SUBROUTINE prepare_recvtasks_all
-
-
-
-
-
-
 
 
 
@@ -1593,7 +1109,7 @@ CONTAINS
 
         ! Message sizes
         ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: dest_size, source_size
+        INTEGER(int32) :: dest_size, source_size, fieldid
 
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
