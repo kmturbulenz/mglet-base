@@ -755,7 +755,8 @@ CONTAINS
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, i, j, k, jjl, kkl
+            jstart, jstop, kstart, kstop, jjl, kkl, idx
+        INTEGER(intk) :: i, j, k
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
 
