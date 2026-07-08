@@ -9,6 +9,7 @@ MODULE pressuresolver_mod
     USE sip_hyperplane_mod, sipiter1_hp => sipiter1, sipiter2_hp => sipiter2
     USE sip_classic_mod, sipiter1_cl => sipiter1, sipiter2_cl => sipiter2
     USE sor_mod
+    USE conn_v1_mod, ONLY: conn1
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -260,7 +261,7 @@ CONTAINS
             ! Connect needed due to prior ftoc, since this does not do
             ! anything on the finest level, no need to connect finest level
             ! either.
-            CALL conn(layers=1, s1=hilf)
+            CALL conn1(layers=1, s1=hilf)
 
             ! res <- laplace(hilf)
             CALL laplacephi(res, hilf, bp)
@@ -341,7 +342,7 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
-            CALL conn(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
+            CALL conn1(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         CALL pop_field(res)
@@ -408,7 +409,7 @@ CONTAINS
                     sipue, sipun, siput, siplpr, bp)
             END IF
 
-            CALL conn(ilevel, 1, s1=dp)
+            CALL conn1(ilevel, 1, s1=dp)
         END DO
 
         CALL bound_pressure%bound(ilevel, dp, bp)
@@ -469,9 +470,9 @@ CONTAINS
         END DO
 
         IF (iloop < ninner) THEN
-            CALL conn(ilevel, 1, s1=res)
+            CALL conn1(ilevel, 1, s1=res)
         ELSE
-            CALL conn(ilevel, 1, s1=res, forward=-1)
+            CALL conn1(ilevel, 1, s1=res, forward=-1)
         END IF
 
         DO i = 1, nmygridslvl(ilevel)

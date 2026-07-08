@@ -26,9 +26,9 @@ MODULE conn_v1_mod
 
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(int32), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
-        selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
+        selftasks(:, :), mpisendtasks(:, :)
 
-    PUBLIC :: conn1, init_conn, finish_conn
+    PUBLIC :: conn1, init_conn1, finish_conn1
 
 CONTAINS
 
@@ -142,7 +142,6 @@ CONTAINS
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
         ALLOCATE(selftasks(selftasksize, maxtasks))
         ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
-        ALLOCATE(mpirecvtasks(mpitasksize, maxtasks))
 
         ! Posting all non-blocking MPI recv calls with the right arguments
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
@@ -178,12 +177,17 @@ CONTAINS
 
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
+        DEALLOCATE(sendtasks)
+        DEALLOCATE(recvtasks)
+        DEALLOCATE(selftasks)
+        DEALLOCATE(mpisendtasks)
+
         CALL stop_timer(150)
 
     END SUBROUTINE conn1
 
 
-    SUBROUTINE init_conn()
+    SUBROUTINE init_conn1()
         ! The maximum number of concurrent communications are the number
         ! of processes
         ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
@@ -196,16 +200,16 @@ CONTAINS
         recvlist = 0
         nrecv = 0
         nsend = 0
-    END SUBROUTINE init_conn
+    END SUBROUTINE init_conn1
 
 
-    SUBROUTINE finish_conn()
+    SUBROUTINE finish_conn1()
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
         DEALLOCATE(recvlist)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
-    END SUBROUTINE finish_conn
+    END SUBROUTINE finish_conn1
 
 
     ! Perform all MPI Send calls
@@ -466,8 +470,6 @@ CONTAINS
         messagelength = 0
         nrecv = 0
         recvidxlist = 0
-
-        WRITE(*, *) "recvconns size:", SIZE(recvconns, 2)
 
         DO i = 1, SIZE(recvconns, 2)
             exchange = decide(i, recvconns, geometry, vertices, fwd, &
