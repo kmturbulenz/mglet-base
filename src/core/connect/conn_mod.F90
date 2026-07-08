@@ -181,7 +181,29 @@ CONTAINS
     END SUBROUTINE conn
 
 
+    SUBROUTINE init_conn()
+        ! The maximum number of concurrent communications are the number
+        ! of processes
+        ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
+        ALLOCATE(sendlist(numprocs))
+        ALLOCATE(recvlist(numprocs))
+        ALLOCATE(sendreqs(numprocs))
+        ALLOCATE(recvreqs(numprocs))
+        recvidxlist = 0
+        sendlist = 0
+        recvlist = 0
+        nrecv = 0
+        nsend = 0
+    END SUBROUTINE init_conn
 
+
+    SUBROUTINE finish_conn()
+        DEALLOCATE(recvidxlist)
+        DEALLOCATE(sendlist)
+        DEALLOCATE(recvlist)
+        DEALLOCATE(sendreqs)
+        DEALLOCATE(recvreqs)
+    END SUBROUTINE finish_conn
 
 
     ! Perform all MPI Send calls
@@ -500,57 +522,34 @@ CONTAINS
 
 
     ! Perform all MPI Send calls
-    SUBROUTINE send_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal, &
-            fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE send_mpi_all(mpisendtasks, nmpisendtasks)
+
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
-        LOGICAL, INTENT(in) :: vertices, normal
-        INTEGER(intk), INTENT(in) :: fwd
-        CHARACTER(len=1), INTENT(in) :: flag
-        INTEGER(intk), INTENT(in) :: nvars
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+        INTEGER(int32), INTENT(in) :: mpisendtasks(mpitasksize, maxtasks)
+        INTEGER(int32), INTENT(in) :: nmpisendtasks
 
         ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igrid, ifacerecv, facearea
-        LOGICAL :: exchange, geometry
-        INTEGER(int32) :: sendcounter, messagelength
+        INTEGER(int32) :: itask, iprocnbr, messagelength, sendcounter
 
-        ! SIMON: Function could be optimized if we store the arguments
-        ! of post_mpi_send (i.e. iprocnbr, messagelength, sendcounter)
-        ! already in the during the tasks generation phase
+        ! Iterate over task and post all non-blocking MPI send calls
+        DO itask = 1, nmpisendtasks
+            iprocnbr      = mpisendtasks(1, itask)
+            messagelength = mpisendtasks(2, itask)
+            sendcounter   = mpisendtasks(3, itask)
 
-        geometry = .FALSE.
-        sendcounter = 0
-        messagelength = 0
-        nsend = 0
-
-        DO i = 1, SIZE(sendconns, 2)
-
-            exchange = decide(i, sendconns, geometry, vertices, fwd, &
-                minconlvl, maxconlvl)
-            iprocnbr = sendconns(1, i)
-
-            ! No action of not related to MPI communication
-            IF (iprocnbr == myid .AND. exchange) THEN
-                CYCLE
-            END IF
-
-            IF (exchange) THEN
-                igrid = sendconns(3, i)
-                ifacerecv = sendconns(5, i)
-                facearea = face_area(igrid, ifacerecv, nplane, flag)
-                messagelength = messagelength + nvars*facearea
-            END IF
-
-            IF (messagelength > 0) THEN
-                IF (i == SIZE(sendconns, 2)) THEN
-                    CALL post_mpi_send(iprocnbr, messagelength, sendcounter)
-                ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
-                    CALL post_mpi_send(iprocnbr, messagelength, sendcounter)
-                END IF
-            END IF
-
+            CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+                mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
+                sendreqs(itask))
         END DO
+
+        ! Safety check based on final dummy entry
+        IF (nmpisendtasks < maxtasks) THEN
+            IF (.NOT. ALL(mpisendtasks(:, nmpisendtasks+1) == -1)) THEN
+                WRITE(*, *) "Did not encounter the expected dummy task."
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END IF
+
     END SUBROUTINE send_mpi_all
 
     ! Perform a single non-blocking MPI send call
@@ -1558,29 +1557,7 @@ CONTAINS
     END SUBROUTINE prepare_recvtasks_all
 
 
-    SUBROUTINE init_conn()
-        ! The maximum number of concurrent communications are the number
-        ! of processes
-        ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
-        ALLOCATE(sendlist(numprocs))
-        ALLOCATE(recvlist(numprocs))
-        ALLOCATE(sendreqs(numprocs))
-        ALLOCATE(recvreqs(numprocs))
-        recvidxlist = 0
-        sendlist = 0
-        recvlist = 0
-        nrecv = 0
-        nsend = 0
-    END SUBROUTINE init_conn
 
-
-    SUBROUTINE finish_conn()
-        DEALLOCATE(recvidxlist)
-        DEALLOCATE(sendlist)
-        DEALLOCATE(recvlist)
-        DEALLOCATE(sendreqs)
-        DEALLOCATE(recvreqs)
-    END SUBROUTINE finish_conn
 
 
 
@@ -1588,6 +1565,7 @@ CONTAINS
 
 
     ! Routine to prepare the workpackage for intra-rank self connect
+    !
     SUBROUTINE prepare_selftasks(selftasks, iselftask, sendid, nplane, &
             normal, flag, v1, v2, v3, s1, s2, s3)
 
@@ -1716,6 +1694,9 @@ CONTAINS
     END SUBROUTINE prepare_selftasks
 
 
+
+    ! Core routine to add a single self-copy task to the workpackage
+    !
     SUBROUTINE add_self_task(selftask, fieldid, igrid, igrid_d, istart, istop, &
             jstart, jstop, kstart, kstop, istart_d, istop_d, jstart_d, &
             jstop_d, kstart_d, kstop_d)
@@ -1757,7 +1738,8 @@ CONTAINS
 
 
 
-
+    ! Core routine to add a single buffer-related task to the workpackage
+    !
     SUBROUTINE add_single_task(task, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop)
 
