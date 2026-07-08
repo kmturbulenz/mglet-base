@@ -1,4 +1,4 @@
-MODULE conn_v1_mod
+MODULE conn_v2_mod
 
     USE MPI_f08
     USE precision_mod
@@ -28,11 +28,11 @@ MODULE conn_v1_mod
     INTEGER(int32), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
         selftasks(:, :), mpisendtasks(:, :)
 
-    PUBLIC :: conn1, init_conn1, finish_conn1
+    PUBLIC :: conn2, init_conn2, finish_conn2
 
 CONTAINS
 
-    SUBROUTINE conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
+    SUBROUTINE conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
             forward, ityp)
 
         ! conn is a more compact version of connect aiming for CPU offloading.
@@ -190,10 +190,10 @@ CONTAINS
 
         CALL stop_timer(150)
 
-    END SUBROUTINE conn1
+    END SUBROUTINE conn2
 
 
-    SUBROUTINE init_conn1()
+    SUBROUTINE init_conn2()
         ! The maximum number of concurrent communications are the number
         ! of processes
         ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
@@ -206,16 +206,16 @@ CONTAINS
         recvlist = 0
         nrecv = 0
         nsend = 0
-    END SUBROUTINE init_conn1
+    END SUBROUTINE init_conn2
 
 
-    SUBROUTINE finish_conn1()
+    SUBROUTINE finish_conn2()
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
         DEALLOCATE(recvlist)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
-    END SUBROUTINE finish_conn1
+    END SUBROUTINE finish_conn2
 
 
     ! Perform all MPI Send calls
@@ -1303,4 +1303,4 @@ CONTAINS
 
     END SUBROUTINE add_single_task
 
-END MODULE conn_v1_mod
+END MODULE conn_v2_mod

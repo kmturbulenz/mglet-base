@@ -8,6 +8,7 @@ add_library(core STATIC
     config_mod.F90
     connect/conn_mod.F90
     connect/conn_v1_mod.F90
+    connect/conn_v2_mod.F90
     connect/connect_core_mod.F90
     connect/connect2_mod.F90
     corefields_mod.F90
