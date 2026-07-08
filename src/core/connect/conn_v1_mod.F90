@@ -28,11 +28,11 @@ MODULE conn_v1_mod
     INTEGER(int32), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
         selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
 
-    PUBLIC :: conn, init_conn, finish_conn
+    PUBLIC :: conn1, init_conn, finish_conn
 
 CONTAINS
 
-    SUBROUTINE conn(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
+    SUBROUTINE conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
             forward, ityp)
 
         ! conn is a more compact version of connect aiming for CPU offloading.
@@ -180,7 +180,7 @@ CONTAINS
 
         CALL stop_timer(150)
 
-    END SUBROUTINE conn
+    END SUBROUTINE conn1
 
 
     SUBROUTINE init_conn()
