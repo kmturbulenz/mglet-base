@@ -174,7 +174,7 @@ CONTAINS
 
         ! --- Update the sendtasks to GPU here...?
 
-        CALL process_recvtasks(recvtasks, nrecvtasks)
+        CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
         CALL stop_timer(150)
 
@@ -756,7 +756,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, i, j, k, iil, jjl, kkl
+            jstart, jstop, kstart, kstop, i, j, k, jjl, kkl
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
 
@@ -815,7 +815,6 @@ CONTAINS
             ! Dimensions of the subarray to be treated
             kkl = kstop - kstart + 1
             jjl = jstop - jstart + 1
-            iil = istop - istart + 1
 
             ! Fully parallelizable copy loop
             DO i = istart, istop
@@ -843,6 +842,103 @@ CONTAINS
         END IF
 
     END SUBROUTINE process_sendtasks
+
+
+    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
+
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
+        INTEGER(int32), INTENT(in) :: nrecvtasks
+        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, kkl, jjl, idx
+        TYPE(field_t), POINTER :: field
+        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
+        INTEGER(intk) :: i, j, k
+
+        DO itask = 1, nrecvtasks
+
+            ! Set variables from recvtasks workpackage
+            fieldid = recvtasks(1, itask)
+            icount  = recvtasks(2, itask)
+            igrid   = recvtasks(3, itask)
+            istart  = recvtasks(4, itask)
+            istop   = recvtasks(5, itask)
+            jstart  = recvtasks(6, itask)
+            jstop   = recvtasks(7, itask)
+            kstart  = recvtasks(8, itask)
+            kstop   = recvtasks(9, itask)
+
+            ! Assign the correct field pointer based on fieldid
+            SELECT CASE (fieldid)
+                CASE (1)
+                    IF (.NOT. PRESENT(v1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v1
+                CASE (2)
+                    IF (.NOT. PRESENT(v2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v2
+                CASE (3)
+                    IF (.NOT. PRESENT(v3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v3
+                CASE (4)
+                    IF (.NOT. PRESENT(s1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s1
+                CASE (5)
+                    IF (.NOT. PRESENT(s2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s2
+                CASE (6)
+                    IF (.NOT. PRESENT(s3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s3
+                CASE DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+            END SELECT
+
+            ! The following replaces "read_single_buffer"
+            CALL field%get_ptr(rarr, igrid)
+
+            kkl = kstop - kstart + 1
+            jjl = jstop - jstart + 1
+
+            ! Fully parallelizable copy loop
+            DO i = istart, istop
+                DO j = jstart, jstop
+                    DO k = kstart, kstop
+
+                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
+                            (i - istart)*jjl*kkl + icount
+
+                        rarr(k, j, i) = recvbuf(idx)
+
+                    END DO
+                END DO
+            END DO
+
+        END DO
+
+        ! Safety check based on final dummy entry
+        IF (nrecvtasks < maxtasks) THEN
+            IF (.NOT. ALL(recvtasks(:, nrecvtasks+1) == -1)) THEN
+                WRITE(*, *) "Did not encounter the expected dummy task."
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END IF
+
+    END SUBROUTINE process_recvtasks
 
 
     ! Read Receive buffers
