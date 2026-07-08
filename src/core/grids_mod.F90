@@ -909,6 +909,7 @@ CONTAINS
 
     SUBROUTINE get_bc_ctyp(ctyp, ibocd, iface, igrid)
         ! Subroutine arguments
+        !$omp declare target
         CHARACTER(len=*), INTENT(out) :: ctyp
         INTEGER(intk), INTENT(in) :: ibocd
         INTEGER(intk), INTENT(in) :: iface
