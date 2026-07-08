@@ -135,8 +135,7 @@ CONTAINS
 
         CALL start_timer(150)
 
-        ! Prepare workpackage with tasks nesessary for packing the buffer
-        ! Allocate the sendtasks array
+        ! Allocate the simple
         maxtasks = nvars * SIZE(sendconns, 2)
         ALLOCATE(sendtasks(buffertasksize, maxtasks))
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
@@ -144,8 +143,8 @@ CONTAINS
         ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
 
         ! Posting all non-blocking MPI recv calls with the right arguments
-        CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
-            flag, nvars)
+        CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
+            fwd, flag, nvars)
 
         ! Prepare the sendtasks, selftasks and mpisendtasks arrays
         CALL prepare_sendtasks_all(sendtasks, nsendtasks, &
@@ -153,7 +152,8 @@ CONTAINS
             minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        ! --- Update the sendtasks(1: nsendtasks) to GPU here...?
+        ! --- Update the sendtasks(1: nsendtasks+1) to GPU here...
+        ! --- The "+1" is a dummy task to detect execution overshoot
 
         CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
 
@@ -173,7 +173,8 @@ CONTAINS
 
         ! >>> By that time, the MPI messages have arrived
 
-        ! --- Update the recvtasks(1: nrecvtasks)  to GPU here...?
+        ! --- Update the recvtasks(1: nrecvtasks+1) to GPU here...
+        ! --- The "+1" is a dummy task to detect execution overshoot
 
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
