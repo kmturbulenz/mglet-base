@@ -1,4 +1,5 @@
-MODULE conn_mod
+MODULE conn_v1_mod
+
     USE MPI_f08
     USE precision_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf
@@ -1294,4 +1295,4 @@ CONTAINS
 
     END SUBROUTINE add_single_task
 
-END MODULE conn_mod
+END MODULE conn_v1_mod
