@@ -160,7 +160,7 @@ CONTAINS
 
         ! >>> MPI messages are now in flight, we can do other work...
 
-        CALL process_selftasks(selftasks, nselftasks)
+        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3)
 
         ! SIMON: We are here following a conservative variant, which allows
         ! safety checks. For performance reasons, one could already execute
@@ -939,6 +939,110 @@ CONTAINS
         END IF
 
     END SUBROUTINE process_recvtasks
+
+
+    SUBROUTINE process_selftasks(selftasks, nselftasks, v1, v2, v3, &
+            s1, s2, s3)
+
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: selftasks(selftasksize, maxtasks)
+        INTEGER(int32), INTENT(in) :: nselftasks
+        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
+            v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(int32) :: itask, fieldid
+        INTEGER(intk) :: igrid, igrid_d
+        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        INTEGER(intk) :: koff, joff, ioff
+        INTEGER(intk) :: i, j, k
+        TYPE(field_t), POINTER :: field
+        REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
+
+        DO itask = 1, nselftasks
+
+            ! Set variables from selftasks workpackage
+            fieldid  = selftasks(1, itask)
+            igrid    = selftasks(2, itask)
+            igrid_d  = selftasks(3, itask)
+            istart   = selftasks(4, itask)
+            istop    = selftasks(5, itask)
+            jstart   = selftasks(6, itask)
+            jstop    = selftasks(7, itask)
+            kstart   = selftasks(8, itask)
+            kstop    = selftasks(9, itask)
+            istart_d = selftasks(10, itask)
+            istop_d  = selftasks(11, itask)
+            jstart_d = selftasks(12, itask)
+            jstop_d  = selftasks(13, itask)
+            kstart_d = selftasks(14, itask)
+            kstop_d  = selftasks(15, itask)
+
+            ! Assign the correct field pointer based on fieldid
+            SELECT CASE (fieldid)
+                CASE (1)
+                    IF (.NOT. PRESENT(v1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v1
+                CASE (2)
+                    IF (.NOT. PRESENT(v2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v2
+                CASE (3)
+                    IF (.NOT. PRESENT(v3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v3
+                CASE (4)
+                    IF (.NOT. PRESENT(s1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s1
+                CASE (5)
+                    IF (.NOT. PRESENT(s2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s2
+                CASE (6)
+                    IF (.NOT. PRESENT(s3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s3
+                CASE DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+            END SELECT
+
+            ! The following replaces "connect_self_single"
+            koff = kstart - kstart_d
+            joff = jstart - jstart_d
+            ioff = istart - istart_d
+
+            CALL field%get_ptr(src_rarr, igrid)
+            CALL field%get_ptr(dst_rarr, igrid_d)
+
+            DO i = istart_d, istop_d
+                DO j = jstart_d, jstop_d
+                    DO k = kstart_d, kstop_d
+                        dst_rarr(k, j, i) = &
+                            src_rarr(k + koff, j + joff, i + ioff)
+                    END DO
+                END DO
+            END DO
+
+        END DO
+
+        ! Safety check based on final dummy entry
+        IF (nselftasks < maxtasks) THEN
+            IF (.NOT. ALL(selftasks(:, nselftasks+1) == -1)) THEN
+                WRITE(*, *) "Did not encounter the expected dummy task."
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END IF
+
+    END SUBROUTINE process_selftasks
 
 
     ! Read Receive buffers
