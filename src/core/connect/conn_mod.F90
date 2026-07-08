@@ -154,7 +154,8 @@ CONTAINS
 
         ! --- Update the sendtasks to GPU here...?
 
-        CALL process_sendtasks(sendtasks, nsendtasks)
+        CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
+
         CALL send_mpi_all(mpisendtasks, nmpisendtasks)
 
         ! >>> MPI messages are now in flight, we can do other work...
@@ -178,8 +179,6 @@ CONTAINS
         CALL stop_timer(150)
 
     END SUBROUTINE conn
-
-
 
 
 
@@ -746,6 +745,104 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE write_single_buffer
+
+
+    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
+
+        ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: sendtasks(buffertasksize, maxtasks)
+        INTEGER(int32), INTENT(in) :: nsendtasks
+        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, i, j, k, iil, jjl, kkl
+        TYPE(field_t), POINTER :: field
+        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
+
+        DO itask = 1, nsendtasks
+
+            ! Set variables from sendtasks workpackage
+            fieldid = sendtasks(1, itask)
+            icount = sendtasks(2, itask)
+            igrid = sendtasks(3, itask)
+            istart = sendtasks(4, itask)
+            istop = sendtasks(5, itask)
+            jstart = sendtasks(6, itask)
+            jstop = sendtasks(7, itask)
+            kstart = sendtasks(8, itask)
+            kstop = sendtasks(9, itask)
+
+            ! Assign the correct field pointer based on fieldid
+            SELECT CASE (fieldid)
+                CASE (1)
+                    IF (.NOT. PRESENT(v1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v1
+                CASE (2)
+                    IF (.NOT. PRESENT(v2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v2
+                CASE (3)
+                    IF (.NOT. PRESENT(v3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => v3
+                CASE (4)
+                    IF (.NOT. PRESENT(s1)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s1
+                CASE (5)
+                    IF (.NOT. PRESENT(s2)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s2
+                CASE (6)
+                    IF (.NOT. PRESENT(s3)) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    field => s3
+                CASE DEFAULT
+                    CALL errr(__FILE__, __LINE__)
+            END SELECT
+
+            ! The following replaces "write_single_buffer"
+            CALL field%get_ptr(rarr, igrid)
+
+            ! Dimensions of the subarray to be treated
+            kkl = kstop - kstart + 1
+            jjl = jstop - jstart + 1
+            iil = istop - istart + 1
+
+            ! Fully parallelizable copy loop
+            DO i = istart, istop
+                DO j = jstart, jstop
+                    DO k = kstart, kstop
+
+                        ! Computation of count to avoid incremental
+                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
+                            (i - istart)*jjl*kkl + icount
+
+                        sendbuf(idx) = rarr(k, j, i)
+
+                    END DO
+                END DO
+            END DO
+
+        END DO
+
+        ! Safety check based on final dummy entry
+        IF (nsendtasks < maxtasks) THEN
+            IF (.NOT. ALL(sendtasks(:, nsendtasks+1) == -1)) THEN
+                WRITE(*, *) "Did not encounter the expected dummy task."
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END IF
+
+    END SUBROUTINE process_sendtasks
 
 
     ! Read Receive buffers
