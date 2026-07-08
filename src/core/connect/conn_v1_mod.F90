@@ -136,7 +136,7 @@ CONTAINS
         CALL start_timer(150)
 
         ! Allocate the simple
-        maxtasks = nvars * SIZE(sendconns, 2)
+        maxtasks = nvars * SIZE(sendconns, 2) + 1
         ALLOCATE(sendtasks(buffertasksize, maxtasks))
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
         ALLOCATE(selftasks(selftasksize, maxtasks))
