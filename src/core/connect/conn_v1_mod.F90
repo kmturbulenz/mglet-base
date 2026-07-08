@@ -142,25 +142,29 @@ CONTAINS
         ALLOCATE(selftasks(selftasksize, maxtasks))
         ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
 
-        ! Posting all non-blocking MPI recv calls with the right arguments
-        CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
-            fwd, flag, nvars)
-
         ! Prepare the sendtasks, selftasks and mpisendtasks arrays
         CALL prepare_sendtasks_all(sendtasks, nsendtasks, &
             selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
             minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        ! --- Update the sendtasks(1: nsendtasks+1) to GPU here...
+        ! --- START async update of sendtasks(1: nsendtasks+1) to GPU here...
         ! --- The "+1" is a dummy task to detect execution overshoot
 
+        ! Posting all non-blocking MPI recv calls with the right arguments
+        CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
+            fwd, flag, nvars)
+
+        ! --- WAIT for finish update of sendtasks(1: nsendtasks+1) to GPU
+
+        ! > to be executed on GPU
         CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
 
         CALL send_mpi_all(mpisendtasks, nmpisendtasks)
 
         ! >>> MPI messages are now in flight, we can do other work...
 
+        ! > to be executed on GPU (async?)
         CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3)
 
         ! SIMON: We are here following a conservative variant, which allows
@@ -176,6 +180,7 @@ CONTAINS
         ! --- Update the recvtasks(1: nrecvtasks+1) to GPU here...
         ! --- The "+1" is a dummy task to detect execution overshoot
 
+        ! > to be executed on GPU
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
         DEALLOCATE(sendtasks)
