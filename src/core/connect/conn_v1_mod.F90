@@ -59,10 +59,8 @@ CONTAINS
         INTEGER(int8) :: errorcode
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
-
         TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
 
-        ! SIMON: Alternatively, we can point them to some dummy field (!)
         f1 => NULL()
         f2 => NULL()
         f3 => NULL()
@@ -167,7 +165,7 @@ CONTAINS
         !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
         !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
 
-        ! Posting all non-blocking MPI recv calls with device pointers on HOST
+        ! Posting all non-blocking MPI recv calls with device addr on HOST
         CALL roctxrangepush("recv_mpi_all")
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
             fwd, flag, nvars)
@@ -184,7 +182,7 @@ CONTAINS
         CALL roctxrangepop()
 
         CALL roctxrangepush("send_mpi_all")
-        ! Posting all non-blocking MPI send calls with device pointers on HOST
+        ! Posting all non-blocking MPI send calls with device addr on HOST
         CALL send_mpi_all(mpisendtasks, nmpisendtasks)
         CALL roctxrangepop()
 
@@ -212,13 +210,14 @@ CONTAINS
         !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
         !$omp taskwait
+        CALL check_error(errorcode, "Error in process_selftasks")
 
         CALL roctxrangepush("process_recvtasks")
         ! Unpacking the recv buffer on the DEVICE (kernel must finish)
         CALL process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, f4, f5, f6, &
             errorcode)
-        CALL roctxrangepop()
         CALL check_error(errorcode, "Error in process_recvtasks")
+        CALL roctxrangepop()
 
         CALL stop_timer(150)
 
@@ -600,7 +599,6 @@ CONTAINS
             messagelength = mpisendtasks(2, itask)
             sendcounter   = mpisendtasks(3, itask)
 
-            ! replaces "post_mpi_send"
             !$omp target data use_device_addr(sendbuf)
             CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
