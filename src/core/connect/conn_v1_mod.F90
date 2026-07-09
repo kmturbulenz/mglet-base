@@ -726,7 +726,7 @@ CONTAINS
         !$omp end teams distribute
 
         ! Safety check based on final dummy entry
-        IF (sendtasks(1, nsendtasks+1) == -1) THEN
+        IF (sendtasks(1, nsendtasks+1) /= -1) THEN
             errorcode = 8
         END IF
         !$omp end target
@@ -751,8 +751,12 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
         INTEGER(intk) :: i, j, k
 
+        !$omp target map(from: errorcode)
         errorcode = 0
 
+        !$omp teams distribute private(itask, fieldid, icount, &
+        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
+        !$omp&  idx, i, j, k, field, rarr)
         DO itask = 1, nrecvtasks
 
             ! Set variables from recvtasks workpackage
@@ -820,6 +824,7 @@ CONTAINS
             jjl = jstop - jstart + 1
 
             ! Fully parallelizable copy loop
+            !$omp parallel do collapse(3) private(i, j, k, idx)
             DO i = istart, istop
                 DO j = jstart, jstop
                     DO k = kstart, kstop
@@ -832,13 +837,16 @@ CONTAINS
                     END DO
                 END DO
             END DO
+            !$omp end parallel do
 
         END DO
+        !$omp end teams distribute
 
         ! Safety check based on final dummy entry
-        IF (.NOT. ALL(recvtasks(:, nrecvtasks+1) == -1)) THEN
+        IF (recvtasks(1, nrecvtasks+1) /= -1) THEN
             errorcode = 8
         END IF
+        !$omp end target
 
     END SUBROUTINE process_recvtasks
 
