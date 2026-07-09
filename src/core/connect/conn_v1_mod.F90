@@ -144,9 +144,9 @@ CONTAINS
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         ! Start non-blocking update to GPU
-        !$omp target update to(
-        !$omp sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+        !$omp target update to( &
+        !$omp   sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp   selftasks(1:selftasksize, 1:nselftasks+1)) nowait
 
         ! Posting all non-blocking MPI recv calls with device pointers on HOST
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
@@ -179,7 +179,7 @@ CONTAINS
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        !$omp target update to(
+        !$omp target update to( &
         !$omp recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
         !$omp taskwait
