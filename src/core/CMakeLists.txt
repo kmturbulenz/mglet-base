@@ -6,7 +6,10 @@ add_library(core STATIC
     commbuf_mod.F90
     comms_mod.F90
     config_mod.F90
-    connect2_mod.F90
+    connect/conn_mod.F90
+    connect/conn_v1_mod.F90
+    connect/connect_core_mod.F90
+    connect/connect2_mod.F90
     corefields_mod.F90
     core_mod.F90
     create_directory.c
@@ -86,7 +89,7 @@ set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>
 )
 
-set_source_files_properties(connect2_mod.F90 PROPERTIES COMPILE_FLAGS
+set_source_files_properties(connect/connect2_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-error=function-elimination>
 )
 
