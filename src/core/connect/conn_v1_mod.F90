@@ -144,8 +144,8 @@ CONTAINS
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to( &
-        !$omp   sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp   selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
 
         ! Posting all non-blocking MPI recv calls with device pointers on HOST
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
@@ -179,7 +179,7 @@ CONTAINS
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to( &
-        !$omp recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
+        !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
         !$omp taskwait
         CALL check_error(errorcode, "Error in process_selftasks")
@@ -875,8 +875,8 @@ CONTAINS
         errorcode = 0
 
         !$omp teams distribute private(itask, fieldid, igrid, igrid_d, &
-        !$omp&  istart, istop, jstart, jstop, kstart, kstop,
-        !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d,
+        !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
+        !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
         !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr)
         DO itask = 1, nselftasks
 
@@ -1339,8 +1339,8 @@ CONTAINS
 
     ! Core routine to add a single buffer-related task to the workpackage
     !
-    PURE SUBROUTINE add_single_task(task, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop)
+    PURE SUBROUTINE add_single_task(task, fieldid, icount, igrid, &
+            istart, istop, jstart, jstop, kstart, kstop)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(out) :: task(9)
