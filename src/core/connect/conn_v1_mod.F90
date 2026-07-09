@@ -696,23 +696,23 @@ CONTAINS
             IF (errorcode == 0) THEN
                 ! The following replaces "write_single_buffer"
                 CALL get_grid3_real(rarr, field, igrid)
-    
+
                 ! Dimensions of the subarray to be treated
                 kkl = kstop - kstart + 1
                 jjl = jstop - jstart + 1
-    
+
                 ! Fully parallelizable copy loop
                 !$omp parallel do collapse(3) private(i, j, k, idx)
                 DO i = istart, istop
                     DO j = jstart, jstop
                         DO k = kstart, kstop
-    
+
                             ! Computation of count to avoid incremental
                             idx = 1 + (k - kstart) + (j - jstart)*kkl + &
                                 (i - istart)*jjl*kkl + icount
-    
+
                             sendbuf(idx) = rarr(k, j, i)
-    
+
                         END DO
                     END DO
                 END DO
@@ -862,7 +862,7 @@ CONTAINS
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
         !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr) &
-        !$omp& map(tofrom: errorcode)
+        !$omp& map(tofrom: errorcode) nowait
         DO itask = 1, nselftasks
 
             ! Set variables from selftasks workpackage
@@ -929,7 +929,7 @@ CONTAINS
                 koff = kstart - kstart_d
                 joff = jstart - jstart_d
                 ioff = istart - istart_d
-    
+
                 CALL get_grid3_real(src_rarr, field, igrid)
                 CALL get_grid3_real(dst_rarr, field, igrid_d)
 
