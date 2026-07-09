@@ -10,6 +10,7 @@ MODULE conn_v1_mod
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
     USE connect_core_mod
+    USE fieldhelper_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -632,12 +633,11 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
 
-        !$omp target map(from: errorcode)
         errorcode = 0
 
-        !$omp teams distribute private(itask, fieldid, icount, &
+        !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr)
+        !$omp&  idx, i, j, k, field, rarr) map(tofrom: errorcode)
         DO itask = 1, nsendtasks
 
             ! Set variables from sendtasks workpackage
@@ -693,44 +693,37 @@ CONTAINS
                     errorcode = 7
             END SELECT
 
-            ! Return immediately if an error was detected
-            IF (errorcode /= 0) THEN
-                RETURN
-            END IF
-
-            ! The following replaces "write_single_buffer"
-            CALL field%get_ptr(rarr, igrid)
-
-            ! Dimensions of the subarray to be treated
-            kkl = kstop - kstart + 1
-            jjl = jstop - jstart + 1
-
-            ! Fully parallelizable copy loop
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = istart, istop
-                DO j = jstart, jstop
-                    DO k = kstart, kstop
-
-                        ! Computation of count to avoid incremental
-                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
-                            (i - istart)*jjl*kkl + icount
-
-                        sendbuf(idx) = rarr(k, j, i)
-
+            IF (errorcode == 0) THEN
+                ! The following replaces "write_single_buffer"
+                CALL get_grid3_real(rarr, field, igrid)
+    
+                ! Dimensions of the subarray to be treated
+                kkl = kstop - kstart + 1
+                jjl = jstop - jstart + 1
+    
+                ! Fully parallelizable copy loop
+                !$omp parallel do collapse(3) private(i, j, k, idx)
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+    
+                            ! Computation of count to avoid incremental
+                            idx = 1 + (k - kstart) + (j - jstart)*kkl + &
+                                (i - istart)*jjl*kkl + icount
+    
+                            sendbuf(idx) = rarr(k, j, i)
+    
+                        END DO
                     END DO
                 END DO
-            END DO
-            !$omp end parallel do
+                !$omp end parallel do
+            END IF
 
+            IF (sendtasks(1, nsendtasks+1) /= -1) THEN
+                errorcode = 8
+            END IF
         END DO
-        !$omp end teams distribute
-
-        ! Safety check based on final dummy entry
-        IF (sendtasks(1, nsendtasks+1) /= -1) THEN
-            errorcode = 8
-        END IF
-        !$omp end target
-
+        !$omp end target teams distribute
     END SUBROUTINE process_sendtasks
 
 
@@ -751,12 +744,11 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
         INTEGER(intk) :: i, j, k
 
-        !$omp target map(from: errorcode)
         errorcode = 0
 
-        !$omp teams distribute private(itask, fieldid, icount, &
+        !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr)
+        !$omp&  idx, i, j, k, field, rarr) map(tofrom: errorcode)
         DO itask = 1, nrecvtasks
 
             ! Set variables from recvtasks workpackage
@@ -812,42 +804,35 @@ CONTAINS
                     errorcode = 7
             END SELECT
 
-            ! Return immediately if an error was detected
-            IF (errorcode /= 0) THEN
-                RETURN
-            END IF
+            IF (errorcode == 0) THEN
+                ! The following replaces "read_single_buffer"
+                CALL get_grid3_real(rarr, field, igrid)
 
-            ! The following replaces "read_single_buffer"
-            CALL field%get_ptr(rarr, igrid)
+                kkl = kstop - kstart + 1
+                jjl = jstop - jstart + 1
 
-            kkl = kstop - kstart + 1
-            jjl = jstop - jstart + 1
+                ! Fully parallelizable copy loop
+                !$omp parallel do collapse(3) private(i, j, k, idx)
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
 
-            ! Fully parallelizable copy loop
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = istart, istop
-                DO j = jstart, jstop
-                    DO k = kstart, kstop
+                            idx = 1 + (k - kstart) + (j - jstart)*kkl + &
+                                (i - istart)*jjl*kkl + icount
 
-                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
-                            (i - istart)*jjl*kkl + icount
+                            rarr(k, j, i) = recvbuf(idx)
 
-                        rarr(k, j, i) = recvbuf(idx)
-
+                        END DO
                     END DO
                 END DO
-            END DO
-            !$omp end parallel do
+                !$omp end parallel do
+            END IF
 
+            IF (recvtasks(1, nrecvtasks+1) /= -1) THEN
+                errorcode = 8
+            END IF
         END DO
-        !$omp end teams distribute
-
-        ! Safety check based on final dummy entry
-        IF (recvtasks(1, nrecvtasks+1) /= -1) THEN
-            errorcode = 8
-        END IF
-        !$omp end target
-
+        !$omp end target teams distribute
     END SUBROUTINE process_recvtasks
 
 
@@ -871,13 +856,13 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
 
-        !$omp target map(from: errorcode) nowait
         errorcode = 0
 
-        !$omp teams distribute private(itask, fieldid, igrid, igrid_d, &
+        !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
-        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr)
+        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr) &
+        !$omp& map(tofrom: errorcode)
         DO itask = 1, nselftasks
 
             ! Set variables from selftasks workpackage
@@ -939,39 +924,32 @@ CONTAINS
                     errorcode = 7
             END SELECT
 
-            ! Return immediately if an error was detected
-            IF (errorcode /= 0) THEN
-                RETURN
-            END IF
+            IF (errorcode == 0) THEN
+                ! The following replaces "connect_self_single"
+                koff = kstart - kstart_d
+                joff = jstart - jstart_d
+                ioff = istart - istart_d
+    
+                CALL get_grid3_real(src_rarr, field, igrid)
+                CALL get_grid3_real(dst_rarr, field, igrid_d)
 
-            ! The following replaces "connect_self_single"
-            koff = kstart - kstart_d
-            joff = jstart - jstart_d
-            ioff = istart - istart_d
-
-            CALL field%get_ptr(src_rarr, igrid)
-            CALL field%get_ptr(dst_rarr, igrid_d)
-
-            !$omp parallel do collapse(3) private(i, j, k)
-            DO i = istart_d, istop_d
-                DO j = jstart_d, jstop_d
-                    DO k = kstart_d, kstop_d
-                        dst_rarr(k, j, i) = &
-                            src_rarr(k + koff, j + joff, i + ioff)
+                !$omp parallel do collapse(3) private(i, j, k)
+                DO i = istart_d, istop_d
+                    DO j = jstart_d, jstop_d
+                        DO k = kstart_d, kstop_d
+                            dst_rarr(k, j, i) = &
+                                src_rarr(k + koff, j + joff, i + ioff)
+                        END DO
                     END DO
                 END DO
-            END DO
-            !$omp end parallel do
+                !$omp end parallel do
+            END IF
 
+            IF (selftasks(1, nselftasks+1) /= -1) THEN
+                errorcode = 8
+            END IF
         END DO
-        !$omp end teams distribute
-
-        ! Safety check based on final dummy entry
-        IF (selftasks(1, nselftasks+1) /= -1) THEN
-            errorcode = 8
-        END IF
-        !$omp end target
-
+        !$omp end target teams distribute
     END SUBROUTINE process_selftasks
 
 
