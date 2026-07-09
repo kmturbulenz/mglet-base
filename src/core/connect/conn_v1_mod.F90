@@ -143,7 +143,6 @@ CONTAINS
             minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        ! Start non-blocking update to GPU
         !$omp target update to( &
         !$omp   sendtasks(1:buffertasksize, 1:nsendtasks+1), &
         !$omp   selftasks(1:selftasksize, 1:nselftasks+1)) nowait
@@ -633,8 +632,12 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
 
+        !$omp target map(from: errorcode)
         errorcode = 0
 
+        !$omp teams distribute private(itask, fieldid, icount, &
+        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
+        !$omp&  idx, i, j, k, field, rarr)
         DO itask = 1, nsendtasks
 
             ! Set variables from sendtasks workpackage
@@ -703,6 +706,7 @@ CONTAINS
             jjl = jstop - jstart + 1
 
             ! Fully parallelizable copy loop
+            !$omp parallel do collapse(3) private(i, j, k, idx)
             DO i = istart, istop
                 DO j = jstart, jstop
                     DO k = kstart, kstop
@@ -716,13 +720,16 @@ CONTAINS
                     END DO
                 END DO
             END DO
+            !$omp end parallel do
 
         END DO
+        !$omp end teams distribute
 
         ! Safety check based on final dummy entry
-        IF (.NOT. ALL(sendtasks(:, nsendtasks+1) == -1)) THEN
+        IF (sendtasks(1, nsendtasks+1) == -1) THEN
             errorcode = 8
         END IF
+        !$omp end target
 
     END SUBROUTINE process_sendtasks
 
