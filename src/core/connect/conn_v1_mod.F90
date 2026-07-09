@@ -135,13 +135,6 @@ CONTAINS
 
         CALL start_timer(150)
 
-        ! Allocate the simple
-        maxtasks = nvars * SIZE(sendconns, 2) + 1
-        ALLOCATE(sendtasks(buffertasksize, maxtasks))
-        ALLOCATE(recvtasks(buffertasksize, maxtasks))
-        ALLOCATE(selftasks(selftasksize, maxtasks))
-        ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
-
         ! Prepare the sendtasks, selftasks and mpisendtasks arrays
         CALL prepare_sendtasks_all(sendtasks, nsendtasks, &
             selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
@@ -183,11 +176,6 @@ CONTAINS
         ! > to be executed on GPU
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
-        DEALLOCATE(sendtasks)
-        DEALLOCATE(recvtasks)
-        DEALLOCATE(selftasks)
-        DEALLOCATE(mpisendtasks)
-
         CALL stop_timer(150)
 
     END SUBROUTINE conn1
@@ -201,6 +189,13 @@ CONTAINS
         ALLOCATE(recvlist(numprocs))
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
+
+        maxtasks = 6 * SIZE(sendconns, 2) + 1
+        ALLOCATE(sendtasks(buffertasksize, maxtasks))
+        ALLOCATE(recvtasks(buffertasksize, maxtasks))
+        ALLOCATE(selftasks(selftasksize, maxtasks))
+        ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
+
         recvidxlist = 0
         sendlist = 0
         recvlist = 0
@@ -215,6 +210,12 @@ CONTAINS
         DEALLOCATE(recvlist)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
+
+        DEALLOCATE(sendtasks)
+        DEALLOCATE(recvtasks)
+        DEALLOCATE(selftasks)
+        DEALLOCATE(mpisendtasks)
+
     END SUBROUTINE finish_conn1
 
 
@@ -1096,8 +1097,8 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: selftasks(selftasksize, maxtasks)
-        INTEGER(intk), INTENT(inout) :: iselftask
+        INTEGER(int32), INTENT(inout) :: selftasks(selftasksize, maxtasks)
+        INTEGER(int32), INTENT(inout) :: iselftask
         INTEGER(int32), INTENT(in) :: sendid
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
