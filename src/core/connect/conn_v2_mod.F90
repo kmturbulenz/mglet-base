@@ -136,7 +136,7 @@ CONTAINS
         CALL start_timer(150)
 
         ! Allocate the simple
-        maxtasks = nvars * SIZE(sendconns, 2) + 1
+        maxtasks = 6 * SIZE(sendconns, 2) + 1
         ALLOCATE(sendtasks(buffertasksize, maxtasks))
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
         ALLOCATE(selftasks(selftasksize, maxtasks))
@@ -196,6 +196,12 @@ CONTAINS
     SUBROUTINE init_conn2()
         ! The maximum number of concurrent communications are the number
         ! of processes
+
+        WRITE(*, *) "Initializing conn2..."
+        WRITE(*, *) "Implementation of conn2 still a playground for now."
+        CALL errr(__FILE__, __LINE__)
+
+
         ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
         ALLOCATE(sendlist(numprocs))
         ALLOCATE(recvlist(numprocs))
