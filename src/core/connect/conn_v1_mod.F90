@@ -27,6 +27,7 @@ MODULE conn_v1_mod
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(int32), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
         selftasks(:, :), mpisendtasks(:, :)
+    !$omp declare target(sendtasks, recvtasks, selftasks)
 
     PUBLIC :: conn1, init_conn1, finish_conn1
 
@@ -135,45 +136,53 @@ CONTAINS
 
         CALL start_timer(150)
 
-        ! Prepare the sendtasks, selftasks and mpisendtasks arrays
+        ! Prepare the sendtasks, selftasks and mpisendtasks arrays on HOST
         CALL prepare_sendtasks_all(sendtasks, nsendtasks, &
             selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
             minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        ! --- START async update of sendtasks(1: nsendtasks+1) to GPU here...
-        ! --- The "+1" is a dummy task to detect execution overshoot
+        ! Start non-blocking update to GPU
+        !$omp target update to(
+        !$omp sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp selftasks(1:selftasksize, 1:nselftasks+1)) nowait
 
-        ! Posting all non-blocking MPI recv calls with the right arguments
+        ! Posting all non-blocking MPI recv calls with device pointers on HOST
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, normal2, &
             fwd, flag, nvars)
 
-        ! --- WAIT for finish update of sendtasks(1: nsendtasks+1) to GPU
+        ! Wait for the task arrays to be copied to the device
+        !$omp taskwait
 
-        ! > to be executed on GPU
+        ! Packing the send buffer on the DEVICE (kernel must finish)
         CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
 
+        ! Posting all non-blocking MPI send calls with device pointers on HOST
         CALL send_mpi_all(mpisendtasks, nmpisendtasks)
 
         ! >>> MPI messages are now in flight, we can do other work...
-
-        ! > to be executed on GPU (async?)
-        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3)
 
         ! SIMON: We are here following a conservative variant, which allows
         ! safety checks. For performance reasons, one could already execute
         ! "prepare_recvtasks_all" BEFORE the messages are there. That is
         ! without any checks (!)
 
+        ! Packing the send buffer using on the DEVICE (nowait)
+        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3)
+
+
+        ! Prepare the recvtasks arrays on HOST (ensures MPI completion)
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        ! >>> By that time, the MPI messages have arrived
+        ! Start non-blocking update to GPU
+        !$omp target update to(
+        !$omp recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
-        ! --- Update the recvtasks(1: nrecvtasks+1) to GPU here...
-        ! --- The "+1" is a dummy task to detect execution overshoot
+        ! Wait for the task arrays to be copied to the device
+        !$omp taskwait
 
-        ! > to be executed on GPU
+        ! Unpacking the recv buffer on the DEVICE (kernel must finish)
         CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
 
         CALL stop_timer(150)
@@ -190,11 +199,15 @@ CONTAINS
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
 
+        ! Allocating the workpackage arrays at their maximal size
         maxtasks = 6 * SIZE(sendconns, 2) + 1
         ALLOCATE(sendtasks(buffertasksize, maxtasks))
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
         ALLOCATE(selftasks(selftasksize, maxtasks))
-        ALLOCATE(mpisendtasks(mpitasksize, maxtasks))
+        !$omp target enter data map(always, to: sendtasks, recvtasks, &
+        !$omp selftasks)
+
+        ALLOCATE(mpisendtasks(mpitasksize, SIZE(sendconns, 2)+1))
 
         recvidxlist = 0
         sendlist = 0
