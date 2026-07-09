@@ -871,8 +871,13 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
 
+        !$omp target map(from: errorcode) nowait
         errorcode = 0
 
+        !$omp teams distribute private(itask, fieldid, igrid, igrid_d, &
+        !$omp&  istart, istop, jstart, jstop, kstart, kstop,
+        !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d,
+        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr)
         DO itask = 1, nselftasks
 
             ! Set variables from selftasks workpackage
@@ -947,6 +952,7 @@ CONTAINS
             CALL field%get_ptr(src_rarr, igrid)
             CALL field%get_ptr(dst_rarr, igrid_d)
 
+            !$omp parallel do collapse(3) private(i, j, k)
             DO i = istart_d, istop_d
                 DO j = jstart_d, jstop_d
                     DO k = kstart_d, kstop_d
@@ -955,13 +961,16 @@ CONTAINS
                     END DO
                 END DO
             END DO
+            !$omp end parallel do
 
         END DO
+        !$omp end teams distribute
 
         ! Safety check based on final dummy entry
-        IF (.NOT. ALL(selftasks(:, nselftasks+1) == -1)) THEN
+        IF (selftasks(1, nselftasks+1) /= -1) THEN
             errorcode = 8
         END IF
+        !$omp end target
 
     END SUBROUTINE process_selftasks
 
