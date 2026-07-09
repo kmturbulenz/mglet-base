@@ -47,7 +47,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
-        TYPE(field_t), OPTIONAL, INTENT(inout) :: &
+        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
             v1, v2, v3, s1, s2, s3
         LOGICAL, OPTIONAL, INTENT(in) :: corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
@@ -59,6 +59,16 @@ CONTAINS
         INTEGER(int8) :: errorcode
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
+
+        TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
+
+        ! SIMON: Alternatively, we can point them to some dummy field (!)
+        f1 => NULL()
+        f2 => NULL()
+        f3 => NULL()
+        f4 => NULL()
+        f5 => NULL()
+        f6 => NULL()
 
         IF (PRESENT(ilevel)) THEN
             minconlvl = ilevel
@@ -101,21 +111,27 @@ CONTAINS
 
         nvars = 0
         IF (PRESENT(v1)) THEN
+            f1 => v1
             nvars = nvars + 1
         END IF
         IF (PRESENT(v2)) THEN
+            f2 => v2
             nvars = nvars + 1
         END IF
         IF (PRESENT(v3)) THEN
+            f3 => v3
             nvars = nvars + 1
         END IF
         IF (PRESENT(s1)) THEN
+            f4 => s1
             nvars = nvars + 1
         END IF
         IF (PRESENT(s2)) THEN
+            f5 => s2
             nvars = nvars + 1
         END IF
         IF (PRESENT(s3)) THEN
+            f6 => s3
             nvars = nvars + 1
         END IF
         IF (nvars == 0) THEN
@@ -162,8 +178,8 @@ CONTAINS
 
         ! Packing the send buffer on the DEVICE (kernel must finish)
         CALL roctxrangepush("process_sendtasks")
-        CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, &
-            s3, errorcode)
+        CALL process_sendtasks(sendtasks, nsendtasks, f1, f2, f3, f4, f5, f6, &
+            errorcode)
         CALL check_error(errorcode, "Error in process_sendtasks")
         CALL roctxrangepop()
 
@@ -182,7 +198,7 @@ CONTAINS
 
         ! Packing the send buffer using on the DEVICE (nowait)
         CALL roctxrangepush("process_selftasks")
-        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3, &
+        CALL process_selftasks(selftasks, nselftasks, f1, f2, f3, f4, f5, f6, &
             errorcode)
         CALL roctxrangepop()
 
@@ -199,8 +215,8 @@ CONTAINS
 
         CALL roctxrangepush("process_recvtasks")
         ! Unpacking the recv buffer on the DEVICE (kernel must finish)
-        CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, &
-        s3, errorcode)
+        CALL process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, f4, f5, f6, &
+            errorcode)
         CALL roctxrangepop()
         CALL check_error(errorcode, "Error in process_recvtasks")
 
@@ -634,13 +650,13 @@ CONTAINS
     END SUBROUTINE add_mpisend_task
 
 
-    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, &
-            s1, s2, s3, errorcode)
+    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, f1, f2, f3, &
+            f4, f5, f6, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: sendtasks(buffertasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nsendtasks
-        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
         INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
@@ -674,42 +690,42 @@ CONTAINS
 
             ! Assign the correct field pointer based on fieldid
             SELECT CASE (fieldid)
-!                CASE (1)
-!                    IF (.NOT. PRESENT(v1)) THEN
-!                        errorcode = 1
-!                    ELSE
-!                        field => v1
-!                    END IF
-!                CASE (2)
-!                    IF (.NOT. PRESENT(v2)) THEN
-!                        errorcode = 2
-!                    ELSE
-!                        field => v2
-!                    END IF
-!                CASE (3)
-!                    IF (.NOT. PRESENT(v3)) THEN
-!                        errorcode = 3
-!                    ELSE
-!                        field => v3
-!                    END IF
+                CASE (1)
+                    IF (.NOT. ASSOCIATED(f1)) THEN
+                        errorcode = 1
+                    ELSE
+                        field => f1
+                    END IF
+                CASE (2)
+                    IF (.NOT. ASSOCIATED(f2)) THEN
+                        errorcode = 2
+                    ELSE
+                        field => f2
+                    END IF
+                CASE (3)
+                    IF (.NOT. ASSOCIATED(f3)) THEN
+                        errorcode = 3
+                    ELSE
+                        field => f3
+                    END IF
                 CASE (4)
-                    IF (.NOT. PRESENT(s1)) THEN
+                    IF (.NOT. ASSOCIATED(f4)) THEN
                         errorcode = 4
                     ELSE
-                        field => s1
+                        field => f4
                     END IF
-!                CASE (5)
-!                    IF (.NOT. PRESENT(s2)) THEN
-!                        errorcode = 5
-!                    ELSE
-!                        field => s2
-!                    END IF
-!                CASE (6)
-!                    IF (.NOT. PRESENT(s3)) THEN
-!                        errorcode = 6
-!                    ELSE
-!                        field => s3
-!                    END IF
+                CASE (5)
+                    IF (.NOT. ASSOCIATED(f5)) THEN
+                        errorcode = 5
+                    ELSE
+                        field => f5
+                    END IF
+                CASE (6)
+                    IF (.NOT. ASSOCIATED(f6)) THEN
+                        errorcode = 6
+                    ELSE
+                        field => f6
+                    END IF
                 CASE DEFAULT
                     errorcode = 7
             END SELECT
@@ -717,23 +733,23 @@ CONTAINS
             IF (errorcode == 0) THEN
                 ! The following replaces "write_single_buffer"
                 CALL get_grid3_real(rarr, field, igrid)
-    
+
                 ! Dimensions of the subarray to be treated
                 kkl = kstop - kstart + 1
                 jjl = jstop - jstart + 1
-    
+
                 ! Fully parallelizable copy loop
                 !$omp parallel do collapse(3) private(i, j, k, idx)
                 DO i = istart, istop
                     DO j = jstart, jstop
                         DO k = kstart, kstop
-    
+
                             ! Computation of count to avoid incremental
                             idx = 1 + (k - kstart) + (j - jstart)*kkl + &
                                 (i - istart)*jjl*kkl + icount
-    
+
                             sendbuf(idx) = rarr(k, j, i)
-    
+
                         END DO
                     END DO
                 END DO
@@ -748,14 +764,13 @@ CONTAINS
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, &
-        s1, s2, s3, errorcode)
+    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, &
+            f4, f5, f6, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nrecvtasks
-        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
-            v1, v2, v3, s1, s2, s3
+        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
         INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
@@ -772,9 +787,10 @@ CONTAINS
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr)
+        !$omp&  idx, i, j, k, field, rarr) &
         !$omp& reduction(max: errorcode) map(from: errorcode)
         DO itask = 1, nrecvtasks
+
             errorcode = 0
             ! Set variables from recvtasks workpackage
             fieldid = recvtasks(1, itask)
@@ -789,42 +805,42 @@ CONTAINS
 
             ! Assign the correct field pointer based on fieldid
             SELECT CASE (fieldid)
-!                CASE (1)
-!                    IF (.NOT. PRESENT(v1)) THEN
-!                        errorcode = 1
-!                    ELSE
-!                        field => v1
-!                    END IF
-!                CASE (2)
-!                    IF (.NOT. PRESENT(v2)) THEN
-!                        errorcode = 2
-!                    ELSE
-!                        field => v2
-!                    END IF
-!                CASE (3)
-!                    IF (.NOT. PRESENT(v3)) THEN
-!                        errorcode = 3
-!                    ELSE
-!                        field => v3
-!                    END IF
+                CASE (1)
+                    IF (.NOT. ASSOCIATED(f1)) THEN
+                        errorcode = 1
+                    ELSE
+                        field => f1
+                    END IF
+                CASE (2)
+                    IF (.NOT. ASSOCIATED(f2)) THEN
+                        errorcode = 2
+                    ELSE
+                        field => f2
+                    END IF
+                CASE (3)
+                    IF (.NOT. ASSOCIATED(f3)) THEN
+                        errorcode = 3
+                    ELSE
+                        field => f3
+                    END IF
                 CASE (4)
-                    IF (.NOT. PRESENT(s1)) THEN
+                    IF (.NOT. ASSOCIATED(f4)) THEN
                         errorcode = 4
                     ELSE
-                        field => s1
+                        field => f4
                     END IF
-!                CASE (5)
-!                    IF (.NOT. PRESENT(s2)) THEN
-!                        errorcode = 5
-!                    ELSE
-!                        field => s2
-!                    END IF
-!                CASE (6)
-!                    IF (.NOT. PRESENT(s3)) THEN
-!                        errorcode = 6
-!                    ELSE
-!                        field => s3
-!                    END IF
+                CASE (5)
+                    IF (.NOT. ASSOCIATED(f5)) THEN
+                        errorcode = 5
+                    ELSE
+                        field => f5
+                    END IF
+                CASE (6)
+                    IF (.NOT. ASSOCIATED(f6)) THEN
+                        errorcode = 6
+                    ELSE
+                        field => f6
+                    END IF
                 CASE DEFAULT
                     errorcode = 7
             END SELECT
@@ -858,17 +874,17 @@ CONTAINS
             END IF
         END DO
         !$omp end target teams distribute
+
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE process_selftasks(selftasks, nselftasks, v1, v2, v3, &
-            s1, s2, s3, errorcode)
+    SUBROUTINE process_selftasks(selftasks, nselftasks, f1, f2, f3, &
+            f4, f5, f6, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: selftasks(selftasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nselftasks
-        TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
-            v1, v2, v3, s1, s2, s3
+        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
         INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
@@ -913,42 +929,42 @@ CONTAINS
 
             ! Assign the correct field pointer based on fieldid
             SELECT CASE (fieldid)
-!                CASE (1)
-!                    IF (.NOT. PRESENT(v1)) THEN
-!                        errorcode = 1
-!                    ELSE
-!                        field => v1
-!                    END IF
-!                CASE (2)
-!                    IF (.NOT. PRESENT(v2)) THEN
-!                        errorcode = 2
-!                    ELSE
-!                        field => v2
-!                    END IF
-!                CASE (3)
-!                    IF (.NOT. PRESENT(v3)) THEN
-!                        errorcode = 3
-!                    ELSE
-!                        field => v3
-!                    END IF
+                CASE (1)
+                    IF (.NOT. ASSOCIATED(f1)) THEN
+                        errorcode = 1
+                    ELSE
+                        field => f1
+                    END IF
+                CASE (2)
+                    IF (.NOT. ASSOCIATED(f2)) THEN
+                        errorcode = 2
+                    ELSE
+                        field => f2
+                    END IF
+                CASE (3)
+                    IF (.NOT. ASSOCIATED(f3)) THEN
+                        errorcode = 3
+                    ELSE
+                        field => f3
+                    END IF
                 CASE (4)
-                    IF (.NOT. PRESENT(s1)) THEN
+                    IF (.NOT. ASSOCIATED(f4)) THEN
                         errorcode = 4
                     ELSE
-                        field => s1
+                        field => f4
                     END IF
-!                CASE (5)
-!                    IF (.NOT. PRESENT(s2)) THEN
-!                        errorcode = 5
-!                    ELSE
-!                        field => s2
-!                    END IF
-!                CASE (6)
-!                    IF (.NOT. PRESENT(s3)) THEN
-!                        errorcode = 6
-!                    ELSE
-!                        field => s3
-!                    END IF
+                CASE (5)
+                    IF (.NOT. ASSOCIATED(f5)) THEN
+                        errorcode = 5
+                    ELSE
+                        field => f5
+                    END IF
+                CASE (6)
+                    IF (.NOT. ASSOCIATED(f6)) THEN
+                        errorcode = 6
+                    ELSE
+                        field => f6
+                    END IF
                 CASE DEFAULT
                     errorcode = 7
             END SELECT
@@ -958,7 +974,7 @@ CONTAINS
                 koff = kstart - kstart_d
                 joff = jstart - jstart_d
                 ioff = istart - istart_d
-    
+
                 CALL get_grid3_real(src_rarr, field, igrid)
                 CALL get_grid3_real(dst_rarr, field, igrid_d)
 
@@ -979,6 +995,7 @@ CONTAINS
             END IF
         END DO
         !$omp end target teams distribute
+
     END SUBROUTINE process_selftasks
 
 
