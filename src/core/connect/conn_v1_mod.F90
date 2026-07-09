@@ -1288,7 +1288,6 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
             kstop, istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
 
-
         ! Filling the task
         selftask(1) = fieldid
         selftask(2) = igrid
@@ -1354,7 +1353,24 @@ CONTAINS
 
         IF (errorcode /= 0) THEN
             WRITE(*, *) "ERROR:", TRIM(msg), " errorcode =", errorcode
-            ERROR STOP
+            IF (errorcode == 1) THEN
+                WRITE(*, *) "v1 is not present"
+            ELSE IF (errorcode == 2) THEN
+                WRITE(*, *) "v2 is not present"
+            ELSE IF (errorcode == 3) THEN
+                WRITE(*, *) "v3 is not present"
+            ELSE IF (errorcode == 4) THEN
+                WRITE(*, *) "s1 is not present"
+            ELSE IF (errorcode == 5) THEN
+                WRITE(*, *) "s2 is not present"
+            ELSE IF (errorcode == 6) THEN
+                WRITE(*, *) "s3 is not present"
+            ELSE IF (errorcode == 7) THEN
+                WRITE(*, *) "Invalid fieldid"
+            ELSE IF (errorcode == 8) THEN
+                WRITE(*, *) "Check by dummy task failed"
+            END IF
+            CALL errr(__FILE__, __LINE__)
         END IF
     END SUBROUTINE check_error
 
