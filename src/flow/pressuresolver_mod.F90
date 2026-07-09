@@ -389,8 +389,12 @@ CONTAINS
         CALL get_field(siput, "SIPUT")
         CALL get_field(siplpr, "SIPLPR")
 
+
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
+        CALL map_arr_to_device(dp, message="to:dp%arr")
+
         DO iloop = 1, ninner
-            CALL map_arr_to_device(dp, message="to:dp%arr")
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
             CALL bound_pressure(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
@@ -399,19 +403,16 @@ CONTAINS
                 CALL sor(ilevel, dp, rhs, gsaw, gsae, gsas, gsan, gsab, gsat, &
                     gsrap, bp)
             ELSE
-                ! TODO(offload): Remove once surrounding subroutines are offloaded
-                CALL map_arr_to_device(rhs, message="to:rhs%arr")
                 ! Use the SIP solver
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
                 ! TODO(offload): Remove once surrounding subroutines are offloaded
-                CALL map_arr_from_device(dp, res, message="from:dp%arr|res%arr")
             END IF
 
-            CALL connect(ilevel, 1, s1=dp)
+            CALL conn1(ilevel, 1, s1=dp)
         END DO
+        CALL map_arr_from_device(res, message="from:res%arr")
 
-        CALL map_arr_to_device(dp, message="to:dp%arr")
         CALL bound_pressure(ilevel, dp, bp)
         CALL map_arr_from_device(dp, message="from:dp%arr")
 
@@ -447,21 +448,17 @@ CONTAINS
         ELSE
             CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
                 siplb, siplpr)
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_from_device(res, message="from:res%arr")
         END IF
 
         IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
+            CALL conn1(ilevel, 1, s1=res)
         ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
+            CALL conn1(ilevel, 1, s1=res, forward=-1)
         END IF
 
         IF (ityp == 2) THEN
             CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
         ELSE
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(res, message="to:res%arr")
             CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
                 siput)
         END IF
