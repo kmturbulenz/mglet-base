@@ -633,12 +633,13 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
 
-        errorcode = 0
-
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr) map(tofrom: errorcode)
+        !$omp&  idx, i, j, k, field, rarr) reduction(max: errorcode) &
+        !$omp&  map(from: errorcode)
         DO itask = 1, nsendtasks
+
+            errorcode = 0
 
             ! Set variables from sendtasks workpackage
             fieldid = sendtasks(1, itask)
@@ -744,12 +745,13 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
         INTEGER(intk) :: i, j, k
 
-        errorcode = 0
-
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr) map(tofrom: errorcode)
+        !$omp&  idx, i, j, k, field, rarr) reduction(max: errorcode) &
+        !$omp&  map(from: errorcode)
         DO itask = 1, nrecvtasks
+
+            errorcode = 0
 
             ! Set variables from recvtasks workpackage
             fieldid = recvtasks(1, itask)
@@ -856,14 +858,14 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
 
-        errorcode = 0
-
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
         !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr) &
-        !$omp& map(tofrom: errorcode) nowait
+        !$omp&  reduction(max: errorcode) map(from: errorcode) nowait
         DO itask = 1, nselftasks
+
+            errorcode = 0
 
             ! Set variables from selftasks workpackage
             fieldid  = selftasks(1, itask)
