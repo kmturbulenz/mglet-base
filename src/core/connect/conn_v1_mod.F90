@@ -54,6 +54,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
         INTEGER(int32) :: nsendtasks, nselftasks, nmpisendtasks, nrecvtasks
+        INTEGER(int8) :: errorcode
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
 
@@ -155,35 +156,40 @@ CONTAINS
         !$omp taskwait
 
         ! Packing the send buffer on the DEVICE (kernel must finish)
-        CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
+        CALL process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, &
+            s3, errorcode)
+        CALL check_error(errorcode, "Error in process_sendtasks")
 
         ! Posting all non-blocking MPI send calls with device pointers on HOST
         CALL send_mpi_all(mpisendtasks, nmpisendtasks)
 
-        ! >>> MPI messages are now in flight, we can do other work...
 
+        ! >>> MPI messages are now in flight, we can do other work...
         ! SIMON: We are here following a conservative variant, which allows
         ! safety checks. For performance reasons, one could already execute
         ! "prepare_recvtasks_all" BEFORE the messages are there. That is
         ! without any checks (!)
 
-        ! Packing the send buffer using on the DEVICE (nowait)
-        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3)
 
+        ! Packing the send buffer using on the DEVICE (nowait)
+        CALL process_selftasks(selftasks, nselftasks, v1, v2, v3, s1, s2, s3, &
+            errorcode)
 
         ! Prepare the recvtasks arrays on HOST (ensures MPI completion)
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        ! Start non-blocking update to GPU
         !$omp target update to(
         !$omp recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
-        ! Wait for the task arrays to be copied to the device
         !$omp taskwait
+        CALL check_error(errorcode, "Error in process_selftasks")
+
 
         ! Unpacking the recv buffer on the DEVICE (kernel must finish)
-        CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
+        CALL process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, &
+            s3, errorcode)
+        CALL check_error(errorcode, "Error in process_recvtasks")
 
         CALL stop_timer(150)
 
@@ -204,8 +210,7 @@ CONTAINS
         ALLOCATE(sendtasks(buffertasksize, maxtasks))
         ALLOCATE(recvtasks(buffertasksize, maxtasks))
         ALLOCATE(selftasks(selftasksize, maxtasks))
-        !$omp target enter data map(always, to: sendtasks, recvtasks, &
-        !$omp selftasks)
+        !$omp target enter data map(always, to: sendtasks, recvtasks, selftasks)
 
         ALLOCATE(mpisendtasks(mpitasksize, SIZE(sendconns, 2)+1))
 
@@ -224,9 +229,11 @@ CONTAINS
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
 
+        !$omp target exit data map(delete: sendtasks, recvtasks, selftasks)
         DEALLOCATE(sendtasks)
         DEALLOCATE(recvtasks)
         DEALLOCATE(selftasks)
+
         DEALLOCATE(mpisendtasks)
 
     END SUBROUTINE finish_conn1
@@ -610,12 +617,14 @@ CONTAINS
     END SUBROUTINE add_mpisend_task
 
 
-    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, v1, v2, v3, &
+            s1, s2, s3, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: sendtasks(buffertasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nsendtasks
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+        INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -623,6 +632,8 @@ CONTAINS
         INTEGER(intk) :: i, j, k
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
+
+        errorcode = 0
 
         DO itask = 1, nsendtasks
 
@@ -641,37 +652,48 @@ CONTAINS
             SELECT CASE (fieldid)
                 CASE (1)
                     IF (.NOT. PRESENT(v1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 1
+                    ELSE
+                        field => v1
                     END IF
-                    field => v1
                 CASE (2)
                     IF (.NOT. PRESENT(v2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 2
+                    ELSE
+                        field => v2
                     END IF
-                    field => v2
                 CASE (3)
                     IF (.NOT. PRESENT(v3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 3
+                    ELSE
+                        field => v3
                     END IF
-                    field => v3
                 CASE (4)
                     IF (.NOT. PRESENT(s1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 4
+                    ELSE
+                        field => s1
                     END IF
-                    field => s1
                 CASE (5)
                     IF (.NOT. PRESENT(s2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 5
+                    ELSE
+                        field => s2
                     END IF
-                    field => s2
                 CASE (6)
                     IF (.NOT. PRESENT(s3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 6
+                    ELSE
+                        field => s3
                     END IF
-                    field => s3
                 CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
+                    errorcode = 7
             END SELECT
+
+            ! Return immediately if an error was detected
+            IF (errorcode /= 0) THEN
+                RETURN
+            END IF
 
             ! The following replaces "write_single_buffer"
             CALL field%get_ptr(rarr, igrid)
@@ -698,23 +720,22 @@ CONTAINS
         END DO
 
         ! Safety check based on final dummy entry
-        IF (nsendtasks < maxtasks) THEN
-            IF (.NOT. ALL(sendtasks(:, nsendtasks+1) == -1)) THEN
-                WRITE(*, *) "Did not encounter the expected dummy task."
-                CALL errr(__FILE__, __LINE__)
-            END IF
+        IF (.NOT. ALL(sendtasks(:, nsendtasks+1) == -1)) THEN
+            errorcode = 8
         END IF
 
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, v1, v2, v3, &
+        s1, s2, s3, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nrecvtasks
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
             v1, v2, v3, s1, s2, s3
+        INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -722,6 +743,8 @@ CONTAINS
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
         INTEGER(intk) :: i, j, k
+
+        errorcode = 0
 
         DO itask = 1, nrecvtasks
 
@@ -740,37 +763,48 @@ CONTAINS
             SELECT CASE (fieldid)
                 CASE (1)
                     IF (.NOT. PRESENT(v1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 1
+                    ELSE
+                        field => v1
                     END IF
-                    field => v1
                 CASE (2)
                     IF (.NOT. PRESENT(v2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 2
+                    ELSE
+                        field => v2
                     END IF
-                    field => v2
                 CASE (3)
                     IF (.NOT. PRESENT(v3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 3
+                    ELSE
+                        field => v3
                     END IF
-                    field => v3
                 CASE (4)
                     IF (.NOT. PRESENT(s1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 4
+                    ELSE
+                        field => s1
                     END IF
-                    field => s1
                 CASE (5)
                     IF (.NOT. PRESENT(s2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 5
+                    ELSE
+                        field => s2
                     END IF
-                    field => s2
                 CASE (6)
                     IF (.NOT. PRESENT(s3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 6
+                    ELSE
+                        field => s3
                     END IF
-                    field => s3
                 CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
+                    errorcode = 7
             END SELECT
+
+            ! Return immediately if an error was detected
+            IF (errorcode /= 0) THEN
+                RETURN
+            END IF
 
             ! The following replaces "read_single_buffer"
             CALL field%get_ptr(rarr, igrid)
@@ -795,34 +829,34 @@ CONTAINS
         END DO
 
         ! Safety check based on final dummy entry
-        IF (nrecvtasks < maxtasks) THEN
-            IF (.NOT. ALL(recvtasks(:, nrecvtasks+1) == -1)) THEN
-                WRITE(*, *) "Did not encounter the expected dummy task."
-                CALL errr(__FILE__, __LINE__)
-            END IF
+        IF (.NOT. ALL(recvtasks(:, nrecvtasks+1) == -1)) THEN
+            errorcode = 8
         END IF
 
     END SUBROUTINE process_recvtasks
 
 
     SUBROUTINE process_selftasks(selftasks, nselftasks, v1, v2, v3, &
-            s1, s2, s3)
+            s1, s2, s3, errorcode)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: selftasks(selftasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nselftasks
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: &
             v1, v2, v3, s1, s2, s3
+        INTEGER(int8), INTENT(out) :: errorcode
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid
-        INTEGER(intk) :: igrid, igrid_d
-        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
-        INTEGER(intk) :: istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
-        INTEGER(intk) :: koff, joff, ioff
-        INTEGER(intk) :: i, j, k
+        INTEGER(int32) :: igrid, igrid_d
+        INTEGER(int32) :: istart, istop, jstart, jstop, kstart, kstop, &
+            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        INTEGER(int32) :: koff, joff, ioff
+        INTEGER(int32) :: i, j, k
         TYPE(field_t), POINTER :: field
         REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
+
+        errorcode = 0
 
         DO itask = 1, nselftasks
 
@@ -847,37 +881,48 @@ CONTAINS
             SELECT CASE (fieldid)
                 CASE (1)
                     IF (.NOT. PRESENT(v1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 1
+                    ELSE
+                        field => v1
                     END IF
-                    field => v1
                 CASE (2)
                     IF (.NOT. PRESENT(v2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 2
+                    ELSE
+                        field => v2
                     END IF
-                    field => v2
                 CASE (3)
                     IF (.NOT. PRESENT(v3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 3
+                    ELSE
+                        field => v3
                     END IF
-                    field => v3
                 CASE (4)
                     IF (.NOT. PRESENT(s1)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 4
+                    ELSE
+                        field => s1
                     END IF
-                    field => s1
                 CASE (5)
                     IF (.NOT. PRESENT(s2)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 5
+                    ELSE
+                        field => s2
                     END IF
-                    field => s2
                 CASE (6)
                     IF (.NOT. PRESENT(s3)) THEN
-                        CALL errr(__FILE__, __LINE__)
+                        errorcode = 6
+                    ELSE
+                        field => s3
                     END IF
-                    field => s3
                 CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
+                    errorcode = 7
             END SELECT
+
+            ! Return immediately if an error was detected
+            IF (errorcode /= 0) THEN
+                RETURN
+            END IF
 
             ! The following replaces "connect_self_single"
             koff = kstart - kstart_d
@@ -899,15 +944,11 @@ CONTAINS
         END DO
 
         ! Safety check based on final dummy entry
-        IF (nselftasks < maxtasks) THEN
-            IF (.NOT. ALL(selftasks(:, nselftasks+1) == -1)) THEN
-                WRITE(*, *) "Did not encounter the expected dummy task."
-                CALL errr(__FILE__, __LINE__)
-            END IF
+        IF (.NOT. ALL(selftasks(:, nselftasks+1) == -1)) THEN
+            errorcode = 8
         END IF
 
     END SUBROUTINE process_selftasks
-
 
 
 
@@ -1237,9 +1278,9 @@ CONTAINS
 
     ! Core routine to add a single self-copy task to the workpackage
     !
-    SUBROUTINE add_self_task(selftask, fieldid, igrid, igrid_d, istart, istop, &
-            jstart, jstop, kstart, kstop, istart_d, istop_d, jstart_d, &
-            jstop_d, kstart_d, kstop_d)
+    PURE SUBROUTINE add_self_task(selftask, fieldid, igrid, igrid_d, &
+            istart, istop, jstart, jstop, kstart, kstop, istart_d, &
+            istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: selftask(selftasksize)
@@ -1247,11 +1288,6 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
             kstop, istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
 
-        ! Check for valid field id
-        ! (definition: 1 = v1, 2 = v2, 3 = v3, 4 = s1, 5 = s2, 6 = s3)
-        IF (fieldid < 1 .OR. fieldid > 6) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
 
         ! Filling the task
         selftask(1) = fieldid
@@ -1280,7 +1316,7 @@ CONTAINS
 
     ! Core routine to add a single buffer-related task to the workpackage
     !
-    SUBROUTINE add_single_task(task, fieldid, icount, igrid, istart, istop, &
+    PURE SUBROUTINE add_single_task(task, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop)
 
         ! Subroutine arguments
@@ -1293,12 +1329,6 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: tasksize
-
-        ! Check for valid field id
-        ! (definition: 1 = v1, 2 = v2, 3 = v3, 4 = s1, 5 = s2, 6 = s3)
-        IF (fieldid < 1 .OR. fieldid > 6) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
 
         ! Filling the task
         task(1) = fieldid
@@ -1316,5 +1346,16 @@ CONTAINS
         icount = icount + tasksize
 
     END SUBROUTINE add_single_task
+
+
+    SUBROUTINE check_error(errorcode, msg)
+        INTEGER(int8), INTENT(in) :: errorcode
+        CHARACTER(*), INTENT(in) :: msg
+
+        IF (errorcode /= 0) THEN
+            WRITE(*, *) "ERROR:", TRIM(msg), " errorcode =", errorcode
+            ERROR STOP
+        END IF
+    END SUBROUTINE check_error
 
 END MODULE conn_v1_mod
