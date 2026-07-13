@@ -34,6 +34,8 @@ add_library(core STATIC
     pointers_mod.F90
     precision_mod.F90
     probeoffload_mod.F90
+    profile_tools_mod.F90
+    profile_tools.c
     pvtk.c
     pvtk_mod.F90
     qsort_mod.F90
@@ -63,6 +65,8 @@ target_link_libraries(core
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},roctx>:rocprofiler-sdk-roctx::rocprofiler-sdk-roctx>
+    PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},nvtx>:CUDA::nvtx3>
 )
 
 # Set include directories for specific files
