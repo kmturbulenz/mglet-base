@@ -481,7 +481,9 @@ CONTAINS
 
         imygrid = globalgrids(igrid)
 
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
+#endif
     END SUBROUTINE get_imygrid
 
 

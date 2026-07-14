@@ -31,6 +31,10 @@ CONTAINS
         CALL get_imygrid(imygrid, igrid)
         ip = field%ptr(imygrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        IF (len <= 0) CALL errr(__FILE__, __LINE__)
+#endif
+
         ptr(1:len) => field%arr(ip:ip+len-1)
     END SUBROUTINE get_grid1_real
 
@@ -45,14 +49,14 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
 
-        ! Getting and checking properties
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+#endif
 
-        ! Setting the pointer
         ip = field%ptr(imygrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real
@@ -68,14 +72,14 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
 
-        ! Getting and checking properties
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+#endif
 
-        ! Setting the pointer
         ip = field%ptr(imygrid)
         ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real_linear
@@ -91,14 +95,14 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
 
-        ! Getting and checking properties
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+#endif
 
-        ! Setting the pointer
         ip = field%ptr(imygrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_ifk
@@ -114,14 +118,14 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
 
-        ! Getting and checking properties
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+#endif
 
-        ! Setting the pointer
         ip = field%ptr(imygrid)
         ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_ifk_linear
