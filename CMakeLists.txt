@@ -109,7 +109,7 @@ set(MGLET_Fortran_FLAGS_DEBUG "" CACHE STRING "MGLET Fortran flags (debug)")
 if(MGLET_OFFLOAD)
     set(MGLET_OFFLOAD_COMPILE_FLAGS "" CACHE STRING "MGLET Offload compile flags")
     set(MGLET_OFFLOAD_ARCH_FLAGS "" CACHE STRING "MGLET Offload architecture flags")
-    add_compile_definitions("$<$<NOT:$<CONFIG:Debug>>:_MGLET_OFFLOAD_PERFORMANCE_=1>") 
+    add_compile_definitions("$<$<NOT:$<CONFIG:Debug>>:_MGLET_OFFLOAD_PERFORMANCE_=1>")
 endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"

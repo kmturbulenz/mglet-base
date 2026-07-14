@@ -8,8 +8,8 @@ MODULE core_mod
     USE commbuf_mod
     USE comms_mod
     USE config_mod
-    USE connect2_mod
     USE conn_mod
+    USE connect2_mod
     USE corefields_mod
     USE envvars_mod
     USE err_mod

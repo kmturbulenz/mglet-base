@@ -92,7 +92,7 @@ set_source_files_properties(comms_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-fall-intrinsics>
 )
 
-set_source_files_properties(connect2_mod.F90 PROPERTIES COMPILE_FLAGS
+set_source_files_properties(connect/connect2_mod.F90 PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_Fortran_COMPILER_ID}","GNU">:-Wno-error=function-elimination>
 )
 
