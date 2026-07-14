@@ -6,6 +6,7 @@ MODULE timeintegrate_scalar_mod
     USE bound_scalar_mod
     USE itinfo_scalar_mod
     USE gc_scastencils_mod
+    USE conn_mod, ONLY: conn
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -84,7 +85,7 @@ CONTAINS
 
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
-                CALL connect(layers=2, s1=t, corners=.TRUE.)
+                CALL conn(layers=2, s1=t, corners=.TRUE.)
                 CALL set_scastencils("P", scalar(l), t=t)
             END IF
 
@@ -92,7 +93,7 @@ CONTAINS
                 CALL ftoc(ilevel, t, t, 'T')
             END DO
 
-            CALL connect(layers=2, s1=t, corners=.TRUE.)
+            CALL conn(layers=2, s1=t, corners=.TRUE.)
 
             ! TODO: Fill ghost layers of T (maybe only at last IRK?)
         END DO
