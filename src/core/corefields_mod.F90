@@ -2,8 +2,8 @@ MODULE corefields_mod
     USE comms_mod
     USE err_mod, ONLY: errr
     USE field_mod
+    USE fieldhelper_mod
     USE fieldio2_mod
-    USE fieldmapper_mod
     USE fields_mod
     USE fort7_mod
     USE grids_mod
@@ -81,9 +81,12 @@ CONTAINS
         CALL read_gridspacing()
         CALL calc_reciprocals()
 
-        !$omp target update to(mapper(field_t__map_arr): rddx, rddy, rddz, &
-        !$omp& rdx, rdy, rdz, ddx, ddy, ddz, dx, dy, dz, x, y, z, &
-        !$omp& xstag, ystag, zstag)
+        CALL map_arr_to_device(rddx, rddy, rddz, rdx, rdy, rdz, &
+            message="to:reciprocals")
+        CALL map_arr_to_device(ddx, ddy, ddz, dx, dy, dz, &
+            message="to:cellspacing")
+        CALL map_arr_to_device(x, y, z, xstag, ystag, zstag, &
+            message="to:coordinates")
     END SUBROUTINE init_corefields
 
 
