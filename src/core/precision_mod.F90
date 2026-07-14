@@ -38,6 +38,9 @@ MODULE precision_mod
     INTEGER(int32), PARAMETER :: ifk_bytes = 4
 #endif
 
+    ! Small data type for error codes
+    INTEGER(int32), PARAMETER :: errk = int8
+
     ! MPI data types for REAL and INTEGER
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_real
     TYPE(MPI_Datatype), PROTECTED :: mglet_mpi_int
@@ -65,7 +68,7 @@ MODULE precision_mod
     INTEGER(intk), PARAMETER :: mglet_filename_max = 256
 
     ! Public data items
-    PUBLIC :: init_precision, finish_precision, realk, intk, c_intk, &
+    PUBLIC :: init_precision, finish_precision, realk, intk, errk, c_intk, &
         c_realk, mglet_hdf5_real, mglet_hdf5_int, pi, eps, int8, int16, &
         int32, int64, real32, real64, real_bytes, int_bytes, &
         mglet_filename_max, neps, ifk, ifk_bytes, mglet_mpi_ifk, &
