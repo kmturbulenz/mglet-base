@@ -10,6 +10,8 @@ MODULE conn3_mod
     USE field_mod
     USE connect_core_mod
     USE fieldhelper_mod
+    USE pointers_mod, ONLY: get_ip3
+    USE profile_tools_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -42,6 +44,9 @@ MODULE conn3_mod
     ! Multidimensional array to store work_t for different conn types
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
 
+    TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
+    TYPE(field_t), TARGET :: dummy
+
     PUBLIC :: conn3, init_conn3, finish_conn3
 
 CONTAINS
@@ -66,20 +71,19 @@ CONTAINS
         INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
         LOGICAL :: vertices, normal2, use_record
         CHARACTER(len=1) :: flag
-        TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
 
         ! Indices for the position within the workrecords array
         INTEGER(intk) :: idx_ilevel, idx_layers, idx_args, idx_corners, &
             idx_normal, idx_forward
         TYPE(work_t), POINTER :: wptr
 
-        ! Setting all field pointers to NULL initially
-        f1 => NULL()
-        f2 => NULL()
-        f3 => NULL()
-        f4 => NULL()
-        f5 => NULL()
-        f6 => NULL()
+        ! Setting all field pointers to uninitialized dummy field
+        f1 => dummy
+        f2 => dummy
+        f3 => dummy
+        f4 => dummy
+        f5 => dummy
+        f6 => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -215,17 +219,22 @@ CONTAINS
                     minconlvl, maxconlvl, nplane, vertices, &
                     normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
+                !$omp target update to( &
+                !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+                !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
+
                 CALL process_mpirecv(mpirecvtasks, nmpirecvtasks)
-                CALL process_sendtasks(sendtasks, nsendtasks, f1, f2, f3, &
-                    f4, f5, f6)
+                CALL process_sendtasks(sendtasks, nsendtasks)
                 CALL process_mpisend(mpisendtasks, nmpisendtasks)
-                CALL process_selftasks(selftasks, nselftasks, f1, f2, f3, &
-                    f4, f5, f6)
+                CALL process_selftasks(selftasks, nselftasks)
 
                 CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
                     nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
-                CALL process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, &
-                    f4, f5, f6)
+                !$omp taskwait
+
+                !$omp target update to( &
+                !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+                CALL process_recvtasks(recvtasks, nrecvtasks)
 
                 ! Allocate the workpackage arrays in the needed sizes
                 ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
@@ -247,24 +256,62 @@ CONTAINS
             ELSEIF (wptr%is_init) THEN
             ! Use the workpackage from the workrecords array if it exists
 
+                ! Get sizes and trigger transfer
                 nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
                 nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
                 nsendtasks = SIZE(wptr%sendtasks, 2) - 1
                 nselftasks = SIZE(wptr%selftasks, 2) - 1
                 nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
+                CALL profile_range_push("cpu_copy")
+                sendtasks(:, 1:nsendtasks+1) = wptr%sendtasks(:, 1:nsendtasks+1)
+                selftasks(:, 1:nselftasks+1) = wptr%selftasks(:, 1:nselftasks+1)
+                recvtasks(:, 1:nrecvtasks+1) = wptr%recvtasks(:, 1:nrecvtasks+1)
+                CALL profile_range_pop()
+
+                !$omp target update to( &
+                !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+                !$omp&  selftasks(1:selftasksize, 1:nselftasks+1), &
+                !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
+
+                ! $omp target enter data &
+                ! $omp&  map(to: wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1)) &
+                ! $omp&  map(to: wptr%selftasks(1:selftasksize, 1:nselftasks+1)) &
+                ! $omp&  map(to: wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+
+                CALL profile_range_push("process_mpirecv")
                 CALL process_mpirecv(wptr%mpirecvtasks, nmpirecvtasks)
-                CALL process_sendtasks(wptr%sendtasks, nsendtasks, f1, f2, f3, &
-                    f4, f5, f6)
+                CALL profile_range_pop()
+
+                !$omp taskwait
+
+                CALL profile_range_push("process_sendtasks")
+                CALL process_sendtasks(sendtasks, nsendtasks)
+                CALL profile_range_pop()
+
+                CALL profile_range_push("process_mpisend")
                 CALL process_mpisend(wptr%mpisendtasks, nmpisendtasks)
-                CALL process_selftasks(wptr%selftasks, nselftasks, f1, f2, f3, &
-                    f4, f5, f6)
+                CALL profile_range_pop()
+
+
+                CALL profile_range_push("process_selftasks")
+                CALL process_selftasks(selftasks, nselftasks)
+                CALL profile_range_pop()
 
                 CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
-                CALL process_recvtasks(wptr%recvtasks, nrecvtasks, f1, f2, f3, &
-                    f4, f5, f6)
+
+                CALL profile_range_push("process_recvtasks")
+                CALL process_recvtasks2(recvtasks, nrecvtasks)
+                CALL profile_range_pop()
+
+                ! $omp target exit data &
+                ! $omp&  map(delete: wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1)) &
+                ! $omp&  map(delete: wptr%selftasks(1:selftasksize, 1:nselftasks+1)) &
+                ! $omp&  map(delete: wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1))
 
                 CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+
+                ! !$omp taskwait
 
             END IF
 
@@ -285,13 +332,11 @@ CONTAINS
 
             !$omp taskwait
 
-            CALL process_sendtasks(sendtasks, nsendtasks, f1, f2, f3, &
-                f4, f5, f6)
+            CALL process_sendtasks(sendtasks, nsendtasks)
 
             CALL process_mpisend(mpisendtasks, nmpisendtasks)
 
-            CALL process_selftasks(selftasks, nselftasks, f1, f2, f3, &
-                f4, f5, f6)
+            CALL process_selftasks(selftasks, nselftasks)
 
             CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
                 nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
@@ -301,8 +346,7 @@ CONTAINS
 
             !$omp taskwait
 
-            CALL process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, &
-                f4, f5, f6)
+            CALL process_recvtasks2(recvtasks, nrecvtasks)
 
         END IF
 
@@ -1053,13 +1097,11 @@ CONTAINS
 
     ! Routine with offloaded kernel to process all sendtasks on the device
     !
-    SUBROUTINE process_sendtasks(sendtasks, nsendtasks, f1, f2, f3, &
-            f4, f5, f6)
+    SUBROUTINE process_sendtasks(sendtasks, nsendtasks)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: sendtasks(buffertasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nsendtasks
-        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1138,12 +1180,11 @@ CONTAINS
 
     ! Routine with offloaded kernel to process all receive tasks on the device
     !
-    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, f4, f5, f6)
+    SUBROUTINE process_recvtasks(recvtasks, nrecvtasks)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nrecvtasks
-        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1219,14 +1260,133 @@ CONTAINS
     END SUBROUTINE process_recvtasks
 
 
+    ! Routine with offloaded kernel to process all receive tasks on the device
+    !
+    SUBROUTINE process_recvtasks2(recvtasks, nrecvtasks)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(in) :: nrecvtasks
+
+        ! Local variables
+        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, kkl, jjl, idx_a, idx_b, ip3
+        INTEGER(intk) :: i, j, k, ii, jj, kk
+
+        REAL(realk), ALLOCATABLE, CONTIGUOUS :: a1(:), a2(:), a3(:), &
+            a4(:), a5(:), a6(:)
+
+        IF (nrecvtasks == 0) THEN
+            RETURN
+        END IF
+
+        ! At all cost, avoid pointers within the kernel or, evem worse,
+        ! pointer operations within the kernel!
+        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
+                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+
+        !$omp target teams distribute private(itask, fieldid, icount, &
+        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
+        !$omp&  ii, jj, kk, ip3)
+        DO itask = 1, nrecvtasks
+
+            ! Set variables from recvtasks workpackage
+            fieldid = recvtasks(1, itask)
+            icount  = recvtasks(2, itask)
+            igrid   = recvtasks(3, itask)
+            istart  = recvtasks(4, itask)
+            istop   = recvtasks(5, itask)
+            jstart  = recvtasks(6, itask)
+            jstop   = recvtasks(7, itask)
+            kstart  = recvtasks(8, itask)
+            kstop   = recvtasks(9, itask)
+
+            ! The following replaces "read_single_buffer"
+            CALL get_ip3(ip3, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            ! Assign the correct field pointer
+            SELECT CASE (fieldid)
+            CASE (1)
+                CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (2)
+                CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (3)
+                CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (4)
+                CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (5)
+                CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (6)
+                CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
+            CASE (7)
+                !$omp parallel do collapse(3) private(i, j, k, idx_a, idx_b)
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            idx_a = (k-1) + (j-1)*kk + (i-1)*jj*kk + ip3
+                            idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                                (i-istart)*jjl*kkl + icount
+                            a4(idx_a) = recvbuf(idx_b)
+                        END DO
+                    END DO
+                END DO
+                !$omp end parallel do
+            CASE DEFAULT
+                CALL errr(__FILE__, __LINE__)
+            END SELECT
+
+        END DO
+        !$omp end target teams distribute
+
+        END ASSOCIATE
+
+    END SUBROUTINE process_recvtasks2
+
+
+    PURE SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
+        jstart, jstop, kstart, kstop, icount)
+        !omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: arr(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+            kstop, icount
+        ! Local variables
+        INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
+
+        kkl = kstop - kstart + 1
+        jjl = jstop - jstart + 1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        DO i = istart, istop
+            DO j = jstart, jstop
+                DO k = kstart, kstop
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                        (i-istart)*jjl*kkl + icount
+                    arr(k, j, i) = recvbuf(idx_b)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+    END SUBROUTINE buf_to_arr
+
+
+
     ! Routine with offloaded kernel to process all selftasks on the device
     !
-    SUBROUTINE process_selftasks(selftasks, nselftasks, f1, f2, f3, f4, f5, f6)
+    SUBROUTINE process_selftasks(selftasks, nselftasks)
 
         ! Subroutine arguments
         INTEGER(int32), INTENT(in) :: selftasks(selftasksize, maxtasks)
         INTEGER(int32), INTENT(in) :: nselftasks
-        TYPE(field_t), POINTER, INTENT(inout) :: f1, f2, f3, f4, f5, f6
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid
@@ -1246,7 +1406,7 @@ CONTAINS
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
-        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr) nowait
+        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr)
         DO itask = 1, nselftasks
 
             ! Set variables from selftasks workpackage
