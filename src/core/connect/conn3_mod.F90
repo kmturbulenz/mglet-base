@@ -301,7 +301,7 @@ CONTAINS
                 CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
 
                 CALL profile_range_push("process_recvtasks")
-                CALL process_recvtasks2(recvtasks, nrecvtasks)
+                CALL process_recvtasks(recvtasks, nrecvtasks)
                 CALL profile_range_pop()
 
                 ! $omp target exit data &
@@ -346,7 +346,7 @@ CONTAINS
 
             !$omp taskwait
 
-            CALL process_recvtasks2(recvtasks, nrecvtasks)
+            CALL process_recvtasks(recvtasks, nrecvtasks)
 
         END IF
 
@@ -1104,19 +1104,23 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nsendtasks
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, jjl, kkl, idx
-        INTEGER(intk) :: i, j, k
-        TYPE(field_t), POINTER :: field
-        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
+        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        REAL(realk), ALLOCATABLE, CONTIGUOUS :: a1(:), a2(:), a3(:), &
+            a4(:), a5(:), a6(:)
 
         IF (nsendtasks == 0) THEN
             RETURN
         END IF
 
+        ! At all cost, avoid pointers within the kernel or, evem worse,
+        ! pointer operations within the kernel!
+        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
+                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+
         !$omp target teams distribute private(itask, fieldid, icount, &
-        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr)
+        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
+        !$omp&  ii, jj, kk, ip3)
         DO itask = 1, nsendtasks
 
             ! Set variables from sendtasks workpackage
@@ -1130,52 +1134,69 @@ CONTAINS
             kstart = sendtasks(8, itask)
             kstop = sendtasks(9, itask)
 
-            ! Dimensions of the subarray to be treated
-            kkl = kstop - kstart + 1
-            jjl = jstop - jstart + 1
+            ! The following replaces "read_single_buffer"
+            CALL get_ip3(ip3, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
-                field => f1
+                CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (2)
-                field => f2
+                CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (3)
-                field => f3
+                CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (4)
-                field => f4
+                CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (5)
-                field => f5
+                CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (6)
-                field => f6
+                CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
 
-            ! The following replaces "write_single_buffer"
-            CALL get_grid3_real(rarr, field, igrid)
-
-            ! Fully parallelizable copy loop
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = istart, istop
-                DO j = jstart, jstop
-                    DO k = kstart, kstop
-
-                        ! Computation of count to avoid incremental
-                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
-                            (i - istart)*jjl*kkl + icount
-
-                        sendbuf(idx) = rarr(k, j, i)
-
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-
         END DO
         !$omp end target teams distribute
 
+        END ASSOCIATE
+
     END SUBROUTINE process_sendtasks
+
+    SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
+        jstart, jstop, kstart, kstop, icount)
+        !omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: arr(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+            kstop, icount
+        ! Local variables
+        INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
+
+        kkl = kstop - kstart + 1
+        jjl = jstop - jstart + 1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        DO i = istart, istop
+            DO j = jstart, jstop
+                DO k = kstart, kstop
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                        (i-istart)*jjl*kkl + icount
+                    sendbuf(idx_b) = arr(k, j, i)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+    END SUBROUTINE arr_to_buf
+
 
 
     ! Routine with offloaded kernel to process all receive tasks on the device
@@ -1188,91 +1209,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, kkl, jjl, idx
-        TYPE(field_t), POINTER :: field
-        REAL(realk), POINTER, CONTIGUOUS :: rarr(:, :, :)
-        INTEGER(intk) :: i, j, k
-
-        IF (nrecvtasks == 0) THEN
-            RETURN
-        END IF
-
-        !$omp target teams distribute private(itask, fieldid, icount, &
-        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, jjl, kkl, &
-        !$omp&  idx, i, j, k, field, rarr)
-        DO itask = 1, nrecvtasks
-
-            ! Set variables from recvtasks workpackage
-            fieldid = recvtasks(1, itask)
-            icount  = recvtasks(2, itask)
-            igrid   = recvtasks(3, itask)
-            istart  = recvtasks(4, itask)
-            istop   = recvtasks(5, itask)
-            jstart  = recvtasks(6, itask)
-            jstop   = recvtasks(7, itask)
-            kstart  = recvtasks(8, itask)
-            kstop   = recvtasks(9, itask)
-
-            ! Dimensions of the subarray to be treated
-            kkl = kstop - kstart + 1
-            jjl = jstop - jstart + 1
-
-            ! Assign the correct field pointer
-            SELECT CASE (fieldid)
-            CASE (1)
-                field => f1
-            CASE (2)
-                field => f2
-            CASE (3)
-                field => f3
-            CASE (4)
-                field => f4
-            CASE (5)
-                field => f5
-            CASE (6)
-                field => f6
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-            END SELECT
-
-            ! The following replaces "read_single_buffer"
-            CALL get_grid3_real(rarr, field, igrid)
-
-            ! Fully parallelizable copy loop
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = istart, istop
-                DO j = jstart, jstop
-                    DO k = kstart, kstop
-
-                        idx = 1 + (k - kstart) + (j - jstart)*kkl + &
-                            (i - istart)*jjl*kkl + icount
-
-                        rarr(k, j, i) = recvbuf(idx)
-
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-
-        END DO
-        !$omp end target teams distribute
-
-    END SUBROUTINE process_recvtasks
-
-
-    ! Routine with offloaded kernel to process all receive tasks on the device
-    !
-    SUBROUTINE process_recvtasks2(recvtasks, nrecvtasks)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: recvtasks(buffertasksize, maxtasks)
-        INTEGER(intk), INTENT(in) :: nrecvtasks
-
-        ! Local variables
-        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, kkl, jjl, idx_a, idx_b, ip3
-        INTEGER(intk) :: i, j, k, ii, jj, kk
-
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
         REAL(realk), ALLOCATABLE, CONTIGUOUS :: a1(:), a2(:), a3(:), &
             a4(:), a5(:), a6(:)
 
@@ -1325,19 +1262,19 @@ CONTAINS
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-            CASE (7)
-                !$omp parallel do collapse(3) private(i, j, k, idx_a, idx_b)
-                DO i = istart, istop
-                    DO j = jstart, jstop
-                        DO k = kstart, kstop
-                            idx_a = (k-1) + (j-1)*kk + (i-1)*jj*kk + ip3
-                            idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
-                                (i-istart)*jjl*kkl + icount
-                            a4(idx_a) = recvbuf(idx_b)
-                        END DO
-                    END DO
-                END DO
-                !$omp end parallel do
+            ! CASE (7)
+            !     !$omp parallel do collapse(3) private(i, j, k, idx_a, idx_b)
+            !     DO i = istart, istop
+            !         DO j = jstart, jstop
+            !             DO k = kstart, kstop
+            !                 idx_a = (k-1) + (j-1)*kk + (i-1)*jj*kk + ip3
+            !                 idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+            !                     (i-istart)*jjl*kkl + icount
+            !                 a4(idx_a) = recvbuf(idx_b)
+            !             END DO
+            !         END DO
+            !     END DO
+            !     !$omp end parallel do
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1347,12 +1284,12 @@ CONTAINS
 
         END ASSOCIATE
 
-    END SUBROUTINE process_recvtasks2
+    END SUBROUTINE process_recvtasks
 
 
-    PURE SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
+    SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
         jstart, jstop, kstart, kstop, icount)
-        !omp declare target
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: arr(kk, jj, ii)
@@ -1377,6 +1314,9 @@ CONTAINS
         !$omp end parallel do
 
     END SUBROUTINE buf_to_arr
+
+
+
 
 
 
