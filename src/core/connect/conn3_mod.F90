@@ -1209,7 +1209,8 @@ CONTAINS
 
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3, kkl, jjl, &
+            idx_a, idx_b, i, j, k
         REAL(realk), ALLOCATABLE, CONTIGUOUS :: a1(:), a2(:), a3(:), &
             a4(:), a5(:), a6(:)
 
@@ -1224,7 +1225,7 @@ CONTAINS
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3)
+        !$omp&  ii, jj, kk, ip3, kkl, jjl, idx_a, idx_b)
         DO itask = 1, nrecvtasks
 
             ! Set variables from recvtasks workpackage
@@ -1242,6 +1243,9 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            kkl = kstop - kstart + 1
+            jjl = jstop - jstart + 1
+
             ! Assign the correct field pointer
             SELECT CASE (fieldid)
             CASE (1)
@@ -1253,7 +1257,7 @@ CONTAINS
             CASE (3)
                 CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-            CASE (4)
+            CASE (7)
                 CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (5)
@@ -1262,19 +1266,19 @@ CONTAINS
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-            ! CASE (7)
-            !     !$omp parallel do collapse(3) private(i, j, k, idx_a, idx_b)
-            !     DO i = istart, istop
-            !         DO j = jstart, jstop
-            !             DO k = kstart, kstop
-            !                 idx_a = (k-1) + (j-1)*kk + (i-1)*jj*kk + ip3
-            !                 idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
-            !                     (i-istart)*jjl*kkl + icount
-            !                 a4(idx_a) = recvbuf(idx_b)
-            !             END DO
-            !         END DO
-            !     END DO
-            !     !$omp end parallel do
+            CASE (4)
+                !$omp parallel do collapse(3) private(i, j, k, idx_a, idx_b)
+                DO i = istart, istop
+                    DO j = jstart, jstop
+                        DO k = kstart, kstop
+                            idx_a = (k-1) + (j-1)*kk + (i-1)*jj*kk + ip3
+                            idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                                (i-istart)*jjl*kkl + icount
+                            a4(idx_a) = recvbuf(idx_b)
+                        END DO
+                    END DO
+                END DO
+                !$omp end parallel do
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1325,28 +1329,28 @@ CONTAINS
     SUBROUTINE process_selftasks(selftasks, nselftasks)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: selftasks(selftasksize, maxtasks)
-        INTEGER(int32), INTENT(in) :: nselftasks
+        INTEGER(intk), INTENT(in) :: selftasks(selftasksize, maxtasks)
+        INTEGER(intk), INTENT(in) :: nselftasks
 
         ! Local variables
-        INTEGER(int32) :: itask, fieldid
-        INTEGER(int32) :: igrid, igrid_d
-        INTEGER(int32) :: istart, istop, jstart, jstop, kstart, kstop, &
+        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
+            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
             istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
-        INTEGER(int32) :: koff, joff, ioff
-        INTEGER(int32) :: i, j, k
-        TYPE(field_t), POINTER :: field
-        REAL(realk), POINTER, CONTIGUOUS :: src_rarr(:, :, :), dst_rarr(:, :, :)
 
         ! Precheck to avoid kernel launch overhead
         IF (nselftasks == 0) THEN
             RETURN
         END IF
 
+        ! At all cost, avoid pointers within the kernel or, evem worse,
+        ! pointer operations within the kernel!
+        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
+                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
-        !$omp&  koff, joff, ioff, i, j, k, field, src_rarr, dst_rarr)
+        !$omp&  ip3, ip3_d, kk, jj, ii)
         DO itask = 1, nselftasks
 
             ! Set variables from selftasks workpackage
@@ -1366,47 +1370,76 @@ CONTAINS
             kstart_d = selftasks(14, itask)
             kstop_d  = selftasks(15, itask)
 
-            koff = kstart - kstart_d
-            joff = jstart - jstart_d
-            ioff = istart - istart_d
+            ! The following replaces "read_single_buffer"
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip3(ip3_d, igrid_d)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
-            ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
-                field => f1
+                CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (2)
-                field => f2
+                CALL arr_to_arr(kk, jj, ii, a2(ip3_d), a2(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (3)
-                field => f3
+                CALL arr_to_arr(kk, jj, ii, a3(ip3_d), a3(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (4)
-                field => f4
+                CALL arr_to_arr(kk, jj, ii, a4(ip3_d), a4(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (5)
-                field => f5
+                CALL arr_to_arr(kk, jj, ii, a5(ip3_d), a5(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (6)
-                field => f6
+                CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
 
-            ! The following replaces "connect_self_single"
-            CALL get_grid3_real(src_rarr, field, igrid)
-            CALL get_grid3_real(dst_rarr, field, igrid_d)
-
-            !$omp parallel do collapse(3) private(i, j, k)
-            DO i = istart_d, istop_d
-                DO j = jstart_d, jstop_d
-                    DO k = kstart_d, kstop_d
-                        dst_rarr(k, j, i) = &
-                            src_rarr(k + koff, j + joff, i + ioff)
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-
         END DO
         !$omp end target teams distribute
 
+        END ASSOCIATE
+
     END SUBROUTINE process_selftasks
+
+    PURE SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &
+            istart, istop, jstart, jstop, kstart, kstop, &
+            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: dst_rarr(kk, jj, ii)
+        REAL(realk), INTENT(in) :: src_rarr(kk, jj, ii)
+        INTEGER(int32), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+             kstop, istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        ! Local variables
+        INTEGER(intk) :: koff, joff, ioff, i, j, k
+
+        koff = kstart - kstart_d
+        joff = jstart - jstart_d
+        ioff = istart - istart_d
+
+        !$omp parallel do collapse(3) private(i, j, k)
+        DO i = istart_d, istop_d
+            DO j = jstart_d, jstop_d
+                DO k = kstart_d, kstop_d
+                    dst_rarr(k, j, i) = &
+                        src_rarr(k + koff, j + joff, i + ioff)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+    END SUBROUTINE arr_to_arr
 
 
 
