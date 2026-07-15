@@ -1,5 +1,6 @@
 MODULE pressuresolver_mod
     USE bound_flow_mod
+    USE bound_pressure_mod
     USE core_mod
     USE flowcore_mod
     USE ib_mod
@@ -41,29 +42,8 @@ MODULE pressuresolver_mod
     !   3: Also compute and print the max residual before any iteration is done.
     INTEGER(intk), PROTECTED :: loglevel = 0
 
-    ! A-versions: simple versions not considering the BP field
-    ! B-versions: IB versions using the BP field
-
-    INTERFACE pressureftocone
-        MODULE PROCEDURE :: pressureftocone_A, pressureftocone_B
-    END INTERFACE pressureftocone
-
-    ! Bound operation
-    TYPE, EXTENDS(bound_t) :: bound_pressure_t
-    CONTAINS
-        PROCEDURE, NOPASS :: front => bfront
-        PROCEDURE, NOPASS :: back => bfront
-        PROCEDURE, NOPASS :: right => bright
-        PROCEDURE, NOPASS :: left => bright
-        PROCEDURE, NOPASS :: bottom => bbottom
-        PROCEDURE, NOPASS :: top => bbottom
-    END TYPE bound_pressure_t
-    TYPE(bound_pressure_t) :: bound_pressure
-
     PUBLIC :: init_pressuresolver, finish_pressuresolver, mgpoisl
-
 CONTAINS
-
     SUBROUTINE init_pressuresolver()
         ! Subroutine arguments
         ! none...
@@ -135,11 +115,16 @@ CONTAINS
         CALL set_field("SIPUT")
         CALL set_field("SIPLPR")
 
+#ifdef _MGLET_OFFLOAD_
+        IF (ityp /= 0) THEN
+            WRITE(*, *) "MGLET_OFFLOAD only supports hyperplane sip."
+            CALL errr(__FILE__, __LINE__)
+        END IF
+#endif
 
         IF (ityp == 2) THEN
             ! Using the classic SIP solver
             CALL sip_classic_init()
-
         ELSE
             ! Using the hyperplane solver
             CALL sip_hyperplane_init()
@@ -156,10 +141,12 @@ CONTAINS
             CALL sor_init(omg)
         END IF
 
+        CALL init_bound_pressure()
     END SUBROUTINE init_pressuresolver
 
 
     SUBROUTINE finish_pressuresolver()
+        CALL finish_bound_pressure()
         CALL finish_plog()
 
         IF (ityp == 2) THEN
@@ -167,7 +154,6 @@ CONTAINS
         ELSE
             CALL sip_hyperplane_finish()
         END IF
-
     END SUBROUTINE finish_pressuresolver
 
 
@@ -233,6 +219,9 @@ CONTAINS
             DO ilevel = minlevel, maxlevel
                 CALL ctof(ilevel, hilf%arr, hilf%arr)
                 CALL parent(ilevel, s1=hilf)
+
+                CALL map_buf_to_device(hilf, message="to:hilf%buffers")
+
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
             CALL stop_timer(322)
@@ -262,10 +251,14 @@ CONTAINS
             ! either.
             CALL connect(layers=1, s1=hilf)
 
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(hilf, rhs, message="to:hilf%arr|rhs%arr")
             ! res <- laplace(hilf)
-            CALL laplacephi(res, hilf, bp)
+            CALL laplacephi(res, hilf)
             ! rhs <- rhs + res
             CALL rescal(rhs, res)
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, rhs, rhs, 'R')
@@ -322,7 +315,10 @@ CONTAINS
         ! a value of dp was found that leads to a acceptably small residual
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, s1=dp)
-            CALL bound_pressure%bound(ilevel, dp, bp)
+            CALL map_arr_to_device(dp, message="to:dp%arr")
+            CALL map_buf_to_device(dp, message="to:dp%buffers")
+            CALL bound_pressure(ilevel, dp, bp)
+            CALL map_arr_from_device(dp, message="from:dp%arr")
         END DO
 
         ! Pressure correction: P = P + dtrk/rho*DP
@@ -394,8 +390,12 @@ CONTAINS
         CALL get_field(siput, "SIPUT")
         CALL get_field(siplpr, "SIPLPR")
 
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
+        CALL map_arr_to_device(dp, message="to:dp%arr")
+
         DO iloop = 1, ninner
-            CALL bound_pressure%bound(ilevel, dp, bp)
+            CALL bound_pressure(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
                 ! The SOR relaxation is usually not efficient at the
@@ -408,10 +408,15 @@ CONTAINS
                     sipue, sipun, siput, siplpr, bp)
             END IF
 
-            CALL connect(ilevel, 1, s1=dp)
+            CALL conn(ilevel, 1, s1=dp)
         END DO
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_from_device(res, message="from:res%arr")
 
-        CALL bound_pressure%bound(ilevel, dp, bp)
+        CALL bound_pressure(ilevel, dp, bp)
+
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         CALL stop_timer(321)
     END SUBROUTINE mgpoisit
@@ -435,16 +440,50 @@ CONTAINS
         TYPE(field_t), INTENT(in), OPTIONAL :: bp
 
         ! Local variables
+        ! none...
+
+        CALL laplacephi_level(ilevel, res, dp)
+
+        IF (ityp == 2) THEN
+            CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
+                siplpr)
+        ELSE
+            CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
+                siplb, siplpr)
+        END IF
+
+        IF (iloop < ninner) THEN
+            CALL conn(ilevel, 1, s1=res)
+        ELSE
+            CALL conn(ilevel, 1, s1=res, forward=-1)
+        END IF
+
+        IF (ityp == 2) THEN
+            CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
+        ELSE
+            CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
+                siput)
+        END IF
+    END SUBROUTINE sip
+
+
+    SUBROUTINE sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
+            siplpr)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(in) :: siplw
+        TYPE(field_t), INTENT(in) :: sipls
+        TYPE(field_t), INTENT(in) :: siplb
+        TYPE(field_t), INTENT(in) :: siplpr
+
+        ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
-            lb(:, :, :), ue(:, :, :), un(:, :, :), ut(:, :, :), &
-            lpr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :), &
-            rhs_p(:, :, :)
-        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
-
-        CALL laplacephi_level(ilevel, res, dp, bp)
+            lb(:, :, :), lpr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -458,21 +497,70 @@ CONTAINS
             CALL siplb%get_ptr(lb, igrid)
             CALL siplpr%get_ptr(lpr, igrid)
 
-            IF (ityp == 2) THEN
-                CALL sipiter1_cl(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
-            ELSE
-                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-                CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
-                    mip_ptr, idx_ptr)
-            END IF
+            CALL sipiter1_cl(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr)
         END DO
+    END SUBROUTINE sipiter1_classic_level
 
-        IF (iloop < ninner) THEN
-            CALL connect(ilevel, 1, s1=res)
-        ELSE
-            CALL connect(ilevel, 1, s1=res, forward=-1)
-        END IF
+
+    SUBROUTINE sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
+            siplb, siplpr)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(in) :: siplw
+        TYPE(field_t), INTENT(in) :: sipls
+        TYPE(field_t), INTENT(in) :: siplb
+        TYPE(field_t), INTENT(in) :: siplpr
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
+            lb(:, :, :), lpr(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
+        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& res_p, rhs_p, lw, ls, lb, lpr, mip_ptr, idx_ptr)
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            CALL get_grid3_real(res_p, res, igrid)
+            CALL get_grid3_real(rhs_p, rhs, igrid)
+
+            CALL get_grid3_real(lw, siplw, igrid)
+            CALL get_grid3_real(ls, sipls, igrid)
+            CALL get_grid3_real(lb, siplb, igrid)
+            CALL get_grid3_real(lpr, siplpr, igrid)
+
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
+
+            CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
+                mip_ptr, idx_ptr)
+        END DO
+        !$omp end target teams distribute
+
+    END SUBROUTINE sipiter1_hyperplane_level
+
+
+    SUBROUTINE sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: dp
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: sipue
+        TYPE(field_t), INTENT(in) :: sipun
+        TYPE(field_t), INTENT(in) :: siput
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: ue(:, :, :), un(:, :, :), &
+            ut(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
 
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -485,386 +573,50 @@ CONTAINS
             CALL sipun%get_ptr(un, igrid)
             CALL siput%get_ptr(ut, igrid)
 
-            IF (ityp == 2) THEN
-                CALL sipiter2_cl(kk, jj, ii, dp_p, res_p, ue, un, ut)
-            ELSE
-                CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-                CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-                CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
-                    mip_ptr, idx_ptr)
-            END IF
+            CALL sipiter2_cl(kk, jj, ii, dp_p, res_p, ue, un, ut)
         END DO
-    END SUBROUTINE sip
+    END SUBROUTINE sipiter2_classic_level
 
 
-    SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
+    SUBROUTINE sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
+            siput)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
-        CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: dp
+        TYPE(field_t), INTENT(inout) :: res
+        TYPE(field_t), INTENT(in) :: sipue
+        TYPE(field_t), INTENT(in) :: sipun
+        TYPE(field_t), INTENT(in) :: siput
 
         ! Local variables
+        INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: k, j, i, i2, i3, i4, istag2
-        INTEGER(intk) :: m, n
-        REAL(realk) :: pcnew, bpc, fak
-        REAL(realk) :: sb11, sb12, sb13, sb14
-        REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
+        REAL(realk), POINTER, CONTIGUOUS :: ue(:, :, :), un(:, :, :), &
+            ut(:, :, :)
+        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
+        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
 
-        ! Only works on PAR boundaries, should do nothing otherwise
-        IF (ctyp /= 'PAR') RETURN
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
+        DO i = 1, nmygridslvl(ilevel)
+            igrid = mygridslvl(i, ilevel)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
-        CALL f1%get_ptr(p, igrid)
-        CALL f1%get_buffer(pbuffer, igrid, iface)
-        CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_grid3_real(dp_p, dp, igrid)
+            CALL get_grid3_real(res_p, res, igrid)
 
-        CALL get_fieldptr(dx, "DX", igrid)
-        CALL get_fieldptr(dy, "DY", igrid)
-        CALL get_fieldptr(dz, "DZ", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
+            CALL get_grid3_real(ue, sipue, igrid)
+            CALL get_grid3_real(un, sipun, igrid)
+            CALL get_grid3_real(ut, siput, igrid)
 
-        SELECT CASE (iface)
-        CASE (1)
-            ! Front
-            i2 = 2
-            i3 = 3
-            i4 = 4
-            istag2 = 2
-        CASE (2)
-            ! Back
-            i2 = ii - 1
-            i3 = ii - 2
-            i4 = ii - 3
-            istag2 = ii - 2
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
+            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
+            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
 
-        i = MIN(i3, i4)
-        IF (PRESENT(f2)) THEN
-            CALL f2%get_ptr(bp, igrid)
-
-            DO j = 3, jj-2, 2
-                DO k = 3, kk-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(k, j)
-
-                    sb11 = bp(k, j, i2)*bp(k, j, i3)
-                    sb12 = bp(k, j+1, i2)*bp(k, j+1, i3)
-                    sb13 = bp(k+1, j, i2)*bp(k+1, j, i3)
-                    sb14 = bp(k+1, j+1, i2)*bp(k+1, j+1, i3)
-
-                    fak = (sb11*ddy(j)*ddz(k) + sb12*ddy(j+1)*ddz(k) &
-                        + sb13*ddy(j)*ddz(k+1) + sb14*ddy(j+1)*ddz(k+1)) &
-                        /((ddy(j)+ddy(j+1))*(ddz(k)+ddz(k+1)))
-                    IF (fak < 0.1) fak = 1.0
-                    fak = 1.0/fak
-
-                    DO m = 0, 1
-                        DO n = 0, 1
-                            p(k+n, j+m, i2) = p(k+n, j+m, i3) &
-                                + fak*dx(istag2)/(ddx(i3)+ddx(i2)) &
-                                *(pbuffer(k, j) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        ELSE
-            DO j = 3, jj-2, 2
-                DO k = 3, kk-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    DO m = 0, 1
-                        DO n = 0, 1
-                            p(k+n, j+m, i2) = p(k+n, j+m, i3) &
-                                + dx(istag2)/(ddx(i3)+ddx(i2)) &
-                                *(pbuffer(k, j) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        END IF
-    END SUBROUTINE bfront
-
-
-    SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
-        CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: k, j, i, j2, j3, j4, jstag2
-        INTEGER(intk) :: n, l
-        REAL(realk) :: pcnew, bpc, fak
-        REAL(realk) :: sb11, sb12, sb13, sb14
-        REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-
-        ! Only works on PAR boundaries, should do nothing otherwise
-        IF (ctyp /= 'PAR') RETURN
-
-        CALL f1%get_ptr(p, igrid)
-        CALL f1%get_buffer(pbuffer, igrid, iface)
-        CALL get_mgdims(kk, jj, ii, igrid)
-
-        CALL get_fieldptr(dx, "DX", igrid)
-        CALL get_fieldptr(dy, "DY", igrid)
-        CALL get_fieldptr(dz, "DZ", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
-
-        SELECT CASE (iface)
-        CASE (3)
-            ! Right
-            j2 = 2
-            j3 = 3
-            j4 = 4
-            jstag2 = 2
-        CASE (4)
-            ! Left
-            j2 = jj - 1
-            j3 = jj - 2
-            j4 = jj - 3
-            jstag2 = jj - 2
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-
-        j = MIN(j3, j4)
-        IF (PRESENT(f2)) THEN
-            CALL f2%get_ptr(bp, igrid)
-
-            DO i = 3, ii-2, 2
-                DO k = 3, kk-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(k, i)
-
-                    sb11 = bp(k, j2, i)*bp(k, j3, i)
-                    sb12 = bp(k, j2, i+1)*bp(k, j3, i+1)
-                    sb13 = bp(k+1, j2, i)*bp(k+1, j3, i)
-                    sb14 = bp(k+1, j2, i+1)*bp(k+1, j3, i+1)
-
-                    fak = (sb11*ddx(i)*ddz(k) + sb12*ddx(i+1)*ddz(k) &
-                        + sb13*ddx(i)*ddz(k+1) + sb14*ddx(i+1)*ddz(k+1)) &
-                        /((ddx(i)+ddx(i+1))*(ddz(k)+ddz(k+1)))
-                    IF (fak < 0.1) fak = 1.0
-                    fak = 1.0/fak
-
-                    DO l = 0, 1
-                        DO n = 0, 1
-                            p(k+n, j2, i+l) = p(k+n, j3, i+l) &
-                                + fak*dy(jstag2)/(ddy(j3)+ddy(j2)) &
-                                *(pbuffer(k, i) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        ELSE
-            DO i = 3, ii-2, 2
-                DO k = 3, kk-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    DO l = 0, 1
-                        DO n = 0, 1
-                            p(k+n, j2, i+l) = p(k+n, j3, i+l) &
-                                + dy(jstag2)/(ddy(j3)+ddy(j2)) &
-                                *(pbuffer(k, i) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        END IF
-    END SUBROUTINE bright
-
-
-    SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: igrid, iface, ibocd
-        CHARACTER(len=*), INTENT(in) :: ctyp
-        TYPE(field_t), INTENT(inout) :: f1
-        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4
-        REAL(realk), INTENT(in), OPTIONAL :: timeph
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: k, j, i, k2, k3, k4, kstag2
-        INTEGER(intk) :: l, m
-        REAL(realk) :: pcnew, bpc, fak
-        REAL(realk) :: sb11, sb12, sb13, sb14
-        REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-
-        ! Only works on PAR boundaries, should do nothing otherwise
-        IF (ctyp /= 'PAR') RETURN
-
-        CALL f1%get_ptr(p, igrid)
-        CALL f1%get_buffer(pbuffer, igrid, iface)
-        CALL get_mgdims(kk, jj, ii, igrid)
-
-        CALL get_fieldptr(dx, "DX", igrid)
-        CALL get_fieldptr(dy, "DY", igrid)
-        CALL get_fieldptr(dz, "DZ", igrid)
-        CALL get_fieldptr(ddx, "DDX", igrid)
-        CALL get_fieldptr(ddy, "DDY", igrid)
-        CALL get_fieldptr(ddz, "DDZ", igrid)
-
-        SELECT CASE (iface)
-        CASE (5)
-            ! Bottom
-            k2 = 2
-            k3 = 3
-            k4 = 4
-            kstag2 = 2
-        CASE (6)
-            ! Top
-            k2 = kk - 1
-            k3 = kk - 2
-            k4 = kk - 3
-            kstag2 = kk - 2
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-
-        k = MIN(k3, k4)
-        IF (PRESENT(f2)) THEN
-            CALL f2%get_ptr(bp, igrid)
-
-            DO i = 3, ii-2, 2
-                DO j = 3, jj-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    IF (bpc < 0.5) pcnew = pbuffer(j, i)
-
-                    sb11 = bp(k2, j, i)*bp(k3, j, i)
-                    sb12 = bp(k2, j, i+1)*bp(k3, j, i+1)
-                    sb13 = bp(k2, j+1, i)*bp(k3, j+1, i)
-                    sb14 = bp(k2, j+1, i+1)*bp(k3, j+1, i+1)
-
-                    fak = (sb11*ddx(i)*ddy(j) + sb12*ddx(i+1)*ddy(j) &
-                        + sb13*ddx(i)*ddy(j+1) + sb14*ddx(i+1)*ddy(j+1)) &
-                        /((ddx(i)+ddx(i+1))*(ddy(j)+ddy(j+1)))
-                    IF (fak < 0.1) fak = 1.0
-                    fak = 1.0/fak
-
-                    DO l = 0, 1
-                        DO m = 0, 1
-                            p(k2, j+m, i+l) = p(k3, j+m, i+l) &
-                                + fak*dz(kstag2)/(ddz(k3)+ddz(k2)) &
-                                *(pbuffer(j, i) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        ELSE
-            DO i = 3, ii-2, 2
-                DO j = 3, jj-2, 2
-                    CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                        ddx, ddy, ddz, pcnew, bpc)
-                    DO l = 0, 1
-                        DO m = 0, 1
-                            p(k2, j+m, i+l) = p(k3, j+m, i+l) &
-                                + dz(kstag2)/(ddz(k3)+ddz(k2)) &
-                                *(pbuffer(j, i) - pcnew)
-                        END DO
-                    END DO
-                END DO
-            END DO
-        END IF
-    END SUBROUTINE bbottom
-
-
-    PURE SUBROUTINE pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, ddy, &
-            ddz, pc, bpc)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: k, j, i
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: p(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(out) :: pc, bpc
-
-        ! Local variables
-        INTEGER(intk) :: l, m, n
-        REAL(realk) :: vol, sump, sumvol
-
-        bpc = 1.0
-
-        sump = 0.0
-        sumvol = 0.0
-        DO l = 0, 1
-            DO m = 0, 1
-                DO n = 0, 1
-                    vol = ddz(k+n)*ddy(j+m)*ddx(i+l)
-                    sump = sump + p(k+n, j+m, i+l)*vol
-                    sumvol = sumvol + vol
-                END DO
-            END DO
+            CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
+                mip_ptr, idx_ptr)
         END DO
-        pc = sump/sumvol
-    END SUBROUTINE pressureftocone_A
-
-
-    PURE SUBROUTINE pressureftocone_B(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
-            ddz, pc, bpc)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: k, j, i
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: p(kk, jj, ii)
-        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(out) :: pc, bpc
-
-        ! Local variables
-        INTEGER(intk) :: l, m, n
-        REAL(realk) :: vol, sumbp, sump, sumvol
-
-        sumbp = 0.0
-        DO l = 0, 1
-            DO m = 0, 1
-                DO n = 0, 1
-                    sumbp = sumbp + bp(k+n, j+m, i+l)
-                END DO
-            END DO
-        END DO
-        bpc = MIN(sumbp, 1.0_realk)
-
-        IF (bpc < 0.5) THEN
-            pc = 0.0
-        ELSE
-            sump = 0.0
-            sumvol = 0.0
-            DO l = 0, 1
-                DO m = 0, 1
-                    DO n = 0, 1
-                        vol = bp(k+n, j+m, i+l)*ddz(k+n)*ddy(j+m)*ddx(i+l)
-                        sump = sump + p(k+n, j+m, i+l)*vol
-                        sumvol = sumvol + vol
-                    END DO
-                END DO
-            END DO
-            pc = sump/sumvol
-        END IF
-    END SUBROUTINE pressureftocone_B
+        !$omp end target teams distribute
+    END SUBROUTINE sipiter2_hyperplane_level
 
 
     SUBROUTINE maxabscal(maxabs, maxabslevel, phi)
@@ -914,25 +666,32 @@ CONTAINS
     END SUBROUTINE maxabscal_grid
 
 
-    SUBROUTINE rescal(rhs, res)
+    SUBROUTINE rescal(rhs_f, res_f)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: rhs
-        TYPE(field_t), INTENT(in) :: res
+        TYPE(field_t), INTENT(inout) :: rhs_f
+        TYPE(field_t), INTENT(in) :: res_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, ip3
+        INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii
+        REAL(realk), POINTER, CONTIGUOUS :: rhs(:, :, :), res(:, :, :)
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, rhs, res)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL rescal_grid(kk, jj, ii, rhs%arr(ip3), res%arr(ip3))
+
+            CALL get_grid3_real(rhs, rhs_f, igrid)
+            CALL get_grid3_real(res, res_f, igrid)
+
+            CALL rescal_grid(kk, jj, ii, rhs, res)
         END DO
+        !$omp end target teams distribute
     END SUBROUTINE rescal
 
 
     PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: rhs(kk, jj, ii)
@@ -942,6 +701,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
+        !$omp parallel do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -949,6 +709,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE rescal_grid
 
 
@@ -983,6 +744,7 @@ CONTAINS
             CALL rdx_f%get_ptr(rdx, igrid)
             CALL rdy_f%get_ptr(rdy, igrid)
             CALL rdz_f%get_ptr(rdz, igrid)
+
             IF (PRESENT(bp_f)) THEN
                 CALL bp_f%get_ptr(bp, igrid)
             END IF

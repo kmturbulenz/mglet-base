@@ -1,5 +1,6 @@
 add_library(flow STATIC
     bound_flow_mod.F90
+    bound_pressure_mod.F90
     boussinesqterm_mod.F90
     coriolisterm_mod.F90
     flowcore_mod.F90
