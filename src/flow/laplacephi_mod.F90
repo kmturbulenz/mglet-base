@@ -36,6 +36,8 @@ CONTAINS
         ! branching in the kernel.
         CALL get_field(bp_f, "BP")
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
+        !$omp& aw, ae, an, as, at, ab, ap, bp)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -55,6 +57,7 @@ CONTAINS
             CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
                 at, ab, ap, bp)
         END DO
+        !$omp end target teams distribute
     END SUBROUTINE laplacephi
 
 
@@ -86,6 +89,8 @@ CONTAINS
         ! branching in the kernel.
         CALL get_field(bp_f, "BP")
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
+        !$omp& aw, ae, an, as, at, ab, ap, bp)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -105,7 +110,7 @@ CONTAINS
             CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
                 at, ab, ap, bp)
         END DO
-
+        !$omp end target teams distribute
     END SUBROUTINE laplacephi_level
 
 
@@ -123,6 +128,7 @@ CONTAINS
         ! Local variables
         INTEGER :: k, j, i
 
+        !$omp parallel do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -137,5 +143,6 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE laplacephi_grid
 END MODULE laplacephi_mod

@@ -25,6 +25,7 @@ MODULE bound_pressure_mod
     !   Field 2: face index
     INTEGER(intk), ALLOCATABLE :: boundtasks(:, :, :)
     INTEGER(intk), ALLOCATABLE :: nboundtaskslvl(:)
+    !$omp declare target(boundtasks)
 
     PUBLIC :: init_bound_pressure, bound_pressure, finish_bound_pressure
 
@@ -46,6 +47,7 @@ CONTAINS
 
         CALL for_all_par_boundaries(on_boundary=add_par_boundary_task)
 
+        !$omp target enter data map(always, to: boundtasks)
     END SUBROUTINE init_bound_pressure
 
 
@@ -151,6 +153,8 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+        !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
+        !$omp& pbuffer, bp, p, dx, dy, dz, ddx, ddy, ddz)
         DO i = 1, nboundtasks
             igrid = boundtasks(1, i, ilevel_index)
             iface = boundtasks(2, i, ilevel_index)
@@ -188,6 +192,7 @@ CONTAINS
                     kk-2, pbuffer, p, bp, ddx, ddy, ddz, dz)
             END SELECT
         END DO
+        !$omp end target teams distribute
     END SUBROUTINE bound_pressure_impl_bp
 
 
@@ -210,6 +215,8 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+        !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
+        !$omp& pbuffer, p, dx, dy, dz, ddx, ddy, ddz)
         DO i = 1, nboundtasks
             igrid = boundtasks(1, i, ilevel_index)
             iface = boundtasks(2, i, ilevel_index)
@@ -246,13 +253,13 @@ CONTAINS
                     pbuffer, p, ddx, ddy, ddz, dz)
             END SELECT
         END DO
-
+        !$omp end target teams distribute
     END SUBROUTINE bound_pressure_impl_nobp
 
 
     SUBROUTINE bfront(kk, jj, ii, i2, i3, i4, istag2, pbuffer, &
         p, ddx, ddy, ddz, dx)
-
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, i2, i3, i4, istag2
         REAL(realk), INTENT(in) :: pbuffer(kk, jj)
@@ -266,6 +273,7 @@ CONTAINS
 
         i = MIN(i3, i4)
 
+        !$omp parallel do collapse(2) private(j, k, pcnew, bpc, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -279,11 +287,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE bfront
 
 
     SUBROUTINE bfront_bp(kk, jj, ii, i2, i3, i4, istag2, pbuffer, &
         p, bp, ddx, ddy, ddz, dx)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, i2, i3, i4, istag2
         REAL(realk), INTENT(in) :: pbuffer(kk, jj)
@@ -298,6 +308,8 @@ CONTAINS
 
         i = MIN(i3, i4)
 
+        !$omp parallel do collapse(2) private(j, k, pcnew, bpc, sb11, sb12, &
+        !$omp& sb13, sb14, fak, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
@@ -324,11 +336,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE bfront_bp
 
 
     SUBROUTINE bright(kk, jj, ii, j2, j3, j4, jstag2, pbuffer, &
         p, ddx, ddy, ddz, dy)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, j2, j3, j4, jstag2
         REAL(realk), INTENT(in) :: pbuffer(kk, ii)
@@ -342,6 +356,7 @@ CONTAINS
 
         j = MIN(j3, j4)
 
+        !$omp parallel do collapse(2) private(i, k, pcnew, bpc, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -355,12 +370,13 @@ CONTAINS
                 END DO
             END DO
         END DO
-
+        !$omp end parallel do
     END SUBROUTINE bright
 
 
     SUBROUTINE bright_bp(kk, jj, ii, j2, j3, j4, jstag2, pbuffer, &
         p, bp, ddx, ddy, ddz, dy)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, j2, j3, j4, jstag2
         REAL(realk), INTENT(in) :: pbuffer(kk, ii)
@@ -375,6 +391,8 @@ CONTAINS
 
         j = MIN(j3, j4)
 
+        !$omp parallel do collapse(2) private(i, k, pcnew, bpc, sb11, sb12, &
+        !$omp& sb13, sb14, fak, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
@@ -401,11 +419,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE bright_bp
 
 
     SUBROUTINE bbottom(kk, jj, ii, k2, k3, k4, kstag2, pbuffer, &
         p, ddx, ddy, ddz, dz)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, k2, k3, k4, kstag2
         REAL(realk), INTENT(in) :: pbuffer(jj, ii)
@@ -419,6 +439,7 @@ CONTAINS
 
         k = MIN(k3, k4)
 
+        !$omp parallel do collapse(2) private(j, i, pcnew, bpc, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -432,11 +453,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE bbottom
 
 
     SUBROUTINE bbottom_bp(kk, jj, ii, k2, k3, k4, kstag2, pbuffer, &
         p, bp, ddx, ddy, ddz, dz)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii, k2, k3, k4, kstag2
         REAL(realk), INTENT(in) :: pbuffer(jj, ii)
@@ -451,6 +474,8 @@ CONTAINS
 
         k = MIN(k3, k4)
 
+        !$omp parallel do collapse(2) private(j, i, pcnew, bpc, sb11, sb12, &
+        !$omp& sb13, sb14, fak, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
@@ -477,11 +502,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE bbottom_bp
 
 
     PURE SUBROUTINE pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, ddy, &
             ddz, pc, bpc)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: k, j, i
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -512,6 +539,7 @@ CONTAINS
 
     PURE SUBROUTINE pressureftocone_B(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
             ddz, pc, bpc)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: k, j, i
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -572,6 +600,7 @@ CONTAINS
         ! Local variables
         ! none...
 
+        !$omp target exit data map(always, delete: boundtasks)
         DEALLOCATE(boundtasks)
         DEALLOCATE(nboundtaskslvl)
     END SUBROUTINE finish_bound_pressure

@@ -23,7 +23,9 @@ MODULE profile_tools_mod
     END INTERFACE
 
     PUBLIC :: profile_range_push, profile_range_pop, profile_mark
+
 CONTAINS
+
     SUBROUTINE profile_range_push(name)
         ! Subroutine arguments
         CHARACTER(*), INTENT(in) :: name

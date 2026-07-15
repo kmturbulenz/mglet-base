@@ -13,6 +13,7 @@ MODULE sip_hyperplane_mod
 
     TYPE(intfield_t), PROTECTED, TARGET :: mip_hp_f
     TYPE(intfield_t), PROTECTED, TARGET :: idx_hp_f
+    !$omp declare target(mip_hp_f, idx_hp_f)
 
     PUBLIC :: sip_hyperplane_init, sip_hyperplane_finish, &
         sipiter1, sipiter2, mip_hp_f, idx_hp_f
@@ -20,7 +21,7 @@ MODULE sip_hyperplane_mod
 CONTAINS
 
     SUBROUTINE sip_hyperplane_init()
-
+        USE fieldmapper_mod
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:), &
@@ -53,6 +54,8 @@ CONTAINS
             CALL sip_hyperplane_check_grid(kk, jj, ii, mip_hp, idx_hp)
         END DO
 
+        !$omp target enter data map(always, mapper(default), &
+        !$omp& to: mip_hp_f, idx_hp_f)
 
         ! Getting the coefficient fields
         ! Coefficients in [L] of ILU (including diagonal)
@@ -108,6 +111,8 @@ CONTAINS
 
         END DO
 
+        !$omp target update to(mapper(field_t__map_arr): lw_f, ls_f, lb_f, &
+        !$omp& lpr_f, ue_f, un_f, ut_f)
     END SUBROUTINE sip_hyperplane_init
 
 
@@ -266,10 +271,10 @@ CONTAINS
 
 
     SUBROUTINE sip_hyperplane_finish()
-
+        !$omp target exit data map(always, mapper(default), &
+        !$omp& delete: mip_hp_f, idx_hp_f)
         CALL mip_hp_f%finish()
         CALL idx_hp_f%finish()
-
     END SUBROUTINE sip_hyperplane_finish
 
 
@@ -457,7 +462,7 @@ CONTAINS
 
 
     SUBROUTINE sipiter1(kk, jj, ii, rhs, res, lw, ls, lb, lpr, mip, idxsip)
-
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: res(kk*jj*ii)
@@ -484,6 +489,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
+            !$omp parallel do private(ip, iacc, idx, idx_km, idx_jm, idx_im)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -507,13 +513,14 @@ CONTAINS
                 !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
 
             END DO
+            !$omp end parallel do
         END DO
 
     END SUBROUTINE sipiter1
 
 
     SUBROUTINE sipiter2(kk, jj, ii, phi, res, ue, un, ut, mip, idxsip)
-
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: phi(kk*jj*ii), res(kk*jj*ii)
@@ -539,6 +546,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
+            !$omp parallel do private(ip, iacc, idx, idx_kp, idx_jp, idx_ip)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -559,8 +567,10 @@ CONTAINS
                 !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
 
             END DO
+            !$omp end parallel do
         END DO
 
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -569,8 +579,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-
+        !$omp end parallel do
     END SUBROUTINE sipiter2
-
-
 END MODULE sip_hyperplane_mod

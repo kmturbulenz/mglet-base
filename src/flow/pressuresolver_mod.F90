@@ -10,7 +10,6 @@ MODULE pressuresolver_mod
     USE sip_hyperplane_mod, sipiter1_hp => sipiter1, sipiter2_hp => sipiter2
     USE sip_classic_mod, sipiter1_cl => sipiter1, sipiter2_cl => sipiter2
     USE sor_mod
-    USE conn_mod, ONLY: conn
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -220,6 +219,9 @@ CONTAINS
             DO ilevel = minlevel, maxlevel
                 CALL ctof(ilevel, hilf%arr, hilf%arr)
                 CALL parent(ilevel, s1=hilf)
+
+                CALL map_buf_to_device(hilf, message="to:hilf%buffers")
+
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
             CALL stop_timer(322)
@@ -247,12 +249,16 @@ CONTAINS
             ! Connect needed due to prior ftoc, since this does not do
             ! anything on the finest level, no need to connect finest level
             ! either.
-            CALL conn(layers=1, s1=hilf)
+            CALL connect(layers=1, s1=hilf)
 
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(hilf, rhs, message="to:hilf%arr|rhs%arr")
             ! res <- laplace(hilf)
             CALL laplacephi(res, hilf)
             ! rhs <- rhs + res
             CALL rescal(rhs, res)
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, rhs, rhs, 'R')
@@ -309,7 +315,10 @@ CONTAINS
         ! a value of dp was found that leads to a acceptably small residual
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, s1=dp)
+            CALL map_arr_to_device(dp, message="to:dp%arr")
+            CALL map_buf_to_device(dp, message="to:dp%buffers")
             CALL bound_pressure(ilevel, dp, bp)
+            CALL map_arr_from_device(dp, message="from:dp%arr")
         END DO
 
         ! Pressure correction: P = P + dtrk/rho*DP
@@ -328,7 +337,7 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, u, v, w, p)
             CALL bound_flow%bound(ilevel, u, v, w, p)
-            CALL conn(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
+            CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         CALL pop_field(res)
@@ -381,6 +390,10 @@ CONTAINS
         CALL get_field(siput, "SIPUT")
         CALL get_field(siplpr, "SIPLPR")
 
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
+        CALL map_arr_to_device(dp, message="to:dp%arr")
+
         DO iloop = 1, ninner
             CALL bound_pressure(ilevel, dp, bp)
 
@@ -397,8 +410,13 @@ CONTAINS
 
             CALL conn(ilevel, 1, s1=dp)
         END DO
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_from_device(res, message="from:res%arr")
 
         CALL bound_pressure(ilevel, dp, bp)
+
+        ! TODO(offload): Remove once surrounding subroutines offloaded
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         CALL stop_timer(321)
     END SUBROUTINE mgpoisit
@@ -435,9 +453,9 @@ CONTAINS
         END IF
 
         IF (iloop < ninner) THEN
-            CALL conn1(ilevel, 1, s1=res)
+            CALL conn(ilevel, 1, s1=res)
         ELSE
-            CALL conn1(ilevel, 1, s1=res, forward=-1)
+            CALL conn(ilevel, 1, s1=res, forward=-1)
         END IF
 
         IF (ityp == 2) THEN
@@ -503,6 +521,8 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
         INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& res_p, rhs_p, lw, ls, lb, lpr, mip_ptr, idx_ptr)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -521,6 +541,7 @@ CONTAINS
             CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
                 mip_ptr, idx_ptr)
         END DO
+        !$omp end target teams distribute
 
     END SUBROUTINE sipiter1_hyperplane_level
 
@@ -575,6 +596,8 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
         INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -592,7 +615,7 @@ CONTAINS
             CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
                 mip_ptr, idx_ptr)
         END DO
-
+        !$omp end target teams distribute
     END SUBROUTINE sipiter2_hyperplane_level
 
 
@@ -653,6 +676,7 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: rhs(:, :, :), res(:, :, :)
 
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, rhs, res)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
@@ -662,11 +686,12 @@ CONTAINS
 
             CALL rescal_grid(kk, jj, ii, rhs, res)
         END DO
-
+        !$omp end target teams distribute
     END SUBROUTINE rescal
 
 
     PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: rhs(kk, jj, ii)
@@ -676,6 +701,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
+        !$omp parallel do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -683,6 +709,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE rescal_grid
 
 
