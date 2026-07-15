@@ -75,7 +75,9 @@ CONTAINS
         ! Indices for the position within the workrecords array
         INTEGER(intk) :: idx_ilevel, idx_layers, idx_args, idx_corners, &
             idx_normal, idx_forward
-        TYPE(work_t), POINTER :: wptr
+
+        ! Not a pointer (!)
+        TYPE(work_t) :: wptr
 
         ! Setting all field pointers to uninitialized dummy field
         f1 => dummy
@@ -201,8 +203,8 @@ CONTAINS
         IF (use_record) THEN
 
             ! Setting a pointer to the workpackage for this specific combination
-            wptr => workrecords(idx_ilevel, idx_layers, idx_args, &
-                    idx_corners, idx_normal, idx_forward)
+            ASSOCIATE(wptr => workrecords(idx_ilevel, idx_layers, idx_args, &
+                    idx_corners, idx_normal, idx_forward))
 
             ! Create the workpackage for this specific combination if missing
             IF (.NOT. wptr%is_init) THEN
@@ -253,6 +255,11 @@ CONTAINS
                 ! Mark the workpackage as initialized
                 wptr%is_init = .TRUE.
 
+                !$omp target enter data map(to: &
+                !$omp&  wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+                !$omp&  wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1), &
+                !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
+
             ELSEIF (wptr%is_init) THEN
             ! Use the workpackage from the workrecords array if it exists
 
@@ -263,16 +270,16 @@ CONTAINS
                 nselftasks = SIZE(wptr%selftasks, 2) - 1
                 nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
-                CALL profile_range_push("cpu_copy")
-                sendtasks(:, 1:nsendtasks+1) = wptr%sendtasks(:, 1:nsendtasks+1)
-                selftasks(:, 1:nselftasks+1) = wptr%selftasks(:, 1:nselftasks+1)
-                recvtasks(:, 1:nrecvtasks+1) = wptr%recvtasks(:, 1:nrecvtasks+1)
-                CALL profile_range_pop()
+                ! CALL profile_range_push("cpu_copy")
+                ! sendtasks(:, 1:nsendtasks+1) = wptr%sendtasks(:, 1:nsendtasks+1)
+                ! selftasks(:, 1:nselftasks+1) = wptr%selftasks(:, 1:nselftasks+1)
+                ! recvtasks(:, 1:nrecvtasks+1) = wptr%recvtasks(:, 1:nrecvtasks+1)
+                ! CALL profile_range_pop()
 
-                !$omp target update to( &
-                !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-                !$omp&  selftasks(1:selftasksize, 1:nselftasks+1), &
-                !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
+                ! !$omp target update to( &
+                ! !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+                ! !$omp&  selftasks(1:selftasksize, 1:nselftasks+1), &
+                ! !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
                 ! $omp target enter data &
                 ! $omp&  map(to: wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1)) &
@@ -286,7 +293,7 @@ CONTAINS
                 !$omp taskwait
 
                 CALL profile_range_push("process_sendtasks")
-                CALL process_sendtasks(sendtasks, nsendtasks)
+                CALL process_sendtasks(wptr%sendtasks, nsendtasks)
                 CALL profile_range_pop()
 
                 CALL profile_range_push("process_mpisend")
@@ -295,13 +302,13 @@ CONTAINS
 
 
                 CALL profile_range_push("process_selftasks")
-                CALL process_selftasks(selftasks, nselftasks)
+                CALL process_selftasks(wptr%selftasks, nselftasks)
                 CALL profile_range_pop()
 
                 CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
 
                 CALL profile_range_push("process_recvtasks")
-                CALL process_recvtasks(recvtasks, nrecvtasks)
+                CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
                 CALL profile_range_pop()
 
                 ! $omp target exit data &
@@ -314,6 +321,8 @@ CONTAINS
                 ! !$omp taskwait
 
             END IF
+
+            END ASSOCIATE
 
         ELSE
 
