@@ -410,7 +410,7 @@ CONTAINS
                 ! TODO(offload): Remove once surrounding subroutines offloaded
             END IF
 
-            CALL conn(ilevel, 1, s1=dp)
+            CALL conn(ilevel, 1, s1=dp, record=.TRUE.)
         END DO
         ! TODO(offload): Remove once surrounding subroutines offloaded
         CALL map_arr_from_device(res, message="from:res%arr")
@@ -456,7 +456,7 @@ CONTAINS
         END IF
 
         IF (iloop < ninner) THEN
-            CALL conn(ilevel, 1, s1=res)
+            CALL conn(ilevel, 1, s1=res, record=.TRUE.)
         ELSE
             CALL conn(ilevel, 1, s1=res, forward=-1, record=.TRUE.)
         END IF

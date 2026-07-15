@@ -82,6 +82,9 @@ CONTAINS
         f6 => NULL()
 
         IF (PRESENT(ilevel)) THEN
+            IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
             minconlvl = ilevel
             maxconlvl = ilevel
             idx_ilevel = ilevel
@@ -113,6 +116,9 @@ CONTAINS
         fwd = 0
         idx_forward = 0
         IF (PRESENT(forward)) THEN
+            IF (forward < -1 .OR. forward > 1) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
             fwd = forward
             idx_forward = forward
         END IF
@@ -201,7 +207,7 @@ CONTAINS
                 ! as otherwise many valuable checks are not possible
 
                 CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, &
-                    minconlvl, maxconlvl, nplane, vertices, normal, fwd, &
+                    minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
                     flag, nvars)
 
                 CALL prepare_tasks_all(sendtasks, nsendtasks, &
@@ -220,11 +226,6 @@ CONTAINS
                     nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
                 CALL process_recvtasks(recvtasks, nrecvtasks, f1, f2, f3, &
                     f4, f5, f6)
-
-                WRITE(*, *) "CREATED: nsendtasks=", nsendtasks, " nselftasks=", &
-                    nselftasks, " nrecvtasks=", nrecvtasks, &
-                    " nmpisendtasks=", nmpisendtasks, &
-                    " nmpirecvtasks=", nmpirecvtasks
 
                 ! Allocate the workpackage arrays in the needed sizes
                 ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
@@ -252,20 +253,18 @@ CONTAINS
                 nselftasks = SIZE(wptr%selftasks, 2) - 1
                 nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
-                WRITE(*, *) "USED: nsendtasks=", nsendtasks, " nselftasks=", &
-                    nselftasks, " nrecvtasks=", nrecvtasks, &
-                    " nmpisendtasks=", nmpisendtasks, &
-                    " nmpirecvtasks=", nmpirecvtasks
-
                 CALL process_mpirecv(wptr%mpirecvtasks, nmpirecvtasks)
                 CALL process_sendtasks(wptr%sendtasks, nsendtasks, f1, f2, f3, &
                     f4, f5, f6)
                 CALL process_mpisend(wptr%mpisendtasks, nmpisendtasks)
                 CALL process_selftasks(wptr%selftasks, nselftasks, f1, f2, f3, &
                     f4, f5, f6)
-                CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+
+                CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
                 CALL process_recvtasks(wptr%recvtasks, nrecvtasks, f1, f2, f3, &
                     f4, f5, f6)
+
+                CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
             END IF
 
@@ -350,6 +349,9 @@ CONTAINS
 
 
     SUBROUTINE finish_conn3()
+        ! Local variables
+        TYPE(work_t), POINTER :: wr1d(:)
+        INTEGER :: i
 
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
@@ -364,6 +366,20 @@ CONTAINS
 
         DEALLOCATE(mpisendtasks)
         DEALLOCATE(mpirecvtasks)
+
+        ! Deallocate the workpackage arrays in the workrecords array
+        wr1d(1:SIZE(workrecords)) => workrecords
+        DO i = 1, SIZE(wr1d)
+            IF (.NOT. wr1d(i)%is_init) CYCLE
+            IF (ALLOCATED(wr1d(i)%sendtasks)) DEALLOCATE(wr1d(i)%sendtasks)
+            IF (ALLOCATED(wr1d(i)%recvtasks)) DEALLOCATE(wr1d(i)%recvtasks)
+            IF (ALLOCATED(wr1d(i)%selftasks)) DEALLOCATE(wr1d(i)%selftasks)
+            IF (ALLOCATED(wr1d(i)%mpisendtasks)) &
+                DEALLOCATE(wr1d(i)%mpisendtasks)
+            IF (ALLOCATED(wr1d(i)%mpirecvtasks)) &
+                DEALLOCATE(wr1d(i)%mpirecvtasks)
+            wr1d(i)%is_init = .FALSE.
+        END DO
 
         ! Deallocate the workrecords array
         DEALLOCATE(workrecords)
