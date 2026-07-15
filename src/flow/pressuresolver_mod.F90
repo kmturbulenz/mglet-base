@@ -395,6 +395,7 @@ CONTAINS
         CALL map_arr_to_device(dp, message="to:dp%arr")
 
         DO iloop = 1, ninner
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
             CALL bound_pressure(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
@@ -406,6 +407,7 @@ CONTAINS
                 ! Use the SIP solver
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
+                ! TODO(offload): Remove once surrounding subroutines offloaded
             END IF
 
             CALL conn(ilevel, 1, s1=dp)
@@ -414,6 +416,7 @@ CONTAINS
         CALL map_arr_from_device(res, message="from:res%arr")
 
         CALL bound_pressure(ilevel, dp, bp)
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         ! TODO(offload): Remove once surrounding subroutines offloaded
         CALL map_arr_from_device(dp, message="from:dp%arr")

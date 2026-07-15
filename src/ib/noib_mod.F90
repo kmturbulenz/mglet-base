@@ -79,6 +79,7 @@ CONTAINS
 
 
     SUBROUTINE giteig()
+        USE fieldmapper_mod
         ! Subroutine arguments
         ! none...
 
