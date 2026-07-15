@@ -458,7 +458,7 @@ CONTAINS
         IF (iloop < ninner) THEN
             CALL conn(ilevel, 1, s1=res)
         ELSE
-            CALL conn(ilevel, 1, s1=res, forward=-1)
+            CALL conn(ilevel, 1, s1=res, forward=-1, record=.TRUE.)
         END IF
 
         IF (ityp == 2) THEN
