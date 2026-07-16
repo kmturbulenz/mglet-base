@@ -76,9 +76,6 @@ CONTAINS
         INTEGER(intk) :: idx_ilevel, idx_layers, idx_args, idx_corners, &
             idx_normal, idx_forward
 
-        ! Not a pointer (!)
-        ! TYPE(work_t) :: wptr
-
         ! Setting all field pointers to uninitialized dummy field
         f1 => pdummy
         f2 => pdummy
@@ -404,7 +401,7 @@ CONTAINS
     SUBROUTINE finish_conn3()
         ! Local variables
         TYPE(work_t), POINTER :: wr1d(:)
-        INTEGER :: i
+        INTEGER(intk) :: i
 
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
@@ -569,13 +566,12 @@ CONTAINS
 
         ! Grid to send from
         ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, ifacerecv, ifacesend
+        INTEGER(intk) :: igrid, ifacerecv, ifacesend, fieldid
 
         ! Message sizes
         ! Must be int32 because it iterface with MPI
         INTEGER(int32) :: thismessagelength, facearea
         INTEGER(int32) :: icount, offset
-        INTEGER(int32) :: fieldid
 
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
@@ -686,8 +682,8 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(inout) :: etasks(selftasksize, maxtasks)
-        INTEGER(int32), INTENT(inout) :: ietask
+        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: ietask
         INTEGER(int32), INTENT(in) :: sendid
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
@@ -704,11 +700,11 @@ CONTAINS
 
         ! Grid to send from
         ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, igrid_d, ifacerecv, ifacesend
+        INTEGER(intk) :: igrid, igrid_d, ifacerecv, ifacesend, fieldid
 
         ! Message sizes
         ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: dest_size, source_size, fieldid
+        INTEGER(int32) :: dest_size, source_size
 
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
@@ -855,8 +851,8 @@ CONTAINS
             flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
-        INTEGER(int32), INTENT(out) :: nrtasks
+        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(out) :: nrtasks
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
         CHARACTER(len=1), INTENT(in) :: flag
@@ -868,7 +864,7 @@ CONTAINS
         TYPE(MPI_Status) :: recvstatus
         INTEGER(int32) :: recvmessagelen
         INTEGER(int32) :: unpacklen
-        INTEGER(int32) :: irtask
+        INTEGER(intk) :: irtask
 
         irtask = 0
 
@@ -922,8 +918,8 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
-        INTEGER(int32), INTENT(inout) :: irtask
+        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: irtask
         INTEGER(intk), INTENT(in) :: recvid
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
@@ -935,11 +931,11 @@ CONTAINS
 
         ! Grid to send from
         ! Must be intk because it intreface with MGLET
-        INTEGER(intk) :: igrid, ifacerecv
+        INTEGER(intk) :: igrid, ifacerecv, fieldid
 
         ! Message sizes
         ! Must be int32 because it iterface with MPI
-        INTEGER(int32) :: offset, icount, fieldid
+        INTEGER(int32) :: offset, icount
 
         ! Flags to indicate exchange of U, V, W
         LOGICAL :: exU, exV, exW, exp1
@@ -1118,7 +1114,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nstasks
 
         ! Local variables
-        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
         IF (nstasks == 0) THEN
@@ -1220,7 +1216,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nrtasks
 
         ! Local variables
-        INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
         IF (nrtasks == 0) THEN
@@ -1412,7 +1408,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: dst_rarr(kk, jj, ii)
         REAL(realk), INTENT(in) :: src_rarr(kk, jj, ii)
-        INTEGER(int32), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
              kstop, istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
         ! Local variables
         INTEGER(intk) :: koff, joff, ioff, i, j, k
@@ -1468,8 +1464,8 @@ CONTAINS
     SUBROUTINE process_mpisend(mpistasks, nmpistasks)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: mpistasks(mpitasksize, maxtasks)
-        INTEGER(int32), INTENT(in) :: nmpistasks
+        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(in) :: nmpistasks
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, sendcounter
@@ -1477,9 +1473,9 @@ CONTAINS
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpistasks
 
-            iprocnbr      = mpistasks(1, itask)
-            messagelength = mpistasks(2, itask)
-            sendcounter   = mpistasks(3, itask)
+            iprocnbr      = INT(mpistasks(1, itask), int32)
+            messagelength = INT(mpistasks(2, itask), int32)
+            sendcounter   = INT(mpistasks(3, itask), int32)
 
             !$omp target data use_device_addr(sendbuf)
             CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
@@ -1506,8 +1502,8 @@ CONTAINS
     SUBROUTINE process_mpirecv(mpirtasks, nmpirtasks)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(in) :: mpirtasks(mpitasksize, maxtasks)
-        INTEGER(int32), INTENT(in) :: nmpirtasks
+        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(in) :: nmpirtasks
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, recvcounter
@@ -1515,9 +1511,9 @@ CONTAINS
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpirtasks
 
-            iprocnbr      = mpirtasks(1, itask)
-            messagelength = mpirtasks(2, itask)
-            recvcounter   = mpirtasks(3, itask)
+            iprocnbr      = INT(mpirtasks(1, itask), int32)
+            messagelength = INT(mpirtasks(2, itask), int32)
+            recvcounter   = INT(mpirtasks(3, itask), int32)
 
             !$omp target data use_device_addr(recvbuf)
             CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
@@ -1546,8 +1542,8 @@ CONTAINS
             normal, fwd, flag, nvars)
 
         ! Subroutine arguments
-        INTEGER(int32), INTENT(inout) :: mpirtasks(mpitasksize, maxtasks)
-        INTEGER(int32), INTENT(out) :: nmpirtasks
+        INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
         LOGICAL, INTENT(in) :: vertices, normal
         INTEGER(intk), INTENT(in) :: fwd
