@@ -12,7 +12,7 @@ MODULE conn_mod
 CONTAINS
 
     SUBROUTINE conn(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
-            forward, ityp, record)
+            forward, ityp)
 
         ! This subroutine acts as an interface for connect calls.
         ! Dependent on the configuration, it will call either conn1_mod
@@ -24,17 +24,16 @@ CONTAINS
         LOGICAL, OPTIONAL, INTENT(in) :: corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
-        LOGICAL, OPTIONAL, INTENT(in) :: record
 
         CALL start_timer(150)
 #ifdef _MGLET_OFFLOAD_
         CALL conn3(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
-            normal, forward, ityp, record)
+            normal, forward, ityp)
 #else
         ! CALL conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
         !     normal, forward, ityp)
         CALL conn3(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
-            normal, forward, ityp, record)
+            normal, forward, ityp)
 #endif
         CALL stop_timer(150)
     END SUBROUTINE conn
