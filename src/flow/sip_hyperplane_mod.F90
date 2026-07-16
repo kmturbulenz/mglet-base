@@ -13,7 +13,6 @@ MODULE sip_hyperplane_mod
 
     TYPE(intfield_t), PROTECTED, TARGET :: mip_hp_f
     TYPE(intfield_t), PROTECTED, TARGET :: idx_hp_f
-    !$omp declare target(mip_hp_f, idx_hp_f)
 
     PUBLIC :: sip_hyperplane_init, sip_hyperplane_finish, &
         sipiter1, sipiter2, mip_hp_f, idx_hp_f
@@ -21,13 +20,8 @@ MODULE sip_hyperplane_mod
 CONTAINS
 
     SUBROUTINE sip_hyperplane_init()
-        USE fieldmapper_mod
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:), &
-            ue(:), un(:), ut(:), aw(:), ae(:), as(:), an(:), ab(:), at(:), &
-            ap(:, :, :), bp(:, :, :)
-        INTEGER(ifk), POINTER, CONTIGUOUS :: mip_hp(:), idx_hp(:)
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
 
         TYPE(field_t), POINTER :: lw_f, ls_f, lb_f, lpr_f, ue_f, un_f, ut_f
         TYPE(field_t), POINTER :: aw_f, ae_f, as_f, an_f, ab_f, at_f, ap_f, bp_f
@@ -35,27 +29,29 @@ CONTAINS
         ! Setting up the hyperplane traversal infrastructure
         CALL mip_hp_f%init("SIP_MIP_HP")
         CALL idx_hp_f%init("SIP_IDX_HP")
+        CALL set_field_arr(mip_hp_f, 0_ifk, device=.FALSE.)
+        CALL set_field_arr(idx_hp_f, -1_ifk, device=.FALSE.)
+
+        ASSOCIATE (mip_hp => mip_hp_f%arr, idx_hp => idx_hp_f%arr)
 
         ! Iteration over all local grids
         DO i = 1, nmygrids
 
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_grid3_ifk_linear(mip_hp, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_hp, idx_hp_f, igrid)
-            mip_hp = 0
-            idx_hp = -1
+            CALL get_ip3(ip3, igrid)
 
             ! Populating the integer arrays for one grid
-            CALL sip_hyperplane_init_grid(kk, jj, ii, mip_hp, idx_hp)
+            CALL sip_hyperplane_init_grid(kk, jj, ii, mip_hp(ip3), idx_hp(ip3))
             ! Sorting the indices within each hyperplane for one grid
-            CALL sip_hyperplane_sort_grid(kk, jj, ii, mip_hp, idx_hp)
+            CALL sip_hyperplane_sort_grid(kk, jj, ii, mip_hp(ip3), idx_hp(ip3))
             ! Checking the correctness of the arrays for one grid
-            CALL sip_hyperplane_check_grid(kk, jj, ii, mip_hp, idx_hp)
+            CALL sip_hyperplane_check_grid(kk, jj, ii, mip_hp(ip3), idx_hp(ip3))
         END DO
 
-        !$omp target enter data map(always, mapper(default), &
-        !$omp& to: mip_hp_f, idx_hp_f)
+        END ASSOCIATE
+
+        !$omp target enter data map(to: mip_hp_f%arr, idx_hp_f%arr)
 
         ! Getting the coefficient fields
         ! Coefficients in [L] of ILU (including diagonal)
@@ -76,43 +72,34 @@ CONTAINS
         CALL get_field(ap_f, "GSAP")
         CALL get_field(bp_f, "BP")
 
+        ASSOCIATE ( &
+            lw => lw_f%arr, ls => ls_f%arr, lb => lb_f%arr, lpr => lpr_f%arr, &
+            ue => ue_f%arr, un => un_f%arr, ut => ut_f%arr, aw => aw_f%arr, &
+            ae => ae_f%arr, as => as_f%arr, an => an_f%arr, ab => ab_f%arr, &
+            at => at_f%arr, ap => ap_f%arr, bp => bp_f%arr, &
+            mip_hp => mip_hp_f%arr, idx_hp => idx_hp_f%arr)
 
         ! Performing a hyperplane-parallel LU decomposition
         DO i = 1, nmygrids
 
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Getting the already computed SIP coefficients for one grid
-            CALL get_grid3_real_linear(lw, lw_f, igrid)
-            CALL get_grid3_real_linear(ls, ls_f, igrid)
-            CALL get_grid3_real_linear(lb, lb_f, igrid)
-            CALL get_grid3_real_linear(lpr, lpr_f, igrid)
-            CALL get_grid3_real_linear(ue, ue_f, igrid)
-            CALL get_grid3_real_linear(un, un_f, igrid)
-            CALL get_grid3_real_linear(ut, ut_f, igrid)
-
-            CALL get_grid1_real(aw, aw_f, igrid)
-            CALL get_grid1_real(ae, ae_f, igrid)
-            CALL get_grid1_real(as, as_f, igrid)
-            CALL get_grid1_real(an, an_f, igrid)
-            CALL get_grid1_real(ab, ab_f, igrid)
-            CALL get_grid1_real(at, at_f, igrid)
-
-            CALL get_grid3_real(ap, ap_f, igrid)
-            CALL get_grid3_real(bp, bp_f, igrid)
-
-            CALL get_grid3_ifk_linear(mip_hp, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_hp, idx_hp_f, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
             ! Hyperplane variants of the SIP LU decomposition for one grid
-            CALL sip_hyperplane_lu(kk, jj, ii, lw, ls, lb, lpr, &
-                ue, un, ut, aw, ae, as, an, ab, at, ap, bp, mip_hp, idx_hp)
-
+            CALL sip_hyperplane_lu(kk, jj, ii, lw(ip3), ls(ip3), lb(ip3), &
+                lpr(ip3), ue(ip3), un(ip3), ut(ip3), aw(ipx), ae(ipx), &
+                as(ipy), an(ipy), ab(ipz), at(ipz), ap(ip3), bp(ip3), &
+                mip_hp(ip3), idx_hp(ip3))
         END DO
 
-        !$omp target update to(mapper(field_t__map_arr): lw_f, ls_f, lb_f, &
-        !$omp& lpr_f, ue_f, un_f, ut_f)
+        END ASSOCIATE
+
+        CALL map_arr_to_device(lw_f, ls_f, lb_f, lpr_f, ue_f, un_f, ut_f, &
+            message="to:sip_hyperplane_init")
     END SUBROUTINE sip_hyperplane_init
 
 
@@ -271,8 +258,7 @@ CONTAINS
 
 
     SUBROUTINE sip_hyperplane_finish()
-        !$omp target exit data map(always, mapper(default), &
-        !$omp& delete: mip_hp_f, idx_hp_f)
+        !$omp target exit data map(delete: mip_hp_f%arr, idx_hp_f%arr)
         CALL mip_hp_f%finish()
         CALL idx_hp_f%finish()
     END SUBROUTINE sip_hyperplane_finish
