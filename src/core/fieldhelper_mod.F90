@@ -26,18 +26,16 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
-        INTEGER(intk) :: ip, len, imygrid, ii, jj, kk
+        INTEGER(intk) :: ip, len, imygrid
 
         CALL get_imygrid(imygrid, igrid)
-        CALL get_mgdims(kk, jj, ii, igrid)
-        CALL get_ipx(ip, igrid)
-
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        ip = field%ptr(imygrid)
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
 #endif
 
-        ptr(1:len) => field%arr(ip:ip+ii-1)
+        ptr(1:len) => field%arr(ip:ip+len-1)
     END SUBROUTINE get_grid1_real
 
 
@@ -53,12 +51,13 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         len = field%length(imygrid)
+#ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
-        CALL get_ip3(ip, igrid)
+
+        ip = field%ptr(imygrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real
 
