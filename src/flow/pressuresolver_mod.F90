@@ -451,8 +451,10 @@ CONTAINS
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
                 siplpr)
         ELSE
+            CALL profile_range_push("sip1_hp")
             CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
                 siplb, siplpr)
+            CALL profile_range_pop()
         END IF
 
         IF (iloop < ninner) THEN
@@ -464,8 +466,10 @@ CONTAINS
         IF (ityp == 2) THEN
             CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
         ELSE
+            CALL profile_range_push("sip2_hp")
             CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
                 siput)
+            CALL profile_range_pop()
         END IF
     END SUBROUTINE sip
 
