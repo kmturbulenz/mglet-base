@@ -3,7 +3,7 @@ MODULE fieldhelper_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
-    USE pointers_mod, ONLY: get_ibb
+    USE pointers_mod
     USE precision_mod, ONLY: realk, intk, ifk
 
     IMPLICIT NONE(type, external)
@@ -26,16 +26,18 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
-        INTEGER(intk) :: ip, len, imygrid
+        INTEGER(intk) :: ip, len, imygrid, ii, jj, kk
 
         CALL get_imygrid(imygrid, igrid)
-        ip = field%ptr(imygrid)
-        len = field%length(imygrid)
+        CALL get_mgdims(kk, jj, ii, igrid)
+        CALL get_ipx(ip, igrid)
+
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        len = field%length(imygrid)
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
 #endif
 
-        ptr(1:len) => field%arr(ip:ip+len-1)
+        ptr(1:len) => field%arr(ip:ip+ii-1)
     END SUBROUTINE get_grid1_real
 
 
@@ -51,13 +53,12 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        len = field%length(imygrid)
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
-
-        ip = field%ptr(imygrid)
+        CALL get_ip3(ip, igrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real
 
