@@ -1236,7 +1236,7 @@ CONTAINS
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3, kkl, jjl, idx_a, idx_b)
+        !$omp&  ii, jj, kk, ip3)
         DO itask = 1, nrtasks
 
             ! Set variables from recvtasks workpackage
