@@ -1120,7 +1120,6 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
-        ! REAL(realk), ALLOCATABLE :: a1(:), a2(:), a3(:), a4(:), a5(:), a6(:)
 
         IF (nstasks == 0) THEN
             RETURN
@@ -1223,7 +1222,6 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
-        ! REAL(realk), ALLOCATABLE :: a1(:), a2(:), a3(:), a4(:), a5(:), a6(:)
 
         IF (nrtasks == 0) THEN
             RETURN
