@@ -3,7 +3,7 @@ MODULE fieldhelper_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
-    USE pointers_mod
+    USE pointers_mod, ONLY: get_ibb
     USE precision_mod, ONLY: realk, intk, ifk
 
     IMPLICIT NONE(type, external)
