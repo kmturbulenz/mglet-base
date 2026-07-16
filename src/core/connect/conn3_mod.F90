@@ -1180,7 +1180,7 @@ CONTAINS
 
     SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
         jstart, jstop, kstart, kstop, icount)
-        !omp declare target
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
