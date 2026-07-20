@@ -92,12 +92,12 @@ CONTAINS
             CALL get_grid3_real_linear(un, un_f, igrid)
             CALL get_grid3_real_linear(ut, ut_f, igrid)
 
-            CALL get_grid1x_real(aw, aw_f, igrid)
-            CALL get_grid1x_real(ae, ae_f, igrid)
-            CALL get_grid1y_real(as, as_f, igrid)
-            CALL get_grid1y_real(an, an_f, igrid)
-            CALL get_grid1z_real(ab, ab_f, igrid)
-            CALL get_grid1z_real(at, at_f, igrid)
+            CALL get_grid1_real(aw, aw_f, igrid)
+            CALL get_grid1_real(ae, ae_f, igrid)
+            CALL get_grid1_real(as, as_f, igrid)
+            CALL get_grid1_real(an, an_f, igrid)
+            CALL get_grid1_real(ab, ab_f, igrid)
+            CALL get_grid1_real(at, at_f, igrid)
 
             CALL get_grid3_real(ap, ap_f, igrid)
             CALL get_grid3_real(bp, bp_f, igrid)

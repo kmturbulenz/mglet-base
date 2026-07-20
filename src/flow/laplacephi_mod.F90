@@ -47,12 +47,12 @@ CONTAINS
             CALL get_grid3_real(ap, gsap, igrid)
             CALL get_grid3_real(bp, bp_f, igrid)
 
-            CALL get_grid1x_real(aw, gsaw, igrid)
-            CALL get_grid1x_real(ae, gsae, igrid)
-            CALL get_grid1y_real(as, gsas, igrid)
-            CALL get_grid1y_real(an, gsan, igrid)
-            CALL get_grid1z_real(ab, gsab, igrid)
-            CALL get_grid1z_real(at, gsat, igrid)
+            CALL get_grid1_real(aw, gsaw, igrid)
+            CALL get_grid1_real(ae, gsae, igrid)
+            CALL get_grid1_real(as, gsas, igrid)
+            CALL get_grid1_real(an, gsan, igrid)
+            CALL get_grid1_real(ab, gsab, igrid)
+            CALL get_grid1_real(at, gsat, igrid)
 
             CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
                 at, ab, ap, bp)
@@ -100,12 +100,12 @@ CONTAINS
             CALL get_grid3_real(ap, gsap, igrid)
             CALL get_grid3_real(bp, bp_f, igrid)
 
-            CALL get_grid1x_real(aw, gsaw, igrid)
-            CALL get_grid1x_real(ae, gsae, igrid)
-            CALL get_grid1y_real(as, gsas, igrid)
-            CALL get_grid1y_real(an, gsan, igrid)
-            CALL get_grid1z_real(ab, gsab, igrid)
-            CALL get_grid1z_real(at, gsat, igrid)
+            CALL get_grid1_real(aw, gsaw, igrid)
+            CALL get_grid1_real(ae, gsae, igrid)
+            CALL get_grid1_real(as, gsas, igrid)
+            CALL get_grid1_real(an, gsan, igrid)
+            CALL get_grid1_real(ab, gsab, igrid)
+            CALL get_grid1_real(at, gsat, igrid)
 
             CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
                 at, ab, ap, bp)

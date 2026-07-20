@@ -8,37 +8,24 @@ MODULE pointers_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    INTEGER(intk), PROTECTED :: idim3d, idimbb, idim1dx, idim1dy, idim1dz
+    INTEGER(intk), PROTECTED :: idim3d, idimbb
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ip3d(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ipbb(:, :)
-    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dx(:)
-    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dy(:)
-    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dz(:)
-    !$omp declare target(ip3d, ipbb, ip1dx, ip1dy, ip1dz)
+    !$omp declare target(ipbb)
 
     PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ibb, &
-        idim3d, idimbb, get_len3, get_ipx, get_ipy, get_ipz, ip3d, ip1dx, &
-        ip1dy, ip1dz
+        idim3d, idimbb, get_len3
 
 CONTAINS
     SUBROUTINE init_pointers()
         idim3d = 0
         idimbb = 0
-        idim1dx = 0
-        idim1dy = 0
-        idim1dz = 0
 
         ALLOCATE(ip3d(ngrid))
         ALLOCATE(ipbb(6, ngrid))
-        ALLOCATE(ip1dx(ngrid))
-        ALLOCATE(ip1dy(ngrid))
-        ALLOCATE(ip1dz(ngrid))
 
         ip3d = 0
         ipbb = 0
-        ip1dx = 0
-        ip1dy = 0
-        ip1dz = 0
 
         BLOCK
             ! Initialize and set pointers for all grids this process owns
@@ -54,14 +41,6 @@ CONTAINS
                 nsize3d = ii*jj*kk
                 ip3d(igrid) = idim3d + 1
                 idim3d = idim3d + nsize3d
-
-                ! 1-D pointers
-                ip1dx(igrid) = idim1dx + 1
-                idim1dx = idim1dx + ii
-                ip1dy(igrid) = idim1dy + 1
-                idim1dy = idim1dy + jj
-                ip1dz(igrid) = idim1dz + 1
-                idim1dz = idim1dz + kk
 
                 ! BB (boundary buffer) pointers are allocated for every FIX,
                 ! OP1, PAR, SIO and SWA buffer for every face. If a face has
@@ -93,7 +72,8 @@ CONTAINS
                 END DO
             END DO
         END BLOCK
-        !$omp target enter data map(always, to: ipbb, ip3d, ip1dx, ip1dy, ip1dz)
+
+        !$omp target enter data map(always, to: ipbb)
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
@@ -107,28 +87,22 @@ CONTAINS
     SUBROUTINE finish_pointers()
         idim3d = 0
         idimbb = 0
-        idim1dx = 0
-        idim1dy = 0
-        idim1dz = 0
 
         DEALLOCATE(ip3d)
+        !$omp target exit data map(always, delete: ipbb)
         DEALLOCATE(ipbb)
-        DEALLOCATE(ip1dx)
-        DEALLOCATE(ip1dy)
-        DEALLOCATE(ip1dz)
     END SUBROUTINE finish_pointers
 
 
     SUBROUTINE get_ip3(ip3, igrid)
-        !$omp declare target
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: ip3
 
-! #ifdef _MGLET_DEBUG_
-!         IF (myid /= idprocofgrd(igrid)) THEN
-!             CALL errr(__FILE__, __LINE__)
-!         END IF
-! #endif
+#ifdef _MGLET_DEBUG_
+        IF (myid /= idprocofgrd(igrid)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+#endif
 
         ip3 = ip3d(igrid)
     END SUBROUTINE get_ip3
@@ -145,33 +119,6 @@ CONTAINS
 
         ip3n = ncomp*ip3d(igrid) - (ncomp-1)
     END SUBROUTINE get_ip3n
-
-
-    SUBROUTINE get_ipx(ipx, igrid)
-        !$omp declare target
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(out) :: ipx
-
-        ipx = ip1dx(igrid)
-    END SUBROUTINE get_ipx
-
-
-    SUBROUTINE get_ipy(ipy, igrid)
-        !$omp declare target
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(out) :: ipy
-
-        ipy = ip1dy(igrid)
-    END SUBROUTINE get_ipy
-
-
-    SUBROUTINE get_ipz(ipz, igrid)
-        !$omp declare target
-        INTEGER(intk), INTENT(in) :: igrid
-        INTEGER(intk), INTENT(out) :: ipz
-
-        ipz = ip1dz(igrid)
-    END SUBROUTINE get_ipz
 
 
     SUBROUTINE get_ibb(ibb, iface, igrid)

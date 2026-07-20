@@ -1,12 +1,5 @@
 
 MODULE fieldhelper_mod
-
-    ! The fieldhelper_mod module provides a set of utility functions
-    ! to reduce the complexity inherent to accessing the data arrays
-    ! for individiul grids. As derived-type objects are badly handled
-    ! by compilers on GPU, a helper infrastructure is created to reduced
-    ! access to several attributes etc. at runtime.
-
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
@@ -16,94 +9,16 @@ MODULE fieldhelper_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    INTEGER(intk), ALLOCATABLE, DIMENSION(:) :: ip1x, ip1y, ip1z, ip3
-    INTEGER(intk), ALLOCATABLE, DIMENSION(:) :: len1x, len1y, len1z, len3
-    !$omp declare target(ip1x, ip1y, ip1z, ip3, len1x, len1y, len1z, len3)
-
     INTERFACE set_field_arr
         PROCEDURE set_field_arr_realk
         PROCEDURE set_field_arr_ifk
     END INTERFACE set_field_arr
 
-    PUBLIC :: init_fieldhelper, finish_fieldhelper, &
-        get_grid1x_real, get_grid1y_real, get_grid1z_real, &
-        get_grid3_real, get_grid3_real_linear, &
+    PUBLIC :: get_grid1_real, get_grid3_real, get_grid3_real_linear, &
         get_grid3_ifk, get_grid3_ifk_linear, get_grid3_buffer, set_field_arr, &
         map_arr_to_device, map_arr_from_device, map_buf_to_device
-
 CONTAINS
-
-    SUBROUTINE init_fieldhelper()
-
-        ! The initialization obtains data from dummy field_t objects
-        ! to fill local look-up arrays. The objective is to avoid contact with
-        ! the field_t objects within offloaded kernels.
-
-        ! Local variables
-        TYPE(field_t) :: dummy_3d
-        INTEGER(intk) :: imygrid, ii, jj, kk, igrid
-
-        ! Using pressure and coordiante as dummy
-        CALL dummy_3d%init("DUMMY")
-
-        ALLOCATE(ip1x(nmygrids))
-        ALLOCATE(ip1y(nmygrids))
-        ALLOCATE(ip1z(nmygrids))
-        ALLOCATE(ip3(nmygrids))
-        ALLOCATE(len1x(nmygrids))
-        ALLOCATE(len1y(nmygrids))
-        ALLOCATE(len1z(nmygrids))
-        ALLOCATE(len3(nmygrids))
-
-        DO imygrid = 1, nmygrids
-
-            ! Getting the grid dimensions for the current grid
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            len1x(imygrid) = ii
-            len1y(imygrid) = jj
-            len1z(imygrid) = kk
-            len3(imygrid) = ii * jj * kk
-
-            IF (imygrid == 1) THEN
-                ip1x(1) = 1
-                ip1y(1) = 1
-                ip1z(1) = 1
-                ip3(1) = 1
-            ELSE
-                ip1x(imygrid) = ip1x(imygrid-1) + len1x(imygrid-1)
-                ip1y(imygrid) = ip1y(imygrid-1) + len1y(imygrid-1)
-                ip1z(imygrid) = ip1z(imygrid-1) + len1z(imygrid-1)
-                ip3(imygrid) = ip3(imygrid-1) + len3(imygrid-1)
-            END IF
-        END DO
-
-        !$omp target enter data map(always, to: ip1x, ip1y, ip1z, &
-        !$omp&  ip3, len1x, len1y, len1z, len3)
-
-        CALL dummy_3d%finish()
-
-    END SUBROUTINE init_fieldhelper
-
-
-    SUBROUTINE finish_fieldhelper()
-
-        !$omp target exit data map(delete: ip1x, ip1y, ip1z, &
-        !$omp&  ip3, len1x, len1y, len1z, len3)
-        DEALLOCATE(ip1x)
-        DEALLOCATE(ip1y)
-        DEALLOCATE(ip1z)
-        DEALLOCATE(ip3)
-        DEALLOCATE(len1x)
-        DEALLOCATE(len1y)
-        DEALLOCATE(len1z)
-        DEALLOCATE(len3)
-
-    END SUBROUTINE finish_fieldhelper
-
-
-    SUBROUTINE get_grid1x_real(ptr, field, igrid)
+    SUBROUTINE get_grid1_real(ptr, field, igrid)
         !$omp declare target
         ! Subroutine arguments
         REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
@@ -114,57 +29,14 @@ CONTAINS
         INTEGER(intk) :: ip, len, imygrid
 
         CALL get_imygrid(imygrid, igrid)
-        ip = ip1x(imygrid)
-        len = len1x(imygrid)
-
+        ip = field%ptr(imygrid)
+        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
 #endif
 
         ptr(1:len) => field%arr(ip:ip+len-1)
-    END SUBROUTINE get_grid1x_real
-
-    SUBROUTINE get_grid1y_real(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: ip, len, imygrid
-
-        CALL get_imygrid(imygrid, igrid)
-        ip = ip1y(imygrid)
-        len = len1y(imygrid)
-
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ptr(1:len) => field%arr(ip:ip+len-1)
-    END SUBROUTINE get_grid1y_real
-
-    SUBROUTINE get_grid1z_real(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: ip, len, imygrid
-
-        CALL get_imygrid(imygrid, igrid)
-        ip = ip1z(imygrid)
-        len = len1z(imygrid)
-
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ptr(1:len) => field%arr(ip:ip+len-1)
-    END SUBROUTINE get_grid1z_real
+    END SUBROUTINE get_grid1_real
 
 
     SUBROUTINE get_grid3_real(ptr, field, igrid)
@@ -179,14 +51,13 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        len = len3(imygrid)
-        ip = ip3(imygrid)
-
+        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
 
+        ip = field%ptr(imygrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real
 
@@ -203,15 +74,14 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        len = len3(imygrid)
-        ip = ip3(imygrid)
-
+        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
 
-        ptr(1:len) => field%arr(ip:ip+len-1)
+        ip = field%ptr(imygrid)
+        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_real_linear
 
 
@@ -227,14 +97,13 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        len = len3(imygrid)
-        ip = ip3(imygrid)
-
+        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
 
+        ip = field%ptr(imygrid)
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_ifk
 
@@ -251,15 +120,14 @@ CONTAINS
 
         CALL get_imygrid(imygrid, igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        len = len3(imygrid)
-        ip = ip3(imygrid)
-
+        len = field%length(imygrid)
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
 
-        ptr(1:len) => field%arr(ip:ip+len-1)
+        ip = field%ptr(imygrid)
+        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
     END SUBROUTINE get_grid3_ifk_linear
 
 
@@ -498,5 +366,4 @@ CONTAINS
         END IF
 #endif
     END SUBROUTINE map_arr_from_device
-
 END MODULE fieldhelper_mod
