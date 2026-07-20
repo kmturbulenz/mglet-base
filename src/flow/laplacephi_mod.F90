@@ -19,8 +19,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
         TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, gsap, bp_f
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: phi, res, ap, bp, &
-            aw, ae, an, as, at, ab
 
         CALL get_field(gsaw, "GSAW")
         CALL get_field(gsae, "GSAE")
@@ -78,8 +76,6 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz
 
         TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, gsap, bp_f
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: phi, res, ap, bp, &
-            aw, ae, an, as, at, ab
 
         CALL get_field(gsaw, "GSAW")
         CALL get_field(gsae, "GSAE")

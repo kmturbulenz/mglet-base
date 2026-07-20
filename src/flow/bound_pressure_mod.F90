@@ -144,8 +144,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: p, pbuffer, bp, dx, dy, dz, &
-            ddx, ddy, ddz
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
@@ -220,8 +218,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: p, pbuffer, bp, dx, dy, dz, &
-            ddx, ddy, ddz
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)

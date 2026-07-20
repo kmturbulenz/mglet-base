@@ -523,8 +523,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: lw, ls, lb, lpr, res, rhs, &
-            mip, idx
 
         ASSOCIATE( &
             lw => siplw%arr, &
@@ -534,9 +532,7 @@ CONTAINS
             res => res_f%arr, &
             rhs => rhs_f%arr, &
             mip => mip_hp_f%arr, &
-            idx => idx_hp_f%arr, &
-            mip_ptr => mip_hp_f%arr, &
-            idx_ptr => idx_hp_f%arr)
+            idx => idx_hp_f%arr)
 
         CALL profile_range_push("hp1")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
@@ -546,7 +542,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
 
             CALL sipiter1_hp(kk, jj, ii, rhs(ip3), res(ip3), lw(ip3), ls(ip3), &
-                lb(ip3), lpr(ip3), mip_ptr(ip3), idx_ptr(ip3))
+                lb(ip3), lpr(ip3), mip(ip3), idx(ip3))
         END DO
         !$omp end target teams distribute
         CALL profile_range_pop()
@@ -600,8 +596,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: dp, res, sipue, sipun, &
-            siput, mip_hp, idx_hp
 
         ASSOCIATE( &
             dp => dp_f%arr, &
@@ -610,8 +604,7 @@ CONTAINS
             sipun => sipun_f%arr, &
             siput => siput_f%arr, &
             mip_hp => mip_hp_f%arr, &
-            idx_hp => idx_hp_f%arr &
-        )
+            idx_hp => idx_hp_f%arr)
 
         CALL profile_range_push("hp2")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
@@ -685,9 +678,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: rhs, res
 
-        ASSOCIATE(rhs => rhs_f%arr, res => res_f%arr)
+        ASSOCIATE(rhs => rhs_f%arr, &
+                  res => res_f%arr)
 
         CALL profile_range_push("rescal")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)

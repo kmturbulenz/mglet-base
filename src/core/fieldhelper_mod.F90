@@ -333,7 +333,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, n
         LOGICAL :: device2
-        REAL(realk), ALLOCATABLE, DIMENSION(:) :: arr
 
         IF (PRESENT(device)) THEN
             device2 = device
@@ -368,7 +367,6 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, n
         LOGICAL :: device2
-        INTEGER(ifk), ALLOCATABLE, DIMENSION(:) :: arr
 
         IF (PRESENT(device)) THEN
             device2 = device
