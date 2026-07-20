@@ -509,12 +509,12 @@ CONTAINS
     END SUBROUTINE sipiter1_classic_level
 
 
-    SUBROUTINE sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
+    SUBROUTINE sipiter1_hyperplane_level(ilevel, res_f, rhs_f, siplw, sipls, &
             siplb, siplpr)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: res
-        TYPE(field_t), INTENT(in) :: rhs
+        TYPE(field_t), INTENT(inout) :: res_f
+        TYPE(field_t), INTENT(in) :: rhs_f
         TYPE(field_t), INTENT(in) :: siplw
         TYPE(field_t), INTENT(in) :: sipls
         TYPE(field_t), INTENT(in) :: siplb
@@ -522,34 +522,36 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: lw(:, :, :), ls(:, :, :), &
-            lb(:, :, :), lpr(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
-        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+        INTEGER(intk) :: kk, jj, ii, ip3
+        REAL(realk), ALLOCATABLE, DIMENSION(:) :: lw, ls, lb, lpr, res, rhs, &
+            mip, idx
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
-        !$omp& res_p, rhs_p, lw, ls, lb, lpr, mip_ptr, idx_ptr)
+        ASSOCIATE( &
+            lw => siplw%arr, &
+            ls => sipls%arr, &
+            lb => siplb%arr, &
+            lpr => siplpr%arr, &
+            res => res_f%arr, &
+            rhs => rhs_f%arr, &
+            mip => mip_hp_f%arr, &
+            idx => idx_hp_f%arr, &
+            mip_ptr => mip_hp_f%arr, &
+            idx_ptr => idx_hp_f%arr)
+
+        CALL profile_range_push("hp1")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
 
-            CALL get_grid3_real(res_p, res, igrid)
-            CALL get_grid3_real(rhs_p, rhs, igrid)
-
-            CALL get_grid3_real(lw, siplw, igrid)
-            CALL get_grid3_real(ls, sipls, igrid)
-            CALL get_grid3_real(lb, siplb, igrid)
-            CALL get_grid3_real(lpr, siplpr, igrid)
-
-            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-
-            CALL sipiter1_hp(kk, jj, ii, rhs_p, res_p, lw, ls, lb, lpr, &
-                mip_ptr, idx_ptr)
+            CALL sipiter1_hp(kk, jj, ii, rhs(ip3), res(ip3), lw(ip3), ls(ip3), &
+                lb(ip3), lpr(ip3), mip_ptr(ip3), idx_ptr(ip3))
         END DO
         !$omp end target teams distribute
+        CALL profile_range_pop()
 
+        END ASSOCIATE
     END SUBROUTINE sipiter1_hyperplane_level
 
 
@@ -585,44 +587,46 @@ CONTAINS
     END SUBROUTINE sipiter2_classic_level
 
 
-    SUBROUTINE sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
-            siput)
+    SUBROUTINE sipiter2_hyperplane_level(ilevel, dp_f, res_f, sipue_f, &
+        sipun_f, siput_f)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: dp
-        TYPE(field_t), INTENT(inout) :: res
-        TYPE(field_t), INTENT(in) :: sipue
-        TYPE(field_t), INTENT(in) :: sipun
-        TYPE(field_t), INTENT(in) :: siput
+        TYPE(field_t), INTENT(inout) :: dp_f
+        TYPE(field_t), INTENT(inout) :: res_f
+        TYPE(field_t), INTENT(in) :: sipue_f
+        TYPE(field_t), INTENT(in) :: sipun_f
+        TYPE(field_t), INTENT(in) :: siput_f
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: ue(:, :, :), un(:, :, :), &
-            ut(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
-        INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
+        INTEGER(intk) :: kk, jj, ii, ip3
+        REAL(realk), ALLOCATABLE, DIMENSION(:) :: dp, res, sipue, sipun, &
+            siput, mip_hp, idx_hp
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
-        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
+        ASSOCIATE( &
+            dp => dp_f%arr, &
+            res => res_f%arr, &
+            sipue => sipue_f%arr, &
+            sipun => sipun_f%arr, &
+            siput => siput_f%arr, &
+            mip_hp => mip_hp_f%arr, &
+            idx_hp => idx_hp_f%arr &
+        )
+
+        CALL profile_range_push("hp2")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
 
-            CALL get_grid3_real(dp_p, dp, igrid)
-            CALL get_grid3_real(res_p, res, igrid)
-
-            CALL get_grid3_real(ue, sipue, igrid)
-            CALL get_grid3_real(un, sipun, igrid)
-            CALL get_grid3_real(ut, siput, igrid)
-
-            CALL get_grid3_ifk_linear(mip_ptr, mip_hp_f, igrid)
-            CALL get_grid3_ifk_linear(idx_ptr, idx_hp_f, igrid)
-
-            CALL sipiter2_hp(kk, jj, ii, dp_p, res_p, ue, un, ut, &
-                mip_ptr, idx_ptr)
+            CALL sipiter2_hp(kk, jj, ii, dp(ip3), res(ip3), sipue(ip3), &
+                sipun(ip3), siput(ip3), mip_hp_f%arr(ip3), idx_hp_f%arr(ip3))
         END DO
         !$omp end target teams distribute
+        CALL profile_range_pop()
+
+        END ASSOCIATE
     END SUBROUTINE sipiter2_hyperplane_level
 
 
@@ -680,20 +684,24 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: rhs(:, :, :), res(:, :, :)
+        INTEGER(intk) :: kk, jj, ii, ip3
+        REAL(realk), ALLOCATABLE, DIMENSION(:) :: rhs, res
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, rhs, res)
+        ASSOCIATE(rhs => rhs_f%arr, res => res_f%arr)
+
+        CALL profile_range_push("rescal")
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
 
-            CALL get_grid3_real(rhs, rhs_f, igrid)
-            CALL get_grid3_real(res, res_f, igrid)
-
-            CALL rescal_grid(kk, jj, ii, rhs, res)
+            CALL rescal_grid(kk, jj, ii, rhs(ip3), res(ip3))
         END DO
         !$omp end target teams distribute
+        CALL profile_range_pop()
+
+        END ASSOCIATE
     END SUBROUTINE rescal
 
 

@@ -93,7 +93,7 @@ CONTAINS
                 END DO
             END DO
         END BLOCK
-        !$omp target enter data map(always, to: ipbb, ip3d, ip1dx, ip1dy, ip1dz)
+        !$omp target enter data map(always, to: ip3d, ip1dx, ip1dy, ip1dz, ipbb)
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
@@ -111,7 +111,8 @@ CONTAINS
         idim1dy = 0
         idim1dz = 0
 
-        !$omp target exit data map(always, delete: ipbb, ip3d)
+        !$omp target exit data map(always, delete: ip3d, ip1dx, ip1dy, ip1dz, &
+        !$omp& ipbb)
         DEALLOCATE(ip3d)
         DEALLOCATE(ipbb)
         DEALLOCATE(ip1dx)
@@ -140,9 +141,11 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ncomp
         INTEGER(intk), INTENT(out) :: ip3n
 
+#ifdef _MGLET_DEBUG_
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         ip3n = ncomp*ip3d(igrid) - (ncomp-1)
     END SUBROUTINE get_ip3n

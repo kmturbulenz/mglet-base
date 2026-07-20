@@ -13,7 +13,6 @@ MODULE sip_hyperplane_mod
 
     TYPE(intfield_t), PROTECTED, TARGET :: mip_hp_f
     TYPE(intfield_t), PROTECTED, TARGET :: idx_hp_f
-    !$omp declare target(mip_hp_f, idx_hp_f)
 
     PUBLIC :: sip_hyperplane_init, sip_hyperplane_finish, &
         sipiter1, sipiter2, mip_hp_f, idx_hp_f
@@ -21,7 +20,6 @@ MODULE sip_hyperplane_mod
 CONTAINS
 
     SUBROUTINE sip_hyperplane_init()
-        USE fieldmapper_mod
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii
         REAL(realk), POINTER, CONTIGUOUS :: lw(:), ls(:), lb(:), lpr(:), &
@@ -54,8 +52,7 @@ CONTAINS
             CALL sip_hyperplane_check_grid(kk, jj, ii, mip_hp, idx_hp)
         END DO
 
-        !$omp target enter data map(always, mapper(default), &
-        !$omp& to: mip_hp_f, idx_hp_f)
+        !$omp target enter data map(mip_hp_f%arr, idx_hp_f%arr)
 
         ! Getting the coefficient fields
         ! Coefficients in [L] of ILU (including diagonal)
@@ -111,8 +108,8 @@ CONTAINS
 
         END DO
 
-        !$omp target update to(mapper(field_t__map_arr): lw_f, ls_f, lb_f, &
-        !$omp& lpr_f, ue_f, un_f, ut_f)
+        !$omp target update to(lw_f%arr, ls_f%arr, lb_f%arr, &
+        !$omp& lpr_f%arr, ue_f%arr, un_f%arr, ut_f%arr)
     END SUBROUTINE sip_hyperplane_init
 
 

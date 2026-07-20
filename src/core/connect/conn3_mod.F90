@@ -1,4 +1,4 @@
-MODULE conn2_mod
+MODULE conn3_mod
 
     USE MPI_f08
     USE precision_mod
@@ -10,6 +10,8 @@ MODULE conn2_mod
     USE field_mod
     USE connect_core_mod
     USE fieldhelper_mod
+    USE pointers_mod, ONLY: get_ip3
+    USE profile_tools_mod
     USE pointers_mod, ONLY: get_ip3
     USE profile_tools_mod
 
@@ -28,6 +30,7 @@ MODULE conn2_mod
 
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
+        selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
         selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
     !$omp declare target(sendtasks, recvtasks, selftasks)
 
@@ -52,10 +55,10 @@ MODULE conn2_mod
 
 CONTAINS
 
-    SUBROUTINE conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
+    SUBROUTINE conn3(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
             forward, ityp)
 
-        ! conn2 makes conn1 availabel for efficient execution on GPUs.
+        ! conn3 makes conn1 availabel for efficient execution on GPUs.
         ! The implementation provides the same functionality as conn1.
 
         ! Subroutine arguments
@@ -83,24 +86,38 @@ CONTAINS
         f4 => pdummy
         f5 => pdummy
         f6 => pdummy
+        ! Setting all field pointers to uninitialized dummy field
+        f1 => pdummy
+        f2 => pdummy
+        f3 => pdummy
+        f4 => pdummy
+        f5 => pdummy
+        f6 => pdummy
 
         IF (PRESENT(ilevel)) THEN
+            IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
             minconlvl = ilevel
             maxconlvl = ilevel
             idx_ilevel = ilevel
+            idx_ilevel = ilevel
         ELSE
             minconlvl = minlevel
             maxconlvl = maxlevel
+            idx_ilevel = maxlevel+1
             idx_ilevel = maxlevel+1
         END IF
 
         nplane = 1
         idx_layers = 1
+        idx_layers = 1
         IF (PRESENT(layers)) THEN
             nplane = layers
+            idx_layers = layers
             idx_layers = layers
         END IF
         IF (nplane < 1 .OR. nplane > 2) THEN
@@ -109,8 +126,12 @@ CONTAINS
 
         vertices = .FALSE.
         idx_corners = 0
+        idx_corners = 0
         IF (PRESENT(corners)) THEN
             vertices = corners
+            IF (corners) THEN
+                idx_corners = 1
+            END IF
             IF (corners) THEN
                 idx_corners = 1
             END IF
@@ -118,11 +139,16 @@ CONTAINS
 
         fwd = 0
         idx_forward = 0
+        idx_forward = 0
         IF (PRESENT(forward)) THEN
             IF (forward < -1 .OR. forward > 1) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
+            IF (forward < -1 .OR. forward > 1) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
             fwd = forward
+            idx_forward = forward
             idx_forward = forward
         END IF
 
@@ -134,38 +160,47 @@ CONTAINS
         IF (PRESENT(ityp)) THEN
             ! Radical approach
             CALL errr(__FILE__, __LINE__)
+            ! Radical approach
+            CALL errr(__FILE__, __LINE__)
         END IF
 
+        idx_args = 0
         idx_args = 0
         nvars = 0
         IF (PRESENT(v1)) THEN
             f1 => v1
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(0)
+            idx_args = idx_args + 1 * 2**(0)
         END IF
         IF (PRESENT(v2)) THEN
             f2 => v2
             nvars = nvars + 1
+            idx_args = idx_args + 1 * 2**(1)
             idx_args = idx_args + 1 * 2**(1)
         END IF
         IF (PRESENT(v3)) THEN
             f3 => v3
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(2)
+            idx_args = idx_args + 1 * 2**(2)
         END IF
         IF (PRESENT(s1)) THEN
             f4 => s1
             nvars = nvars + 1
+            idx_args = idx_args + 1 * 2**(3)
             idx_args = idx_args + 1 * 2**(3)
         END IF
         IF (PRESENT(s2)) THEN
             f5 => s2
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(4)
+            idx_args = idx_args + 1 * 2**(4)
         END IF
         IF (PRESENT(s3)) THEN
             f6 => s3
             nvars = nvars + 1
+            idx_args = idx_args + 1 * 2**(5)
             idx_args = idx_args + 1 * 2**(5)
         END IF
         IF (nvars == 0) THEN
@@ -174,8 +209,12 @@ CONTAINS
 
         normal2 = .FALSE.
         idx_normal = 0
+        idx_normal = 0
         IF (PRESENT(normal)) THEN
             normal2 = normal
+            IF (normal) THEN
+                idx_normal = 1
+            END IF
             IF (normal) THEN
                 idx_normal = 1
             END IF
@@ -244,12 +283,24 @@ CONTAINS
                 !$omp target update to( &
                 !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
                 !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+                !$omp target update to( &
+                !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+                !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
 
+                CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
+                    normal2, fwd, flag, nvars)
                 CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
                     normal2, fwd, flag, nvars)
 
                 !$omp taskwait
+                !$omp taskwait
 
+                CALL process_sendtasks(sendtasks, nsendtasks)
+                CALL process_mpisend(mpisendtasks, nmpisendtasks)
+                CALL process_selftasks(selftasks, nselftasks)
+
+                CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
+                    nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
                 CALL process_sendtasks(sendtasks, nsendtasks)
                 CALL process_mpisend(mpisendtasks, nmpisendtasks)
                 CALL process_selftasks(selftasks, nselftasks)
@@ -259,7 +310,10 @@ CONTAINS
 
                 !$omp target update to( &
                 !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
+                !$omp target update to( &
+                !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
 
+                !$omp taskwait
                 !$omp taskwait
 
                 CALL process_recvtasks(recvtasks, nrecvtasks)
@@ -440,7 +494,30 @@ CONTAINS
         ! Deallocate the workrecords array
         DEALLOCATE(workrecords)
 
-    END SUBROUTINE finish_conn2
+        ! Deallocate the workpackage arrays in the workrecords array
+        wr1d(1:SIZE(workrecords)) => workrecords
+        DO i = 1, SIZE(wr1d)
+            IF (.NOT. wr1d(i)%is_init) CYCLE
+
+            !$omp target exit data map(delete: &
+            !$omp&  wr1d(i)%sendtasks(:, :), &
+            !$omp&  wr1d(i)%recvtasks(:, :), &
+            !$omp&  wr1d(i)%selftasks(:, :))
+
+            IF (ALLOCATED(wr1d(i)%sendtasks)) DEALLOCATE(wr1d(i)%sendtasks)
+            IF (ALLOCATED(wr1d(i)%recvtasks)) DEALLOCATE(wr1d(i)%recvtasks)
+            IF (ALLOCATED(wr1d(i)%selftasks)) DEALLOCATE(wr1d(i)%selftasks)
+            IF (ALLOCATED(wr1d(i)%mpisendtasks)) &
+                DEALLOCATE(wr1d(i)%mpisendtasks)
+            IF (ALLOCATED(wr1d(i)%mpirecvtasks)) &
+                DEALLOCATE(wr1d(i)%mpirecvtasks)
+            wr1d(i)%is_init = .FALSE.
+        END DO
+
+        ! Deallocate the workrecords array
+        DEALLOCATE(workrecords)
+
+    END SUBROUTINE finish_conn3
 
 
 
@@ -810,12 +887,18 @@ CONTAINS
     !
     SUBROUTINE add_mpi_task(mpitasks, impitask, iprocnbr, &
         messagelength, counter, type)
+    SUBROUTINE add_mpi_task(mpitasks, impitask, iprocnbr, &
+        messagelength, counter, type)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize, maxtasks)
         INTEGER(intk), INTENT(inout) :: impitask
+        INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: impitask
         INTEGER(intk), INTENT(in) :: iprocnbr
         INTEGER(intk), INTENT(inout) :: messagelength
+        INTEGER(intk), INTENT(inout) :: counter
+        CHARACTER(len=4), INTENT(in) :: type
         INTEGER(intk), INTENT(inout) :: counter
         CHARACTER(len=4), INTENT(in) :: type
 
@@ -831,17 +914,33 @@ CONTAINS
         ELSE
             CALL errr(__FILE__, __LINE__)
         END IF
+        IF (type == 'send') THEN
+            nsend = nsend + 1
+            sendlist(nsend) = iprocnbr
+        ELSE IF (type == 'recv') THEN
+            nrecv = nrecv + 1
+            recvlist(nrecv) = iprocnbr
+        ELSE
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
+        ! Add the MPI send task to the mpitasks array
+        impitask = impitask + 1
         ! Add the MPI send task to the mpitasks array
         impitask = impitask + 1
 
         mpitasks(1, impitask) = iprocnbr
         mpitasks(2, impitask) = messagelength
         mpitasks(3, impitask) = counter
+        mpitasks(1, impitask) = iprocnbr
+        mpitasks(2, impitask) = messagelength
+        mpitasks(3, impitask) = counter
 
+        counter = counter + messagelength
         counter = counter + messagelength
         messagelength = 0
 
+    END SUBROUTINE add_mpi_task
     END SUBROUTINE add_mpi_task
 
 
@@ -1145,25 +1244,40 @@ CONTAINS
             ! The following replaces "read_single_buffer"
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
+            ! The following replaces "read_single_buffer"
+            CALL get_ip3(ip3, igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
 
             ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
                 CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (2)
+                CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
                 CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (3)
                 CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (4)
+                CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
                 CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (5)
                 CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (6)
+                CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
                 CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE DEFAULT
@@ -1202,7 +1316,40 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
 
+        END ASSOCIATE
+
+    END SUBROUTINE process_sendtasks
+
+    SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
+        jstart, jstop, kstart, kstop, icount)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: arr(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+            kstop, icount
+        ! Local variables
+        INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
+
+        kkl = kstop - kstart + 1
+        jjl = jstop - jstart + 1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        DO i = istart, istop
+            DO j = jstart, jstop
+                DO k = kstart, kstop
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                        (i-istart)*jjl*kkl + icount
+                    sendbuf(idx_b) = arr(k, j, i)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+    END SUBROUTINE arr_to_buf
     END SUBROUTINE arr_to_buf
 
 
@@ -1253,7 +1400,11 @@ CONTAINS
             CASE (1)
                 CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
+                CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
             CASE (2)
+                CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
                 CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (3)
@@ -1263,6 +1414,8 @@ CONTAINS
                 CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (5)
+                CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
+                    jstart, jstop, kstart, kstop, icount)
                 CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
             CASE (6)
@@ -1305,8 +1458,45 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+
+        END ASSOCIATE
+
+    END SUBROUTINE process_recvtasks
+
+
+    SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
+        jstart, jstop, kstart, kstop, icount)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: arr(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
+            kstop, icount
+        ! Local variables
+        INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
+
+        kkl = kstop - kstart + 1
+        jjl = jstop - jstart + 1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        DO i = istart, istop
+            DO j = jstart, jstop
+                DO k = kstart, kstop
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
+                        (i-istart)*jjl*kkl + icount
+                    arr(k, j, i) = recvbuf(idx_b)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
 
     END SUBROUTINE buf_to_arr
+    END SUBROUTINE buf_to_arr
+
+
+
 
 
 
@@ -1322,6 +1512,8 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nstasks
 
         ! Local variables
+        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
+            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
         INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
             kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
             istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
@@ -1364,8 +1556,16 @@ CONTAINS
             CALL get_ip3(ip3_d, igrid_d)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            ! The following replaces "read_single_buffer"
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip3(ip3_d, igrid_d)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
             SELECT CASE (fieldid)
             CASE (1)
+                CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
                 CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
@@ -1373,7 +1573,13 @@ CONTAINS
                 CALL arr_to_arr(kk, jj, ii, a2(ip3_d), a2(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
+                CALL arr_to_arr(kk, jj, ii, a2(ip3_d), a2(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (3)
+                CALL arr_to_arr(kk, jj, ii, a3(ip3_d), a3(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
                 CALL arr_to_arr(kk, jj, ii, a3(ip3_d), a3(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
@@ -1381,11 +1587,20 @@ CONTAINS
                 CALL arr_to_arr(kk, jj, ii, a4(ip3_d), a4(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
+                CALL arr_to_arr(kk, jj, ii, a4(ip3_d), a4(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (5)
                 CALL arr_to_arr(kk, jj, ii, a5(ip3_d), a5(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
+                CALL arr_to_arr(kk, jj, ii, a5(ip3_d), a5(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             CASE (6)
+                CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop, &
+                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
                 CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
@@ -1427,7 +1642,18 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
+        !$omp parallel do collapse(3) private(i, j, k)
+        DO i = istart_d, istop_d
+            DO j = jstart_d, jstop_d
+                DO k = kstart_d, kstop_d
+                    dst_rarr(k, j, i) = &
+                        src_rarr(k + koff, j + joff, i + ioff)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
 
+    END SUBROUTINE arr_to_arr
     END SUBROUTINE arr_to_arr
 
 
@@ -1664,4 +1890,4 @@ CONTAINS
         END DO
     END SUBROUTINE recv_mpi_all
 
-END MODULE conn2_mod
+END MODULE conn3_mod

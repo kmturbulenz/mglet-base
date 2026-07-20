@@ -12,6 +12,7 @@ MODULE fieldhelper_mod
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
     USE pointers_mod, ONLY: get_ibb
     USE precision_mod, ONLY: realk, intk, ifk
+    USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -183,6 +184,7 @@ CONTAINS
         ip = ip3(imygrid)
 
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        len = field%length(imygrid)
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
 #endif
@@ -207,8 +209,12 @@ CONTAINS
         ip = ip3(imygrid)
 
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        ! Checking length
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        IF (len /= field%length(imygrid)) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+        ! Checking integer pointer
+        IF (ip /= field%ptr(imygrid)) CALL errr(__FILE__, __LINE__)
 #endif
 
         ptr(1:len) => field%arr(ip:ip+len-1)
@@ -231,8 +237,12 @@ CONTAINS
         ip = ip3(imygrid)
 
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        ! Checking length
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        IF (len /= field%length(imygrid)) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+        ! Checking integer pointer
+        IF (ip /= field%ptr(imygrid)) CALL errr(__FILE__, __LINE__)
 #endif
 
         ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
@@ -255,8 +265,12 @@ CONTAINS
         ip = ip3(imygrid)
 
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
+        ! Checking length
         IF (len <= 0) CALL errr(__FILE__, __LINE__)
+        IF (len /= field%length(imygrid)) CALL errr(__FILE__, __LINE__)
         IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
+        ! Checking integer pointer
+        IF (ip /= field%ptr(imygrid)) CALL errr(__FILE__, __LINE__)
 #endif
 
         ptr(1:len) => field%arr(ip:ip+len-1)
@@ -319,6 +333,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, n
         LOGICAL :: device2
+        REAL(realk), ALLOCATABLE, DIMENSION(:) :: arr
 
         IF (PRESENT(device)) THEN
             device2 = device
@@ -327,12 +342,16 @@ CONTAINS
         END IF
 
         IF (device2) THEN
+            ASSOCIATE(arr => field%arr)
+            CALL profile_range_push("set_field_arr_realk")
             n = SIZE(field%arr)
             !$omp target teams loop
             DO i = 1, n
-                field%arr(i) = val
+                arr(i) = val
             END DO
             !$omp end target teams loop
+            CALL profile_range_pop()
+            END ASSOCIATE
         ELSE
             ! Faster than loop on CPU
             field%arr = val
@@ -349,6 +368,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, n
         LOGICAL :: device2
+        INTEGER(ifk), ALLOCATABLE, DIMENSION(:) :: arr
 
         IF (PRESENT(device)) THEN
             device2 = device
@@ -358,11 +378,15 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
+            ASSOCIATE(arr => field%arr)
+            CALL profile_range_push("set_field_arr_ifk")
             !$omp target teams loop
             DO i = 1, n
-                field%arr(i) = val
+                arr(i) = val
             END DO
             !$omp end target teams loop
+            CALL profile_range_pop()
+            END ASSOCIATE
         ELSE
             ! Faster than loop on CPU
             field%arr = val
@@ -372,7 +396,6 @@ CONTAINS
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, message)
         ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
@@ -393,22 +416,22 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update to(mapper(field_t__map_arr): f1)
+        !$omp target update to(f1%arr)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f2)
+            !$omp target update to(f2%arr)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f3)
+            !$omp target update to(f3%arr)
         END IF
         IF (PRESENT(f4)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f4)
+            !$omp target update to(f4%arr)
         END IF
         IF (PRESENT(f5)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f5)
+            !$omp target update to(f5%arr)
         END IF
         IF (PRESENT(f6)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f6)
+            !$omp target update to(f6%arr)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
@@ -421,7 +444,6 @@ CONTAINS
 
     SUBROUTINE map_buf_to_device(f1, message)
         ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
@@ -441,7 +463,7 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update to(mapper(field_t__map_buffers): f1)
+        !$omp target update to(f1%buffers)
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
@@ -453,7 +475,6 @@ CONTAINS
 
     SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, message)
         ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
@@ -474,22 +495,22 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update from(mapper(field_t__map_arr): f1)
+        !$omp target update from(f1%arr)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f2)
+            !$omp target update from(f2%arr)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f3)
+            !$omp target update from(f3%arr)
         END IF
         IF (PRESENT(f4)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f4)
+            !$omp target update from(f4%arr)
         END IF
         IF (PRESENT(f5)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f5)
+            !$omp target update from(f5%arr)
         END IF
         IF (PRESENT(f6)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f6)
+            !$omp target update from(f6%arr)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)

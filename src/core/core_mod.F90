@@ -29,6 +29,7 @@ MODULE core_mod
     USE pointers_mod
     USE precision_mod
     USE probeoffload_mod
+    USE profile_tools_mod
     USE pvtk_mod
     USE qsort_mod
     USE readstl_mod
