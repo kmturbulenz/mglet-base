@@ -7,6 +7,7 @@ PROGRAM main
     USE ib_mod, ONLY: init_ib, finish_ib, ib
     USE timeloop_mod, ONLY: init_timeloop, finish_timeloop, timeloop
     USE scalar_mod, ONLY: init_scalar, finish_scalar
+    USE fieldhelper_mod, ONLY: init_fieldhelper, finish_fieldhelper
 
     IMPLICIT NONE (type, external)
 
@@ -14,6 +15,7 @@ PROGRAM main
 
     ! Initialization of core data structures
     CALL init_core()
+    CALL init_fieldhelper()
 
     ! Immersed boundary
     CALL init_ib()
@@ -62,6 +64,7 @@ PROGRAM main
     END IF
 
     ! Deallocate core consructs
+    CALL finish_fieldhelper()
     CALL finish_ib()
     CALL finish_core()
 END PROGRAM main
