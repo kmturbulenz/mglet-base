@@ -33,6 +33,7 @@ MODULE core_mod
     USE qsort_mod
     USE readstl_mod
     USE rungekutta_mod
+    USE profile_tools_mod
     USE shmem_mod
     USE simdfunctions_mod
     USE statistics_mod
