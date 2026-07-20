@@ -5,7 +5,6 @@ MODULE conn_mod
     USE field_mod
     USE conn1_mod
     USE conn2_mod
-    USE conn2_mod
 
     PUBLIC :: conn, init_conn, finish_conn
 
@@ -30,9 +29,7 @@ CONTAINS
         CALL conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
             normal, forward, ityp)
 #else
-        ! CALL conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
-        !     normal, forward, ityp)
-        CALL conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
+        CALL conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
             normal, forward, ityp)
 #endif
         CALL stop_timer(150)
@@ -43,7 +40,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL init_conn2()
 #else
-        CALL init_conn2()
+        CALL init_conn1()
 #endif
     END SUBROUTINE init_conn
 
@@ -52,7 +49,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL finish_conn2()
 #else
-        CALL finish_conn2()
+        CALL finish_conn1()
 #endif
     END SUBROUTINE finish_conn
 
