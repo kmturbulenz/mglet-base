@@ -416,6 +416,7 @@ CONTAINS
         CALL map_arr_from_device(res, message="from:res%arr")
 
         CALL bound_pressure(ilevel, dp, bp)
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         ! TODO(offload): Remove once surrounding subroutines offloaded
         CALL map_arr_from_device(dp, message="from:dp%arr")

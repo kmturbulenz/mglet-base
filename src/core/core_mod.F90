@@ -119,6 +119,7 @@ CONTAINS
         CALL init_commbuf()
         CALL init_fields()
         CALL init_fieldpool()
+        CALL init_fieldhelper()
         CALL init_corefields()
         CALL init_connect2()
 
@@ -140,6 +141,7 @@ CONTAINS
         CALL finish_connect2()
         CALL finish_corefields()
         CALL finish_fieldpool()
+        CALL finish_fieldhelper()
         CALL finish_fields()
         CALL finish_commbuf()
         CALL finish_pointers()
