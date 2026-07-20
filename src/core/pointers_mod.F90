@@ -73,7 +73,7 @@ CONTAINS
             END DO
         END BLOCK
 
-        !$omp target enter data map(always, to: ipbb)
+        !$omp target enter data map(always, to: ipbb, ip3d)
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
@@ -89,12 +89,13 @@ CONTAINS
         idimbb = 0
 
         DEALLOCATE(ip3d)
-        !$omp target exit data map(always, delete: ipbb)
+        !$omp target exit data map(always, delete: ipbb, ip3d)
         DEALLOCATE(ipbb)
     END SUBROUTINE finish_pointers
 
 
     SUBROUTINE get_ip3(ip3, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: ip3
 
