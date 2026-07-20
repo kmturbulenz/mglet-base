@@ -12,7 +12,6 @@ MODULE fieldhelper_mod
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
     USE pointers_mod, ONLY: get_ibb
     USE precision_mod, ONLY: realk, intk, ifk
-    USE fields_mod, ONLY: get_field
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -41,15 +40,11 @@ CONTAINS
         ! the field_t objects within offloaded kernels.
 
         ! Local variables
-        TYPE(field_t), POINTER :: dummy_1dx, dummy_1dy, dummy_1dz
         TYPE(field_t) :: dummy_3d
-        INTEGER(intk) :: imygrid
+        INTEGER(intk) :: imygrid, ii, jj, kk, igrid
 
         ! Using pressure and coordiante as dummy
-        CALL dummy_3d%init("P")
-        CALL get_field(dummy_1dx, "X")
-        CALL get_field(dummy_1dy, "Y")
-        CALL get_field(dummy_1dz, "Z")
+        CALL dummy_3d%init("DUMMY")
 
         ALLOCATE(ip1x(nmygrids))
         ALLOCATE(ip1y(nmygrids))
@@ -60,16 +55,28 @@ CONTAINS
         ALLOCATE(len1z(nmygrids))
         ALLOCATE(len3(nmygrids))
 
-
         DO imygrid = 1, nmygrids
-            ip1x(imygrid) = dummy_1dx%ptr(imygrid)
-            ip1y(imygrid) = dummy_1dy%ptr(imygrid)
-            ip1z(imygrid) = dummy_1dz%ptr(imygrid)
-            ip3(imygrid) = dummy_3d%ptr(imygrid)
-            len1x(imygrid) = dummy_1dx%length(imygrid)
-            len1y(imygrid) = dummy_1dy%length(imygrid)
-            len1z(imygrid) = dummy_1dz%length(imygrid)
-            len3(imygrid) = dummy_3d%length(imygrid)
+
+            ! Getting the grid dimensions for the current grid
+            igrid = mygrids(imygrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+
+            len1x(imygrid) = ii
+            len1y(imygrid) = jj
+            len1z(imygrid) = kk
+            len3(imygrid) = ii * jj * kk
+
+            IF (imygrid == 1) THEN
+                ip1x(1) = 1
+                ip1y(1) = 1
+                ip1z(1) = 1
+                ip3(1) = 1
+            ELSE
+                ip1x(imygrid) = ip1x(imygrid-1) + len1x(imygrid-1)
+                ip1y(imygrid) = ip1y(imygrid-1) + len1y(imygrid-1)
+                ip1z(imygrid) = ip1z(imygrid-1) + len1z(imygrid-1)
+                ip3(imygrid) = ip3(imygrid-1) + len3(imygrid-1)
+            END IF
         END DO
 
         !$omp target enter data map(always, to: ip1x, ip1y, ip1z, &
