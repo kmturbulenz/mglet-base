@@ -102,7 +102,6 @@ CONTAINS
         ! BP for noib is 1.0 anyways. Take the few multiplications instead of
         ! branching in the kernel.
 
-        CALL profile_range_push("laplacephi_level")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ipx, &
         !$omp& ipy, ipz)
         DO i = 1, nmygridslvl(ilevel)
@@ -119,8 +118,9 @@ CONTAINS
                 ap(ip3), bp(ip3))
         END DO
         !$omp end target teams distribute
-        CALL profile_range_pop()
+
         END ASSOCIATE
+
     END SUBROUTINE laplacephi_level
 
 

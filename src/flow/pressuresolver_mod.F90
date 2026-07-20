@@ -445,7 +445,9 @@ CONTAINS
         ! Local variables
         ! none...
 
+        CALL profile_range_push("laplace")
         CALL laplacephi_level(ilevel, res, dp)
+        CALL profile_range_pop()
 
         IF (ityp == 2) THEN
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
@@ -534,7 +536,6 @@ CONTAINS
             mip => mip_hp_f%arr, &
             idx => idx_hp_f%arr)
 
-        CALL profile_range_push("hp1")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -545,7 +546,6 @@ CONTAINS
                 lb(ip3), lpr(ip3), mip(ip3), idx(ip3))
         END DO
         !$omp end target teams distribute
-        CALL profile_range_pop()
 
         END ASSOCIATE
     END SUBROUTINE sipiter1_hyperplane_level
@@ -606,7 +606,6 @@ CONTAINS
             mip_hp => mip_hp_f%arr, &
             idx_hp => idx_hp_f%arr)
 
-        CALL profile_range_push("hp2")
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
@@ -617,7 +616,6 @@ CONTAINS
                 sipun(ip3), siput(ip3), mip_hp_f%arr(ip3), idx_hp_f%arr(ip3))
         END DO
         !$omp end target teams distribute
-        CALL profile_range_pop()
 
         END ASSOCIATE
     END SUBROUTINE sipiter2_hyperplane_level
