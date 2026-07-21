@@ -11,7 +11,7 @@ MODULE pointers_mod
     INTEGER(intk), PROTECTED :: idim3d, idimbb
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ip3d(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ipbb(:, :)
-    !$omp declare target(ipbb)
+    !$omp declare target(ipbb, ip3d)
 
     PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ibb, &
         idim3d, idimbb, get_len3
@@ -73,7 +73,7 @@ CONTAINS
             END DO
         END BLOCK
 
-        !$omp target enter data map(always, to: ipbb)
+        !$omp target enter data map(always, to: ipbb, ip3d)
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
@@ -88,13 +88,14 @@ CONTAINS
         idim3d = 0
         idimbb = 0
 
+        !$omp target exit data map(always, delete: ipbb, ip3d)
         DEALLOCATE(ip3d)
-        !$omp target exit data map(always, delete: ipbb)
         DEALLOCATE(ipbb)
     END SUBROUTINE finish_pointers
 
 
     SUBROUTINE get_ip3(ip3, igrid)
+        !$omp declare target
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: ip3
 

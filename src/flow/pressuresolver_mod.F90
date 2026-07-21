@@ -395,6 +395,7 @@ CONTAINS
         CALL map_arr_to_device(dp, message="to:dp%arr")
 
         DO iloop = 1, ninner
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
             CALL bound_pressure(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
@@ -406,6 +407,7 @@ CONTAINS
                 ! Use the SIP solver
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
+                ! TODO(offload): Remove once surrounding subroutines offloaded
             END IF
 
             CALL conn(ilevel, 1, s1=dp)
@@ -448,8 +450,10 @@ CONTAINS
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
                 siplpr)
         ELSE
+            CALL profile_range_push("sip1_hp")
             CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
                 siplb, siplpr)
+            CALL profile_range_pop()
         END IF
 
         IF (iloop < ninner) THEN
@@ -461,8 +465,10 @@ CONTAINS
         IF (ityp == 2) THEN
             CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
         ELSE
+            CALL profile_range_push("sip2_hp")
             CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
                 siput)
+            CALL profile_range_pop()
         END IF
     END SUBROUTINE sip
 
