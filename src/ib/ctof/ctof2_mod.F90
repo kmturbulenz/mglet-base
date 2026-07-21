@@ -49,6 +49,10 @@ MODULE ctof2_mod
     ! Array to store instructions for different values of "ilevel"
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:)
 
+    INTEGER(intk), PARAMETER :: mpitasksize = 4
+    INTEGER(intk), PARAMETER :: sendtasksize = 9
+    INTEGER(intk), PARAMETER :: recvtasksize = 2
+
 
     PUBLIC :: ctof2, init_ctof2, finish_ctof2
 
@@ -71,32 +75,71 @@ CONTAINS
         IF (.NOT. is_recording) THEN
 
             ! During the execution phase, the workpackage is already initialized
-            ! and can be used directly or the runtime variant is used
-
             IF (.NOT. wptr%is_init) THEN
                 WRITE(*, *) "Routine ctof2 does not provide just-in-time"
                 CALL errr(__FILE__, __LINE__)
             END IF
 
-            CALL ctof_begin(ilevel, fc)
-            CALL ctof_end(ff)
+            ! Obtaining numbers of tasks from the workpackage
+            nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
+            nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
+            nsendtasks = SIZE(wptr%sendtasks, 2) - 1
+            nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
+            CALL process_mpirecvtasks(wptr%mpirecvtasks, nmpirecvtasks)
+            CALL process_sendtasks(wptr%sendtasks, nsendtasks)
+            CALL process_mpisendtasks(wptr%mpisendtasks, nmpisendtasks)
+            CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
+            CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
+            CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
         ELSE
 
-            ! During the recording phase, the workpackage is initialized and
-            ! stored in the workrecords array for later use
-
+            ! During the recording phase, the workpackage is stored
             IF (wptr%is_init) THEN
                 WRITE(*, *) "Repeated recording for ilevel = ", ilevel
                 CALL errr(__FILE__, __LINE__)
             END IF
 
+            ! Allocating oversized temporary arrays to record the tasks
+            maxsize = noflevel(ilevel)
+            ALLOCATE(sendtasks(sendtasksize, maxsize))
+            ALLOCATE(recvtasks(recvtasksize, maxsize))
+            ALLOCATE(mpisendtasks(mpitasksize, maxsize))
+            ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
+
+            CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
             CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
+
+            CALL process_sendtasks(sendtasks, nsendtasks)
+            CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
+            CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
+
+            ! Includes waiting for MPI communication to finish
             CALL prepare_recvtasks(recvtasks, nrecvtasks, ilevel)
-            CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
-            CALL prepare_selftasks(selftasks, nselftasks, ilevel)
+            CALL process_recvtasks(recvtasks, nrecvtasks)
+
+            ! Allocating persistent workpackage with accurate dimensions
+            ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
+            ALLOCATE(wptr%recvtasks(recvtasksize, nrecvtasks+1))
+            ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
+            ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
+
+            ! Tranfering the recorded tasks to the persistent workpackage
+            wptr%sendtasks(:, 1:nsendtasks+1) = sendtasks(:, 1:nsendtasks+1)
+            wptr%recvtasks(:, 1:nrecvtasks+1) = recvtasks(:, 1:nrecvtasks+1)
+            wptr%mpisendtasks(:, 1:nmpisendtasks+1) = &
+                mpisendtasks(:, 1:nmpisendtasks+1)
+            wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
+                mpirecvtasks(:, 1:nmpirecvtasks+1)
+
+            !$omp target update to(wptr%sendtasks, wptr%recvtasks)
+
+            wptr%is_init = .TRUE.
+
+            ! Deallocating the temporary arrays
+            DEALLOCATE(sendtasks, recvtasks, mpisendtasks, mpirecvtasks)
 
         END IF
 
@@ -138,21 +181,26 @@ CONTAINS
 
 
     ! Record information for the quick posting of MPI receives
+    !
     SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
+
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpirtasks(:, :)
-        INTEGER(intk), INTENT(inout) :: nmpirtasks
+        INTEGER(intk), INTENT(inout) :: mpirtasks(4, :)
+        INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
         INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, impirtasks
         INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
         recvcounter = 0
         messagelength = 0
         nrecv = 0
+
+        ! Initialize the internal counter
+        impirtasks = 0
 
         DO i = 1, noflevel(ilevel)
             igridf = igrdoflevel(i, ilevel)
@@ -180,11 +228,11 @@ CONTAINS
                 END IF
 
                 ! Adding new recevive task
-                nmpirtasks = nmpirtasks + 1
-                mpirtasks(nmpirtasks, 1) = idx_recvbuf
-                mpirtasks(nmpirtasks, 2) = messagelength
-                mpirtasks(nmpirtasks, 3) = iprocc
-                mpirtasks(nmpirtasks, 4) = igridf
+                impirtasks = impirtasks + 1
+                mpirtasks(1, impirtasks) = idx_recvbuf
+                mpirtasks(2, impirtasks) = messagelength
+                mpirtasks(3, impirtasks) = iprocc
+                mpirtasks(4, impirtasks) = igridf
 
                 recvgrids(nrecv) = igridf
                 recvpos(nrecv) = recvcounter + 1
@@ -192,29 +240,67 @@ CONTAINS
             END IF
         END DO
 
+        ! Assign the number of tasks to the output variable
+        nmpirtasks = impirtasks
+
         ! Adding a dummy entry at position (end+1)
         mpirtasks(nmpirtasks+1, :) = -1
 
     END SUBROUTINE prepare_mpirecvtasks
 
 
+    SUBROUTINE process_mpirecvtasks(mpirtasks, nmpirtasks)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, :)
+        INTEGER(intk), INTENT(in) :: nmpirtasks
+
+        ! Local variables
+        INTEGER(intk) :: i, idx_recvbuf, messagelength, iprocc, igridf
+
+        ! Positing all non-blocking receive calls
+        DO i = 1, nmpirtasks
+
+            idx_recvbuf = mpirtasks(1, i)
+            messagelength = mpirtasks(2, i)
+            iprocc = mpirtasks(3, i)
+            igridf = mpirtasks(4, i)
+
+            CALL MPI_Irecv(recvbuf(idx_recvbuf), messagelength, &
+                mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
+                recvreqs(i))
+        END DO
+
+        ! Checking for the dummy entry at position (end+1)
+        IF (mpirtasks(nmpirtasks+1, 1) /= -1) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Setting the number of posted receives
+        nrecv = nmpirtasks
+
+    END SUBROUTINE process_mpirecvtasks
+
+
     ! Perform all Send-calls
     SUBROUTINE prepare_mpisendtasks(mpistasks, nmpistasks, ilevel)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: mpistasks(:, :)
-        INTEGER(intk), INTENT(inout) :: nmpistasks
+        INTEGER(intk), INTENT(out) :: nmpistasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
         INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, ip3
         INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: kkf, jjf, iif
+        INTEGER(intk) :: kkf, jjf, iif, impistasks
         INTEGER(int32) :: sendcounter, messagelength
 
         ! Post all receive calls
         sendcounter = 0
         messagelength = 0
         nsend = 0
+
+        ! Initialize the internal counter
+        impistasks = 0
 
         DO i = 1, noflevel(ilevel)
             igridf = igrdoflevel(i, ilevel)
@@ -247,16 +333,55 @@ CONTAINS
                     sendreqs(nsend))
 
                 ! Adding new recevive task
-                nmpistasks = nmpistasks + 1
-                mpistasks(nmpistasks, 1) = idx_sendbuf
-                mpistasks(nmpistasks, 2) = messagelength
-                mpistasks(nmpistasks, 3) = iprocf
-                mpistasks(nmpistasks, 4) = igridf
+                impistasks = impistasks + 1
+                mpistasks(1, impistasks) = idx_sendbuf
+                mpistasks(2, impistasks) = messagelength
+                mpistasks(3, impistasks) = iprocf
+                mpistasks(4, impistasks) = igridf
 
                 sendcounter = sendcounter + messagelength
             END IF
         END DO
+
+        ! Assign the number of tasks to the output variable
+        nmpistasks = impistasks
+
+        ! Adding a dummy entry at position (end+1)
+        mpistasks(nmpistasks+1, :) = -1
+
     END SUBROUTINE prepare_mpisendtasks
+
+
+    SUBROUTINE process_mpisendtasks(mpistasks, nmpistasks)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, :)
+        INTEGER(intk), INTENT(in) :: nmpistasks
+
+        ! Local variables
+        INTEGER(intk) :: i, idx_sendbuf, messagelength, iprocf, igridf
+
+        ! Positing all non-blocking send calls
+        DO i = 1, nmpistasks
+
+            idx_sendbuf = mpistasks(1, i)
+            messagelength = mpistasks(2, i)
+            iprocf = mpistasks(3, i)
+            igridf = mpistasks(4, i)
+
+            CALL MPI_Isend(sendbuf(idx_sendbuf), messagelength, &
+                mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
+                sendreqs(i))
+        END DO
+
+        ! Checking for the dummy entry at position (end+1)
+        IF (mpistasks(nmpistasks+1, 1) /= -1) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Setting the number of posted receives
+        nsend = nmpistasks
+
+    END SUBROUTINE process_mpisendtasks
 
 
 
@@ -359,12 +484,12 @@ CONTAINS
     END SUBROUTINE send_all
 
 
-
-    ! Perform all Send-calls
+    ! Prepare all tasks needed to prepare the buffers before sending
+    !
     SUBROUTINE prepare_sendtasks(stasks, nstasks, ilevel)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: stasks(:, :)
-        INTEGER(intk), INTENT(inout) :: nstasks
+        INTEGER(intk), INTENT(out) :: nstasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
 
         ! Local variables
@@ -376,7 +501,9 @@ CONTAINS
         ! Post all receive calls
         sendcounter = 0
         messagelength = 0
-        nsend = 0
+
+        ! Initialize the internal counter
+        istasks = 0
 
         DO i = 1, noflevel(ilevel)
             igridf = igrdoflevel(i, ilevel)
@@ -387,7 +514,6 @@ CONTAINS
             iprocf = idprocofgrd(igridf)
 
             IF (myid == iprocc) THEN
-                nsend = nsend + 1
 
                 CALL get_mgdims(kk, jj, ii, igridc)
                 CALL get_mgdims(kkf, jjf, iif, igridf)
@@ -398,18 +524,26 @@ CONTAINS
                 END IF
 
                 ! Adding new send task (= writing to the buffer)
-                nstasks = nstasks + 1
+                istasks = istasks + 1
 
-                CALL add_sendtask(stasks(nstasks+1, :), sendcounter+1, &
+                CALL add_sendtask(stasks(:, istasks), sendcounter+1, &
                     sendcounter+messagelength, igridc, igridf)
 
                 sendcounter = sendcounter + messagelength
             END IF
         END DO
+
+        ! Assign the number of tasks to the output variable
+        nstasks = istasks
+
+        ! Adding a dummy entry at position (end+1)
+        stasks(nstasks+1, :) = -1
+
     END SUBROUTINE prepare_sendtasks
 
     SUBROUTINE add_sendtask(stask, idx_sendbuf_start, idx_sendbuf_stop, &
             igridc, igridf)
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: stask(9)
         INTEGER(intk), INTENT(in) :: idx_sendbuf_start, idx_sendbuf_stop,&
@@ -466,6 +600,75 @@ CONTAINS
         nsend = 0
 
     END SUBROUTINE add_sendtask
+
+
+    SUBROUTINE process_sendtasks(stasks, nstasks)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: stasks(9, :)
+        INTEGER(intk), INTENT(in) :: nstasks
+
+        ! Local variables
+        INTEGER(intk) :: igridf, idx_recvbuf, itask, ii, jj, kk, ip3
+
+        ASSOCIATE(coarse => fc%arr)
+
+        DO itask = 1, nstasks
+
+            ! Unpacking the task
+            ista = stasks(1, itask)
+            jsta = stasks(2, itask)
+            ksta = stasks(3, itask)
+            isto = stasks(4, itask)
+            jsto = stasks(5, itask)
+            ksto = stasks(6, itask)
+            igridc = stasks(7, itask)
+            idx1 = stasks(8, itask)
+            idx2 = stasks(9, itask)
+
+            ! Getting the parameters of the coarse grid
+            CALL get_ip3(ip3, igridc)
+            CALL get_mgdims(kk, jj, ii, igridc)
+
+            CALL write_buffer(kk, jj, ii, sendbuf(idx1:idx2), &
+                coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
+
+        END DO
+
+        END ASSOCIATE
+
+    END SUBROUTINE process_sendtasks
+
+
+    SUBROUTINE write_buffer(kk, jj, ii, buf, fc, ista, jsta, ksta, &
+            isto, jsto, ksto)
+
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: buf(:)
+        REAL(realk), INTENT(in) :: fc(kk, jj, ii)
+        INTEGER(intk), INTENT(in) :: ista, jsta, ksta
+        INTEGER(intk), INTENT(in) :: isto, jsto, ksto
+
+        ! Local variables
+        INTEGER(intk) :: i, j, k
+        INTEGER(intk) :: counter
+
+        ! Compute extent of the patch used on the coarse grid
+        iic = isto - ista + 1
+        jjc = jsto - jsta + 1
+        kkc = ksto - ksta + 1
+
+        ! Pack buffer
+        DO i = ista, isto
+            DO j = jsta, jsto
+                DO k = ksta, ksto
+                    idx = 1 + (k - ksta) + (j - jsta)*kkc + (i - ista)*kkc*jjc
+                    buf(idx) = fc(k, j, i)
+                END DO
+            END DO
+        END DO
+
+    END SUBROUTINE write_buffer
 
 
     SUBROUTINE pack_send(buf, kk, jj, ii, fc, igridc, igridf)
@@ -669,7 +872,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nrtasks
 
         ! Local variables
-        INTEGER(intk) :: igridf, idx_recvbuf
+        INTEGER(intk) :: igridf, idx_recvbuf, itask, ii, jj, kk, ip3
 
         ASSOCIATE(fine => ff%arr)
 
@@ -712,10 +915,12 @@ CONTAINS
         DO i = 1, ii
             DO j = 1, jj
                 DO k = 1, kk
+                    ! Reconstructing the coarse grid indices
                     ic = (i-1)/2 + 1
                     jc = (j-1)/2 + 1
                     kc = (k-1)/2 + 1
-                    idx = (kc-1) + (jc-1)*kkc + (ic-1)*kkc*jjc
+                    ! Conversion into buffer index
+                    idx = 1 + (kc-1) + (jc-1)*kkc + (ic-1)*kkc*jjc
                     fff(k, j, i) = recvbuf(idx)
                 END DO
             END DO
