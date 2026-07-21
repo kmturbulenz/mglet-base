@@ -217,7 +217,7 @@ CONTAINS
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
-                CALL ctof(ilevel, hilf%arr, hilf%arr)
+                CALL ctof(ilevel, hilf, hilf)
                 CALL parent(ilevel, s1=hilf)
 
                 CALL map_buf_to_device(hilf, message="to:hilf%buffers")
@@ -416,7 +416,6 @@ CONTAINS
         CALL map_arr_from_device(res, message="from:res%arr")
 
         CALL bound_pressure(ilevel, dp, bp)
-        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         ! TODO(offload): Remove once surrounding subroutines offloaded
         CALL map_arr_from_device(dp, message="from:dp%arr")
@@ -445,9 +444,7 @@ CONTAINS
         ! Local variables
         ! none...
 
-        CALL profile_range_push("laplace")
         CALL laplacephi_level(ilevel, res, dp)
-        CALL profile_range_pop()
 
         IF (ityp == 2) THEN
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
@@ -606,7 +603,8 @@ CONTAINS
             mip_hp => mip_hp_f%arr, &
             idx_hp => idx_hp_f%arr)
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
+        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)

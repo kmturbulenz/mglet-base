@@ -1,4 +1,4 @@
-MODULE ctof_mod
+MODULE ctof1_mod
 
     USE core_mod
     USE MPI_f08
@@ -28,22 +28,19 @@ MODULE ctof_mod
     ! List of grids to receive data on
     INTEGER(intk), ALLOCATABLE :: recvgrids(:), recvpos(:)
 
-    PUBLIC :: ctof, init_ctof, finish_ctof
+    PUBLIC :: ctof1, init_ctof1, finish_ctof1
 
 CONTAINS
 
-    SUBROUTINE ctof(ilevel, ff, fc)
+    SUBROUTINE ctof1(ilevel, ff, fc)
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         REAL(realk), INTENT(inout) :: ff(:)
         REAL(realk), INTENT(in) :: fc(:)
 
-        CALL start_timer(230)
-
         CALL ctof_begin(ilevel, fc)
         CALL ctof_end(ff)
 
-        CALL stop_timer(230)
-    END SUBROUTINE ctof
+    END SUBROUTINE ctof1
 
 
     ! Initiate prolongation
@@ -305,7 +302,7 @@ CONTAINS
 
 
     ! Initialize arrays and data types
-    SUBROUTINE init_ctof()
+    SUBROUTINE init_ctof1()
         ! Local variables
         INTEGER :: igrid, iprocc, ipar
 
@@ -339,10 +336,10 @@ CONTAINS
 
         isinit = .TRUE.
         in_progress = .FALSE.
-    END SUBROUTINE init_ctof
+    END SUBROUTINE init_ctof1
 
 
-    SUBROUTINE finish_ctof()
+    SUBROUTINE finish_ctof1()
         IF (isInit .NEQV. .TRUE.) THEN
             RETURN
         END IF
@@ -353,5 +350,5 @@ CONTAINS
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvgrids)
         DEALLOCATE(recvpos)
-    END SUBROUTINE finish_ctof
-END MODULE ctof_mod
+    END SUBROUTINE finish_ctof1
+END MODULE ctof1_mod

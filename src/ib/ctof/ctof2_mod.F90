@@ -33,7 +33,7 @@ MODULE ctof2_mod
 
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
-        selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
+        mpisendtasks(:, :), mpirecvtasks(:, :) ! , selftasks(:, :)
     !$omp declare target(sendtasks, recvtasks, selftasks)
 
     ! Type to hold condensed task arrays to execute a certain type of conn
@@ -53,21 +53,30 @@ MODULE ctof2_mod
     INTEGER(intk), PARAMETER :: sendtasksize = 9
     INTEGER(intk), PARAMETER :: recvtasksize = 2
 
+    ! Maximum size of the temporary arrays
+    INTEGER(intk) :: maxsize
+
+    TYPE(field_t), POINTER :: ff, fc
+
 
     PUBLIC :: ctof2, init_ctof2, finish_ctof2
 
 CONTAINS
 
-    SUBROUTINE ctof2(ilevel, ff, fc)
+    SUBROUTINE ctof2(ilevel, ff_f, fc_f)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
-        REAL(realk), INTENT(inout) :: ff(:)
-        REAL(realk), INTENT(in) :: fc(:)
+        TYPE(field_t), TARGET, INTENT(inout) :: ff_f
+        TYPE(field_t), TARGET, INTENT(in) :: fc_f
         ! Local variables
-        ! none...
+        INTEGER(intk) :: nmpirecvtasks, nmpisendtasks, nsendtasks, nrecvtasks
 
         CALL start_timer(230)
+
+        ! Setting the internal pointers to fine and coarse field_t objects
+        ff => ff_f
+        fc => fc_f
 
         ! Looking up the workpackage for this level
         ASSOCIATE(wptr => workrecords(ilevel))
@@ -102,7 +111,7 @@ CONTAINS
             END IF
 
             ! Allocating oversized temporary arrays to record the tasks
-            maxsize = noflevel(ilevel)
+            maxsize = noflevel(ilevel) + 1
             ALLOCATE(sendtasks(sendtasksize, maxsize))
             ALLOCATE(recvtasks(recvtasksize, maxsize))
             ALLOCATE(mpisendtasks(mpitasksize, maxsize))
@@ -117,7 +126,7 @@ CONTAINS
             CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
 
             ! Includes waiting for MPI communication to finish
-            CALL prepare_recvtasks(recvtasks, nrecvtasks, ilevel)
+            CALL prepare_recvtasks(recvtasks, nrecvtasks)
             CALL process_recvtasks(recvtasks, nrecvtasks)
 
             ! Allocating persistent workpackage with accurate dimensions
@@ -150,34 +159,34 @@ CONTAINS
     END SUBROUTINE ctof2
 
 
-    ! Initiate prolongation
-    !
-    ! Interpolate the results from a coarse level to a fine level
-    ! This function initiate the process, and the ctof_finish
-    ! must be called afterwards to clean up.
-    SUBROUTINE ctof_begin(ilevel, fc)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel
-        REAL(realk), INTENT(in) :: fc(:)
+    ! ! Initiate prolongation
+    ! !
+    ! ! Interpolate the results from a coarse level to a fine level
+    ! ! This function initiate the process, and the ctof_finish
+    ! ! must be called afterwards to clean up.
+    ! SUBROUTINE ctof_begin(ilevel, fc)
+    !     ! Subroutine arguments
+    !     INTEGER(intk), INTENT(in) :: ilevel
+    !     REAL(realk), INTENT(in) :: fc(:)
 
-        ! Local variables
-        ! none...
+    !     ! Local variables
+    !     ! none...
 
-        CALL start_timer(231)
+    !     CALL start_timer(231)
 
-        IF (.NOT. is_init) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-        IF (in_progress) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-        in_progress = .TRUE.
+    !     IF (.NOT. is_init) THEN
+    !         CALL errr(__FILE__, __LINE__)
+    !     END IF
+    !     IF (in_progress) THEN
+    !         CALL errr(__FILE__, __LINE__)
+    !     END IF
+    !     in_progress = .TRUE.
 
-        CALL recv_all(ilevel)
-        CALL send_all(ilevel, fc)
+    !     CALL recv_all(ilevel)
+    !     CALL send_all(ilevel, fc)
 
-        CALL stop_timer(231)
-    END SUBROUTINE ctof_begin
+    !     CALL stop_timer(231)
+    ! END SUBROUTINE ctof_begin
 
 
     ! Record information for the quick posting of MPI receives
@@ -185,13 +194,13 @@ CONTAINS
     SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpirtasks(4, :)
+        INTEGER(intk), INTENT(inout) :: mpirtasks(4, maxsize)
         INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
         INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
-        INTEGER(intk) :: kk, jj, ii, impirtasks
+        INTEGER(intk) :: kk, jj, ii, impirtasks, idx_recvbuf
         INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
@@ -244,14 +253,14 @@ CONTAINS
         nmpirtasks = impirtasks
 
         ! Adding a dummy entry at position (end+1)
-        mpirtasks(nmpirtasks+1, :) = -1
+        mpirtasks(:, nmpirtasks+1) = -1
 
     END SUBROUTINE prepare_mpirecvtasks
 
 
     SUBROUTINE process_mpirecvtasks(mpirtasks, nmpirtasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, :)
+        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(in) :: nmpirtasks
 
         ! Local variables
@@ -271,7 +280,7 @@ CONTAINS
         END DO
 
         ! Checking for the dummy entry at position (end+1)
-        IF (mpirtasks(nmpirtasks+1, 1) /= -1) THEN
+        IF (mpirtasks(1, nmpirtasks+1) /= -1) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -284,13 +293,13 @@ CONTAINS
     ! Perform all Send-calls
     SUBROUTINE prepare_mpisendtasks(mpistasks, nmpistasks, ilevel)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpistasks(:, :)
+        INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nmpistasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, ip3
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
+        INTEGER(intk) :: kk, jj, ii, idx_sendbuf
         INTEGER(intk) :: kkf, jjf, iif, impistasks
         INTEGER(int32) :: sendcounter, messagelength
 
@@ -347,14 +356,14 @@ CONTAINS
         nmpistasks = impistasks
 
         ! Adding a dummy entry at position (end+1)
-        mpistasks(nmpistasks+1, :) = -1
+        mpistasks(:, nmpistasks+1) = -1
 
     END SUBROUTINE prepare_mpisendtasks
 
 
     SUBROUTINE process_mpisendtasks(mpistasks, nmpistasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, :)
+        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(in) :: nmpistasks
 
         ! Local variables
@@ -374,7 +383,7 @@ CONTAINS
         END DO
 
         ! Checking for the dummy entry at position (end+1)
-        IF (mpistasks(nmpistasks+1, 1) /= -1) THEN
+        IF (mpistasks(1, nmpistasks+1) /= -1) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -388,100 +397,100 @@ CONTAINS
 
 
 
-    ! Perform all Recv-calls
-    SUBROUTINE recv_all(ilevel)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
+    ! ! Perform all Recv-calls
+    ! SUBROUTINE recv_all(ilevel)
+    !     ! Subroutine arguments
+    !     INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
-        ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(int32) :: recvcounter, messagelength
+    !     ! Local variables
+    !     INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
+    !     INTEGER(intk) :: kk, jj, ii
+    !     INTEGER(int32) :: recvcounter, messagelength
 
-        ! Post all receive calls
-        recvcounter = 0
-        messagelength = 0
-        nrecv = 0
+    !     ! Post all receive calls
+    !     recvcounter = 0
+    !     messagelength = 0
+    !     nrecv = 0
 
-        DO i = 1, noflevel(ilevel)
-            igridf = igrdoflevel(i, ilevel)
-            igridc = iparent(igridf)
-            IF (igridc == 0) CYCLE
+    !     DO i = 1, noflevel(ilevel)
+    !         igridf = igrdoflevel(i, ilevel)
+    !         igridc = iparent(igridf)
+    !         IF (igridc == 0) CYCLE
 
-            iprocc = idprocofgrd(igridc)
-            iprocf = idprocofgrd(igridf)
+    !         iprocc = idprocofgrd(igridc)
+    !         iprocf = idprocofgrd(igridf)
 
-            IF (myid == iprocf) THEN
-                nrecv = nrecv + 1
+    !         IF (myid == iprocf) THEN
+    !             nrecv = nrecv + 1
 
-                CALL get_mgdims(kk, jj, ii, igridf)
-                messagelength = kk*jj*ii/8
+    !             CALL get_mgdims(kk, jj, ii, igridf)
+    !             messagelength = kk*jj*ii/8
 
-                IF (recvcounter + messagelength > SIZE(sendbuf)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
+    !             IF (recvcounter + messagelength > SIZE(sendbuf)) THEN
+    !                 CALL errr(__FILE__, __LINE__)
+    !             END IF
 
-                CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
-                    mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
-                    recvreqs(nrecv))
+    !             CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+    !                 mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
+    !                 recvreqs(nrecv))
 
-                recvgrids(nrecv) = igridf
-                recvpos(nrecv) = recvcounter + 1
-                recvcounter = recvcounter + messagelength
-            END IF
-        END DO
-    END SUBROUTINE recv_all
+    !             recvgrids(nrecv) = igridf
+    !             recvpos(nrecv) = recvcounter + 1
+    !             recvcounter = recvcounter + messagelength
+    !         END IF
+    !     END DO
+    ! END SUBROUTINE recv_all
 
 
-    ! Perform all Send-calls
-    SUBROUTINE send_all(ilevel, fc)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
-        REAL(realk), INTENT(in) :: fc(*)      ! Field on the coarse grid
+    ! ! Perform all Send-calls
+    ! SUBROUTINE send_all(ilevel, fc)
+    !     ! Subroutine arguments
+    !     INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
+    !     REAL(realk), INTENT(in) :: fc(*)      ! Field on the coarse grid
 
-        ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, ip3
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: kkf, jjf, iif
-        INTEGER(int32) :: sendcounter, messagelength
+    !     ! Local variables
+    !     INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, ip3
+    !     INTEGER(intk) :: kk, jj, ii
+    !     INTEGER(intk) :: kkf, jjf, iif
+    !     INTEGER(int32) :: sendcounter, messagelength
 
-        ! Post all receive calls
-        sendcounter = 0
-        messagelength = 0
-        nsend = 0
+    !     ! Post all receive calls
+    !     sendcounter = 0
+    !     messagelength = 0
+    !     nsend = 0
 
-        DO i = 1, noflevel(ilevel)
-            igridf = igrdoflevel(i, ilevel)
-            igridc = iparent(igridf)
-            IF (igridc == 0) CYCLE
+    !     DO i = 1, noflevel(ilevel)
+    !         igridf = igrdoflevel(i, ilevel)
+    !         igridc = iparent(igridf)
+    !         IF (igridc == 0) CYCLE
 
-            iprocc = idprocofgrd(igridc)
-            iprocf = idprocofgrd(igridf)
+    !         iprocc = idprocofgrd(igridc)
+    !         iprocf = idprocofgrd(igridf)
 
-            IF (myid == iprocc) THEN
-                nsend = nsend + 1
+    !         IF (myid == iprocc) THEN
+    !             nsend = nsend + 1
 
-                CALL get_mgdims(kk, jj, ii, igridc)
-                CALL get_mgdims(kkf, jjf, iif, igridf)
-                messagelength = kkf*jjf*iif/8
+    !             CALL get_mgdims(kk, jj, ii, igridc)
+    !             CALL get_mgdims(kkf, jjf, iif, igridf)
+    !             messagelength = kkf*jjf*iif/8
 
-                IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
+    !             IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
+    !                 CALL errr(__FILE__, __LINE__)
+    !             END IF
 
-                CALL get_ip3(ip3, igridc)
-                CALL pack_send(&
-                    sendbuf(sendcounter+1:sendcounter+messagelength), &
-                    kk, jj, ii, fc(ip3), igridc, igridf)
+    !             CALL get_ip3(ip3, igridc)
+    !             CALL pack_send(&
+    !                 sendbuf(sendcounter+1:sendcounter+messagelength), &
+    !                 kk, jj, ii, fc(ip3), igridc, igridf)
 
-                CALL MPI_Isend(sendbuf(sendcounter+1), messagelength, &
-                    mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
-                    sendreqs(nsend))
+    !             CALL MPI_Isend(sendbuf(sendcounter+1), messagelength, &
+    !                 mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
+    !                 sendreqs(nsend))
 
-                sendcounter = sendcounter + messagelength
-            END IF
-        END DO
-    END SUBROUTINE send_all
+    !             sendcounter = sendcounter + messagelength
+    !         END IF
+    !     END DO
+    ! END SUBROUTINE send_all
 
 
     ! Prepare all tasks needed to prepare the buffers before sending
@@ -493,7 +502,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
 
         ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
+        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, istasks
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: kkf, jjf, iif
         INTEGER(int32) :: sendcounter, messagelength
@@ -537,7 +546,7 @@ CONTAINS
         nstasks = istasks
 
         ! Adding a dummy entry at position (end+1)
-        stasks(nstasks+1, :) = -1
+        stasks(:, nstasks+1) = -1
 
     END SUBROUTINE prepare_sendtasks
 
@@ -545,9 +554,9 @@ CONTAINS
             igridc, igridf)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stask(9)
+        INTEGER(intk), INTENT(inout) :: stask(sendtasksize)
         INTEGER(intk), INTENT(in) :: idx_sendbuf_start, idx_sendbuf_stop,&
-        igridc, igridf
+            igridc, igridf
 
         ! Local variables
         INTEGER(intk) :: kkf, jjf, iif, counter
@@ -594,21 +603,17 @@ CONTAINS
         stask(8) = idx_sendbuf_start
         stask(9) = idx_sendbuf_stop
 
-        ! Post all receive calls
-        sendcounter = 0
-        messagelength = 0
-        nsend = 0
-
     END SUBROUTINE add_sendtask
 
 
     SUBROUTINE process_sendtasks(stasks, nstasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: stasks(9, :)
+        INTEGER(intk), INTENT(in) :: stasks(9, maxsize)
         INTEGER(intk), INTENT(in) :: nstasks
 
         ! Local variables
-        INTEGER(intk) :: igridf, idx_recvbuf, itask, ii, jj, kk, ip3
+        INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
+        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1, idx2
 
         ASSOCIATE(coarse => fc%arr)
 
@@ -651,7 +656,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, j, k
-        INTEGER(intk) :: counter
+        INTEGER(intk) :: idx, iic, jjc, kkc
 
         ! Compute extent of the patch used on the coarse grid
         iic = isto - ista + 1
@@ -671,97 +676,97 @@ CONTAINS
     END SUBROUTINE write_buffer
 
 
-    SUBROUTINE pack_send(buf, kk, jj, ii, fc, igridc, igridf)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: buf(:)
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: fc(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: igridc
-        INTEGER(intk), INTENT(in) :: igridf
+    ! SUBROUTINE pack_send(buf, kk, jj, ii, fc, igridc, igridf)
+    !     ! Subroutine arguments
+    !     REAL(realk), INTENT(inout) :: buf(:)
+    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
+    !     REAL(realk), INTENT(in) :: fc(kk, jj, ii)
+    !     INTEGER(intk), INTENT(in) :: igridc
+    !     INTEGER(intk), INTENT(in) :: igridf
 
-        ! Local variables
-        INTEGER(intk) :: i, j, k
-        INTEGER(intk) :: kkf, jjf, iif
-        INTEGER(intk) :: counter
-        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
+    !     ! Local variables
+    !     INTEGER(intk) :: i, j, k
+    !     INTEGER(intk) :: kkf, jjf, iif
+    !     INTEGER(intk) :: counter
+    !     INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
 
-        ! Compute start- and end-positions in coarse grid
-        ista = iposition(igridf) - 1
-        jsta = jposition(igridf) - 1
-        ksta = kposition(igridf) - 1
+    !     ! Compute start- and end-positions in coarse grid
+    !     ista = iposition(igridf) - 1
+    !     jsta = jposition(igridf) - 1
+    !     ksta = kposition(igridf) - 1
 
-        CALL get_mgdims(kkf, jjf, iif, igridf)
-        isto = ista + (iif - 4)/2 + 1
-        jsto = jsta + (jjf - 4)/2 + 1
-        ksto = ksta + (kkf - 4)/2 + 1
+    !     CALL get_mgdims(kkf, jjf, iif, igridf)
+    !     isto = ista + (iif - 4)/2 + 1
+    !     jsto = jsta + (jjf - 4)/2 + 1
+    !     ksto = ksta + (kkf - 4)/2 + 1
 
-        ! Pack buffer
-        counter = 0
-        DO i = ista, isto
-            DO j = jsta, jsto
-                DO k = ksta, ksto
-                    counter = counter + 1
-                    buf(counter) = fc(k, j, i)
-                END DO
-            END DO
-        END DO
+    !     ! Pack buffer
+    !     counter = 0
+    !     DO i = ista, isto
+    !         DO j = jsta, jsto
+    !             DO k = ksta, ksto
+    !                 counter = counter + 1
+    !                 buf(counter) = fc(k, j, i)
+    !             END DO
+    !         END DO
+    !     END DO
 
-        ! Sanity checks
-        IF (counter /= kkf*jjf*iif/8) THEN
-            WRITE(*, *) "counter = ", counter
-            WRITE(*, *) "kkf = ", kkf
-            WRITE(*, *) "jjf = ", jjf
-            WRITE(*, *) "iif = ", iif
-            WRITE(*, *) "ksta = ", ksta
-            WRITE(*, *) "jsta = ", jsta
-            WRITE(*, *) "ista = ", ista
-            WRITE(*, *) "ksto = ", ksto
-            WRITE(*, *) "jsto = ", jsto
-            WRITE(*, *) "isto = ", isto
-            CALL errr(__FILE__, __LINE__)
-        END IF
-        IF (counter /= SIZE(buf)) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-    END SUBROUTINE pack_send
+    !     ! Sanity checks
+    !     IF (counter /= kkf*jjf*iif/8) THEN
+    !         WRITE(*, *) "counter = ", counter
+    !         WRITE(*, *) "kkf = ", kkf
+    !         WRITE(*, *) "jjf = ", jjf
+    !         WRITE(*, *) "iif = ", iif
+    !         WRITE(*, *) "ksta = ", ksta
+    !         WRITE(*, *) "jsta = ", jsta
+    !         WRITE(*, *) "ista = ", ista
+    !         WRITE(*, *) "ksto = ", ksto
+    !         WRITE(*, *) "jsto = ", jsto
+    !         WRITE(*, *) "isto = ", isto
+    !         CALL errr(__FILE__, __LINE__)
+    !     END IF
+    !     IF (counter /= SIZE(buf)) THEN
+    !         CALL errr(__FILE__, __LINE__)
+    !     END IF
+    ! END SUBROUTINE pack_send
 
 
-    ! Finish prolongation
-    !
-    ! Wait for communication to finish and clean up
-    SUBROUTINE ctof_end(ff)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: ff(:)
+    ! ! Finish prolongation
+    ! !
+    ! ! Wait for communication to finish and clean up
+    ! SUBROUTINE ctof_end(ff)
+    !     ! Subroutine arguments
+    !     REAL(realk), INTENT(inout) :: ff(:)
 
-        ! Local variables
-        INTEGER(int32) :: idx
+    !     ! Local variables
+    !     INTEGER(int32) :: idx
 
-        CALL start_timer(232)
+    !     CALL start_timer(232)
 
-        IF (.NOT. in_progress) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
+    !     IF (.NOT. in_progress) THEN
+    !         CALL errr(__FILE__, __LINE__)
+    !     END IF
 
-        IF (nrecv > 0) THEN
-            DO WHILE (.TRUE.)
-                CALL MPI_Waitany(nrecv, recvreqs, idx, MPI_STATUS_IGNORE)
+    !     IF (nrecv > 0) THEN
+    !         DO WHILE (.TRUE.)
+    !             CALL MPI_Waitany(nrecv, recvreqs, idx, MPI_STATUS_IGNORE)
 
-                IF (idx /= MPI_UNDEFINED) THEN
-                    CALL start_timer(235)
-                    CALL prolong_finish(ff, recvgrids(idx), recvpos(idx))
-                    CALL stop_timer(235)
-                ELSE
-                    EXIT
-                END IF
-            END DO
-        END IF
+    !             IF (idx /= MPI_UNDEFINED) THEN
+    !                 CALL start_timer(235)
+    !                 CALL prolong_finish(ff, recvgrids(idx), recvpos(idx))
+    !                 CALL stop_timer(235)
+    !             ELSE
+    !                 EXIT
+    !             END IF
+    !         END DO
+    !     END IF
 
-        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+    !     CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
-        in_progress = .FALSE.
+    !     in_progress = .FALSE.
 
-        CALL stop_timer(232)
-    END SUBROUTINE ctof_end
+    !     CALL stop_timer(232)
+    ! END SUBROUTINE ctof_end
 
 
     ! ! Finish prolongation, i.e. distribute the data on the grid
@@ -805,14 +810,14 @@ CONTAINS
 
 
 
-    SUBROUTINE prepare_recvtask(rtasks, nrtasks)
+    SUBROUTINE prepare_recvtasks(rtasks, nrtasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: rtasks(:, :)
         INTEGER(intk), INTENT(out) :: nrtasks
 
         ! Local variables
         INTEGER(int32) :: idx
-        INTEGER(intk) :: irtasks
+        INTEGER(intk) :: irtasks, igridf, idx_recvbuf
 
         ! Initialize the internal counter
         irtasks = 0
@@ -843,7 +848,7 @@ CONTAINS
         ! Adding a dummy entry at position (end+1)
         rtasks(:, nrtasks+1) = -1
 
-    END SUBROUTINE prepare_recvtask
+    END SUBROUTINE prepare_recvtasks
 
 
     SUBROUTINE add_recvtask(rtask, igridf, idx_recvbuf)
@@ -866,13 +871,13 @@ CONTAINS
 
 
 
-    SUBROUTINE process_recvtask(rtask, nrtasks)
+    SUBROUTINE process_recvtasks(rtask, nrtasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: rtask(2, :)
+        INTEGER(intk), INTENT(in) :: rtask(2, maxsize)
         INTEGER(intk), INTENT(in) :: nrtasks
 
         ! Local variables
-        INTEGER(intk) :: igridf, idx_recvbuf, itask, ii, jj, kk, ip3
+        INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
 
         ASSOCIATE(fine => ff%arr)
 
@@ -880,20 +885,22 @@ CONTAINS
 
             ! Unpacking the task
             igridf = rtask(1, itask)
-            idx_recvbuf = rtask(2, itask)
+            idx = rtask(2, itask)
 
             ! Getting parameters of fine grid
             CALL get_mgdims(kk, jj, ii, igridf)
             CALL get_ip3(ip3, igridf)
 
+            len = kk*jj*ii/8
+
             ! Copying from buffer to the fine grid
-            CALL write_fine(kk, jj, ii, fine(ip3), idx_recvbuf)
+            CALL write_fine(kk, jj, ii, fine(ip3), recvbuf(idx:idx+len-1))
 
         END DO
 
         END ASSOCIATE
 
-    END SUBROUTINE process_recvtask
+    END SUBROUTINE process_recvtasks
 
 
     SUBROUTINE write_fine(kk, jj, ii, fff, fc)
@@ -903,7 +910,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: fc(:)
 
         ! Local variables
-        INTEGER(intk) :: k, j, i, kc, jc, ic
+        INTEGER(intk) :: k, j, i, kc, jc, ic, idx
         INTEGER(intk) :: kkc, jjc, iic
 
         ! The counter for the buffer reflects the coarse frid
@@ -921,7 +928,7 @@ CONTAINS
                     kc = (k-1)/2 + 1
                     ! Conversion into buffer index
                     idx = 1 + (kc-1) + (jc-1)*kkc + (ic-1)*kkc*jjc
-                    fff(k, j, i) = recvbuf(idx)
+                    fff(k, j, i) = fc(idx)
                 END DO
             END DO
         END DO
@@ -1017,7 +1024,7 @@ CONTAINS
         ! Recording operations for all levels
         is_recording = .TRUE.
         DO ilevel = minlevel, maxlevel
-            CALL ctof2(ilevel, dummy%arr, dummy%arr)
+            CALL ctof2(ilevel, dummy, dummy)
         END DO
         is_recording = .FALSE.
 
@@ -1040,4 +1047,4 @@ CONTAINS
 
     END SUBROUTINE finish_ctof2
 
-END MODULE ctof_mod
+END MODULE ctof2_mod
