@@ -253,20 +253,20 @@ CONTAINS
         CALL profile_range_push("process_mpirecv")
 #endif
 
-        ! Positing all non-blocking receive calls
+        !$omp target data use_device_addr(recvbuf)
         DO i = 1, nmpirtasks
 
             idx_recvbuf = mpirtasks(1, i)
+
             messagelength = mpirtasks(2, i)
             iprocc = mpirtasks(3, i)
             igridf = mpirtasks(4, i)
 
-            !$omp target data use_device_addr(recvbuf)
             CALL MPI_Irecv(recvbuf(idx_recvbuf), messagelength, &
                 mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
                 recvreqs(i))
-            !$omp end target data
         END DO
+        !$omp end target data
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -362,20 +362,20 @@ CONTAINS
         CALL profile_range_push("process_mpisend")
 #endif
 
-        ! Positing all non-blocking send calls
+        !$omp target data use_device_addr(sendbuf)
         DO i = 1, nmpistasks
 
             idx_sendbuf = mpistasks(1, i)
+
             messagelength = mpistasks(2, i)
             iprocf = mpistasks(3, i)
             igridf = mpistasks(4, i)
 
-            !$omp target data use_device_addr(sendbuf)
             CALL MPI_Isend(sendbuf(idx_sendbuf), messagelength, &
                 mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
                 sendreqs(i))
-            !$omp end target data
         END DO
+        !$omp end target data
 
         ! Checking for the dummy entry at position (end+1)
         IF (mpistasks(1, nmpistasks+1) /= -1) THEN
