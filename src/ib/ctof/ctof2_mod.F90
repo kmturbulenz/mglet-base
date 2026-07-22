@@ -34,7 +34,7 @@ MODULE ctof2_mod
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
         mpisendtasks(:, :), mpirecvtasks(:, :), selftasks(:, :)
-    !$omp declare target(sendtasks, recvtasks, selftasks)
+    ! SIMON: I think it is not worthwhile to declare those "target"
 
     ! Type to hold condensed task arrays to execute a certain type of conn
     TYPE :: work_t
@@ -123,10 +123,10 @@ CONTAINS
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
             CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
 
-            !$omp target data enter map(to: &
-            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1)
+            !$omp target enter data map(to: &
+            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
             CALL process_sendtasks(sendtasks, nsendtasks)
-            !$omp target data exit map(delete: &
+            !$omp target exit data map(delete: &
             !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
 
             CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
@@ -135,10 +135,10 @@ CONTAINS
             ! Includes waiting for MPI communication to finish
             CALL prepare_recvtasks(recvtasks, nrecvtasks)
 
-            !$omp target data enter map(to: &
+            !$omp target enter data map(to: &
             !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
             CALL process_recvtasks(recvtasks, nrecvtasks)
-            !$omp target data exit map(delete: &
+            !$omp target exit data map(delete: &
             !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
 
             ! At his point, one execution has been performed.
@@ -157,7 +157,7 @@ CONTAINS
             wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
                 mpirecvtasks(:, 1:nmpirecvtasks+1)
 
-            !$omp target update to( &
+            !$omp target enter data map(to: &
             !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
             !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1))
 
@@ -243,8 +243,9 @@ CONTAINS
 
     SUBROUTINE process_mpirecvtasks(mpirtasks, nmpirtasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(in) :: nmpirtasks
+        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, nmpirtasks+1)
+
 
         ! Local variables
         INTEGER(intk) :: i, idx_recvbuf, messagelength, iprocc, igridf
@@ -342,8 +343,8 @@ CONTAINS
 
     SUBROUTINE process_mpisendtasks(mpistasks, nmpistasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(in) :: nmpistasks
+        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, nmpistasks+1)
 
         ! Local variables
         INTEGER(intk) :: i, idx_sendbuf, messagelength, iprocf, igridf
@@ -489,8 +490,8 @@ CONTAINS
 
     SUBROUTINE process_sendtasks(stasks, nstasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: stasks(9, maxsize)
         INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
         ! Local variables
         INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
@@ -625,8 +626,8 @@ CONTAINS
 
     SUBROUTINE process_recvtasks(rtask, nrtasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: rtask(2, maxsize)
         INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtask(recvtasksize, nrtasks+1)
 
         ! Local variables
         INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
@@ -648,7 +649,7 @@ CONTAINS
             len = kk * jj * ii / 8
 
             ! Copying from buffer to the fine grid
-            CALL write_fine(kk, jj, ii, fine(ip3), recvbuf(idx:idx+len-1))
+            CALL write_fine(kk, jj, ii, fine(ip3), len, recvbuf(idx:idx+len-1))
 
         END DO
         !$omp end target teams distribute
@@ -658,13 +659,14 @@ CONTAINS
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE write_fine(kk, jj, ii, fff, fc)
+    SUBROUTINE write_fine(kk, jj, ii, fff, len, fc)
         !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: fff(kk, jj, ii)
-        REAL(realk), INTENT(in) :: fc(:)
+        INTEGER(intk), INTENT(in) :: len
+        REAL(realk), INTENT(in) :: fc(len)
 
         ! Local variables
         INTEGER(intk) :: k, j, i, kc, jc, ic, idx
