@@ -219,7 +219,7 @@ CONTAINS
             DO ilevel = minlevel, maxlevel
 
                 ! Doing some crazy CTOF on device...
-                CALL map_arr_to_device(hilf, message="to:hilf%arr")
+                ! CALL map_arr_to_device(hilf, message="to:hilf%arr")
                 CALL ctof(ilevel, hilf, hilf)
                 CALL map_arr_from_device(hilf, message="from:hilf%arr")
 

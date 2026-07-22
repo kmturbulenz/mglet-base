@@ -163,7 +163,7 @@ CONTAINS
 
             wptr%is_init = .TRUE.
 
-            ! Deallocating the temporary arrays
+            ! Deallocating the temporary arrays (already gone on device)
             DEALLOCATE(sendtasks, recvtasks, mpisendtasks, mpirecvtasks)
 
         END IF
@@ -524,6 +524,11 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
+        ! Checking for the dummy entry at position (end+1)
+        IF (stasks(1, nstasks+1) /= -1) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
         END ASSOCIATE
 
     END SUBROUTINE process_sendtasks
@@ -624,10 +629,10 @@ CONTAINS
 
 
 
-    SUBROUTINE process_recvtasks(rtask, nrtasks)
+    SUBROUTINE process_recvtasks(rtasks, nrtasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
-        INTEGER(intk), INTENT(in) :: rtask(recvtasksize, nrtasks+1)
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
         ! Local variables
         INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
@@ -640,8 +645,8 @@ CONTAINS
         DO itask = 1, nrtasks
 
             ! Unpacking the task
-            igridf = rtask(1, itask)
-            idx = rtask(2, itask)
+            igridf = rtasks(1, itask)
+            idx = rtasks(2, itask)
 
             ! Getting parameters of fine grid
             CALL get_mgdims(kk, jj, ii, igridf)
@@ -653,6 +658,11 @@ CONTAINS
 
         END DO
         !$omp end target teams distribute
+
+        ! Checking for the dummy entry at position (end+1)
+        IF (rtasks(1, nrtasks+1) /= -1) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
         END ASSOCIATE
 
@@ -748,6 +758,8 @@ CONTAINS
         END DO
         is_recording = .FALSE.
         WRITE(*, *) "Finished recording prolongation operations for all levels"
+
+        CALL dummy%finish()
 
     END SUBROUTINE init_ctof2
 
