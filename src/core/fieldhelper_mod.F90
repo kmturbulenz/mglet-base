@@ -16,7 +16,7 @@ MODULE fieldhelper_mod
     END INTERFACE set_field_arr
 
     PUBLIC :: set_field_arr, map_arr_to_device, map_arr_from_device, &
-        map_buf_to_device, map_buffers_from_device
+        map_buffers_to_device, map_buffers_from_device
 CONTAINS
     SUBROUTINE set_field_arr_realk(field, val, device)
         ! Subroutine arguments
@@ -132,7 +132,7 @@ CONTAINS
     END SUBROUTINE map_arr_to_device
 
 
-    SUBROUTINE map_buf_to_device(f1, f2, f3, message)
+    SUBROUTINE map_buffers_to_device(f1, f2, f3, message)
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
         TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
@@ -165,7 +165,7 @@ CONTAINS
             CALL profile_range_pop()
         END IF
 #endif
-    END SUBROUTINE map_buf_to_device
+    END SUBROUTINE map_buffers_to_device
 
 
     SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, f7, message)
