@@ -69,10 +69,9 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         TYPE(field_t), TARGET, INTENT(inout) :: ff_f
         TYPE(field_t), TARGET, INTENT(in) :: fc_f
+
         ! Local variables
         INTEGER(intk) :: nmpirecvtasks, nmpisendtasks, nsendtasks, nrecvtasks
-
-        CALL start_timer(230)
 
         ! Setting the internal pointers to fine and coarse field_t objects
         ff => ff_f
@@ -117,17 +116,25 @@ CONTAINS
             ALLOCATE(mpisendtasks(mpitasksize, maxsize))
             ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
 
+            WRITE(*, *) "B"
+
             CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
             CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
+
+            WRITE(*, *) "C"
 
             CALL process_sendtasks(sendtasks, nsendtasks)
             CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
             CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
 
+            WRITE(*, *) "D"
+
             ! Includes waiting for MPI communication to finish
             CALL prepare_recvtasks(recvtasks, nrecvtasks)
             CALL process_recvtasks(recvtasks, nrecvtasks)
+
+            WRITE(*, *) "E"
 
             ! Allocating persistent workpackage with accurate dimensions
             ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
@@ -153,8 +160,6 @@ CONTAINS
         END IF
 
         END ASSOCIATE
-
-        CALL stop_timer(230)
 
     END SUBROUTINE ctof2
 
@@ -336,10 +341,6 @@ CONTAINS
                 IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
-
-                CALL MPI_Isend(sendbuf(sendcounter+1), messagelength, &
-                    mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
-                    sendreqs(nsend))
 
                 ! Adding new recevive task
                 impistasks = impistasks + 1
@@ -840,7 +841,11 @@ CONTAINS
             END DO
         END IF
 
+        WRITE(*, *) "Before waitall"
+
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+
+        WRITE(*, *) "After waitall"
 
         ! Assigning the total count
         nrtasks = irtasks
@@ -1022,11 +1027,13 @@ CONTAINS
         CALL dummy%init("DUMMY")
 
         ! Recording operations for all levels
+        WRITE(*, *) "Starting to record prolongation operations for all levels"
         is_recording = .TRUE.
         DO ilevel = minlevel, maxlevel
             CALL ctof2(ilevel, dummy, dummy)
         END DO
         is_recording = .FALSE.
+        WRITE(*, *) "Finished recording prolongation operations for all levels"
 
     END SUBROUTINE init_ctof2
 
