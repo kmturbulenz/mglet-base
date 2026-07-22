@@ -141,7 +141,9 @@ CONTAINS
             wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
                 mpirecvtasks(:, 1:nmpirecvtasks+1)
 
-            !$omp target update to(wptr%sendtasks, wptr%recvtasks)
+            !$omp target update to( &
+            !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
+            !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1))
 
             wptr%is_init = .TRUE.
 
@@ -480,6 +482,8 @@ CONTAINS
 
         ASSOCIATE(coarse => fc%arr)
 
+        !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
+        !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
         DO itask = 1, nstasks
 
             ! Unpacking the task
@@ -501,6 +505,7 @@ CONTAINS
                 coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
 
         END DO
+        !$omp end target teams distribute
 
         END ASSOCIATE
 
@@ -509,6 +514,7 @@ CONTAINS
 
     SUBROUTINE write_buffer(kk, jj, ii, buf, fc, ista, jsta, ksta, &
             isto, jsto, ksto)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -526,7 +532,7 @@ CONTAINS
         jjc = jsto - jsta + 1
         kkc = ksto - ksta + 1
 
-        ! Pack buffer
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = ista, isto
             DO j = jsta, jsto
                 DO k = ksta, ksto
@@ -535,6 +541,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
 
     END SUBROUTINE write_buffer
 
@@ -610,6 +617,9 @@ CONTAINS
 
         ASSOCIATE(fine => ff%arr)
 
+
+        !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
+        !$omp&  igridf, idx, len)
         DO itask = 1, nrtasks
 
             ! Unpacking the task
@@ -619,13 +629,13 @@ CONTAINS
             ! Getting parameters of fine grid
             CALL get_mgdims(kk, jj, ii, igridf)
             CALL get_ip3(ip3, igridf)
-
-            len = kk*jj*ii/8
+            len = kk * jj * ii / 8
 
             ! Copying from buffer to the fine grid
             CALL write_fine(kk, jj, ii, fine(ip3), recvbuf(idx:idx+len-1))
 
         END DO
+        !$omp end target teams distribute
 
         END ASSOCIATE
 
@@ -633,6 +643,8 @@ CONTAINS
 
 
     SUBROUTINE write_fine(kk, jj, ii, fff, fc)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: fff(kk, jj, ii)
@@ -647,7 +659,7 @@ CONTAINS
         jjc = jj/2
         iic = ii/2
 
-        ! Loop for filling the whole fine grid
+        !$omp parallel do collapse(3) private(i, j, k, idx, kc, jc, ic)
         DO i = 1, ii
             DO j = 1, jj
                 DO k = 1, kk
@@ -661,6 +673,8 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
+
     END SUBROUTINE write_fine
 
 
@@ -722,6 +736,7 @@ CONTAINS
 
 
     SUBROUTINE finish_ctof2()
+        INTEGER(intk) :: ilevel
 
         IF (is_init .NEQV. .TRUE.) THEN
             RETURN
@@ -733,6 +748,22 @@ CONTAINS
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvgrids)
         DEALLOCATE(recvpos)
+
+        ! Deallocate the workpackage components for each level
+        DO ilevel = minlevel, maxlevel
+            IF (workrecords(ilevel)%is_init) THEN
+
+                !$omp target exit data map(delete: &
+                !$omp&  workrecords(ilevel)%sendtasks(:, :), &
+                !$omp&  workrecords(ilevel)%recvtasks(:, :))
+
+                DEALLOCATE(workrecords(ilevel)%sendtasks)
+                DEALLOCATE(workrecords(ilevel)%recvtasks)
+                DEALLOCATE(workrecords(ilevel)%mpisendtasks)
+                DEALLOCATE(workrecords(ilevel)%mpirecvtasks)
+            END IF
+        END DO
+        DEALLOCATE(workrecords)
 
     END SUBROUTINE finish_ctof2
 
