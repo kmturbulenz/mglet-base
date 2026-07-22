@@ -33,7 +33,7 @@ MODULE ctof2_mod
 
     ! Workpackages containing individual tasks for packing / unpacking
     INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
-        mpisendtasks(:, :), mpirecvtasks(:, :) ! , selftasks(:, :)
+        mpisendtasks(:, :), mpirecvtasks(:, :), selftasks(:, :)
     !$omp declare target(sendtasks, recvtasks, selftasks)
 
     ! Type to hold condensed task arrays to execute a certain type of conn
@@ -114,6 +114,10 @@ CONTAINS
             ALLOCATE(recvtasks(recvtasksize, maxsize))
             ALLOCATE(mpisendtasks(mpitasksize, maxsize))
             ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
+
+            ! Alibi action
+            ALLOCATE(selftasks(1, 1))
+            DEALLOCATE(selftasks)
 
             CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)

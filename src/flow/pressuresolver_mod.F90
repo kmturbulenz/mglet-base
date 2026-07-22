@@ -600,18 +600,17 @@ CONTAINS
             sipue => sipue_f%arr, &
             sipun => sipun_f%arr, &
             siput => siput_f%arr, &
-            mip_hp => mip_hp_f%arr, &
-            idx_hp => idx_hp_f%arr)
+            mip => mip_hp_f%arr, &
+            idx => idx_hp_f%arr)
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, &
-        !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
             CALL sipiter2_hp(kk, jj, ii, dp(ip3), res(ip3), sipue(ip3), &
-                sipun(ip3), siput(ip3), mip_hp_f%arr(ip3), idx_hp_f%arr(ip3))
+                sipun(ip3), siput(ip3), mip(ip3), idx(ip3))
         END DO
         !$omp end target teams distribute
 
