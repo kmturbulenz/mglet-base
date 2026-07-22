@@ -375,8 +375,8 @@ CONTAINS
         END DO
         irecv = nrecv
 
-        ! Sort recvconns by process ID (col 2) = sender with the coarse grid
-        CALL sort_conns(recvconns(:, 1:nrecv), 2)
+        ! Sort recvconns by process ID (col 1) = sender with the coarse grid
+        CALL sort_conns(recvconns(:, 1:nrecv), 1)
 
         ! Calculate sdispl offset (used in MPI_Alltoallv)
         DO i = 1, numprocs-1
@@ -403,29 +403,17 @@ CONTAINS
             sendconns, sendcounts, rdispls, MPI_INTEGER, MPI_COMM_WORLD)
 
         ! Both recvconns and sendconns should be fully populated and ordered
-        DO i = 1, isend
-            IF (sendconns(1, i) /= myid) THEN
-                WRITE(*, *) "Rank is not holder of coarse grid"
+        DO i = 1, isend-1
+            IF (sendconns(2, i) > sendconns(2, i+1)) THEN
+                WRITE(*, *) "Sendconns not sorted by receiving rank"
                 CALL errr(__FILE__, __LINE__)
-            END IF
-            IF (i < isend) THEN
-                IF (sendconns(2, i) > sendconns(2, i+1)) THEN
-                    WRITE(*, *) "Sendconns not sorted by receiving rank"
-                    CALL errr(__FILE__, __LINE__)
-                END IF
             END IF
         END DO
 
-        DO i = 1, irecv
-            IF (recvconns(2, i) /= myid) THEN
-                WRITE(*, *) "Rank is not holder of fine grid"
+        DO i = 1, irecv-1
+            IF (recvconns(1, i) > recvconns(1, i+1)) THEN
+                WRITE(*, *) "Recvconns not sorted by sending rank"
                 CALL errr(__FILE__, __LINE__)
-            END IF
-            IF (i < irecv) THEN
-                IF (recvconns(1, i) > recvconns(1, i+1)) THEN
-                    WRITE(*, *) "Recvconns not sorted by sending rank"
-                    CALL errr(__FILE__, __LINE__)
-                END IF
             END IF
         END DO
 
