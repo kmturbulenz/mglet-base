@@ -15,171 +15,9 @@ MODULE fieldhelper_mod
         PROCEDURE set_field_arr_ifk
     END INTERFACE set_field_arr
 
-    PUBLIC :: get_grid1_real, get_grid3_real, get_grid3_real_linear, &
-        get_grid3_ifk, get_grid3_ifk_linear, get_grid3_buffer, set_field_arr, &
-        map_arr_to_device, map_arr_from_device, map_buffers_to_device, &
-        map_buffers_from_device
+    PUBLIC :: set_field_arr, map_arr_to_device, map_arr_from_device, &
+        map_buffers_to_device, map_buffers_from_device
 CONTAINS
-    SUBROUTINE get_grid1_real(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: ip, len, imygrid
-
-        CALL get_imygrid(imygrid, igrid)
-        ip = field%ptr(imygrid)
-        len = field%length(imygrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ptr(1:len) => field%arr(ip:ip+len-1)
-    END SUBROUTINE get_grid1_real
-
-
-    SUBROUTINE get_grid3_real(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
-
-        CALL get_imygrid(imygrid, igrid)
-        CALL get_mgdims(kk, jj, ii, igrid)
-        len = field%length(imygrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ip = field%ptr(imygrid)
-        ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
-    END SUBROUTINE get_grid3_real
-
-
-    SUBROUTINE get_grid3_real_linear(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
-
-        CALL get_imygrid(imygrid, igrid)
-        CALL get_mgdims(kk, jj, ii, igrid)
-        len = field%length(imygrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ip = field%ptr(imygrid)
-        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
-    END SUBROUTINE get_grid3_real_linear
-
-
-    SUBROUTINE get_grid3_ifk(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        INTEGER(ifk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :, :)
-        TYPE(intfield_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
-
-        CALL get_imygrid(imygrid, igrid)
-        CALL get_mgdims(kk, jj, ii, igrid)
-        len = field%length(imygrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ip = field%ptr(imygrid)
-        ptr(1:kk, 1:jj, 1:ii) => field%arr(ip:ip+kk*jj*ii-1)
-    END SUBROUTINE get_grid3_ifk
-
-
-    SUBROUTINE get_grid3_ifk_linear(ptr, field, igrid)
-        !$omp declare target
-        ! Subroutine arguments
-        INTEGER(ifk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:)
-        TYPE(intfield_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ip, imygrid, len
-
-        CALL get_imygrid(imygrid, igrid)
-        CALL get_mgdims(kk, jj, ii, igrid)
-        len = field%length(imygrid)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (len <= 0) CALL errr(__FILE__, __LINE__)
-        IF (len /= kk*jj*ii) CALL errr(__FILE__, __LINE__)
-#endif
-
-        ip = field%ptr(imygrid)
-        ptr(1:kk*jj*ii) => field%arr(ip:ip+kk*jj*ii-1)
-    END SUBROUTINE get_grid3_ifk_linear
-
-
-    SUBROUTINE get_grid3_buffer(ptr, field, igrid, iface)
-        !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), POINTER, CONTIGUOUS, INTENT(out) :: ptr(:, :)
-        TYPE(field_t), INTENT(in), TARGET :: field
-        INTEGER(intk), INTENT(in) :: igrid, iface
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii, ibb
-
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        IF (.NOT. ALLOCATED(field%buffers)) THEN
-            WRITE(*, *) "Buffers not initialized"
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
-
-        CALL get_mgdims(kk, jj, ii, igrid)
-        CALL get_ipbb(ibb, iface, igrid)
-
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        ! Buffers are only allocated on FIX, OP1 and PAR boundaries. If the
-        ! returned ibb is zero, this means that get_buffer was called on
-        ! another boundary condition which does not have a buffer
-        IF (ibb == 0) THEN
-            WRITE(*, *) "Buffer not allocated for this boundary condition"
-            WRITE(*, *) "  iface: ", iface, " igrid: ", igrid
-            CALL errr(__FILE__, __LINE__)
-        END IF
-#endif
-
-        SELECT CASE (iface)
-        CASE (1, 2)
-            ptr(1:kk, 1:jj) => field%buffers(ibb:ibb+kk*jj-1)
-        CASE (3, 4)
-            ptr(1:kk, 1:ii) => field%buffers(ibb:ibb+kk*ii-1)
-        CASE (5, 6)
-            ptr(1:jj, 1:ii) => field%buffers(ibb:ibb+jj*ii-1)
-#ifndef _MGLET_OFFLOAD_PERFORMANCE_
-        CASE DEFAULT
-            WRITE(*, '("Invalid face: ", I0)') iface
-            CALL errr(__FILE__, __LINE__)
-#endif
-        END SELECT
-    END SUBROUTINE get_grid3_buffer
-
-
     SUBROUTINE set_field_arr_realk(field, val, device)
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
@@ -198,17 +36,20 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
+
+            ASSOCIATE(arr => field%arr)
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_realk")
 #endif
             !$omp target teams loop
             DO i = 1, n
-                field%arr(i) = val
+                arr(i) = val
             END DO
             !$omp end target teams loop
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_pop()
 #endif
+            END ASSOCIATE
         ELSE
             field%arr = val
         END IF
@@ -233,17 +74,20 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
+
+            ASSOCIATE(arr => field%arr)
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_ifk")
 #endif
             !$omp target teams loop
             DO i = 1, n
-                field%arr(i) = val
+                arr(i) = val
             END DO
             !$omp end target teams loop
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_pop()
 #endif
+            END ASSOCIATE
         ELSE
             field%arr = val
         END IF
@@ -251,10 +95,6 @@ CONTAINS
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)
-        ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
-        USE profile_tools_mod
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
         TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6, f7
@@ -273,25 +113,25 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update to(mapper(field_t__map_arr): f1)
+        !$omp target update to(f1%arr)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f2)
+            !$omp target update to(f2%arr)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f3)
+            !$omp target update to(f3%arr)
         END IF
         IF (PRESENT(f4)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f4)
+            !$omp target update to(f4%arr)
         END IF
         IF (PRESENT(f5)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f5)
+            !$omp target update to(f5%arr)
         END IF
         IF (PRESENT(f6)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f6)
+            !$omp target update to(f6%arr)
         END IF
         IF (PRESENT(f7)) THEN
-            !$omp target update to(mapper(field_t__map_arr): f7)
+            !$omp target update to(f7%arr)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
@@ -303,10 +143,6 @@ CONTAINS
 
 
     SUBROUTINE map_buffers_to_device(f1, f2, f3, message)
-        ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
-        USE profile_tools_mod
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
         TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
@@ -325,13 +161,13 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update to(mapper(field_t__map_buffers): f1)
+        !$omp target update to(f1%buffers)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update to(mapper(field_t__map_buffers): f2)
+            !$omp target update to(f2%buffers)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update to(mapper(field_t__map_buffers): f3)
+            !$omp target update to(f3%buffers)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
@@ -343,10 +179,6 @@ CONTAINS
 
 
     SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, f7, message)
-        ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
-        USE profile_tools_mod
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
         TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6, f7
@@ -365,25 +197,25 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update from(mapper(field_t__map_arr): f1)
+        !$omp target update from(f1%arr)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f2)
+            !$omp target update from(f2%arr)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f3)
+            !$omp target update from(f3%arr)
         END IF
         IF (PRESENT(f4)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f4)
+            !$omp target update from(f4%arr)
         END IF
         IF (PRESENT(f5)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f5)
+            !$omp target update from(f5%arr)
         END IF
         IF (PRESENT(f6)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f6)
+            !$omp target update from(f6%arr)
         END IF
         IF (PRESENT(f7)) THEN
-            !$omp target update from(mapper(field_t__map_arr): f7)
+            !$omp target update from(f7%arr)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
@@ -395,10 +227,6 @@ CONTAINS
 
 
     SUBROUTINE map_buffers_from_device(f1, f2, f3, message)
-        ! Ugly wrapper while code is only partly offloaded
-        USE fieldmapper_mod
-        USE profile_tools_mod
-
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
         TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
@@ -417,13 +245,13 @@ CONTAINS
 #endif
         END IF
 
-        !$omp target update from(mapper(field_t__map_buffers): f1)
+        !$omp target update from(f1%buffers)
 
         IF (PRESENT(f2)) THEN
-            !$omp target update from(mapper(field_t__map_buffers): f2)
+            !$omp target update from(f2%buffers)
         END IF
         IF (PRESENT(f3)) THEN
-            !$omp target update from(mapper(field_t__map_buffers): f3)
+            !$omp target update from(f3%buffers)
         END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)

@@ -35,7 +35,6 @@ CONTAINS
 
 
     SUBROUTINE finish_fieldpool()
-        USE fieldmapper_mod
         ! Subroutine arguments
         ! none...
 
@@ -56,8 +55,8 @@ CONTAINS
 
         DO i = 1, max_realfields
             IF (realfields(i)%is_init) THEN
-                !$omp target exit data map(mapper(default), &
-                !$omp& delete: realfields(i))
+                !$omp target exit data map(delete: realfields(i)%arr)
+                !$omp target exit data map(delete: realfields(i)%buffers)
                 CALL realfields(i)%finish()
             END IF
         END DO
@@ -65,8 +64,7 @@ CONTAINS
 
         DO i = 1, max_intfields
             IF (intfields(i)%is_init) THEN
-                !$omp target exit data map(mapper(default), &
-                !$omp& delete: intfields(i))
+                !$omp target exit data map(delete: intfields(i)%arr)
                 CALL intfields(i)%finish()
             END IF
         END DO
@@ -75,7 +73,6 @@ CONTAINS
 
 
     SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units, zero)
-        USE fieldmapper_mod
         ! Subroutine arguments
         TYPE(field_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
@@ -106,8 +103,8 @@ CONTAINS
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
                 units=units, zero=zero2)
             CALL field%init_buffers()
-            !$omp target enter data map(mapper(default), &
-            !$omp& to: realfields(stackptr_real))
+            !$omp target enter data map(to: realfields(stackptr_real)%arr)
+            !$omp target enter data map(to: realfields(stackptr_real)%buffers)
             did_init = .TRUE.
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
@@ -130,7 +127,6 @@ CONTAINS
 
 
     SUBROUTINE push_intfield(field, name, istag, jstag, kstag, units, zero)
-        USE fieldmapper_mod
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
@@ -160,9 +156,8 @@ CONTAINS
         IF (.NOT. field%is_init) THEN
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
                 units=units, zero=zero2)
-            !$omp target enter data map(mapper(default), &
-            !$omp& to: intfields(stackptr_int))
-            did_init = .TRUE.
+                !$omp target enter data map(to: intfields(stackptr_int)%arr)
+                did_init = .TRUE.
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
         END IF
