@@ -1,7 +1,7 @@
 MODULE realfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
-    USE pointers_mod, ONLY: idimbb, get_ibb
+    USE pointers_mod, ONLY: idimbb, get_ipbb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
     USE basefield_mod
@@ -477,7 +477,7 @@ CONTAINS
         END IF
 
         CALL get_mgdims(kk, jj, ii, igrid)
-        CALL get_ibb(ibb, iface, igrid)
+        CALL get_ipbb(ibb, iface, igrid)
 
         ! Buffers are only allocated on FIX, OP1 and PAR boundaries. If the
         ! returned ibb is zero, this means that get_buffer was called on
