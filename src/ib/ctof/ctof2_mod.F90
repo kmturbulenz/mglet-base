@@ -123,13 +123,25 @@ CONTAINS
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
             CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
 
+            !$omp target data enter map(to: &
+            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1)
             CALL process_sendtasks(sendtasks, nsendtasks)
+            !$omp target data exit map(delete: &
+            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
+
             CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
             CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
 
             ! Includes waiting for MPI communication to finish
             CALL prepare_recvtasks(recvtasks, nrecvtasks)
+
+            !$omp target data enter map(to: &
+            !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
             CALL process_recvtasks(recvtasks, nrecvtasks)
+            !$omp target data exit map(delete: &
+            !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
+
+            ! At his point, one execution has been performed.
 
             ! Allocating persistent workpackage with accurate dimensions
             ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
