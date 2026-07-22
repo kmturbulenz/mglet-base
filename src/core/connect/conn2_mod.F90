@@ -389,6 +389,8 @@ CONTAINS
             CALL conn2(ilevel, layers=1, s1=pdummy, forward=-1)
         END DO
 
+        CALL conn2(layers=1, s1=pdummy)
+
         CALL pdummy%finish()
         CALL udummy%finish()
         CALL vdummy%finish()

@@ -220,9 +220,16 @@ CONTAINS
                 CALL ctof(ilevel, hilf%arr, hilf%arr)
                 CALL parent(ilevel, s1=hilf)
 
-                CALL map_buf_to_device(hilf, message="to:hilf%buffers")
+                ! TODO(offload): Remove once surrounding subroutines offloaded
+                CALL map_arr_to_device(rhs, message="to:rhs%arr")
+                CALL map_arr_to_device(hilf, message="to:hilf%arr")
+                CALL map_buffers_to_device(hilf, message="to:hilf%buffers")
 
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
+
+                ! TODO(offload): Remove once surrounding subroutines offloaded
+                CALL map_arr_from_device(res, message="from:res%arr")
+                CALL map_arr_from_device(hilf, message="from:hilf%arr")
             END DO
             CALL stop_timer(322)
 
@@ -241,6 +248,10 @@ CONTAINS
                 CALL ftoc(ilevel, hilf, hilf, 'P')
             END DO
 
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(rhs, message="to:rhs%arr")
+            CALL map_arr_to_device(hilf, message="to:hilf%arr")
+
             ! --- intermediate state ---
             ! every grid level has the best solution
             ! for hilf retrieved from the locally
@@ -249,10 +260,8 @@ CONTAINS
             ! Connect needed due to prior ftoc, since this does not do
             ! anything on the finest level, no need to connect finest level
             ! either.
-            CALL connect(layers=1, s1=hilf)
+            CALL conn(layers=1, s1=hilf)
 
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(hilf, rhs, message="to:hilf%arr|rhs%arr")
             ! res <- laplace(hilf)
             CALL laplacephi(res, hilf)
             ! rhs <- rhs + res
@@ -266,6 +275,9 @@ CONTAINS
 
             ! Max of RHS scaled according to levels
             CALL maxabscal(maxrhs, maxrhslvl, rhs)
+
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_from_device(hilf, message="from:hilf%arr")
 
             ! dp = dp + hilf
             CALL accumulate_pcorr(dp, hilf)
@@ -316,7 +328,7 @@ CONTAINS
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, s1=dp)
             CALL map_arr_to_device(dp, message="to:dp%arr")
-            CALL map_buf_to_device(dp, message="to:dp%buffers")
+            CALL map_buffers_to_device(dp, message="to:dp%buffers")
             CALL bound_pressure(ilevel, dp, bp)
             CALL map_arr_from_device(dp, message="from:dp%arr")
         END DO
@@ -390,12 +402,7 @@ CONTAINS
         CALL get_field(siput, "SIPUT")
         CALL get_field(siplpr, "SIPLPR")
 
-        ! TODO(offload): Remove once surrounding subroutines offloaded
-        CALL map_arr_to_device(rhs, message="to:rhs%arr")
-        CALL map_arr_to_device(dp, message="to:dp%arr")
-
         DO iloop = 1, ninner
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
             CALL bound_pressure(ilevel, dp, bp)
 
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
@@ -407,18 +414,12 @@ CONTAINS
                 ! Use the SIP solver
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
-                ! TODO(offload): Remove once surrounding subroutines offloaded
             END IF
 
             CALL conn(ilevel, 1, s1=dp)
         END DO
-        ! TODO(offload): Remove once surrounding subroutines offloaded
-        CALL map_arr_from_device(res, message="from:res%arr")
 
         CALL bound_pressure(ilevel, dp, bp)
-
-        ! TODO(offload): Remove once surrounding subroutines offloaded
-        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         CALL stop_timer(321)
     END SUBROUTINE mgpoisit
