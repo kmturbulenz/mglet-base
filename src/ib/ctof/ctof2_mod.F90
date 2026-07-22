@@ -494,13 +494,16 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
         ! Local variables
-        INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
+        INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3, err
         INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1, idx2
+
+        IF (nstasks == 0) RETURN
 
         ASSOCIATE(coarse => fc%arr)
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
-        !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
+        !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc) &
+        !$omp$  map(from: err)
         DO itask = 1, nstasks
 
             ! Unpacking the task
@@ -521,11 +524,17 @@ CONTAINS
             CALL write_buffer(kk, jj, ii, sendbuf(idx1:idx2), &
                 coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
 
+            ! Checking for the dummy entry at position (end+1)
+            IF (stasks(1, nstasks+1) /= -1) THEN
+                err = 1
+            ELSE
+                err = 0
+            END IF
+
         END DO
         !$omp end target teams distribute
 
-        ! Checking for the dummy entry at position (end+1)
-        IF (stasks(1, nstasks+1) /= -1) THEN
+        IF (err /= 0) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -635,13 +644,14 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
         ! Local variables
-        INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
+        INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3, err
+
+        IF (nrtasks == 0) RETURN
 
         ASSOCIATE(fine => ff%arr)
 
-
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
-        !$omp&  igridf, idx, len)
+        !$omp&  igridf, idx, len) map(from: err)
         DO itask = 1, nrtasks
 
             ! Unpacking the task
@@ -656,11 +666,17 @@ CONTAINS
             ! Copying from buffer to the fine grid
             CALL write_fine(kk, jj, ii, fine(ip3), len, recvbuf(idx:idx+len-1))
 
+            ! Checking for the dummy entry at position (end+1)
+            IF (rtasks(1, nrtasks+1) /= -1) THEN
+                err = 1
+            ELSE
+                err = 0
+            END IF
+
         END DO
         !$omp end target teams distribute
 
-        ! Checking for the dummy entry at position (end+1)
-        IF (rtasks(1, nrtasks+1) /= -1) THEN
+        IF (err /= 0) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
 
