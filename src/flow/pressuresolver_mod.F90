@@ -217,7 +217,12 @@ CONTAINS
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
+
+                ! Doing some crazy CTOF on device...
+                CALL map_arr_to_device(hilf, message="to:hilf%arr")
                 CALL ctof(ilevel, hilf, hilf)
+                CALL map_arr_from_device(hilf, message="from:hilf%arr")
+
                 CALL parent(ilevel, s1=hilf)
 
                 CALL map_buf_to_device(hilf, message="to:hilf%buffers")
