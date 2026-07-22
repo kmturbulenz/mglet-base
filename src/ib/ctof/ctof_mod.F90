@@ -23,8 +23,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL ctof2(ilevel, ff_f, fc_f)
 #else
-        ! CALL ctof1(ilevel, ff_f%arr, fc_f%arr)
-        CALL ctof2(ilevel, ff_f, fc_f)
+        CALL ctof1(ilevel, ff_f%arr, fc_f%arr)
 #endif
         CALL stop_timer(230)
     END SUBROUTINE ctof
@@ -34,7 +33,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL init_ctof2()
 #else
-        CALL init_ctof2()
+        CALL init_ctof1()
 #endif
     END SUBROUTINE init_ctof
 
@@ -43,7 +42,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL finish_ctof2()
 #else
-        CALL finish_ctof2()
+        CALL finish_ctof1()
 #endif
     END SUBROUTINE finish_ctof
 

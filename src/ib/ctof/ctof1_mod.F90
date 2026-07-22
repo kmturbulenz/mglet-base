@@ -6,6 +6,16 @@ MODULE ctof1_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    ! The information in the first dimension is sorted as follows:
+    !   Field 1: Rank of sending process
+    !   Field 2: Rank of receiving process
+    !   Field 3: ID of sending grid (coarse grid)
+    !   Field 4: ID of receiving grid (fine grid)
+    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
+
+    ! Number of send and receive connections
+    INTEGER(intk) :: isend = 0, irecv = 0
+
     ! Variable to indicate if the required data structures and MPI-types
     ! have been created
     LOGICAL :: isinit = .FALSE.
@@ -32,7 +42,12 @@ MODULE ctof1_mod
 
 CONTAINS
 
+    ! Nota bene: Routine is thought to be called from the fine side, i.e. the
+    ! receiving side of the prolongation. The child grid has parent information
+    ! but the parent grid does not have information about its children.
+
     SUBROUTINE ctof1(ilevel, ff, fc)
+        ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         REAL(realk), INTENT(inout) :: ff(:)
         REAL(realk), INTENT(in) :: fc(:)
@@ -303,48 +318,144 @@ CONTAINS
 
     ! Initialize arrays and data types
     SUBROUTINE init_ctof1()
+
         ! Local variables
-        INTEGER :: igrid, iprocc, ipar
+        INTEGER(intk) :: i, igrid, iprocc, ipar, maxconns
+        INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
+        INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
+        INTEGER(intk), PARAMETER :: ncols = 4
+
+        ! Avoiding repeated initialization
+        IF (isinit) CALL errr(__FILE__, __LINE__)
 
         CALL set_timer(230, "CTOF")
         CALL set_timer(231, "CTOF_BEGIN")
         CALL set_timer(232, "CTOF_END")
         CALL set_timer(235, "CTOF_PROLONG_FINISH")
 
-        IF (.NOT. isinit) THEN
-            ALLOCATE(sendreqs(nmygrids*maxchilds))
-            ALLOCATE(recvreqs(nmygrids))
-            ALLOCATE(recvgrids(nmygrids))
-            ALLOCATE(recvpos(nmygrids))
-        END IF
+        ! Setting up the infrastructure for bundling of messages
+        maxconns = nmygrids
+        ALLOCATE(recvconns(ncols, maxconns))
 
+        ALLOCATE(sendcounts(0:numprocs-1), SOURCE=0)
+        ALLOCATE(sdispls(0:numprocs-1), SOURCE=0)
+        ALLOCATE(recvcounts(0:numprocs-1), SOURCE=0)
+        ALLOCATE(rdispls(0:numprocs-1), SOURCE=0)
+
+        ! Filling the recvconns array by looking up parents
         nrecv = 0
-        nsend = 0
+        DO i = 1, nmygrids
 
-        DO igrid = 1, ngrid
+            ! Obtaining the grid ID of the fine grid and its parent
+            igrid = mygrids(i)
             ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocc = idprocofgrd(ipar)
-                IF (myid == iprocc) THEN
-                    nsend = nsend + 1
-                    IF (nsend > nmygrids*maxchilds) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
+            IF (ipar == 0) CYCLE
+
+            ! Obtaining the process ID of the coarse parent grid
+            iprocc = idprocofgrd(ipar)
+
+            ! Adding a receive connection
+            nrecv = nrecv + 1
+            IF (nrecv > maxconns) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
+
+            ! - 1: Rank of sending process
+            ! - 2: Rank of receiving process
+            ! - 3: ID of sending grid (coarse grid)
+            ! - 4: ID of receiving grid (fine grid)
+
+            recvconns(1, nrecv) = iprocc
+            recvconns(2, nrecv) = myid
+            recvconns(3, nrecv) = ipar
+            recvconns(4, nrecv) = igrid
+
+            ! Storing information used later in the context of AllToAll
+            recvcounts(iprocc) = recvcounts(iprocc) + ncols
+        END DO
+        irecv = nrecv
+
+        ! Sort recvconns by process ID (col 2) = sender with the coarse grid
+        CALL sort_conns(recvconns(:, 1:nrecv), 2)
+
+        ! Calculate sdispl offset (used in MPI_Alltoallv)
+        DO i = 1, numprocs-1
+            sdispls(i) = sdispls(i-1) + recvcounts(i-1)
+        END DO
+
+        ! In a first step, the NUMBER OF ELEMENTS TO SEND must be computed
+        ! by exchanging information about the number of received elements
+        CALL MPI_Alltoall(recvcounts, 1, MPI_INTEGER, sendcounts, 1, &
+            MPI_INTEGER, MPI_COMM_WORLD)
+
+        ! Array sendcounts is now filled and offsets can be computed
+        DO i = 1, numprocs-1
+            rdispls(i) = rdispls(i-1) + sendcounts(i-1)
+        END DO
+
+        ! The total number of send connections is the sum of all sendcounts
+        isend = (rdispls(numprocs-1) + sendcounts(numprocs-1)) / ncols
+        ALLOCATE(sendconns(ncols, isend))
+        sendconns = 0
+
+        ! Exchange connection information
+        CALL MPI_Alltoallv(recvconns, recvcounts, sdispls, MPI_INTEGER, &
+            sendconns, sendcounts, rdispls, MPI_INTEGER, MPI_COMM_WORLD)
+
+        ! Both recvconns and sendconns should be fully populated and ordered
+        DO i = 1, isend
+            IF (sendconns(1, i) /= myid) THEN
+                WRITE(*, *) "Rank is not holder of coarse grid"
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            IF (i < isend) THEN
+                IF (sendconns(2, i) > sendconns(2, i+1)) THEN
+                    WRITE(*, *) "Sendconns not sorted by receiving rank"
+                    CALL errr(__FILE__, __LINE__)
                 END IF
             END IF
         END DO
 
+        DO i = 1, irecv
+            IF (recvconns(2, i) /= myid) THEN
+                WRITE(*, *) "Rank is not holder of fine grid"
+                CALL errr(__FILE__, __LINE__)
+            END IF
+            IF (i < irecv) THEN
+                IF (recvconns(1, i) > recvconns(1, i+1)) THEN
+                    WRITE(*, *) "Recvconns not sorted by sending rank"
+                    CALL errr(__FILE__, __LINE__)
+                END IF
+            END IF
+        END DO
+
+        ! Deallocate arrays which were only needed to operate MPI_Alltoallv
+        DEALLOCATE(rdispls)
+        DEALLOCATE(recvcounts)
+        DEALLOCATE(sdispls)
+        DEALLOCATE(sendcounts)
+
+        ! That should now be isend and irecv (--> TO DO)
+        ALLOCATE(sendreqs(nmygrids*maxchilds))
+        ALLOCATE(recvreqs(nmygrids))
+        ALLOCATE(recvgrids(nmygrids))
+        ALLOCATE(recvpos(nmygrids))
+
+        nrecv = 0
+        nsend = 0
+
         isinit = .TRUE.
         in_progress = .FALSE.
+
     END SUBROUTINE init_ctof1
 
 
     SUBROUTINE finish_ctof1()
-        IF (isInit .NEQV. .TRUE.) THEN
+        IF (.NOT. isinit) THEN
             RETURN
         END IF
 
-        isInit = .FALSE.
+        isinit = .FALSE.
 
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
