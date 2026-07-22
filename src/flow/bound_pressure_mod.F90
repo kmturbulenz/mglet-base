@@ -111,9 +111,6 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: dx_f, dy_f, dz_f, ddx_f, ddy_f, ddz_f
-        LOGICAL :: use_bp
-
-        use_bp = PRESENT(bp_f)
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")
@@ -122,7 +119,7 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        IF (use_bp) THEN
+        IF (PRESENT(bp_f)) THEN
             CALL bound_pressure_impl_bp(ilevel, dp_f, bp_f, dx_f, dy_f, dz_f, &
                 ddx_f, ddy_f, ddz_f)
         ELSE

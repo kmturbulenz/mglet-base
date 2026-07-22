@@ -31,9 +31,8 @@ CONTAINS
         CALL get_field(gsab, "GSAB")
         CALL get_field(gsat, "GSAT")
         CALL get_field(gsap, "GSAP")
-
-        ! BP for noib is 1.0 anyways. Take the few multiplications instead of
-        ! branching in the kernel.
+        ! BP for noib is 1.0. Take extra multiplications instead of branching
+        ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
@@ -84,9 +83,8 @@ CONTAINS
         CALL get_field(gsab, "GSAB")
         CALL get_field(gsat, "GSAT")
         CALL get_field(gsap, "GSAP")
-
-        ! BP for noib is 1.0 anyways. Take the few multiplications instead of
-        ! branching in the kernel.
+        ! BP for noib is 1.0. Take extra multiplications instead of branching
+        ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
@@ -116,6 +114,7 @@ CONTAINS
 
     PURE SUBROUTINE laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
             at, ab, ap, bp)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: res(kk, jj, ii)

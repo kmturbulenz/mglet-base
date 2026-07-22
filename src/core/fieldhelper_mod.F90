@@ -16,7 +16,8 @@ MODULE fieldhelper_mod
 
     PUBLIC :: get_grid1_real, get_grid3_real, get_grid3_real_linear, &
         get_grid3_ifk, get_grid3_ifk_linear, get_grid3_buffer, set_field_arr, &
-        map_arr_to_device, map_arr_from_device, map_buf_to_device
+        map_arr_to_device, map_arr_from_device, map_buffers_to_device, &
+        map_buffers_from_device
 CONTAINS
     SUBROUTINE get_grid1_real(ptr, field, igrid)
         !$omp declare target
@@ -202,7 +203,6 @@ CONTAINS
             END DO
             !$omp end target teams loop
         ELSE
-            ! Faster than loop on CPU
             field%arr = val
         END IF
     END SUBROUTINE set_field_arr_realk
@@ -232,20 +232,19 @@ CONTAINS
             END DO
             !$omp end target teams loop
         ELSE
-            ! Faster than loop on CPU
             field%arr = val
         END IF
     END SUBROUTINE set_field_arr_ifk
 
 
-    SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, message)
+    SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)
         ! Ugly wrapper while code is only partly offloaded
         USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
-        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6
+        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6, f7
         CHARACTER(*), INTENT(in), OPTIONAL :: message
 
         ! Local variables
@@ -278,6 +277,9 @@ CONTAINS
         IF (PRESENT(f6)) THEN
             !$omp target update to(mapper(field_t__map_arr): f6)
         END IF
+        IF (PRESENT(f7)) THEN
+            !$omp target update to(mapper(field_t__map_arr): f7)
+        END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
@@ -287,13 +289,14 @@ CONTAINS
     END SUBROUTINE map_arr_to_device
 
 
-    SUBROUTINE map_buf_to_device(f1, message)
+    SUBROUTINE map_buffers_to_device(f1, f2, f3, message)
         ! Ugly wrapper while code is only partly offloaded
         USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
+        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
         CHARACTER(*), INTENT(in), OPTIONAL :: message
 
         ! Local variables
@@ -311,22 +314,29 @@ CONTAINS
 
         !$omp target update to(mapper(field_t__map_buffers): f1)
 
+        IF (PRESENT(f2)) THEN
+            !$omp target update to(mapper(field_t__map_buffers): f2)
+        END IF
+        IF (PRESENT(f3)) THEN
+            !$omp target update to(mapper(field_t__map_buffers): f3)
+        END IF
+
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
             CALL profile_range_pop()
         END IF
 #endif
-    END SUBROUTINE map_buf_to_device
+    END SUBROUTINE map_buffers_to_device
 
 
-    SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, message)
+    SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, f7, message)
         ! Ugly wrapper while code is only partly offloaded
         USE fieldmapper_mod
         USE profile_tools_mod
 
         ! Subroutine arguments
         TYPE(field_t), INTENT(in) :: f1
-        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6
+        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6, f7
         CHARACTER(*), INTENT(in), OPTIONAL :: message
 
         ! Local variables
@@ -359,6 +369,9 @@ CONTAINS
         IF (PRESENT(f6)) THEN
             !$omp target update from(mapper(field_t__map_arr): f6)
         END IF
+        IF (PRESENT(f7)) THEN
+            !$omp target update from(mapper(field_t__map_arr): f7)
+        END IF
 
 #if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
@@ -366,4 +379,44 @@ CONTAINS
         END IF
 #endif
     END SUBROUTINE map_arr_from_device
+
+
+    SUBROUTINE map_buffers_from_device(f1, f2, f3, message)
+        ! Ugly wrapper while code is only partly offloaded
+        USE fieldmapper_mod
+        USE profile_tools_mod
+
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: f1
+        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
+        CHARACTER(*), INTENT(in), OPTIONAL :: message
+
+        ! Local variables
+        LOGICAL :: has_message
+
+        has_message = PRESENT(message)
+
+        IF (has_message) THEN
+        ! Can not wrap the IF statement or the compiler will complain about
+        ! an unused variable...
+#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
+            CALL profile_range_push(message)
+#endif
+        END IF
+
+        !$omp target update from(mapper(field_t__map_buffers): f1)
+
+        IF (PRESENT(f2)) THEN
+            !$omp target update from(mapper(field_t__map_buffers): f2)
+        END IF
+        IF (PRESENT(f3)) THEN
+            !$omp target update from(mapper(field_t__map_buffers): f3)
+        END IF
+
+#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
+        IF (has_message) THEN
+            CALL profile_range_pop()
+        END IF
+#endif
+    END SUBROUTINE map_buffers_from_device
 END MODULE fieldhelper_mod
