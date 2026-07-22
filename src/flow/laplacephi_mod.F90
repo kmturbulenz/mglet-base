@@ -35,6 +35,9 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("laplacephi")
+#endif
         !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
         !$omp& aw, ae, an, as, at, ab, ap, bp)
         DO i = 1, nmygrids
@@ -57,6 +60,9 @@ CONTAINS
                 at, ab, ap, bp)
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE laplacephi
 
 
@@ -87,6 +93,9 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("laplacephi_level")
+#endif
         !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
         !$omp& aw, ae, an, as, at, ab, ap, bp)
         DO i = 1, nmygridslvl(ilevel)
@@ -109,6 +118,9 @@ CONTAINS
                 at, ab, ap, bp)
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE laplacephi_level
 
 

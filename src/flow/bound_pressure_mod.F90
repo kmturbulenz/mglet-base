@@ -150,6 +150,9 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("bound_pressure_impl_bp")
+#endif
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& pbuffer, bp, p, dx, dy, dz, ddx, ddy, ddz)
         DO i = 1, nboundtasks
@@ -190,6 +193,9 @@ CONTAINS
             END SELECT
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE bound_pressure_impl_bp
 
 
@@ -212,6 +218,9 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("bound_pressure_impl_nobp")
+#endif
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& pbuffer, p, dx, dy, dz, ddx, ddy, ddz)
         DO i = 1, nboundtasks
@@ -251,6 +260,9 @@ CONTAINS
             END SELECT
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE bound_pressure_impl_nobp
 
 

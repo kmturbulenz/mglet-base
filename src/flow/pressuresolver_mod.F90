@@ -451,10 +451,8 @@ CONTAINS
             CALL sipiter1_classic_level(ilevel, res, rhs, siplw, sipls, siplb, &
                 siplpr)
         ELSE
-            CALL profile_range_push("sip1_hp")
             CALL sipiter1_hyperplane_level(ilevel, res, rhs, siplw, sipls, &
                 siplb, siplpr)
-            CALL profile_range_pop()
         END IF
 
         IF (iloop < ninner) THEN
@@ -466,10 +464,8 @@ CONTAINS
         IF (ityp == 2) THEN
             CALL sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
         ELSE
-            CALL profile_range_push("sip2_hp")
             CALL sipiter2_hyperplane_level(ilevel, dp, res, sipue, sipun, &
                 siput)
-            CALL profile_range_pop()
         END IF
     END SUBROUTINE sip
 
@@ -528,6 +524,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: res_p(:, :, :), rhs_p(:, :, :)
         INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("sipiter1_hp")
+#endif
         !$omp target teams distribute private(i, igrid, kk, jj, ii, &
         !$omp& res_p, rhs_p, lw, ls, lb, lpr, mip_ptr, idx_ptr)
         DO i = 1, nmygridslvl(ilevel)
@@ -549,7 +548,9 @@ CONTAINS
                 mip_ptr, idx_ptr)
         END DO
         !$omp end target teams distribute
-
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE sipiter1_hyperplane_level
 
 
@@ -603,6 +604,9 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: dp_p(:, :, :), res_p(:, :, :)
         INTEGER(ifk), CONTIGUOUS, POINTER :: mip_ptr(:), idx_ptr(:)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("sipiter2_hp")
+#endif
         !$omp target teams distribute private(i, igrid, kk, jj, ii, &
         !$omp& dp_p, res_p, ue, un, ut, mip_ptr, idx_ptr)
         DO i = 1, nmygridslvl(ilevel)
@@ -623,6 +627,9 @@ CONTAINS
                 mip_ptr, idx_ptr)
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE sipiter2_hyperplane_level
 
 
