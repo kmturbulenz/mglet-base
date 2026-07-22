@@ -3,7 +3,7 @@ MODULE fieldhelper_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
-    USE pointers_mod, ONLY: get_ibb
+    USE pointers_mod, ONLY: get_ipbb
     USE precision_mod, ONLY: realk, intk, ifk
 
     IMPLICIT NONE(type, external)
@@ -150,7 +150,7 @@ CONTAINS
 #endif
 
         CALL get_mgdims(kk, jj, ii, igrid)
-        CALL get_ibb(ibb, iface, igrid)
+        CALL get_ipbb(ibb, iface, igrid)
 
 #ifndef _MGLET_OFFLOAD_PERFORMANCE_
         ! Buffers are only allocated on FIX, OP1 and PAR boundaries. If the
