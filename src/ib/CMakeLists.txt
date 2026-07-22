@@ -10,7 +10,9 @@ add_library(ib STATIC
     calcnormals_mod.F90
     checkblock_mod.F90
     checkzelle_mod.F90
-    ctof_mod.F90
+    ctof/ctof_mod.F90
+    ctof/ctof1_mod.F90
+    ctof/ctof2_mod.F90
     cutcorner_mod.F90
     fillfollower_mod.F90
     filling_mod.F90
