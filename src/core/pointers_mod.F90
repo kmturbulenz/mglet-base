@@ -8,24 +8,36 @@ MODULE pointers_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    INTEGER(intk), PROTECTED :: idim3d, idimbb
+    INTEGER(intk), PROTECTED :: idim3d, idimbb, idim1dx, idim1dy, idim1dz
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ip3d(:)
     INTEGER(intk), ALLOCATABLE, PROTECTED :: ipbb(:, :)
-    !$omp declare target(ipbb, ip3d)
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dx(:)
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dy(:)
+    INTEGER(intk), ALLOCATABLE, PROTECTED :: ip1dz(:)
+    !$omp declare target(ip3d, ipbb, ip1dx, ip1dy, ip1dz)
 
-    PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ibb, &
-        idim3d, idimbb, get_len3
+    PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ipbb, &
+        idim3d, idimbb, get_len3, get_ip1x, get_ip1y, get_ip1z
 
 CONTAINS
     SUBROUTINE init_pointers()
         idim3d = 0
         idimbb = 0
+        idim1dx = 0
+        idim1dy = 0
+        idim1dz = 0
 
         ALLOCATE(ip3d(ngrid))
         ALLOCATE(ipbb(6, ngrid))
+        ALLOCATE(ip1dx(ngrid))
+        ALLOCATE(ip1dy(ngrid))
+        ALLOCATE(ip1dz(ngrid))
 
         ip3d = 0
         ipbb = 0
+        ip1dx = 0
+        ip1dy = 0
+        ip1dz = 0
 
         BLOCK
             ! Initialize and set pointers for all grids this process owns
@@ -41,6 +53,14 @@ CONTAINS
                 nsize3d = ii*jj*kk
                 ip3d(igrid) = idim3d + 1
                 idim3d = idim3d + nsize3d
+
+                ! 1-D pointers
+                ip1dx(igrid) = idim1dx + 1
+                idim1dx = idim1dx + ii
+                ip1dy(igrid) = idim1dy + 1
+                idim1dy = idim1dy + jj
+                ip1dz(igrid) = idim1dz + 1
+                idim1dz = idim1dz + kk
 
                 ! BB (boundary buffer) pointers are allocated for every FIX,
                 ! OP1, PAR, SIO and SWA buffer for every face. If a face has
@@ -72,8 +92,7 @@ CONTAINS
                 END DO
             END DO
         END BLOCK
-
-        !$omp target enter data map(always, to: ipbb, ip3d)
+        !$omp target enter data map(always, to: ip3d, ip1dx, ip1dy, ip1dz, ipbb)
 
         IF (myid == 0) THEN
             WRITE(*, '("ARRAY DIMENSIONS:")')
@@ -87,10 +106,17 @@ CONTAINS
     SUBROUTINE finish_pointers()
         idim3d = 0
         idimbb = 0
+        idim1dx = 0
+        idim1dy = 0
+        idim1dz = 0
 
-        !$omp target exit data map(always, delete: ipbb, ip3d)
+        !$omp target exit data map(always, delete: ip3d, ip1dx, ip1dy, ip1dz, &
+        !$omp& ipbb)
         DEALLOCATE(ip3d)
         DEALLOCATE(ipbb)
+        DEALLOCATE(ip1dx)
+        DEALLOCATE(ip1dy)
+        DEALLOCATE(ip1dz)
     END SUBROUTINE finish_pointers
 
 
@@ -114,15 +140,44 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ncomp
         INTEGER(intk), INTENT(out) :: ip3n
 
+#ifdef _MGLET_DEBUG_
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
+#endif
 
         ip3n = ncomp*ip3d(igrid) - (ncomp-1)
     END SUBROUTINE get_ip3n
 
 
-    SUBROUTINE get_ibb(ibb, iface, igrid)
+    SUBROUTINE get_ip1x(ipx, igrid)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: igrid
+        INTEGER(intk), INTENT(out) :: ipx
+
+        ipx = ip1dx(igrid)
+    END SUBROUTINE get_ip1x
+
+
+    SUBROUTINE get_ip1y(ipy, igrid)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: igrid
+        INTEGER(intk), INTENT(out) :: ipy
+
+        ipy = ip1dy(igrid)
+    END SUBROUTINE get_ip1y
+
+
+    SUBROUTINE get_ip1z(ipz, igrid)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: igrid
+        INTEGER(intk), INTENT(out) :: ipz
+
+        ipz = ip1dz(igrid)
+    END SUBROUTINE get_ip1z
+
+
+    SUBROUTINE get_ipbb(ibb, iface, igrid)
         !$omp declare target
         INTEGER(intk), INTENT(out) :: ibb
         INTEGER(intk), INTENT(in) :: iface
@@ -138,7 +193,7 @@ CONTAINS
 #endif
 
         ibb = ipbb(iface, igrid)
-    END SUBROUTINE get_ibb
+    END SUBROUTINE get_ipbb
 
 
     SUBROUTINE get_len3(len, igrid)

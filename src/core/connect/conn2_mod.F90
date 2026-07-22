@@ -209,28 +209,12 @@ CONTAINS
                 nselftasks = SIZE(wptr%selftasks, 2) - 1
                 nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
-                CALL profile_range_push("process_mpirecv")
                 CALL process_mpirecv(wptr%mpirecvtasks, nmpirecvtasks)
-                CALL profile_range_pop()
-
-                CALL profile_range_push("process_sendtasks")
                 CALL process_sendtasks(wptr%sendtasks, nsendtasks)
-                CALL profile_range_pop()
-
-                CALL profile_range_push("process_mpisend")
                 CALL process_mpisend(wptr%mpisendtasks, nmpisendtasks)
-                CALL profile_range_pop()
-
-                CALL profile_range_push("process_selftasks")
                 CALL process_selftasks(wptr%selftasks, nselftasks)
-                CALL profile_range_pop()
-
                 CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
-
-                CALL profile_range_push("process_recvtasks")
                 CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
-                CALL profile_range_pop()
-
                 CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
             ELSE
@@ -389,6 +373,8 @@ CONTAINS
             CALL conn2(ilevel, layers=1, s1=pdummy, forward=-1)
         END DO
 
+        CALL conn2(layers=1, s1=pdummy)
+
         CALL pdummy%finish()
         CALL udummy%finish()
         CALL vdummy%finish()
@@ -474,6 +460,10 @@ CONTAINS
         LOGICAL :: exchange, geometry
         INTEGER(int32) :: sendcounter, messagelength
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("prepare_tasks_all")
+#endif
+
         geometry = .FALSE.
 
         ! Pack all buffers and send data
@@ -543,6 +533,9 @@ CONTAINS
         etasks(:, netasks+1) = -1
         mpistasks(:, nmpistasks+1) = -1
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE prepare_tasks_all
 
 
@@ -866,6 +859,10 @@ CONTAINS
         INTEGER(int32) :: unpacklen
         INTEGER(intk) :: irtask
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("prepare_recvtasks_all")
+#endif
+
         irtask = 0
 
         DO WHILE (.TRUE.)
@@ -909,6 +906,9 @@ CONTAINS
         ! Add a harmful dummy task at (ntasks+1) to detect execution overshoot
         rtasks(:, nrtasks+1) = -1
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE prepare_recvtasks_all
 
 
@@ -1126,6 +1126,9 @@ CONTAINS
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
                   a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_sendtasks")
+#endif
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  ii, jj, kk, ip3)
@@ -1172,10 +1175,12 @@ CONTAINS
 
         END DO
         !$omp end target teams distribute
-
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
         END ASSOCIATE
-
     END SUBROUTINE process_sendtasks
+
 
     SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
         jstart, jstop, kstart, kstop, icount)
@@ -1206,7 +1211,6 @@ CONTAINS
     END SUBROUTINE arr_to_buf
 
 
-
     ! Routine with offloaded kernel to process all receive tasks on the device
     !
     SUBROUTINE process_recvtasks(rtasks, nrtasks)
@@ -1227,6 +1231,11 @@ CONTAINS
         ! pointer operations within the kernel!
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
                   a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_recvtasks")
+#endif
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
@@ -1274,9 +1283,10 @@ CONTAINS
 
         END DO
         !$omp end target teams distribute
-
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
         END ASSOCIATE
-
     END SUBROUTINE process_recvtasks
 
 
@@ -1335,6 +1345,10 @@ CONTAINS
         ! pointer operations within the kernel!
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
                   a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_selftasks")
+#endif
 
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
@@ -1395,10 +1409,12 @@ CONTAINS
 
         END DO
         !$omp end target teams distribute
-
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
         END ASSOCIATE
-
     END SUBROUTINE process_selftasks
+
 
     PURE SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &
             istart, istop, jstart, jstop, kstart, kstop, &
@@ -1429,7 +1445,6 @@ CONTAINS
         !$omp end parallel do
 
     END SUBROUTINE arr_to_arr
-
 
 
     ! Now the routines which which launch non-blocking MPI calls
@@ -1470,6 +1485,10 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, sendcounter
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_mpisend")
+#endif
+
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpistasks
 
@@ -1494,6 +1513,9 @@ CONTAINS
             END IF
         END IF
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE process_mpisend
 
 
@@ -1507,6 +1529,10 @@ CONTAINS
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, recvcounter
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_mpirecv")
+#endif
 
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpirtasks
@@ -1532,6 +1558,9 @@ CONTAINS
             END IF
         END IF
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE process_mpirecv
 
 

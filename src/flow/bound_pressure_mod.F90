@@ -111,9 +111,6 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: dx_f, dy_f, dz_f, ddx_f, ddy_f, ddz_f
-        LOGICAL :: use_bp
-
-        use_bp = PRESENT(bp_f)
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")
@@ -122,7 +119,7 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        IF (use_bp) THEN
+        IF (PRESENT(bp_f)) THEN
             CALL bound_pressure_impl_bp(ilevel, dp_f, bp_f, dx_f, dy_f, dz_f, &
                 ddx_f, ddy_f, ddz_f)
         ELSE
@@ -142,57 +139,72 @@ CONTAINS
         TYPE(field_t), POINTER, INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
-        REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
         INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+        ASSOCIATE( &
+            p => dp_f%arr, &
+            pbuffer => dp_f%buffers, &
+            bp => bp_f%arr, &
+            dx => dx_f%arr, &
+            dy => dy_f%arr, &
+            dz => dz_f%arr, &
+            ddx => ddx_f%arr, &
+            ddy => ddy_f%arr, &
+            ddz => ddz_f%arr)
+
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("bound_pressure_impl_bp")
+#endif
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
-        !$omp& pbuffer, bp, p, dx, dy, dz, ddx, ddy, ddz)
+        !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
             igrid = boundtasks(1, i, ilevel_index)
             iface = boundtasks(2, i, ilevel_index)
 
             CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL get_grid3_buffer(pbuffer, dp_f, igrid, iface)
-            CALL get_grid3_real(bp, bp_f, igrid)
-            CALL get_grid3_real(p, dp_f, igrid)
-            CALL get_grid1_real(dx, dx_f, igrid)
-            CALL get_grid1_real(dy, dy_f, igrid)
-            CALL get_grid1_real(dz, dz_f, igrid)
-            CALL get_grid1_real(ddx, ddx_f, igrid)
-            CALL get_grid1_real(ddy, ddy_f, igrid)
-            CALL get_grid1_real(ddz, ddz_f, igrid)
+            CALL get_ipbb(ipbb, iface, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
             SELECT CASE (iface)
             CASE (1)
                 CALL bfront_bp(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, bp, ddx, ddy, ddz, dx)
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dx(ipx))
             CASE (2)
                 CALL bfront_bp(kk, jj, ii, ii-1, ii-2, ii-3, ii-2, &
-                    pbuffer, p, bp, ddx, ddy, ddz, dx)
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dx(ipx))
             CASE (3)
                 CALL bright_bp(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, bp, ddx, ddy, ddz, dy)
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dy(ipy))
             CASE (4)
                 CALL bright_bp(kk, jj, ii, jj-1, jj-2, jj-3, jj-2, &
-                    pbuffer, p, bp, ddx, ddy, ddz, dy)
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dy(ipy))
             CASE (5)
                 CALL bbottom_bp(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, bp, ddx, ddy, ddz, dz)
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             CASE (6)
-                CALL bbottom_bp(kk, jj, ii, kk-1, kk-2, kk-3, &
-                    kk-2, pbuffer, p, bp, ddx, ddy, ddz, dz)
+                CALL bbottom_bp(kk, jj, ii, kk-1, kk-2, kk-3, kk-2, &
+                    pbuffer(ipbb), p(ip3), bp(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             END SELECT
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+        END ASSOCIATE
     END SUBROUTINE bound_pressure_impl_bp
 
 
@@ -205,55 +217,70 @@ CONTAINS
         TYPE(field_t), POINTER, INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
-        REAL(realk), POINTER, CONTIGUOUS :: p(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: pbuffer(:, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
         INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
+        ASSOCIATE( &
+            p => dp_f%arr, &
+            pbuffer => dp_f%buffers, &
+            dx => dx_f%arr, &
+            dy => dy_f%arr, &
+            dz => dz_f%arr, &
+            ddx => ddx_f%arr, &
+            ddy => ddy_f%arr, &
+            ddz => ddz_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("bound_pressure_impl_nobp")
+#endif
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
-        !$omp& pbuffer, p, dx, dy, dz, ddx, ddy, ddz)
+        !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
             igrid = boundtasks(1, i, ilevel_index)
             iface = boundtasks(2, i, ilevel_index)
 
             CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL get_grid3_buffer(pbuffer, dp_f, igrid, iface)
-            CALL get_grid3_real(p, dp_f, igrid)
-            CALL get_grid1_real(dx, dx_f, igrid)
-            CALL get_grid1_real(dy, dy_f, igrid)
-            CALL get_grid1_real(dz, dz_f, igrid)
-            CALL get_grid1_real(ddx, ddx_f, igrid)
-            CALL get_grid1_real(ddy, ddy_f, igrid)
-            CALL get_grid1_real(ddz, ddz_f, igrid)
+            CALL get_ipbb(ipbb, iface, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
             SELECT CASE (iface)
             CASE (1)
                 CALL bfront(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, ddx, ddy, ddz, dx)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dx(ipx))
             CASE (2)
                 CALL bfront(kk, jj, ii, ii-1, ii-2, ii-3, ii-2, &
-                    pbuffer, p, ddx, ddy, ddz, dx)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dx(ipx))
             CASE (3)
                 CALL bright(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, ddx, ddy, ddz, dy)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dy(ipy))
             CASE (4)
                 CALL bright(kk, jj, ii, jj-1, jj-2, jj-3, jj-2, &
-                    pbuffer, p, ddx, ddy, ddz, dy)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dy(ipy))
             CASE (5)
                 CALL bbottom(kk, jj, ii, 2, 3, 4, 2, &
-                    pbuffer, p, ddx, ddy, ddz, dz)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             CASE (6)
                 CALL bbottom(kk, jj, ii, kk-1, kk-2, kk-3, kk-2, &
-                    pbuffer, p, ddx, ddy, ddz, dz)
+                    pbuffer(ipbb), p(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             END SELECT
         END DO
         !$omp end target teams distribute
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+        END ASSOCIATE
     END SUBROUTINE bound_pressure_impl_nobp
 
 
