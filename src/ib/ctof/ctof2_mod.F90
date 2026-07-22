@@ -48,7 +48,6 @@ MODULE ctof2_mod
 
     ! Array to store instructions for different values of "ilevel"
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:)
-
     INTEGER(intk), PARAMETER :: mpitasksize = 4
     INTEGER(intk), PARAMETER :: sendtasksize = 9
     INTEGER(intk), PARAMETER :: recvtasksize = 2
@@ -56,6 +55,7 @@ MODULE ctof2_mod
     ! Maximum size of the temporary arrays
     INTEGER(intk) :: maxsize
 
+    ! Internal pointers to the fine and coarse field_t objects
     TYPE(field_t), POINTER :: ff, fc
 
 
@@ -84,7 +84,6 @@ CONTAINS
 
             ! During the execution phase, the workpackage is already initialized
             IF (.NOT. wptr%is_init) THEN
-                WRITE(*, *) "Routine ctof2 does not provide just-in-time"
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -116,25 +115,17 @@ CONTAINS
             ALLOCATE(mpisendtasks(mpitasksize, maxsize))
             ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
 
-            WRITE(*, *) "B"
-
             CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
             CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
-
-            WRITE(*, *) "C"
 
             CALL process_sendtasks(sendtasks, nsendtasks)
             CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
             CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
 
-            WRITE(*, *) "D"
-
             ! Includes waiting for MPI communication to finish
             CALL prepare_recvtasks(recvtasks, nrecvtasks)
             CALL process_recvtasks(recvtasks, nrecvtasks)
-
-            WRITE(*, *) "E"
 
             ! Allocating persistent workpackage with accurate dimensions
             ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
@@ -164,37 +155,6 @@ CONTAINS
     END SUBROUTINE ctof2
 
 
-    ! ! Initiate prolongation
-    ! !
-    ! ! Interpolate the results from a coarse level to a fine level
-    ! ! This function initiate the process, and the ctof_finish
-    ! ! must be called afterwards to clean up.
-    ! SUBROUTINE ctof_begin(ilevel, fc)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(in) :: ilevel
-    !     REAL(realk), INTENT(in) :: fc(:)
-
-    !     ! Local variables
-    !     ! none...
-
-    !     CALL start_timer(231)
-
-    !     IF (.NOT. is_init) THEN
-    !         CALL errr(__FILE__, __LINE__)
-    !     END IF
-    !     IF (in_progress) THEN
-    !         CALL errr(__FILE__, __LINE__)
-    !     END IF
-    !     in_progress = .TRUE.
-
-    !     CALL recv_all(ilevel)
-    !     CALL send_all(ilevel, fc)
-
-    !     CALL stop_timer(231)
-    ! END SUBROUTINE ctof_begin
-
-
-    ! Record information for the quick posting of MPI receives
     !
     SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
 
