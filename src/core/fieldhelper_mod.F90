@@ -5,6 +5,7 @@ MODULE fieldhelper_mod
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
     USE pointers_mod, ONLY: get_ipbb
     USE precision_mod, ONLY: realk, intk, ifk
+    USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -197,11 +198,17 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_push("set_field_arr_realk")
+#endif
             !$omp target teams loop
             DO i = 1, n
                 field%arr(i) = val
             END DO
             !$omp end target teams loop
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_pop()
+#endif
         ELSE
             field%arr = val
         END IF
@@ -226,11 +233,17 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_push("set_field_arr_ifk")
+#endif
             !$omp target teams loop
             DO i = 1, n
                 field%arr(i) = val
             END DO
             !$omp end target teams loop
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_pop()
+#endif
         ELSE
             field%arr = val
         END IF
