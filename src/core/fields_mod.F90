@@ -4,7 +4,6 @@ MODULE fields_mod
     USE err_mod, ONLY: errr
     USE fieldio2_mod, ONLY: fieldio_read, fieldio_write, init_fieldio, &
         finish_fieldio
-    USE fieldmapper_mod
     USE fort7_mod
     USE hdf5common_mod, ONLY: hdf5common_open, hdf5common_close, &
         hdf5common_group_open, hdf5common_group_close
@@ -65,7 +64,8 @@ CONTAINS
         DO i = 1, nfields
             CALL is_field_mapped(mapped, fields(i))
             IF (mapped) THEN
-                !$omp target exit data map(mapper(default), delete: fields(i))
+                !$omp target exit data map(delete: fields(i)%arr, &
+                !$omp& fields(i)%buffers)
             END IF
             CALL fields(i)%finish()
         END DO
@@ -219,7 +219,8 @@ CONTAINS
             map_device = .TRUE.
         END IF
         IF (map_device) THEN
-            !$omp target enter data map(mapper(default), to: fields(nfields))
+            !$omp target enter data map(to: fields(nfields)%arr, &
+            !$omp& fields(nfields)%buffers)
         END IF
     END SUBROUTINE set_field
 

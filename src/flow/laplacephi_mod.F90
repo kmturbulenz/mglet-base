@@ -17,12 +17,8 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: phi_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
         TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, gsap, bp_f
-        REAL(realk), POINTER, CONTIGUOUS :: phi(:, :, :), res(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: aw(:), ae(:), as(:), an(:), &
-            ab(:), at(:), ap(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
         CALL get_field(gsaw, "GSAW")
         CALL get_field(gsae, "GSAE")
@@ -35,34 +31,42 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
+        ASSOCIATE ( &
+            phi => phi_f%arr, &
+            res => res_f%arr, &
+            ap  => gsap%arr, &
+            aw  => gsaw%arr, &
+            ae  => gsae%arr, &
+            an  => gsan%arr, &
+            as  => gsas%arr, &
+            at  => gsat%arr, &
+            ab  => gsab%arr, &
+            bp  => bp_f%arr)
+
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi")
 #endif
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
-        !$omp& aw, ae, an, as, at, ab, ap, bp)
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ipx, &
+        !$omp& ipy, ipz)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL get_grid3_real(phi, phi_f, igrid)
-            CALL get_grid3_real(res, res_f, igrid)
-            CALL get_grid3_real(ap, gsap, igrid)
-            CALL get_grid3_real(bp, bp_f, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
-            CALL get_grid1_real(aw, gsaw, igrid)
-            CALL get_grid1_real(ae, gsae, igrid)
-            CALL get_grid1_real(as, gsas, igrid)
-            CALL get_grid1_real(an, gsan, igrid)
-            CALL get_grid1_real(ab, gsab, igrid)
-            CALL get_grid1_real(at, gsat, igrid)
-
-            CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
-                at, ab, ap, bp)
+            CALL laplacephi_grid(kk, jj, ii, res(ip3), phi(ip3), &
+                aw(ipx), ae(ipx), an(ipy), as(ipy), at(ipz), ab(ipz), &
+                ap(ip3), bp(ip3))
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
+
+        END ASSOCIATE
     END SUBROUTINE laplacephi
 
 
@@ -74,13 +78,9 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz
 
         TYPE(field_t), POINTER :: gsaw, gsae, gsas, gsan, gsab, gsat, gsap, bp_f
-        REAL(realk), POINTER, CONTIGUOUS :: phi(:, :, :), res(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: aw(:), ae(:), as(:), an(:), &
-            ab(:), at(:), ap(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: bp(:, :, :)
 
         CALL get_field(gsaw, "GSAW")
         CALL get_field(gsae, "GSAE")
@@ -93,34 +93,41 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
+        ASSOCIATE ( &
+            phi => phi_f%arr, &
+            res => res_f%arr, &
+            ap  => gsap%arr, &
+            aw  => gsaw%arr, &
+            ae  => gsae%arr, &
+            an  => gsan%arr, &
+            as  => gsas%arr, &
+            at  => gsat%arr, &
+            ab  => gsab%arr, &
+            bp  => bp_f%arr)
+
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi_level")
 #endif
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, phi, res, &
-        !$omp& aw, ae, an, as, at, ab, ap, bp)
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ipx, &
+        !$omp& ipy, ipz)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
 
-            CALL get_grid3_real(phi, phi_f, igrid)
-            CALL get_grid3_real(res, res_f, igrid)
-            CALL get_grid3_real(ap, gsap, igrid)
-            CALL get_grid3_real(bp, bp_f, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
-            CALL get_grid1_real(aw, gsaw, igrid)
-            CALL get_grid1_real(ae, gsae, igrid)
-            CALL get_grid1_real(as, gsas, igrid)
-            CALL get_grid1_real(an, gsan, igrid)
-            CALL get_grid1_real(ab, gsab, igrid)
-            CALL get_grid1_real(at, gsat, igrid)
-
-            CALL laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
-                at, ab, ap, bp)
+            CALL laplacephi_grid(kk, jj, ii, res(ip3), phi(ip3), &
+                aw(ipx), ae(ipx), an(ipy), as(ipy), at(ipz), ab(ipz), &
+                ap(ip3), bp(ip3))
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
+        END ASSOCIATE
     END SUBROUTINE laplacephi_level
 
 
