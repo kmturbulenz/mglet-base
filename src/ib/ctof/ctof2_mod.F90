@@ -38,7 +38,7 @@ MODULE ctof2_mod
 
     ! Array to store instructions for different values of "ilevel"
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:)
-    INTEGER(intk), PARAMETER :: mpitasksize = 4
+    INTEGER(intk), PARAMETER :: mpitasksize = 3
     INTEGER(intk), PARAMETER :: sendtasksize = 9
     INTEGER(intk), PARAMETER :: recvtasksize = 2
 
@@ -109,9 +109,11 @@ CONTAINS
             ALLOCATE(selftasks(1, 1))
             DEALLOCATE(selftasks)
 
-            CALL prepare_sendtasks(sendtasks, nsendtasks, ilevel)
+            CALL prepare_allsendtasks(sendtasks, nsendtasks, mpisendtasks, &
+                nmpisendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
-            CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
+
+            ! CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
 
             !$omp target enter data map(to: &
             !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
@@ -172,53 +174,54 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
-        INTEGER(intk) :: kk, jj, ii, impirtasks, idx_recvbuf
+        INTEGER(intk) :: i, igridf, iprocnbr
+        INTEGER(intk) :: kk, jj, ii, impirtasks, ncells
         INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
         recvcounter = 0
         messagelength = 0
         nrecv = 0
+        recvidxlist = -1
+        recvlist = 0
 
         ! Initialize the internal counter
         impirtasks = 0
 
-        DO i = 1, noflevel(ilevel)
-            igridf = igrdoflevel(i, ilevel)
-            igridc = iparent(igridf)
-            IF (igridc == 0) CYCLE
-
-            iprocc = idprocofgrd(igridc)
-            iprocf = idprocofgrd(igridf)
-
-            IF (myid == iprocf) THEN
-
-                IF (iprocf == iprocc) THEN
-                    ! This is a self-connection, no MPI communication is needed
-                    WRITE(*, *) "Self-connection on rank ", myid
-                END IF
-
-                nrecv = nrecv + 1
+        ! Iteration over all receive connections
+        DO i = 1, irecv
+            igridf = recvconns(3, i)
+            IF (ilevel == level(igridf)) THEN
+                iprocnbr = recvconns(2, i) ! The sender process (coarse side)
 
                 CALL get_mgdims(kk, jj, ii, igridf)
-                messagelength = kk*jj*ii/8
-                idx_recvbuf = recvcounter + 1
+                ncells = kk*jj*ii/8
 
-                IF (recvcounter + messagelength > SIZE(sendbuf)) THEN
+                ! Entering the information needed for unpacking
+                recvidxlist(1, i) = iprocnbr
+                recvidxlist(2, i) = ncells
+                recvidxlist(3, i) = recvcounter + messagelength
+                messagelength = messagelength + ncells
+
+                IF (recvcounter + messagelength > idim_mg_bufs) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
+            END IF
 
-                ! Adding new recevive task
-                impirtasks = impirtasks + 1
-                mpirtasks(1, impirtasks) = idx_recvbuf
-                mpirtasks(2, impirtasks) = messagelength
-                mpirtasks(3, impirtasks) = iprocc
-                mpirtasks(4, impirtasks) = igridf
+            IF (messagelength > 0) THEN
+                IF (i == irecv) THEN
+                    ! Adding a new MPI receive task (replaces "post_recv")
+                    impirtasks = impirtasks + 1
+                    CALL add_mpi_task(mpirtasks(:, impirtasks), iprocnbr, &
+                        messagelength, recvcounter)
 
-                recvgrids(nrecv) = igridf
-                recvpos(nrecv) = recvcounter + 1
-                recvcounter = recvcounter + messagelength
+                ELSE IF (recvconns(2, i + 1) /= iprocnbr) THEN
+                    ! Adding a new MPI receive task (replaces "post_recv")
+                    impirtasks = impirtasks + 1
+                    CALL add_mpi_task(mpirtasks(:, impirtasks), iprocnbr, &
+                        messagelength, recvcounter)
+
+                END IF
             END IF
         END DO
 
@@ -231,13 +234,42 @@ CONTAINS
     END SUBROUTINE prepare_mpirecvtasks
 
 
+
+    SUBROUTINE add_mpi_task(mpitasks, iprocnbr, messagelength, recvcounter)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize)
+
+        INTEGER(int32), INTENT(in) :: iprocnbr
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(inout) :: recvcounter
+
+        ! Local variables
+        ! none...
+
+        nrecv = nrecv + 1
+        recvlist(nrecv) = iprocnbr
+
+        ! CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+        !     mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
+
+        mpitasks(1) = recvcounter+1        ! = index for recvbuf
+        mpitasks(2) = messagelength        ! = length of message
+        mpitasks(3) = iprocnbr             ! = sender process
+
+        recvcounter = recvcounter + messagelength
+        messagelength = 0
+
+    END SUBROUTINE add_mpi_task
+
+
+
     SUBROUTINE process_mpirecvtasks(mpirtasks, nmpirtasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, nmpirtasks+1)
 
         ! Local variables
-        INTEGER(intk) :: i, idx_recvbuf, messagelength, iprocc, igridf
+        INTEGER(intk) :: i, offset, messagelength, iprocc
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpirecv")
@@ -246,15 +278,13 @@ CONTAINS
         !$omp target data use_device_addr(recvbuf)
         DO i = 1, nmpirtasks
 
-            idx_recvbuf = mpirtasks(1, i)
-
+            ! Getting connection information
+            offset = mpirtasks(1, i)
             messagelength = mpirtasks(2, i)
             iprocc = mpirtasks(3, i)
-            igridf = mpirtasks(4, i)
 
-            CALL MPI_Irecv(recvbuf(idx_recvbuf), messagelength, &
-                mglet_mpi_real, iprocc, igridf, MPI_COMM_WORLD, &
-                recvreqs(i))
+            CALL MPI_Irecv(recvbuf(offset), messagelength, mglet_mpi_real, &
+                iprocc, 1, MPI_COMM_WORLD, recvreqs(i))
         END DO
         !$omp end target data
 
@@ -274,16 +304,20 @@ CONTAINS
 
 
     ! Perform all Send-calls
-    SUBROUTINE prepare_mpisendtasks(mpistasks, nmpistasks, ilevel)
+    SUBROUTINE prepare_allsendtasks(stasks, nstasks, mpistasks, nmpistasks, &
+        ilevel)
+
         ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: stasks(sendtasksize, maxsize)
+        INTEGER(intk), INTENT(out) :: nstasks
+
         INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nmpistasks
+
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf
-        INTEGER(intk) :: kk, jj, ii, idx_sendbuf
-        INTEGER(intk) :: kkf, jjf, iif, impistasks
+        INTEGER(intk) :: i, igridf, iprocnbr, impistasks, istasks
         INTEGER(int32) :: sendcounter, messagelength
 
         ! Post all receive calls
@@ -292,52 +326,92 @@ CONTAINS
         nsend = 0
 
         ! Initialize the internal counter
+        istasks = 0
         impistasks = 0
 
-        DO i = 1, noflevel(ilevel)
-            igridf = igrdoflevel(i, ilevel)
-            igridc = iparent(igridf)
-            IF (igridc == 0) CYCLE
+        ! Iteration over all send connections
+        DO i = 1, isend
 
-            iprocc = idprocofgrd(igridc)
-            iprocf = idprocofgrd(igridf)
+            igridf = sendconns(3, i)
+            iprocnbr = sendconns(1, i)
 
-            IF (myid == iprocc) THEN
+            IF (ilevel == level(igridf)) THEN
 
-                IF (iprocf == iprocc) THEN
-                    ! This is a self-connection, no MPI communication is needed
-                    WRITE(*, *) "Self-connection on rank ", myid
-                END IF
+                ! Creating a new packing task (replaces "write_buffer")
+                istasks = istasks + 1
+                CALL add_sendtask(stasks(:, istasks), i, messagelength, &
+                    sendcounter)
 
-                nsend = nsend + 1
-
-                CALL get_mgdims(kk, jj, ii, igridc)
-                CALL get_mgdims(kkf, jjf, iif, igridf)
-                messagelength = kkf*jjf*iif/8
-                idx_sendbuf = sendcounter + 1
-
-                IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-
-                ! Adding new recevive task
-                impistasks = impistasks + 1
-                mpistasks(1, impistasks) = idx_sendbuf
-                mpistasks(2, impistasks) = messagelength
-                mpistasks(3, impistasks) = iprocf
-                mpistasks(4, impistasks) = igridf
-
-                sendcounter = sendcounter + messagelength
             END IF
+
+            IF (messagelength > 0) THEN
+                IF (i == isend) THEN
+                    ! Adding a new MPI send task (replaces "post_send")
+                    impistasks = impistasks + 1
+                    CALL add_mpi_task(mpistasks(:, impistasks), iprocnbr, &
+                        messagelength, sendcounter)
+
+                ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
+                    ! Adding a new MPI send task (replaces "post_send")
+                    impistasks = impistasks + 1
+                    CALL add_mpi_task(mpistasks(:, impistasks), iprocnbr, &
+                        messagelength, sendcounter)
+
+                END IF
+            END IF
+
         END DO
 
         ! Assign the number of tasks to the output variable
         nmpistasks = impistasks
+        nstasks = istasks
 
         ! Adding a dummy entry at position (end+1)
         mpistasks(:, nmpistasks+1) = -1
+        stasks(:, nstasks+1) = -1
 
-    END SUBROUTINE prepare_mpisendtasks
+    END SUBROUTINE prepare_allsendtasks
+
+
+
+        ! DO i = 1, noflevel(ilevel)
+        !     igridf = igrdoflevel(i, ilevel)
+        !     igridc = iparent(igridf)
+        !     IF (igridc == 0) CYCLE
+
+        !     iprocc = idprocofgrd(igridc)
+        !     iprocf = idprocofgrd(igridf)
+
+        !     IF (myid == iprocc) THEN
+
+        !         IF (iprocf == iprocc) THEN
+        !             ! This is a self-connection, no MPI communication is needed
+        !             WRITE(*, *) "Self-connection on rank ", myid
+        !         END IF
+
+        !         nsend = nsend + 1
+
+        !         CALL get_mgdims(kk, jj, ii, igridc)
+        !         CALL get_mgdims(kkf, jjf, iif, igridf)
+        !         messagelength = kkf*jjf*iif/8
+        !         idx_sendbuf = sendcounter + 1
+
+        !         IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
+        !             CALL errr(__FILE__, __LINE__)
+        !         END IF
+
+        !         ! Adding new recevive task
+        !         impistasks = impistasks + 1
+        !         mpistasks(1, impistasks) = idx_sendbuf
+        !         mpistasks(2, impistasks) = messagelength
+        !         mpistasks(3, impistasks) = iprocf
+        !         mpistasks(4, impistasks) = igridf
+
+        !         sendcounter = sendcounter + messagelength
+        !     END IF
+        ! END DO
+
+
 
 
     SUBROUTINE process_mpisendtasks(mpistasks, nmpistasks)
@@ -346,7 +420,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, nmpistasks+1)
 
         ! Local variables
-        INTEGER(intk) :: i, idx_sendbuf, messagelength, iprocf, igridf
+        INTEGER(intk) :: i, idx_sendbuf, messagelength, iprocf
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpisend")
@@ -356,13 +430,11 @@ CONTAINS
         DO i = 1, nmpistasks
 
             idx_sendbuf = mpistasks(1, i)
-
             messagelength = mpistasks(2, i)
             iprocf = mpistasks(3, i)
-            igridf = mpistasks(4, i)
 
             CALL MPI_Isend(sendbuf(idx_sendbuf), messagelength, &
-                mglet_mpi_real, iprocf, igridf, MPI_COMM_WORLD, &
+                mglet_mpi_real, iprocf, 1, MPI_COMM_WORLD, &
                 sendreqs(i))
         END DO
         !$omp end target data
@@ -384,117 +456,63 @@ CONTAINS
 
 
 
-    ! Prepare all tasks needed to prepare the buffers before sending
-    !
-    SUBROUTINE prepare_sendtasks(stasks, nstasks, ilevel)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stasks(:, :)
-        INTEGER(intk), INTENT(out) :: nstasks
-        INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
+    ! ! Prepare all tasks needed to prepare the buffers before sending
+    ! !
+    ! SUBROUTINE prepare_sendtasks(stasks, nstasks, ilevel)
+    !     ! Subroutine arguments
+    !     INTEGER(intk), INTENT(inout) :: stasks(:, :)
+    !     INTEGER(intk), INTENT(out) :: nstasks
+    !     INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
 
-        ! Local variables
-        INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, istasks
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: kkf, jjf, iif
-        INTEGER(int32) :: sendcounter, messagelength
+    !     ! Local variables
+    !     INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, istasks
+    !     INTEGER(intk) :: kk, jj, ii
+    !     INTEGER(intk) :: kkf, jjf, iif
+    !     INTEGER(int32) :: sendcounter, messagelength
 
-        ! Post all receive calls
-        sendcounter = 0
-        messagelength = 0
+    !     ! Post all receive calls
+    !     sendcounter = 0
+    !     messagelength = 0
 
-        ! Initialize the internal counter
-        istasks = 0
+    !     ! Initialize the internal counter
+    !     istasks = 0
 
-        DO i = 1, noflevel(ilevel)
-            igridf = igrdoflevel(i, ilevel)
-            igridc = iparent(igridf)
-            IF (igridc == 0) CYCLE
+    !     DO i = 1, noflevel(ilevel)
+    !         igridf = igrdoflevel(i, ilevel)
+    !         igridc = iparent(igridf)
+    !         IF (igridc == 0) CYCLE
 
-            iprocc = idprocofgrd(igridc)
-            iprocf = idprocofgrd(igridf)
+    !         iprocc = idprocofgrd(igridc)
+    !         iprocf = idprocofgrd(igridf)
 
-            IF (myid == iprocc) THEN
+    !         IF (myid == iprocc) THEN
 
-                CALL get_mgdims(kk, jj, ii, igridc)
-                CALL get_mgdims(kkf, jjf, iif, igridf)
-                messagelength = kkf*jjf*iif/8
+    !             CALL get_mgdims(kk, jj, ii, igridc)
+    !             CALL get_mgdims(kkf, jjf, iif, igridf)
+    !             messagelength = kkf*jjf*iif/8
 
-                IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
+    !             IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
+    !                 CALL errr(__FILE__, __LINE__)
+    !             END IF
 
-                ! Adding new send task (= writing to the buffer)
-                istasks = istasks + 1
+    !             ! Adding new send task (= writing to the buffer)
+    !             istasks = istasks + 1
 
-                CALL add_sendtask(stasks(:, istasks), sendcounter+1, &
-                    sendcounter+messagelength, igridc, igridf)
+    !             CALL add_sendtask(stasks(:, istasks), i, messagelength, &
+    !                 sendcounter)
 
-                sendcounter = sendcounter + messagelength
-            END IF
-        END DO
+    !             sendcounter = sendcounter + messagelength
+    !         END IF
+    !     END DO
 
-        ! Assign the number of tasks to the output variable
-        nstasks = istasks
+    !     ! Assign the number of tasks to the output variable
+    !     nstasks = istasks
 
-        ! Adding a dummy entry at position (end+1)
-        stasks(:, nstasks+1) = -1
+    !     ! Adding a dummy entry at position (end+1)
+    !     stasks(:, nstasks+1) = -1
 
-    END SUBROUTINE prepare_sendtasks
+    ! END SUBROUTINE prepare_sendtasks
 
-    SUBROUTINE add_sendtask(stask, idx_sendbuf_start, idx_sendbuf_stop, &
-            igridc, igridf)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stask(sendtasksize)
-        INTEGER(intk), INTENT(in) :: idx_sendbuf_start, idx_sendbuf_stop, &
-            igridc, igridf
-
-        ! Local variables
-        INTEGER(intk) :: kkf, jjf, iif, counter
-        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
-
-        ! Compute start- and end-positions in coarse grid
-        ista = iposition(igridf) - 1
-        jsta = jposition(igridf) - 1
-        ksta = kposition(igridf) - 1
-
-        CALL get_mgdims(kkf, jjf, iif, igridf)
-        isto = ista + (iif - 4)/2 + 1
-        jsto = jsta + (jjf - 4)/2 + 1
-        ksto = ksta + (kkf - 4)/2 + 1
-
-        ! Sanity checks
-        counter = (isto- ista + 1) * (jsto - jsta + 1) * (ksto - ksta + 1)
-        IF (counter /= kkf*jjf*iif/8) THEN
-            WRITE(*, *) "counter = ", counter
-            WRITE(*, *) "kkf = ", kkf
-            WRITE(*, *) "jjf = ", jjf
-            WRITE(*, *) "iif = ", iif
-            WRITE(*, *) "ksta = ", ksta
-            WRITE(*, *) "jsta = ", jsta
-            WRITE(*, *) "ista = ", ista
-            WRITE(*, *) "ksto = ", ksto
-            WRITE(*, *) "jsto = ", jsto
-            WRITE(*, *) "isto = ", isto
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        IF (counter /= idx_sendbuf_stop - idx_sendbuf_start + 1) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Writing the task
-        stask(1) = ista
-        stask(2) = jsta
-        stask(3) = ksta
-        stask(4) = isto
-        stask(5) = jsto
-        stask(6) = ksto
-        stask(7) = igridc
-        stask(8) = idx_sendbuf_start
-        stask(9) = idx_sendbuf_stop
-
-    END SUBROUTINE add_sendtask
 
 
     SUBROUTINE process_sendtasks(stasks, nstasks)
@@ -582,36 +600,135 @@ CONTAINS
     END SUBROUTINE write_buffer
 
 
+    SUBROUTINE add_sendtask(stask, sendid, messagelength, sendcounter)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(inout) :: stask(sendtasksize)
+        INTEGER(int32), INTENT(in) :: sendid
+        INTEGER(int32), INTENT(inout) :: messagelength
+        INTEGER(int32), INTENT(in) :: sendcounter
+
+        ! Local variables
+        INTEGER(intk) :: kkf, jjf, iif
+        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
+        INTEGER(intk) :: igridc, igridf
+        INTEGER(int32) :: thismessagelength, offset
+
+        igridf = sendconns(3, sendid)
+        igridc = sendconns(4, sendid)
+
+        ! Compute start- and end-positions in coarse grid
+        ista = iposition(igridf) - 1
+        jsta = jposition(igridf) - 1
+        ksta = kposition(igridf) - 1
+
+        CALL get_mgdims(kkf, jjf, iif, igridf)
+        isto = ista + (iif - 4)/2 + 1
+        jsto = jsta + (jjf - 4)/2 + 1
+        ksto = ksta + (kkf - 4)/2 + 1
+
+        thismessagelength = (isto-ista+1)*(jsto-jsta+1)*(ksto-ksta+1)
+
+        IF (sendcounter + messagelength + thismessagelength > idim_mg_bufs) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        offset = sendcounter + messagelength + 1
+
+        ! Writing the task
+        stask(1) = ista
+        stask(2) = jsta
+        stask(3) = ksta
+        stask(4) = isto
+        stask(5) = jsto
+        stask(6) = ksto
+        stask(7) = igridc
+        stask(8) = offset
+        stask(9) = offset + thismessagelength - 1
+
+        messagelength = messagelength + thismessagelength
+
+    END SUBROUTINE add_sendtask
+
+
+    ! SUBROUTINE pack_single(buf, fcptr, ista, isto, jsta, jsto, ksta, ksto, &
+    !         counter)
+    !     ! Subroutine arguments
+    !     REAL(realk), INTENT(inout), CONTIGUOUS :: buf(:)
+    !     REAL(realk), INTENT(in), CONTIGUOUS :: fcptr(:, :, :)
+    !     INTEGER(intk), INTENT(in) :: ista, isto, jsta, jsto, ksta, ksto
+    !     INTEGER(int32), INTENT(out) :: counter
+
+    !     ! Local variables
+    !     INTEGER(intk) :: i, j, k
+
+    !     counter = 0
+    !     DO i = ista, isto
+    !         DO j = jsta, jsto
+    !             DO k = ksta, ksto
+    !                 counter = counter + 1
+    !                 buf(counter) = fcptr(k, j, i)
+    !             END DO
+    !         END DO
+    !     END DO
+    ! END SUBROUTINE pack_single
+
+
     SUBROUTINE prepare_recvtasks(rtasks, nrtasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: rtasks(:, :)
         INTEGER(intk), INTENT(out) :: nrtasks
 
         ! Local variables
-        INTEGER(int32) :: idx
-        INTEGER(intk) :: irtasks, igridf, idx_recvbuf
+        TYPE(MPI_Status) :: recvstatus
+        INTEGER(intk) :: i, igridf, offset
+        INTEGER(int32) :: idx, recvmessagelen, unpacklen, irtasks
 
         ! Initialize the internal counter
         irtasks = 0
 
-        IF (nrecv > 0) THEN
-            DO WHILE (.TRUE.)
-                CALL MPI_Waitany(nrecv, recvreqs, idx, MPI_STATUS_IGNORE)
+        DO WHILE (.TRUE.)
 
-                IF (idx /= MPI_UNDEFINED) THEN
+            IF (nrecv == 0) EXIT
+            CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
 
-                    ! Adding new recevive task
-                    irtasks = irtasks + 1
-                    igridf = recvgrids(idx)
-                    idx_recvbuf = recvpos(idx)
+            IF (idx /= MPI_UNDEFINED) THEN
+                ! The index "idx" is returned and can be used to identify the
+                ! connection as recvlist(nrecv) = iprocnbr
 
-                    CALL add_recvtask(rtasks(:, irtasks), igridf, idx_recvbuf)
-                ELSE
-                    EXIT
+                unpacklen = 0
+
+                ! Check which non-zero packages belong to this sender and unpack
+                DO i = 1, irecv
+                    IF (recvidxlist(1, i) == recvlist(idx) &
+                            .AND. recvidxlist(2, i) > 0) THEN
+
+                        ! Looking up information for recvid = i
+                        igridf = recvconns(3, i)
+                        offset = recvidxlist(3, i) + 1
+
+                        ! Adding new recevive task
+                        ! (= storing fine grid and offset in recv buffer)
+                        irtasks = irtasks + 1
+                        rtasks(1, irtasks) = igridf
+                        rtasks(2, irtasks) = offset
+
+                        unpacklen = unpacklen + recvidxlist(2, i)
+                    END IF
+                END DO
+
+                ! Ensure that the complete message has been unpacked
+                CALL MPI_Get_count(recvstatus, mglet_mpi_real, recvmessagelen)
+                IF (recvmessagelen /= unpacklen) THEN
+                    CALL errr(__FILE__, __LINE__)
                 END IF
-            END DO
-        END IF
 
+            ELSE
+                ! If idx = MPI_UNDEFINED, then all requests are complete
+                EXIT
+            END IF
+        END DO
+
+        ! Make sure that also all non-blocking sends have completed
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
 
         ! Assigning the total count
@@ -621,25 +738,6 @@ CONTAINS
         rtasks(:, nrtasks+1) = -1
 
     END SUBROUTINE prepare_recvtasks
-
-
-    SUBROUTINE add_recvtask(rtask, igridf, idx_recvbuf)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtask(2)
-        INTEGER(intk), INTENT(in) :: igridf
-        INTEGER(intk), INTENT(in) :: idx_recvbuf
-
-        ! Local variables
-        INTEGER(intk) :: kk, jj, ii
-
-        CALL get_mgdims(kk, jj, ii, igridf)
-
-        ! Writing the task
-        rtask(1) = igridf
-        rtask(2) = idx_recvbuf
-
-    END SUBROUTINE add_recvtask
 
 
 
