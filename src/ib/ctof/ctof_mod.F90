@@ -49,7 +49,7 @@ CONTAINS
             CALL ctof2(ilevel, ff_f, fc_f)
         ELSE
             ! Use the CPU version
-            CALL ctof1(ilevel, ff_f, fc_f)
+            CALL ctof1(ilevel, ff_f, fc_f)     ! cahgne back!
         END IF
 
     END SUBROUTINE ctof

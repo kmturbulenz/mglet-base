@@ -218,7 +218,7 @@ CONTAINS
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
                 CALL map_arr_to_device(hilf, message="to:hilf%arr")
-                CALL ctof(ilevel, hilf, hilf)
+                CALL ctof(ilevel, hilf, hilf, device=.TRUE.)
                 CALL map_arr_from_device(hilf, message="from:hilf%arr")
 
                 CALL parent(ilevel, s1=hilf)
