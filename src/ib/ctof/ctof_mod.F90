@@ -30,6 +30,12 @@ CONTAINS
 
 
     SUBROUTINE init_ctof()
+
+        CALL set_timer(230, "CTOF")
+        CALL set_timer(231, "CTOF_BEGIN")
+        CALL set_timer(232, "CTOF_END")
+        CALL set_timer(235, "CTOF_PROLONG_FINISH")
+
 #ifdef _MGLET_OFFLOAD_
         CALL init_ctof2()
 #else

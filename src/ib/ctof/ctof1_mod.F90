@@ -20,10 +20,6 @@ MODULE ctof1_mod
     ! have been created
     LOGICAL :: is_init = .FALSE.
 
-    ! Maximum allowed number of childs per parent (i.e. maximum number of
-    ! send-conenctions per grid)
-    INTEGER(intk), PARAMETER :: maxchilds = 8
-
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
 
@@ -32,9 +28,6 @@ MODULE ctof1_mod
     INTEGER(intk) :: nsend, nrecv
     INTEGER(int32), ALLOCATABLE :: recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
-
-    ! ! List of grids to receive data on
-    ! INTEGER(intk), ALLOCATABLE :: recvgrids(:), recvpos(:)
 
     PUBLIC :: ctof1, init_ctof1, finish_ctof1
 
@@ -50,7 +43,6 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: ff
         TYPE(field_t), INTENT(in) :: fc
 
-        CALL start_timer(231)
         IF (.NOT. is_init) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -82,7 +74,7 @@ CONTAINS
         messagelength = 0
         nrecv = 0
         recvidxlist = -1
-        recvlist = -1
+        recvlist = 0
 
         ! - 1: Rank of sending process
         ! - 2: Rank of receiving process
@@ -184,7 +176,7 @@ CONTAINS
                 IF (i == isend) THEN
                     ! Posting at final send connection
                     CALL post_send(iprocnbr, messagelength, sendcounter)
-                ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
+                ELSE IF (sendconns(2, i + 1) /= iprocnbr) THEN
                     ! Posting at final send connection to this receiver
                     CALL post_send(iprocnbr, messagelength, sendcounter)
                 END IF
@@ -360,7 +352,8 @@ CONTAINS
         REAL(realk), POINTER, CONTIGUOUS :: ffptr(:, :, :)
         INTEGER(intk) :: igridf, kk, jj, ii, offset, thismessagelength
 
-        igridf = recvconns(3, recvid)
+        ! - 4: ID of receiving grid (fine grid)
+        igridf = recvconns(4, recvid)
         offset = recvidxlist(3, recvid) + 1
 
         CALL ff%get_ptr(ffptr, igridf)
@@ -402,138 +395,6 @@ CONTAINS
     END SUBROUTINE unpack_single
 
 
-    ! SUBROUTINE pack_send(buf, kk, jj, ii, fc, igridc, igridf)
-    !     ! Subroutine arguments
-    !     REAL(realk), INTENT(inout) :: buf(:)
-    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
-    !     REAL(realk), INTENT(in) :: fc(kk, jj, ii)
-    !     INTEGER(intk), INTENT(in) :: igridc
-    !     INTEGER(intk), INTENT(in) :: igridf
-
-    !     ! Local variables
-    !     INTEGER(intk) :: i, j, k
-    !     INTEGER(intk) :: kkf, jjf, iif
-    !     INTEGER(intk) :: counter
-    !     INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto
-
-    !     ! Compute start- and end-positions in coarse grid
-    !     ista = iposition(igridf) - 1
-    !     jsta = jposition(igridf) - 1
-    !     ksta = kposition(igridf) - 1
-
-    !     CALL get_mgdims(kkf, jjf, iif, igridf)
-    !     isto = ista + (iif - 4)/2 + 1
-    !     jsto = jsta + (jjf - 4)/2 + 1
-    !     ksto = ksta + (kkf - 4)/2 + 1
-
-    !     ! Pack buffer
-    !     counter = 0
-    !     DO i = ista, isto
-    !         DO j = jsta, jsto
-    !             DO k = ksta, ksto
-    !                 counter = counter + 1
-    !                 buf(counter) = fc(k, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-
-    !     ! Sanity checks
-    !     IF (counter /= kkf*jjf*iif/8) THEN
-    !         WRITE(*, *) "counter = ", counter
-    !         WRITE(*, *) "kkf = ", kkf
-    !         WRITE(*, *) "jjf = ", jjf
-    !         WRITE(*, *) "iif = ", iif
-    !         WRITE(*, *) "ksta = ", ksta
-    !         WRITE(*, *) "jsta = ", jsta
-    !         WRITE(*, *) "ista = ", ista
-    !         WRITE(*, *) "ksto = ", ksto
-    !         WRITE(*, *) "jsto = ", jsto
-    !         WRITE(*, *) "isto = ", isto
-    !         CALL errr(__FILE__, __LINE__)
-    !     END IF
-    !     IF (counter /= SIZE(buf)) THEN
-    !         CALL errr(__FILE__, __LINE__)
-    !     END IF
-    ! END SUBROUTINE pack_send
-
-
-    ! ! Finish prolongation
-    ! !
-    ! ! Wait for communication to finish and clean up
-    ! SUBROUTINE ctof_end(ff)
-    !     ! Subroutine arguments
-    !     REAL(realk), INTENT(inout) :: ff(:)
-
-    !     ! Local variables
-    !     INTEGER(int32) :: idx
-
-    !     CALL start_timer(232)
-
-    !     IF (.NOT. in_progress) THEN
-    !         CALL errr(__FILE__, __LINE__)
-    !     END IF
-
-    !     IF (nrecv > 0) THEN
-    !         DO WHILE (.TRUE.)
-    !             CALL MPI_Waitany(nrecv, recvreqs, idx, MPI_STATUS_IGNORE)
-
-    !             IF (idx /= MPI_UNDEFINED) THEN
-    !                 CALL start_timer(235)
-    !                 CALL prolong_finish(ff, recvgrids(idx), recvpos(idx))
-    !                 CALL stop_timer(235)
-    !             ELSE
-    !                 EXIT
-    !             END IF
-    !         END DO
-    !     END IF
-
-    !     CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
-    !     in_progress = .FALSE.
-
-    !     CALL stop_timer(232)
-    ! END SUBROUTINE ctof_end
-
-
-    ! ! Finish prolongation, i.e. distribute the data on the grid
-    ! SUBROUTINE prolong_finish(ff, igridf, pos)
-    !     ! Subroutine arguments
-    !     REAL(realk), INTENT(inout), TARGET :: ff(:)
-    !     INTEGER(intk), INTENT(in) :: igridf
-    !     INTEGER(intk), INTENT(in) :: pos
-
-    !     ! Local variables
-    !     INTEGER(intk) :: ip3
-    !     INTEGER(intk) :: k, j, i, kc, jc, ic
-    !     INTEGER(intk) :: kk, jj, ii, kkc, jjc, iic
-    !     REAL(realk), POINTER :: fc(:, :, :)
-    !     REAL(realk), POINTER :: fff(:, :, :)
-
-    !     CALL get_ip3(ip3, igridf)
-    !     CALL get_mgdims(kk, jj, ii, igridf)
-    !     fff(1:kk, 1:jj, 1:ii) => ff(ip3:ip3 + kk*jj*ii - 1)
-
-    !     ! We map the recvbuf to a 3-D field to make lookup easier
-    !     ! (remember that only 2..kkc-1 are send - so kkc here is not
-    !     ! really the same as kk for the coarse grid)
-    !     kkc = kk/2
-    !     jjc = jj/2
-    !     iic = ii/2
-    !     fc(1:kkc, 1:jjc, 1:iic) => recvbuf(pos:pos + kkc*jjc*iic - 1)
-
-    !     DO i = 1, ii
-    !         DO j = 1, jj
-    !             DO k = 1, kk
-    !                 ic = (i-1)/2 + 1
-    !                 jc = (j-1)/2 + 1
-    !                 kc = (k-1)/2 + 1
-    !                 fff(k, j, i) = fc(kc, jc, ic)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE prolong_finish
-
-
     ! Initialize arrays and data types
     SUBROUTINE init_ctof1()
 
@@ -546,11 +407,6 @@ CONTAINS
 
         ! Avoiding repeated initialization
         IF (is_init) CALL errr(__FILE__, __LINE__)
-
-        CALL set_timer(230, "CTOF")
-        CALL set_timer(231, "CTOF_BEGIN")
-        CALL set_timer(232, "CTOF_END")
-        CALL set_timer(235, "CTOF_PROLONG_FINISH")
 
         ! Setting up the infrastructure for bundling of messages
         maxconns = nmygrids
