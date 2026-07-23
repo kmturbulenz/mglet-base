@@ -79,6 +79,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
             END IF
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_push("ctof")
+#endif
+
             ! Obtaining numbers of tasks from the workpackage
             nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
             nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
@@ -96,6 +100,10 @@ CONTAINS
             CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
             CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
             CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_pop()
+#endif
 
         ELSE
 
@@ -457,6 +465,10 @@ CONTAINS
         INTEGER(intk) :: iif, jjf, kkf, iic, jjc, kkc
         INTEGER(intk) :: igridc, igridf, ip3c, ip3f
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_selftasks")
+#endif
+
         ASSOCIATE(fc => fc%arr, ff => ff%arr)
 
         !$omp target teams distribute private(itask, igridf, igridc, &
@@ -486,6 +498,10 @@ CONTAINS
         !$omp end target teams distribute
 
         END ASSOCIATE
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
 
         ! Checking for the dummy entry at position (end+1)
         IF (selftasks(1, nselftasks+1) /= -1) THEN
