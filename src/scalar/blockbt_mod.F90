@@ -49,7 +49,7 @@ CONTAINS
         ! allows a scalar flux
         DO ilevel = minlevel, maxlevel
             hilf_f%arr = -1.0
-            CALL ctof(ilevel, hilf_f%arr, bt_f%arr)
+            CALL ctof(ilevel, hilf_f, bt_f)
 
             DO i = 1, nmygridslvl(ilevel)
                 igrid = mygridslvl(i, ilevel)

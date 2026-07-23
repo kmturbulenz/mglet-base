@@ -217,7 +217,7 @@ CONTAINS
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
-                CALL ctof(ilevel, hilf%arr, hilf%arr)
+                CALL ctof(ilevel, hilf, hilf)
                 CALL parent(ilevel, s1=hilf)
 
                 ! TODO(offload): Remove once surrounding subroutines offloaded
