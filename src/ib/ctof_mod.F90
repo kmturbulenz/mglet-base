@@ -1,4 +1,5 @@
 MODULE ctof_mod
+
     USE core_mod
     USE MPI_f08
 
@@ -27,7 +28,9 @@ MODULE ctof_mod
     LOGICAL :: is_init = .FALSE.
 
     PUBLIC :: ctof, init_ctof, finish_ctof
+
 CONTAINS
+
     SUBROUTINE ctof(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
@@ -41,8 +44,13 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
+        ! Posting non-blocking receives and preparing lists for unpacking
         CALL recv_all(ilevel)
+
+        ! Packing data into send buffer and posting non-blocking sends
         CALL send_all(ilevel, fc)
+
+        ! Querying MPI for completed receives and unpacking the recv buffer
         CALL process_bufs(ff)
 
         CALL stop_timer(230)
@@ -54,16 +62,17 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
-        INTEGER(intk) :: i, iprocnbr, igridf, kk, jj, ii
-        INTEGER(int32) :: recvcounter, messagelength, ncells
+        INTEGER(intk) :: kk, jj, ii, ncells, i, iprocnbr, igridf
+        INTEGER(int32) :: recvcounter, messagelength
 
         ! Post all receive calls
         recvcounter = 0
         messagelength = 0
         nrecv = 0
-        recvidxlist = -HUGE(1_intk)
+        recvidxlist = -1
         recvlist = 0
 
+        ! Iteration over all receive connections
         DO i = 1, irecv
             igridf = recvconns(3, i)
             IF (ilevel == level(igridf)) THEN
@@ -72,6 +81,7 @@ CONTAINS
                 CALL get_mgdims(kk, jj, ii, igridf)
                 ncells = kk*jj*ii/8
 
+                ! Entering the information needed for unpacking
                 recvidxlist(1, i) = iprocnbr
                 recvidxlist(2, i) = ncells
                 recvidxlist(3, i) = recvcounter + messagelength
@@ -84,8 +94,10 @@ CONTAINS
 
             IF (messagelength > 0) THEN
                 IF (i == irecv) THEN
+                    ! Posting at final receive connection
                     CALL post_recv(iprocnbr, messagelength, recvcounter)
                 ELSE IF (recvconns(2, i + 1) /= iprocnbr) THEN
+                    ! Posting at final receive connections from current sender
                     CALL post_recv(iprocnbr, messagelength, recvcounter)
                 END IF
             END IF
@@ -104,11 +116,13 @@ CONTAINS
 
         nrecv = nrecv + 1
         recvlist(nrecv) = iprocnbr
+
         CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
 
         recvcounter = recvcounter + messagelength
         messagelength = 0
+
     END SUBROUTINE post_recv
 
 
@@ -126,20 +140,25 @@ CONTAINS
         messagelength = 0
         nsend = 0
 
+        ! Iteration over all send connections
         DO i = 1, isend
             igridf = sendconns(3, i)
             iprocnbr = sendconns(1, i)
             IF (ilevel == level(igridf)) THEN
+                ! Extract data from the coarse grid and compact it into buffer
                 CALL write_buffer(i, messagelength, sendcounter, fc)
             END IF
 
             IF (messagelength > 0) THEN
                 IF (i == isend) THEN
+                    ! Posting at final send connection
                     CALL post_send(iprocnbr, messagelength, sendcounter)
                 ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
+                    ! Posting at final send connection to this receiver
                     CALL post_send(iprocnbr, messagelength, sendcounter)
                 END IF
             END IF
+
         END DO
     END SUBROUTINE send_all
 
@@ -242,13 +261,17 @@ CONTAINS
         INTEGER(int32) :: idx, recvmessagelen, unpacklen
 
         DO WHILE (.TRUE.)
+
             IF (nrecv == 0) EXIT
             CALL MPI_Waitany(nrecv, recvreqs, idx, recvstatus)
 
             IF (idx /= MPI_UNDEFINED) THEN
-                CALL MPI_Get_count(recvstatus, mglet_mpi_real, recvmessagelen)
+                ! The index "idx" is returned and can be used to identify the
+                ! connection as recvlist(nrecv) = iprocnbr
 
                 unpacklen = 0
+
+                ! Check which non-zero packages belong to this sender and unpack
                 DO i = 1, irecv
                     IF (recvidxlist(1, i) == recvlist(idx) &
                             .AND. recvidxlist(2, i) > 0) THEN
@@ -257,15 +280,21 @@ CONTAINS
                     END IF
                 END DO
 
+                ! Ensure that the complete message has been unpacked
+                CALL MPI_Get_count(recvstatus, mglet_mpi_real, recvmessagelen)
                 IF (recvmessagelen /= unpacklen) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
+
             ELSE
+                ! If idx = MPI_UNDEFINED, then all requests are complete
                 EXIT
             END IF
         END DO
 
+        ! Make sure that also all non-blocking sends have completed
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+
     END SUBROUTINE process_bufs
 
 
@@ -327,6 +356,7 @@ CONTAINS
         INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
         INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
         INTEGER(intk), PARAMETER :: ncols = 4
+        INTEGER(intk), ALLOCATABLE :: recvtmp(:, :)
 
         CALL set_timer(230, "CTOF")
 
@@ -336,19 +366,23 @@ CONTAINS
         maxconns = nmygrids
         ALLOCATE(recvconns(ncols, maxconns))
 
-        ALLOCATE(recvcounts(0:numprocs-1), source=0_intk)
-        ALLOCATE(rdispls(0:numprocs-1), source=0_intk)
-        ALLOCATE(sendcounts(0:numprocs-1), source=0_intk)
-        ALLOCATE(sdispls(0:numprocs-1), source=0_intk)
+        ALLOCATE(recvcounts(0:numprocs-1), source=0_int32)
+        ALLOCATE(rdispls(0:numprocs-1), source=0_int32)
+        ALLOCATE(sendcounts(0:numprocs-1), source=0_int32)
+        ALLOCATE(sdispls(0:numprocs-1), source=0_int32)
 
         nrecv = 0
         DO i = 1, nmygrids
+
+            ! Obtaining the grid ID of the fine grid and its parent
             igrid = mygrids(i)
             ipar = iparent(igrid)
             IF (ipar == 0) CYCLE
 
+            ! Obtaining the process ID of the coarse parent grid
             iprocc = idprocofgrd(ipar)
 
+            ! Adding a receive connection
             nrecv = nrecv + 1
             IF (nrecv > maxconns) THEN
                 CALL errr(__FILE__, __LINE__)
@@ -359,6 +393,7 @@ CONTAINS
             recvconns(3, nrecv) = igrid
             recvconns(4, nrecv) = ipar
 
+            ! Storing information used later in the context of AllToAll
             recvcounts(iprocc) = recvcounts(iprocc) + ncols
         END DO
         irecv = nrecv
@@ -376,7 +411,7 @@ CONTAINS
         CALL MPI_Alltoall(recvcounts, 1, MPI_INTEGER, sendcounts, 1, &
             MPI_INTEGER, MPI_COMM_WORLD)
 
-        ! Calculate sdispl offset
+        ! Array sendcounts is now filled and offsets can be computed
         DO i = 1, numprocs-1
             sdispls(i) = sdispls(i-1) + sendcounts(i-1)
         END DO
@@ -389,19 +424,40 @@ CONTAINS
         CALL MPI_Alltoallv(recvconns, recvcounts, rdispls, MPI_INTEGER, &
             sendconns, sendcounts, sdispls, MPI_INTEGER, MPI_COMM_WORLD)
 
-        DEALLOCATE(sdispls)
-        DEALLOCATE(sendcounts)
+        ! Both recvconns and sendconns should be fully populated and ordered
+        DO i = 1, isend-1
+            IF (sendconns(1, i) > sendconns(1, i+1)) THEN
+                WRITE(*, *) "Sendconns not sorted by receiving rank"
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END DO
+
+        DO i = 1, irecv-1
+            IF (recvconns(2, i) > recvconns(2, i+1)) THEN
+                WRITE(*, *) "Recvconns not sorted by sending rank"
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        END DO
+
+        ! Deallocate arrays which were only needed to operate MPI_Alltoallv
         DEALLOCATE(rdispls)
         DEALLOCATE(recvcounts)
+        DEALLOCATE(sdispls)
+        DEALLOCATE(sendcounts)
 
-        ALLOCATE(sendreqs(numprocs))
-        ALLOCATE(recvreqs(numprocs))
+        ALLOCATE(sendreqs(isend))
+        ALLOCATE(recvreqs(irecv))
         ALLOCATE(recvlist(irecv))
         ALLOCATE(recvidxlist(3, irecv))
 
-        is_init = .TRUE.
+        ! Reallocating recvconns to the actual size
+        ALLOCATE(recvtmp(ncols, irecv), SOURCE=recvconns(:, 1:irecv))
+        CALL move_alloc(recvtmp, recvconns)
+
         nrecv = 0
         nsend = 0
+        is_init = .TRUE.
+
     END SUBROUTINE init_ctof
 
 
@@ -412,11 +468,14 @@ CONTAINS
         isend = 0
         irecv = 0
 
+        ! Deallocation of infrastructure arrays
         DEALLOCATE(sendconns)
         DEALLOCATE(recvconns)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
+
     END SUBROUTINE finish_ctof
+
 END MODULE ctof_mod
