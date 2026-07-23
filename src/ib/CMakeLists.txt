@@ -40,7 +40,10 @@ add_library(ib STATIC
     noib_mod.F90
     noib_restrict_mod.F90
     openbubvbw_mod.F90
-    parent_mod.F90
+    parent/parent_mod.F90
+    parent/parent1_mod.F90
+    parent/parent2_mod.F90
+    parent/parent_core_mod.F90
     par_ftoc_mod.F90
     punktekoordinaten_mod.F90
     stencils_mod.F90
