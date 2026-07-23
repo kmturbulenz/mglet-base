@@ -1,32 +1,22 @@
 MODULE ctof2_mod
 
     USE core_mod
+    USE ctof_core_mod
     USE MPI_f08
 
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    ! Variable to indicate if the required data structures and MPI-types
-    ! have been created
-    LOGICAL :: is_init = .FALSE.
-
-    ! If .TRUE., a prolongation is already in process and you cannot start
-    ! another one
-    LOGICAL :: in_progress = .FALSE.
-
-    ! Maximum allowed number of childs per parent (i.e. maximum number of
-    ! send-conenctions per grid)
-    INTEGER(intk), PARAMETER :: maxchilds = 8
-
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
 
-    ! Actual number of messages that are to be sendt and received in one
-    ! "round" of operations
+    ! Lists that hold the messages that are ACTUALLY sent and received
     INTEGER(intk) :: nsend, nrecv
+    INTEGER(int32), ALLOCATABLE :: recvlist(:)
+    INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
-    ! List of grids to receive data on
-    INTEGER(intk), ALLOCATABLE :: recvgrids(:), recvpos(:)
+    ! Variable to indicate if the required data structures have been created
+    LOGICAL :: is_init = .FALSE.
 
     ! Indicator for the recoding mode
     LOGICAL :: is_recording = .FALSE.
@@ -740,52 +730,35 @@ CONTAINS
     SUBROUTINE init_ctof2()
 
         ! Local variables
-        INTEGER(intk) :: igrid, iprocc, ipar, ilevel
+        INTEGER(intk) :: ilevel
         TYPE(field_t) :: dummy
 
-        CALL set_timer(230, "CTOF")
-        CALL set_timer(231, "CTOF_BEGIN")
-        CALL set_timer(232, "CTOF_END")
-        CALL set_timer(235, "CTOF_PROLONG_FINISH")
-
-        IF (.NOT. is_init) THEN
-            ALLOCATE(sendreqs(nmygrids*maxchilds))
-            ALLOCATE(recvreqs(nmygrids))
-            ALLOCATE(recvgrids(nmygrids))
-            ALLOCATE(recvpos(nmygrids))
+        ! Check if ctof_core_mod necessary provides infrastructure
+        IF (.NOT. has_infrastructure) THEN
+            CALL errr(__FILE__, __LINE__)
         END IF
+
+        ! Local variables
+        ALLOCATE(sendreqs(isend))
+        ALLOCATE(recvreqs(irecv))
+        ALLOCATE(recvlist(irecv))
+        ALLOCATE(recvidxlist(3, irecv))
 
         nrecv = 0
         nsend = 0
-
-        DO igrid = 1, ngrid
-            ipar = iparent(igrid)
-            IF (ipar /= 0) THEN
-                iprocc = idprocofgrd(ipar)
-                IF (myid == iprocc) THEN
-                    nsend = nsend + 1
-                    IF (nsend > nmygrids*maxchilds) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-                END IF
-            END IF
-        END DO
-
         is_init = .TRUE.
-        in_progress = .FALSE.
 
         ! Allocate the workrecords array for all possible ilevels
         ALLOCATE(workrecords(minlevel:maxlevel))
+
         CALL dummy%init("DUMMY")
 
         ! Recording operations for all levels
-        WRITE(*, *) "Starting to record prolongation operations for all levels"
         is_recording = .TRUE.
         DO ilevel = minlevel, maxlevel
             CALL ctof2(ilevel, dummy, dummy)
         END DO
         is_recording = .FALSE.
-        WRITE(*, *) "Finished recording prolongation operations for all levels"
 
         CALL dummy%finish()
 
@@ -796,7 +769,7 @@ CONTAINS
     SUBROUTINE finish_ctof2()
         INTEGER(intk) :: ilevel
 
-        IF (is_init .NEQV. .TRUE.) THEN
+        IF (.NOT. is_init) THEN
             RETURN
         END IF
 
@@ -804,8 +777,8 @@ CONTAINS
 
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
-        DEALLOCATE(recvgrids)
-        DEALLOCATE(recvpos)
+        DEALLOCATE(recvlist)
+        DEALLOCATE(recvidxlist)
 
         ! Deallocate the workpackage components for each level
         DO ilevel = minlevel, maxlevel

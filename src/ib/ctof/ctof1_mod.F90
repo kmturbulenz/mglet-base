@@ -363,7 +363,6 @@ CONTAINS
 
     SUBROUTINE finish_ctof1()
 
-        ! Deallocation of infrastructure arrays
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvlist)
