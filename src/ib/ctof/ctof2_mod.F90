@@ -164,7 +164,8 @@ CONTAINS
 
             !$omp target enter data map(to: &
             !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
-            !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1))
+            !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1), &
+            !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
 
             wptr%is_init = .TRUE.
 
@@ -298,7 +299,6 @@ CONTAINS
             messagelength = mpirtasks(2, i)
             iprocc = mpirtasks(3, i)
 
-            ! KEINE SELBSTGESPRAECHE
             IF (iprocc == myid) CALL errr(__FILE__, __LINE__)
 
             CALL MPI_Irecv(recvbuf(offset), messagelength, mglet_mpi_real, &
@@ -456,6 +456,9 @@ CONTAINS
 
         ASSOCIATE(fc => fc%arr, ff => ff%arr)
 
+        !$omp target teams distribute private(itask, igridf, igridc, &
+        !$omp&  ista, jsta, ksta, isto, jsto, ksto, ip3f, ip3c, &
+        !$omp&  kkf, jjf, iif, kkc, jjc, iic)
         DO itask = 1, nselftasks
 
             ! Unpacking the task
@@ -477,6 +480,7 @@ CONTAINS
             CALL copy_kernel(kkf, jjf, iif, kkc, jjc, iic, &
                 ff(ip3f), fc(ip3c), ista, jsta, ksta, isto, jsto, ksto)
         END DO
+        !$omp end target teams distribute
 
         END ASSOCIATE
 
@@ -491,6 +495,7 @@ CONTAINS
 
     SUBROUTINE copy_kernel(kkf, jjf, iif, kkc, jjc, iic, &
         ff, fc, ista, jsta, ksta, isto, jsto, ksto)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kkf, jjf, iif
@@ -503,7 +508,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, j, k, ic, jc, kc
 
-        ! Iteration over the fine grid
+        !$omp parallel do collapse(3) private(i, j, k, ic, jc, kc)
         DO i = 1, iif
             DO j = 1, jjf
                 DO k = 1, kkf
@@ -524,6 +529,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
 
     END SUBROUTINE copy_kernel
 
@@ -548,7 +554,6 @@ CONTAINS
             messagelength = mpistasks(2, i)
             iprocf = mpistasks(3, i)
 
-            ! KEINE SELBSTGESPRAECHE
             IF (iprocf == myid) CALL errr(__FILE__, __LINE__)
 
             ! Non-blocking MPI call with request handle stored in sendreqs
