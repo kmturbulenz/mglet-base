@@ -137,6 +137,8 @@ CONTAINS
             CALL process_recvtasks(recvtasks, nrecvtasks)
             !$omp target exit data map(delete: recvtasks)
 
+            WRITE(*, *) "AAA"
+
             !$omp target enter data map(to: &
             !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
             CALL process_selftasks(selftasks, nselftasks)
@@ -152,6 +154,8 @@ CONTAINS
             ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
             ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
 
+            WRITE(*, *) "BBB"
+
             ! Tranfering the recorded tasks to the persistent workpackage
             wptr%sendtasks(:, 1:nsendtasks+1) = sendtasks(:, 1:nsendtasks+1)
             wptr%recvtasks(:, 1:nrecvtasks+1) = recvtasks(:, 1:nrecvtasks+1)
@@ -161,6 +165,8 @@ CONTAINS
                 mpisendtasks(:, 1:nmpisendtasks+1)
             wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
                 mpirecvtasks(:, 1:nmpirecvtasks+1)
+
+            WRITE(*, *) "CCC"
 
             !$omp target enter data map(to: &
             !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
