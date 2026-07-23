@@ -124,7 +124,8 @@ CONTAINS
             !$omp target enter data map(to: &
             !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
             CALL process_sendtasks(sendtasks, nsendtasks)
-            !$omp target exit data map(delete: sendtasks)
+            !$omp target exit data map(delete: &
+            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
 
             CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
             CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
@@ -135,14 +136,14 @@ CONTAINS
             !$omp target enter data map(to: &
             !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
             CALL process_recvtasks(recvtasks, nrecvtasks)
-            !$omp target exit data map(delete: recvtasks)
-
-            WRITE(*, *) "AAA"
+            !$omp target exit data map(delete: &
+            !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
 
             !$omp target enter data map(to: &
             !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
             CALL process_selftasks(selftasks, nselftasks)
-            !$omp target exit data map(delete: selftasks)
+            !$omp target exit data map(delete: &
+            !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
 
             ! At his point, one execution has been performed.
 
@@ -154,8 +155,6 @@ CONTAINS
             ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
             ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
 
-            WRITE(*, *) "BBB"
-
             ! Tranfering the recorded tasks to the persistent workpackage
             wptr%sendtasks(:, 1:nsendtasks+1) = sendtasks(:, 1:nsendtasks+1)
             wptr%recvtasks(:, 1:nrecvtasks+1) = recvtasks(:, 1:nrecvtasks+1)
@@ -165,8 +164,6 @@ CONTAINS
                 mpisendtasks(:, 1:nmpisendtasks+1)
             wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
                 mpirecvtasks(:, 1:nmpirecvtasks+1)
-
-            WRITE(*, *) "CCC"
 
             !$omp target enter data map(to: &
             !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
