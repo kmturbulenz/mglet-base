@@ -109,11 +109,9 @@ CONTAINS
             ALLOCATE(selftasks(1, 1))
             DEALLOCATE(selftasks)
 
-            CALL prepare_allsendtasks(sendtasks, nsendtasks, mpisendtasks, &
-                nmpisendtasks, ilevel)
+            CALL prepare_allsendtasks(sendtasks, nsendtasks, &
+                mpisendtasks, nmpisendtasks, ilevel)
             CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
-
-            ! CALL prepare_mpisendtasks(mpisendtasks, nmpisendtasks, ilevel)
 
             !$omp target enter data map(to: &
             !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
@@ -169,7 +167,7 @@ CONTAINS
     SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpirtasks(4, maxsize)
+        INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
@@ -337,6 +335,10 @@ CONTAINS
 
             IF (ilevel == level(igridf)) THEN
 
+                ! IF (myid == idpronbr) THEN
+                !    --- do some selfcommunication ---
+                ! END
+
                 ! Creating a new packing task (replaces "write_buffer")
                 istasks = istasks + 1
                 CALL add_sendtask(stasks(:, istasks), i, messagelength, &
@@ -374,45 +376,6 @@ CONTAINS
 
 
 
-        ! DO i = 1, noflevel(ilevel)
-        !     igridf = igrdoflevel(i, ilevel)
-        !     igridc = iparent(igridf)
-        !     IF (igridc == 0) CYCLE
-
-        !     iprocc = idprocofgrd(igridc)
-        !     iprocf = idprocofgrd(igridf)
-
-        !     IF (myid == iprocc) THEN
-
-        !         IF (iprocf == iprocc) THEN
-        !             ! This is a self-connection, no MPI communication is needed
-        !             WRITE(*, *) "Self-connection on rank ", myid
-        !         END IF
-
-        !         nsend = nsend + 1
-
-        !         CALL get_mgdims(kk, jj, ii, igridc)
-        !         CALL get_mgdims(kkf, jjf, iif, igridf)
-        !         messagelength = kkf*jjf*iif/8
-        !         idx_sendbuf = sendcounter + 1
-
-        !         IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
-        !             CALL errr(__FILE__, __LINE__)
-        !         END IF
-
-        !         ! Adding new recevive task
-        !         impistasks = impistasks + 1
-        !         mpistasks(1, impistasks) = idx_sendbuf
-        !         mpistasks(2, impistasks) = messagelength
-        !         mpistasks(3, impistasks) = iprocf
-        !         mpistasks(4, impistasks) = igridf
-
-        !         sendcounter = sendcounter + messagelength
-        !     END IF
-        ! END DO
-
-
-
 
     SUBROUTINE process_mpisendtasks(mpistasks, nmpistasks)
         ! Subroutine arguments
@@ -429,13 +392,14 @@ CONTAINS
         !$omp target data use_device_addr(sendbuf)
         DO i = 1, nmpistasks
 
+            ! Getting connection information
             idx_sendbuf = mpistasks(1, i)
             messagelength = mpistasks(2, i)
             iprocf = mpistasks(3, i)
 
+            ! Non-blocking MPI call with request handle stored in sendreqs
             CALL MPI_Isend(sendbuf(idx_sendbuf), messagelength, &
-                mglet_mpi_real, iprocf, 1, MPI_COMM_WORLD, &
-                sendreqs(i))
+                mglet_mpi_real, iprocf, 1, MPI_COMM_WORLD, sendreqs(i))
         END DO
         !$omp end target data
 
@@ -452,66 +416,6 @@ CONTAINS
 #endif
 
     END SUBROUTINE process_mpisendtasks
-
-
-
-
-    ! ! Prepare all tasks needed to prepare the buffers before sending
-    ! !
-    ! SUBROUTINE prepare_sendtasks(stasks, nstasks, ilevel)
-    !     ! Subroutine arguments
-    !     INTEGER(intk), INTENT(inout) :: stasks(:, :)
-    !     INTEGER(intk), INTENT(out) :: nstasks
-    !     INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* grid
-
-    !     ! Local variables
-    !     INTEGER(intk) :: i, igridf, igridc, iprocc, iprocf, istasks
-    !     INTEGER(intk) :: kk, jj, ii
-    !     INTEGER(intk) :: kkf, jjf, iif
-    !     INTEGER(int32) :: sendcounter, messagelength
-
-    !     ! Post all receive calls
-    !     sendcounter = 0
-    !     messagelength = 0
-
-    !     ! Initialize the internal counter
-    !     istasks = 0
-
-    !     DO i = 1, noflevel(ilevel)
-    !         igridf = igrdoflevel(i, ilevel)
-    !         igridc = iparent(igridf)
-    !         IF (igridc == 0) CYCLE
-
-    !         iprocc = idprocofgrd(igridc)
-    !         iprocf = idprocofgrd(igridf)
-
-    !         IF (myid == iprocc) THEN
-
-    !             CALL get_mgdims(kk, jj, ii, igridc)
-    !             CALL get_mgdims(kkf, jjf, iif, igridf)
-    !             messagelength = kkf*jjf*iif/8
-
-    !             IF (sendcounter + messagelength > SIZE(sendbuf)) THEN
-    !                 CALL errr(__FILE__, __LINE__)
-    !             END IF
-
-    !             ! Adding new send task (= writing to the buffer)
-    !             istasks = istasks + 1
-
-    !             CALL add_sendtask(stasks(:, istasks), i, messagelength, &
-    !                 sendcounter)
-
-    !             sendcounter = sendcounter + messagelength
-    !         END IF
-    !     END DO
-
-    !     ! Assign the number of tasks to the output variable
-    !     nstasks = istasks
-
-    !     ! Adding a dummy entry at position (end+1)
-    !     stasks(:, nstasks+1) = -1
-
-    ! END SUBROUTINE prepare_sendtasks
 
 
 
@@ -648,29 +552,6 @@ CONTAINS
         messagelength = messagelength + thismessagelength
 
     END SUBROUTINE add_sendtask
-
-
-    ! SUBROUTINE pack_single(buf, fcptr, ista, isto, jsta, jsto, ksta, ksto, &
-    !         counter)
-    !     ! Subroutine arguments
-    !     REAL(realk), INTENT(inout), CONTIGUOUS :: buf(:)
-    !     REAL(realk), INTENT(in), CONTIGUOUS :: fcptr(:, :, :)
-    !     INTEGER(intk), INTENT(in) :: ista, isto, jsta, jsto, ksta, ksto
-    !     INTEGER(int32), INTENT(out) :: counter
-
-    !     ! Local variables
-    !     INTEGER(intk) :: i, j, k
-
-    !     counter = 0
-    !     DO i = ista, isto
-    !         DO j = jsta, jsto
-    !             DO k = ksta, ksto
-    !                 counter = counter + 1
-    !                 buf(counter) = fcptr(k, j, i)
-    !             END DO
-    !         END DO
-    !     END DO
-    ! END SUBROUTINE pack_single
 
 
     SUBROUTINE prepare_recvtasks(rtasks, nrtasks)
@@ -867,10 +748,7 @@ CONTAINS
     SUBROUTINE finish_ctof2()
         INTEGER(intk) :: ilevel
 
-        IF (.NOT. is_init) THEN
-            RETURN
-        END IF
-
+        IF (.NOT. is_init) RETURN
         is_init = .FALSE.
 
         DEALLOCATE(sendreqs)
