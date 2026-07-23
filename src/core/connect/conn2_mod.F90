@@ -20,15 +20,20 @@ MODULE conn2_mod
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
     INTEGER(int32), ALLOCATABLE :: sendlist(:), recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
-    INTEGER(intk) :: nsend, nrecv, maxtasks
+    INTEGER(intk) :: nsend, nrecv
 
-    INTEGER(intk), PARAMETER :: mpitasksize = 3
+    ! Task extents
     INTEGER(intk), PARAMETER :: buffertasksize = 9
     INTEGER(intk), PARAMETER :: selftasksize = 15
+    INTEGER(intk), PARAMETER :: mpitasksize = 3
+    INTEGER(intk) :: maxsendtasks, maxrecvtasks
+    INTEGER(intk) :: maxselftasks
+    INTEGER(intk) :: maxmpisendtasks, maxmpirecvtasks
 
     ! Workpackages containing individual tasks for packing / unpacking
-    INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
-        selftasks(:, :), mpisendtasks(:, :), mpirecvtasks(:, :)
+    INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :)
+    INTEGER(intk), ALLOCATABLE :: selftasks(:, :)
+    INTEGER(intk), ALLOCATABLE :: mpisendtasks(:, :), mpirecvtasks(:, :)
     !$omp declare target(sendtasks, recvtasks, selftasks)
 
     ! Type to hold condensed task arrays to execute a certain type of conn
@@ -67,8 +72,6 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
-        INTEGER(intk) :: nsendtasks, nselftasks, nrecvtasks
-        INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
 
@@ -191,197 +194,292 @@ CONTAINS
             nvars = nvars - 2
         END IF
 
+        ! Looking up the workpackage in the workrecords array
+        ASSOCIATE(wptr => workrecords(idx_ilevel, idx_layers, idx_args, &
+            idx_corners, idx_normal, idx_forward))
 
-        ! During the execution phase, the workpackage is already initialized
-        ! and can be used directly or the runtime variant is used
-        IF (.NOT. is_recording) THEN
-
-            ! Looking up the workpackage in the workrecords array
-            ASSOCIATE(wptr => workrecords(idx_ilevel, idx_layers, idx_args, &
-                idx_corners, idx_normal, idx_forward))
-
-            IF (wptr%is_init) THEN
-
-                ! Using the (offloaded) workpackage from the workrecords array
-                nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
-                nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
-                nsendtasks = SIZE(wptr%sendtasks, 2) - 1
-                nselftasks = SIZE(wptr%selftasks, 2) - 1
-                nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
-
-                CALL process_mpirecv(wptr%mpirecvtasks, nmpirecvtasks)
-                CALL process_sendtasks(wptr%sendtasks, nsendtasks)
-                CALL process_mpisend(wptr%mpisendtasks, nmpisendtasks)
-                CALL process_selftasks(wptr%selftasks, nselftasks)
-                CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
-                CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
-                CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
-            ELSE
-
-                ! Manufacturing the workpackage just in-time and execute
-                CALL prepare_tasks_all(sendtasks, nsendtasks, &
-                    selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
-                    minconlvl, maxconlvl, nplane, vertices, &
-                    normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
-
-                !$omp target update to( &
-                !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-                !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
-
-                CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
-                    normal2, fwd, flag, nvars)
-
-                !$omp taskwait
-
-                CALL process_sendtasks(sendtasks, nsendtasks)
-                CALL process_mpisend(mpisendtasks, nmpisendtasks)
-                CALL process_selftasks(selftasks, nselftasks)
-
-                CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
-                    nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
-
-                !$omp target update to( &
-                !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
-
-                !$omp taskwait
-
-                CALL process_recvtasks(recvtasks, nrecvtasks)
-
-            END IF
-
-            END ASSOCIATE
-
-        END IF
-
-
-        ! During the recording phase, an uninitialized workpackage needs to be
-        ! created and data is offloaded for later efficient usage on device
         IF (is_recording) THEN
-
-            ASSOCIATE(wptr => workrecords(idx_ilevel, idx_layers, idx_args, &
-                idx_corners, idx_normal, idx_forward))
-
-            IF (wptr%is_init) THEN
-                WRITE(*, *) "Combination already recorded."
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-            ! It is necessary to execute one cycle with communication
-            ! as otherwise many valuable checks are not possible
-
-            CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, &
-                minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
-                flag, nvars)
-
-            CALL prepare_tasks_all(sendtasks, nsendtasks, &
-                selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
-                minconlvl, maxconlvl, nplane, vertices, &
+            ! During the recording phase, the workpackage is not yet initialized
+            ! and needs to be created and data is offloaded for later efficient
+            ! usage on device
+            CALL recording_pass(wptr, minconlvl, maxconlvl, nplane, vertices, &
                 normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
-
-            !$omp target update to( &
-            !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-            !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
-
-            CALL process_mpirecv(mpirecvtasks, nmpirecvtasks)
-            CALL process_sendtasks(sendtasks, nsendtasks)
-            CALL process_mpisend(mpisendtasks, nmpisendtasks)
-            CALL process_selftasks(selftasks, nselftasks)
-            CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
-                nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
-            !$omp taskwait
-
-            !$omp target update to( &
-            !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1))
-            CALL process_recvtasks(recvtasks, nrecvtasks)
-
-            ! Allocate the workpackage arrays in the exact sizes
-            ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
-            ALLOCATE(wptr%recvtasks(buffertasksize, nrecvtasks+1))
-            ALLOCATE(wptr%selftasks(selftasksize, nselftasks+1))
-            ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
-            ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
-
-            ! Store the workpackage in the workrecords array and map
-            wptr%sendtasks = sendtasks(:, 1:nsendtasks+1)
-            wptr%recvtasks = recvtasks(:, 1:nrecvtasks+1)
-            wptr%selftasks = selftasks(:, 1:nselftasks+1)
-            wptr%mpisendtasks = mpisendtasks(:, 1:nmpisendtasks+1)
-            wptr%mpirecvtasks = mpirecvtasks(:, 1:nmpirecvtasks+1)
-
-            !$omp target enter data map(to: &
-            !$omp&  wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-            !$omp&  wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1), &
-            !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
-
-            ! Mark the workpackage as initialized
-            wptr%is_init = .TRUE.
-            END ASSOCIATE
-
+        ELSE
+            IF (wptr%is_init) THEN
+                CALL recorded_conn(wptr)
+            ELSE
+                CALL jit_conn(minconlvl, maxconlvl, nplane, vertices, normal2, &
+                    fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
+            END IF
         END IF
 
+        END ASSOCIATE
     END SUBROUTINE conn2
 
 
-    SUBROUTINE init_conn2()
+    SUBROUTINE jit_conn(minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
+            flag, nvars, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
+        LOGICAL, INTENT(in) :: vertices, normal2
+        INTEGER(intk), INTENT(in) :: fwd
+        CHARACTER(len=1), INTENT(in) :: flag
+        INTEGER(intk), INTENT(in) :: nvars
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
 
-        INTEGER(intk) :: ilevel
+        ! Local variables
+        INTEGER(intk) :: nsendtasks, nrecvtasks
+        INTEGER(intk) :: nselftasks
+        INTEGER(intk) :: nmpisendtasks
+
+        ! Manufacturing the workpackage just in-time and execute
+        CALL prepare_tasks_all(sendtasks, nsendtasks, &
+            selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
+            minconlvl, maxconlvl, nplane, vertices, &
+            normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
+
+        !$omp target update to( &
+        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+
+        CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
+            normal2, fwd, flag, nvars)
+
+        !$omp taskwait
+
+        CALL process_sendtasks(nsendtasks, sendtasks)
+        CALL process_mpisend(nmpisendtasks, mpisendtasks)
+        CALL process_selftasks(nselftasks, selftasks)
+
+        CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
+            nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
+
+        !$omp target update to( &
+        !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
+
+        !$omp taskwait
+
+        CALL process_recvtasks(nrecvtasks, recvtasks)
+    END SUBROUTINE jit_conn
+
+
+    SUBROUTINE recorded_conn(wptr)
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(in) :: wptr
+
+        ! Local variables
+        INTEGER(intk) :: nsendtasks, nrecvtasks
+        INTEGER(intk) :: nselftasks
+        INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
+
+        ! Using the (offloaded) workpackage from the workrecords array
+        nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
+        nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
+        nsendtasks = SIZE(wptr%sendtasks, 2) - 1
+        nselftasks = SIZE(wptr%selftasks, 2) - 1
+        nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
+
+        CALL process_mpirecv(nmpirecvtasks, wptr%mpirecvtasks)
+        CALL process_sendtasks(nsendtasks, wptr%sendtasks)
+        CALL process_mpisend(nmpisendtasks, wptr%mpisendtasks)
+        CALL process_selftasks(nselftasks, wptr%selftasks)
+        CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
+        CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+    END SUBROUTINE recorded_conn
+
+
+    SUBROUTINE recording_pass(wptr, minconlvl, maxconlvl, nplane, vertices, &
+            normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(inout) :: wptr
+        INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
+        LOGICAL, INTENT(in) :: vertices, normal2
+        INTEGER(intk), INTENT(in) :: fwd
+        CHARACTER(len=1), INTENT(in) :: flag
+        INTEGER(intk), INTENT(in) :: nvars
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
+
+        ! Local variables
+        INTEGER(intk) :: nsendtasks, nrecvtasks
+        INTEGER(intk) :: nselftasks
+        INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
+
+        IF (wptr%is_init) THEN
+            WRITE(*, *) "Combination already recorded."
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! It is necessary to execute one cycle with communication
+        ! as otherwise many valuable checks are not possible
+
+        CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, &
+            minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
+            flag, nvars)
+
+        CALL prepare_tasks_all(sendtasks, nsendtasks, &
+            selftasks, nselftasks, mpisendtasks, nmpisendtasks, &
+            minconlvl, maxconlvl, nplane, vertices, &
+            normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
+
+        !$omp target update to( &
+        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
+
+        CALL process_mpirecv(nmpirecvtasks, mpirecvtasks)
+        CALL process_sendtasks(nsendtasks, sendtasks)
+        CALL process_mpisend(nmpisendtasks, mpisendtasks)
+        CALL process_selftasks(nselftasks, selftasks)
+        CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
+            nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
+        !$omp taskwait
+
+        !$omp target update to( &
+        !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        CALL process_recvtasks(nrecvtasks, recvtasks)
+
+        ! Allocate the workpackage arrays in the exact sizes
+        ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
+        ALLOCATE(wptr%recvtasks(buffertasksize, nrecvtasks+1))
+        ALLOCATE(wptr%selftasks(selftasksize, nselftasks+1))
+        ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
+        ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
+
+        ! Store the workpackage in the workrecords array and map
+        wptr%sendtasks = sendtasks(:, 1:nsendtasks+1)
+        wptr%recvtasks = recvtasks(:, 1:nrecvtasks+1)
+        wptr%selftasks = selftasks(:, 1:nselftasks+1)
+        wptr%mpisendtasks = mpisendtasks(:, 1:nmpisendtasks+1)
+        wptr%mpirecvtasks = mpirecvtasks(:, 1:nmpirecvtasks+1)
+
+        !$omp target enter data map(to: &
+        !$omp&  wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1), &
+        !$omp&  wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1), &
+        !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
+
+        ! Mark the workpackage as initialized
+        wptr%is_init = .TRUE.
+    END SUBROUTINE recording_pass
+
+
+    SUBROUTINE init_conn2()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        INTEGER(intk) :: nselfsend, nselfrecv
 
         ! The maximum number of concurrent communications are the number
         ! of processes
-        ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
-        ALLOCATE(sendlist(numprocs))
-        ALLOCATE(recvlist(numprocs))
+        ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)), source=0_intk)
+        ALLOCATE(sendlist(numprocs), source=0_int32)
+        ALLOCATE(recvlist(numprocs), source=0_int32)
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
-
-        ! Allocating the workpackage arrays at their maximal size
-        maxtasks = 6 * SIZE(sendconns, 2) + 1
-        ALLOCATE(sendtasks(buffertasksize, maxtasks))
-        ALLOCATE(recvtasks(buffertasksize, maxtasks))
-        ALLOCATE(selftasks(selftasksize, maxtasks))
-        !$omp target enter data map(always, to: sendtasks, recvtasks, selftasks)
-
-        ALLOCATE(mpisendtasks(mpitasksize, SIZE(sendconns, 2)+1))
-        ALLOCATE(mpirecvtasks(mpitasksize, SIZE(recvconns, 2)+1))
-
-        recvidxlist = 0
-        sendlist = 0
-        recvlist = 0
         nrecv = 0
         nsend = 0
 
-        ! Allocate the workrecords array for all possible types of conn
-        ALLOCATE(workrecords(minlevel:maxlevel+1, 1:2, 1:63, 0:1, 0:1, -1:1))
+        ! Allocating the workpackage arrays
+        ! Always add 1 extra dummy task for error checking purposes
 
+        ! 6 Variables may be exchanged per send/receive connection
+        ! Upper bound: 6*irecv+1 or 6*isend+1
+        maxsendtasks = 6 * isend + 1
+        maxrecvtasks = 6 * irecv + 1
+        ALLOCATE(sendtasks(buffertasksize, maxsendtasks))
+        ALLOCATE(recvtasks(buffertasksize, maxrecvtasks))
+        !$omp target enter data map(always, to: sendtasks, recvtasks)
+
+        ! One grid has up to 26 neighbors that may live on the same rank
+        ! Data may be exchanged in forward and backward direction
+        ! In total, up to 6 variables may be exchanged
+        ! Upper bound: nmygrids*26*2*6+1 (that is a lot of combinations...)
+        ! Instead, count the number of selftasks upfront and take the upper
+        ! bound for 6 fields
+        CALL count_selftasks(nselfsend, nselfrecv)
+        maxselftasks = 6 * (nselfsend + nselfrecv) + 1
+        ALLOCATE(selftasks(selftasksize, maxselftasks))
+        !$omp target enter data map(always, to: selftasks)
+
+        ! MPI tasks are only used on the host and do not exceed isend/irecv+1
+        maxmpisendtasks = isend + 1
+        maxmpirecvtasks = irecv + 1
+        ALLOCATE(mpisendtasks(mpitasksize, maxmpisendtasks))
+        ALLOCATE(mpirecvtasks(mpitasksize, maxmpirecvtasks))
+
+        ! Allocate the workrecords array for all possible types of conn
         ! dimension 1 = ilevel (including maxlevel+1 for "all levels")
         ! dimension 2 = layers (1 or 2)
         ! dimension 3 = argument combination (6 bits = 2^6-1 = 63)
         ! dimension 4 = corners (0 or 1)
         ! dimension 5 = normal (0 or 1)
         ! dimension 6 = forward (-1, 0, 1)
+        ALLOCATE(workrecords(minlevel:maxlevel+1, 1:2, 1:63, 0:1, 0:1, -1:1))
 
         ! Recording relevant conn calls for later efficient reusage on device
+        CALL run_recording_pass()
+    END SUBROUTINE init_conn2
+
+
+    SUBROUTINE count_selftasks(nselfsend, nselfrecv)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(out) :: nselfsend, nselfrecv
+
+        ! Local variables
+        INTEGER(intk) :: i, iprocnbr
+
+        nselfsend = 0
+        DO i = 1, isend
+            iprocnbr = sendconns(1, i)
+            IF (iprocnbr == myid) THEN
+                nselfsend = nselfsend + 1
+            END IF
+        END DO
+
+        nselfrecv = 0
+        DO i = 1, irecv
+            iprocnbr = recvconns(2, i)
+            IF (iprocnbr == myid) THEN
+                nselfrecv = nselfrecv + 1
+            END IF
+        END DO
+
+        IF (nselfsend /= nselfrecv) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+    END SUBROUTINE count_selftasks
+
+
+    SUBROUTINE run_recording_pass()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        INTEGER(intk) :: ilevel
+
         is_recording = .TRUE.
+
         CALL pdummy%init("DUMMY")
         CALL udummy%init("DUMMY", istag=1)
         CALL vdummy%init("DUMMY", jstag=1)
         CALL wdummy%init("DUMMY", kstag=1)
 
         DO ilevel = minlevel, maxlevel
+            ! Inner pressuresolver iterations
             CALL conn2(ilevel, layers=1, s1=pdummy)
             CALL conn2(ilevel, layers=1, s1=pdummy, forward=-1)
         END DO
 
+        ! Outer pressuresolver iterations
         CALL conn2(layers=1, s1=pdummy)
 
         CALL pdummy%finish()
         CALL udummy%finish()
         CALL vdummy%finish()
         CALL wdummy%finish()
-        is_recording = .FALSE.
 
-    END SUBROUTINE init_conn2
+        is_recording = .FALSE.
+    END SUBROUTINE run_recording_pass
 
 
     SUBROUTINE finish_conn2()
@@ -395,7 +493,8 @@ CONTAINS
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
 
-        !$omp target exit data map(delete: sendtasks, recvtasks, selftasks)
+        !$omp target exit data map(always, delete: sendtasks, recvtasks, &
+        !$omp& selftasks)
         DEALLOCATE(sendtasks)
         DEALLOCATE(recvtasks)
         DEALLOCATE(selftasks)
@@ -409,9 +508,7 @@ CONTAINS
             IF (.NOT. wr1d(i)%is_init) CYCLE
 
             !$omp target exit data map(delete: &
-            !$omp&  wr1d(i)%sendtasks(:, :), &
-            !$omp&  wr1d(i)%recvtasks(:, :), &
-            !$omp&  wr1d(i)%selftasks(:, :))
+            !$omp& wr1d(i)%sendtasks, wr1d(i)%recvtasks, wr1d(i)%selftasks)
 
             IF (ALLOCATED(wr1d(i)%sendtasks)) DEALLOCATE(wr1d(i)%sendtasks)
             IF (ALLOCATED(wr1d(i)%recvtasks)) DEALLOCATE(wr1d(i)%recvtasks)
@@ -440,11 +537,11 @@ CONTAINS
             normal, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxsendtasks)
         INTEGER(intk), INTENT(out) :: nstasks
-        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxselftasks)
         INTEGER(intk), INTENT(out) :: netasks
-        INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxmpisendtasks)
         INTEGER(intk), INTENT(out) :: nmpistasks
 
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
@@ -543,7 +640,7 @@ CONTAINS
             sendcounter, nplane, normal, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxsendtasks)
         INTEGER(intk), INTENT(inout) :: istask
         INTEGER(intk), INTENT(in) :: sendid
         INTEGER(intk), INTENT(inout) :: messagelength
@@ -675,7 +772,7 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxselftasks)
         INTEGER(intk), INTENT(inout) :: ietask
         INTEGER(int32), INTENT(in) :: sendid
         INTEGER(int32), INTENT(in) :: nplane
@@ -805,7 +902,7 @@ CONTAINS
         messagelength, counter, type)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize, *)
         INTEGER(intk), INTENT(inout) :: impitask
         INTEGER(intk), INTENT(in) :: iprocnbr
         INTEGER(intk), INTENT(inout) :: messagelength
@@ -844,7 +941,7 @@ CONTAINS
             flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxrecvtasks)
         INTEGER(intk), INTENT(out) :: nrtasks
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
@@ -918,7 +1015,7 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxrecvtasks)
         INTEGER(intk), INTENT(inout) :: irtask
         INTEGER(intk), INTENT(in) :: recvid
         INTEGER(int32), INTENT(in) :: nplane
@@ -1107,11 +1204,11 @@ CONTAINS
 
     ! Routine with offloaded kernel to process all sendtasks on the device
     !
-    SUBROUTINE process_sendtasks(stasks, nstasks)
+    SUBROUTINE process_sendtasks(nstasks, stasks)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1213,11 +1310,11 @@ CONTAINS
 
     ! Routine with offloaded kernel to process all receive tasks on the device
     !
-    SUBROUTINE process_recvtasks(rtasks, nrtasks)
+    SUBROUTINE process_recvtasks(nrtasks, rtasks)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1319,17 +1416,13 @@ CONTAINS
     END SUBROUTINE buf_to_arr
 
 
-
-
-
-
     ! Routine with offloaded kernel to process all selftasks on the device
     !
-    SUBROUTINE process_selftasks(stasks, nstasks)
+    SUBROUTINE process_selftasks(nstasks, stasks)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: stasks(selftasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
@@ -1476,11 +1569,11 @@ CONTAINS
 
     ! Perform all non-blocking MPI Send calls based on the mpisendtasks
     !
-    SUBROUTINE process_mpisend(mpistasks, nmpistasks)
+    SUBROUTINE process_mpisend(nmpistasks, mpistasks)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nmpistasks
+        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, nmpistasks+1)
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, sendcounter
@@ -1506,7 +1599,7 @@ CONTAINS
         nsend = nmpistasks
 
         ! Safety check based on final dummy entry
-        IF (nmpistasks < maxtasks) THEN
+        IF (nmpistasks < maxmpisendtasks) THEN
             IF (.NOT. ALL(mpistasks(:, nmpistasks+1) == -1)) THEN
                 WRITE(*, *) "Did not encounter the expected dummy task."
                 CALL errr(__FILE__, __LINE__)
@@ -1521,11 +1614,11 @@ CONTAINS
 
     ! Perform all non-blocking MPI Send calls based on the mpisendtasks
     !
-    SUBROUTINE process_mpirecv(mpirtasks, nmpirtasks)
+    SUBROUTINE process_mpirecv(nmpirtasks, mpirtasks)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, maxtasks)
         INTEGER(intk), INTENT(in) :: nmpirtasks
+        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, nmpirtasks+1)
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, recvcounter
@@ -1551,7 +1644,7 @@ CONTAINS
         nrecv = nmpirtasks
 
         ! Safety check based on final dummy entry
-        IF (nmpirtasks < maxtasks) THEN
+        IF (nmpirtasks < maxmpirecvtasks) THEN
             IF (.NOT. ALL(mpirtasks(:, nmpirtasks+1) == -1)) THEN
                 WRITE(*, *) "Did not encounter the expected dummy task."
                 CALL errr(__FILE__, __LINE__)
@@ -1571,7 +1664,7 @@ CONTAINS
             normal, fwd, flag, nvars)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxtasks)
+        INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxmpirecvtasks)
         INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
         LOGICAL, INTENT(in) :: vertices, normal

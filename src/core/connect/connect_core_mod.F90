@@ -30,7 +30,6 @@ MODULE connect_core_mod
     !   Field 7: Message tag (for MPI)
     !   Field 8: Geometry exchange flag
     INTEGER(intk), ALLOCATABLE, PROTECTED :: sendconns(:, :), recvconns(:, :)
-    !$omp declare target(sendconns, recvconns)
 
     ! Number of send and receive connections
     ! (not used from conn1_mod so not declare target)
