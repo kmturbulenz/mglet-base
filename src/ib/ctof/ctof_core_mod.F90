@@ -125,12 +125,6 @@ CONTAINS
         DEALLOCATE(sdispls)
         DEALLOCATE(sendcounts)
 
-        ! >>> in the actual implementation, the following arrays are not used, but they are
-        ! ALLOCATE(sendreqs(isend))
-        ! ALLOCATE(recvreqs(irecv))
-        ! ALLOCATE(recvlist(irecv))
-        ! ALLOCATE(recvidxlist(3, irecv))
-
         ! Reallocating recvconns to the actual size
         ALLOCATE(recvtmp(ncols, irecv), SOURCE=recvconns(:, 1:irecv))
         CALL move_alloc(recvtmp, recvconns)
@@ -153,10 +147,6 @@ CONTAINS
         ! Deallocation of infrastructure arrays
         DEALLOCATE(sendconns)
         DEALLOCATE(recvconns)
-        DEALLOCATE(sendreqs)
-        DEALLOCATE(recvreqs)
-        DEALLOCATE(recvlist)
-        DEALLOCATE(recvidxlist)
 
     END SUBROUTINE finish_core_ctof
 

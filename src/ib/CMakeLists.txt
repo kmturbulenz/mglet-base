@@ -13,6 +13,7 @@ add_library(ib STATIC
     ctof/ctof_mod.F90
     ctof/ctof1_mod.F90
     ctof/ctof2_mod.F90
+    ctof/ctof_core_mod.F90
     cutcorner_mod.F90
     fillfollower_mod.F90
     filling_mod.F90
