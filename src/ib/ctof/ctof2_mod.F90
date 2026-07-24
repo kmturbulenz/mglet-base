@@ -298,6 +298,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, offset, messagelength, iprocc
 
+        ! Leaving immediately if there are no tasks to process
+        IF (nmpirtasks < 1) RETURN
+
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpirecv")
 #endif
@@ -465,6 +468,9 @@ CONTAINS
         INTEGER(intk) :: iif, jjf, kkf, iic, jjc, kkc
         INTEGER(intk) :: igridc, igridf, ip3c, ip3f
 
+        ! Leaving immediately if there are no tasks to process
+        IF (nselftasks < 1) RETURN
+
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
 #endif
@@ -561,6 +567,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, idx_sendbuf, messagelength, iprocf
 
+        ! Leaving immediately if there are no tasks to process
+        IF (nmpistasks < 1) RETURN
+
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpisend")
 #endif
@@ -606,7 +615,8 @@ CONTAINS
         INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
         INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1, idx2
 
-        IF (nstasks == 0) RETURN
+        ! Leaving immediately if there are no tasks to process
+        IF (nstasks < 1) RETURN
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
@@ -808,7 +818,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
 
-        IF (nrtasks == 0) RETURN
+        ! Leaving immediately if there are no tasks to process
+        IF (nrtasks < 1) RETURN
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
@@ -912,7 +923,7 @@ CONTAINS
 
         ! Recording operations for all levels
         is_recording = .TRUE.
-        DO ilevel = minlevel, maxlevel
+        DO ilevel = minlevel+1, maxlevel
             CALL ctof2(ilevel, dummy, dummy)
         END DO
         is_recording = .FALSE.
