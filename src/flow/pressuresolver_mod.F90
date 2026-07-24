@@ -216,9 +216,6 @@ CONTAINS
             ! TODO(offload): Remove once surrounding subroutines are offloaded
             CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(hilf, message="to:hilf%arr")
-
             ! Inner pressure iterations
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
@@ -257,7 +254,6 @@ CONTAINS
             END DO
 
             ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(rhs, message="to:rhs%arr")
             CALL map_arr_to_device(hilf, message="to:hilf%arr")
 
             ! --- intermediate state ---
@@ -284,12 +280,9 @@ CONTAINS
             ! Max of RHS scaled according to levels
             CALL maxabscal(maxrhs, maxrhslvl, rhs)
 
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_from_device(hilf, message="from:hilf%arr")
-
             ! dp = dp + hilf
             CALL accumulate_pcorr(dp, hilf)
-            hilf%arr = 0.0
+            CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
             ipc = ipc + ninner
 
             ! Pressure solver debug logging
@@ -329,6 +322,9 @@ CONTAINS
             END DO
             CALL print_plog(ittot, irk, ipcount-1)
         END IF
+
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         ! --- intermediate state ---
         ! The outer iteration has been left after
@@ -878,11 +874,23 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, n
 
-        ! Size of dp and hilf must match by nature of the previous operations
+        IF (SIZE(dp%arr) /= SIZE(hilf%arr)) CALL errr(__FILE__, __LINE__)
+
         n = SIZE(dp%arr)
 
+        ASSOCIATE(dp => dp%arr, hilf => hilf%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("accumulate_pcorr")
+#endif
+        !$omp target teams loop
         DO i = 1, n
-            dp%arr(i) = dp%arr(i) + hilf%arr(i)
+            dp(i) = dp(i) + hilf(i)
         END DO
+        !$omp end target teams loop
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+        END ASSOCIATE
     END SUBROUTINE accumulate_pcorr
 END MODULE pressuresolver_mod
