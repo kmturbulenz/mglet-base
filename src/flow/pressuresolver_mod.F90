@@ -217,6 +217,8 @@ CONTAINS
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
+
+                ! TODO(offload): Remove once surrounding subroutines offloaded
                 CALL map_arr_to_device(hilf, message="to:hilf%arr")
                 CALL ctof(ilevel, hilf, hilf, device=.TRUE.)
                 CALL map_arr_from_device(hilf, message="from:hilf%arr")
