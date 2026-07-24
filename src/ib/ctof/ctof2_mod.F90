@@ -53,10 +53,6 @@ CONTAINS
         TYPE(field_t), TARGET, INTENT(inout) :: ff
         TYPE(field_t), TARGET, INTENT(in) :: fc
 
-        ! Local variables
-        INTEGER(intk) :: nmpirecvtasks, nmpisendtasks
-        INTEGER(intk) :: nsendtasks, nrecvtasks, nselftasks
-
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Looking up the workpackage for this level
