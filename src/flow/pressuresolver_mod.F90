@@ -213,25 +213,33 @@ CONTAINS
 
         ipc = 0
         outer: DO ipcount = 1, nouter
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(rhs, message="to:rhs%arr")
+
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(hilf, message="to:hilf%arr")
+
             ! Inner pressure iterations
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
-                CALL ctof(ilevel, hilf, hilf)
+                CALL ctof(ilevel, hilf, hilf, device=.TRUE.)
+
+                ! TODO(offload): Remove once surrounding subroutines are offloaded
+                CALL map_arr_from_device(hilf, message="from:hilf%arr")
+
                 CALL parent(ilevel, s1=hilf)
 
                 ! TODO(offload): Remove once surrounding subroutines offloaded
-                CALL map_arr_to_device(rhs, message="to:rhs%arr")
-                CALL map_arr_to_device(hilf, message="to:hilf%arr")
                 CALL map_buffers_to_device(hilf, message="to:hilf%buffers")
 
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
-
-                ! TODO(offload): Remove once surrounding subroutines offloaded
-                CALL map_arr_from_device(res, message="from:res%arr")
-                CALL map_arr_from_device(hilf, message="from:hilf%arr")
             END DO
             CALL stop_timer(322)
+
+            ! TODO(offload): Remove once surrounding subroutines offloaded
+            CALL map_arr_from_device(hilf, message="from:hilf%arr")
+            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             ! --- intermediate state ---
             ! every grid level has an inner solution

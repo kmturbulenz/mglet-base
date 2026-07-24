@@ -1,17 +1,10 @@
-MODULE ctof_mod
-
+MODULE ctof1_mod
     USE core_mod
+    USE ctof_core_mod
     USE MPI_f08
 
     IMPLICIT NONE (type, external)
     PRIVATE
-
-    ! The information in the first dimension is sorted as follows:
-    !   Field 1: Rank of receiving process
-    !   Field 2: Rank of sending process
-    !   Field 3: ID of receiving grid (fine grid)
-    !   Field 4: ID of sending grid (coarse grid)
-    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
 
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
@@ -21,17 +14,12 @@ MODULE ctof_mod
     INTEGER(int32), ALLOCATABLE :: recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
-    ! Number of send and receive connections
-    INTEGER(intk) :: isend = 0, irecv = 0
-
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: ctof, init_ctof, finish_ctof
-
+    PUBLIC :: ctof1, init_ctof1, finish_ctof1
 CONTAINS
-
-    SUBROUTINE ctof(ilevel, ff, fc)
+    SUBROUTINE ctof1(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         TYPE(field_t), INTENT(inout) :: ff
@@ -54,7 +42,8 @@ CONTAINS
         CALL process_bufs(ff)
 
         CALL stop_timer(230)
-    END SUBROUTINE ctof
+
+    END SUBROUTINE ctof1
 
 
     SUBROUTINE recv_all(ilevel)
@@ -158,7 +147,6 @@ CONTAINS
                     CALL post_send(iprocnbr, messagelength, sendcounter)
                 END IF
             END IF
-
         END DO
     END SUBROUTINE send_all
 
@@ -294,7 +282,6 @@ CONTAINS
 
         ! Make sure that also all non-blocking sends have completed
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
     END SUBROUTINE process_bufs
 
 
@@ -349,133 +336,45 @@ CONTAINS
     END SUBROUTINE unpack_single
 
 
-    ! Initialize arrays and data types
-    SUBROUTINE init_ctof()
-        ! Local variables
-        INTEGER :: i, igrid, iprocc, ipar, maxconns
-        INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
-        INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
-        INTEGER(intk), PARAMETER :: ncols = 4
-        INTEGER(intk), ALLOCATABLE :: recvtmp(:, :)
+    SUBROUTINE init_ctof1()
+        ! Subroutine arguments
+        ! none...
 
-        CALL set_timer(230, "CTOF")
+        ! Local variables
+        ! none...
 
         IF (is_init) CALL errr(__FILE__, __LINE__)
 
-        ! Fine grids only need information from one coarse grid
-        maxconns = nmygrids
-        ALLOCATE(recvconns(ncols, maxconns))
-
-        ALLOCATE(recvcounts(0:numprocs-1), source=0_int32)
-        ALLOCATE(rdispls(0:numprocs-1), source=0_int32)
-        ALLOCATE(sendcounts(0:numprocs-1), source=0_int32)
-        ALLOCATE(sdispls(0:numprocs-1), source=0_int32)
+        ! Check if ctof_core_mod necessary provides infrastructure
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
 
         nrecv = 0
-        DO i = 1, nmygrids
-
-            ! Obtaining the grid ID of the fine grid and its parent
-            igrid = mygrids(i)
-            ipar = iparent(igrid)
-            IF (ipar == 0) CYCLE
-
-            ! Obtaining the process ID of the coarse parent grid
-            iprocc = idprocofgrd(ipar)
-
-            ! Adding a receive connection
-            nrecv = nrecv + 1
-            IF (nrecv > maxconns) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-            recvconns(1, nrecv) = myid
-            recvconns(2, nrecv) = iprocc
-            recvconns(3, nrecv) = igrid
-            recvconns(4, nrecv) = ipar
-
-            ! Storing information used later in the context of AllToAll
-            recvcounts(iprocc) = recvcounts(iprocc) + ncols
-        END DO
-        irecv = nrecv
-
-        ! Sort recvconns by process ID (col 2)
-        CALL sort_conns(recvconns(:, 1:nrecv), 2)
-
-        ! Calculate rdispl offset
-        DO i = 1, numprocs-1
-            rdispls(i) = rdispls(i-1) + recvcounts(i-1)
-        END DO
-
-        ! First exchange NUMBER OF ELEMENTS TO SEND, to be able to
-        ! calculate sdispls array
-        CALL MPI_Alltoall(recvcounts, 1, MPI_INTEGER, sendcounts, 1, &
-            MPI_INTEGER, MPI_COMM_WORLD)
-
-        ! Array sendcounts is now filled and offsets can be computed
-        DO i = 1, numprocs-1
-            sdispls(i) = sdispls(i-1) + sendcounts(i-1)
-        END DO
-
-        isend = (sdispls(numprocs-1) + sendcounts(numprocs-1))/ncols
-        ALLOCATE(sendconns(ncols, isend))
-        sendconns = 0
-
-        ! Exchange connection information
-        CALL MPI_Alltoallv(recvconns, recvcounts, rdispls, MPI_INTEGER, &
-            sendconns, sendcounts, sdispls, MPI_INTEGER, MPI_COMM_WORLD)
-
-        ! Both recvconns and sendconns should be fully populated and ordered
-        DO i = 1, isend-1
-            IF (sendconns(1, i) > sendconns(1, i+1)) THEN
-                WRITE(*, *) "Sendconns not sorted by receiving rank"
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END DO
-
-        DO i = 1, irecv-1
-            IF (recvconns(2, i) > recvconns(2, i+1)) THEN
-                WRITE(*, *) "Recvconns not sorted by sending rank"
-                CALL errr(__FILE__, __LINE__)
-            END IF
-        END DO
-
-        ! Deallocate arrays which were only needed to operate MPI_Alltoallv
-        DEALLOCATE(rdispls)
-        DEALLOCATE(recvcounts)
-        DEALLOCATE(sdispls)
-        DEALLOCATE(sendcounts)
-
+        nsend = 0
         ALLOCATE(sendreqs(isend))
         ALLOCATE(recvreqs(irecv))
         ALLOCATE(recvlist(irecv))
         ALLOCATE(recvidxlist(3, irecv))
 
-        ! Reallocating recvconns to the actual size
-        ALLOCATE(recvtmp(ncols, irecv), SOURCE=recvconns(:, 1:irecv))
-        CALL move_alloc(recvtmp, recvconns)
+        is_init = .TRUE.
+    END SUBROUTINE init_ctof1
+
+
+    SUBROUTINE finish_ctof1()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         nrecv = 0
         nsend = 0
-        is_init = .TRUE.
-
-    END SUBROUTINE init_ctof
-
-
-    SUBROUTINE finish_ctof()
-        IF (.NOT. is_init) RETURN
-
-        is_init = .FALSE.
-        isend = 0
-        irecv = 0
-
-        ! Deallocation of infrastructure arrays
-        DEALLOCATE(sendconns)
-        DEALLOCATE(recvconns)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
 
-    END SUBROUTINE finish_ctof
-
-END MODULE ctof_mod
+        is_init = .FALSE.
+    END SUBROUTINE finish_ctof1
+END MODULE ctof1_mod
