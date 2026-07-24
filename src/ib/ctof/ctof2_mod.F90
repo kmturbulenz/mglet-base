@@ -1,5 +1,4 @@
 MODULE ctof2_mod
-
     USE core_mod
     USE ctof_core_mod
     USE MPI_f08
@@ -9,24 +8,23 @@ MODULE ctof2_mod
 
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
-
-    ! Lists that hold the messages that are ACTUALLY sent and received
-    INTEGER(intk) :: nsend, nrecv
     INTEGER(int32), ALLOCATABLE :: recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
+    INTEGER(intk) :: nsend, nrecv
 
-    ! Variable to indicate if the required data structures have been created
-    LOGICAL :: is_init = .FALSE.
-
-    ! Indicator for the recoding mode
-    LOGICAL :: is_recording = .FALSE.
+    ! Task extents
+    INTEGER(intk), PARAMETER :: sendtasksize = 9
+    INTEGER(intk), PARAMETER :: recvtasksize = 2
+    INTEGER(intk), PARAMETER :: selftasksize = 8
+    INTEGER(intk), PARAMETER :: mpitasksize = 3
 
     ! Workpackages containing individual tasks for packing / unpacking
-    INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :), &
-        mpisendtasks(:, :), mpirecvtasks(:, :), selftasks(:, :)
-    ! SIMON: I think it is not worthwhile to declare those "target"
+    INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :)
+    INTEGER(intk), ALLOCATABLE :: selftasks(:, :)
+    INTEGER(intk), ALLOCATABLE :: mpisendtasks(:, :), mpirecvtasks(:, :)
+    ! Not declare target since there is no jit ctof
 
-    ! Type to hold condensed task arrays to execute a certain type of conn
+    ! Type to hold condensed task arrays to execute a certain type of ctof
     TYPE :: work_t
         LOGICAL :: is_init = .FALSE.
         INTEGER(intk), ALLOCATABLE :: sendtasks(:, :)
@@ -38,161 +36,164 @@ MODULE ctof2_mod
 
     ! Array to store instructions for different values of "ilevel"
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:)
-    INTEGER(intk), PARAMETER :: mpitasksize = 3
-    INTEGER(intk), PARAMETER :: sendtasksize = 9
-    INTEGER(intk), PARAMETER :: recvtasksize = 2
-    INTEGER(intk), PARAMETER :: selftasksize = 8
+    LOGICAL :: is_recording = .FALSE.
 
-    ! Maximum size of the temporary arrays
+    ! Maximum size of temporary arrays for recording
     INTEGER(intk) :: maxsize
 
-    ! Internal pointers to the fine and coarse field_t objects
-    TYPE(field_t), POINTER :: ff, fc
-
+    ! Variable to indicate if the required data structures have been created
+    LOGICAL :: is_init = .FALSE.
 
     PUBLIC :: ctof2, init_ctof2, finish_ctof2
-
 CONTAINS
 
-    SUBROUTINE ctof2(ilevel, ff_f, fc_f)
-
+    SUBROUTINE ctof2(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
-        TYPE(field_t), TARGET, INTENT(inout) :: ff_f
-        TYPE(field_t), TARGET, INTENT(in) :: fc_f
+        TYPE(field_t), TARGET, INTENT(inout) :: ff
+        TYPE(field_t), TARGET, INTENT(in) :: fc
 
         ! Local variables
         INTEGER(intk) :: nmpirecvtasks, nmpisendtasks
         INTEGER(intk) :: nsendtasks, nrecvtasks, nselftasks
 
-        ! Setting the internal pointers to fine and coarse field_t objects
-        ff => ff_f
-        fc => fc_f
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Looking up the workpackage for this level
         ASSOCIATE(wptr => workrecords(ilevel))
 
-        IF (.NOT. is_recording) THEN
-
-            ! During the execution phase, the workpackage is already initialized
-            IF (.NOT. wptr%is_init) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_push("ctof")
-#endif
-
-            ! Obtaining numbers of tasks from the workpackage
-            nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
-            nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
-            nsendtasks = SIZE(wptr%sendtasks, 2) - 1
-            nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
-            nselftasks = SIZE(wptr%selftasks, 2) - 1
-
-            CALL process_mpirecvtasks(wptr%mpirecvtasks, nmpirecvtasks)
-            CALL process_sendtasks(wptr%sendtasks, nsendtasks)
-            CALL process_mpisendtasks(wptr%mpisendtasks, nmpisendtasks)
-
-            ! While MPI messages travel, local work is done
-            CALL process_selftasks(wptr%selftasks, nselftasks)
-
-            CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
-            CALL process_recvtasks(wptr%recvtasks, nrecvtasks)
-            CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_pop()
-#endif
-
+        IF (is_recording) THEN
+            CALL recording_pass(wptr, ilevel, ff, fc)
         ELSE
-
-            ! During the recording phase, the workpackage is stored
-            IF (wptr%is_init) THEN
-                WRITE(*, *) "Repeated recording for ilevel = ", ilevel
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-            ! Allocating oversized temporary arrays to record the tasks
-            maxsize = noflevel(ilevel) + 1
-            ALLOCATE(sendtasks(sendtasksize, maxsize))
-            ALLOCATE(recvtasks(recvtasksize, maxsize))
-            ALLOCATE(selftasks(selftasksize, maxsize))
-            ALLOCATE(mpisendtasks(mpitasksize, maxsize))
-            ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
-
-
-            CALL prepare_allsendtasks(&
-                sendtasks, nsendtasks, &
-                selftasks, nselftasks, &
-                mpisendtasks, nmpisendtasks, ilevel)
-
-            CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
-
-            !$omp target enter data map(to: &
-            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
-            CALL process_sendtasks(sendtasks, nsendtasks)
-            !$omp target exit data map(delete: &
-            !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
-
-            CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
-            CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
-
-            ! Includes waiting for MPI communication to finish
-            CALL prepare_recvtasks(recvtasks, nrecvtasks)
-
-            !$omp target enter data map(to: &
-            !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
-            CALL process_recvtasks(recvtasks, nrecvtasks)
-            !$omp target exit data map(delete: &
-            !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
-
-            !$omp target enter data map(to: &
-            !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
-            CALL process_selftasks(selftasks, nselftasks)
-            !$omp target exit data map(delete: &
-            !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
-
-            ! At his point, one execution has been performed.
-
-            ! Allocating persistent workpackage with accurate dimensions
-            ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
-            ALLOCATE(wptr%recvtasks(recvtasksize, nrecvtasks+1))
-            ALLOCATE(wptr%selftasks(selftasksize, nselftasks+1))
-
-            ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
-            ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
-
-            ! Tranfering the recorded tasks to the persistent workpackage
-            wptr%sendtasks(:, 1:nsendtasks+1) = sendtasks(:, 1:nsendtasks+1)
-            wptr%recvtasks(:, 1:nrecvtasks+1) = recvtasks(:, 1:nrecvtasks+1)
-            wptr%selftasks(:, 1:nselftasks+1) = selftasks(:, 1:nselftasks+1)
-
-            wptr%mpisendtasks(:, 1:nmpisendtasks+1) = &
-                mpisendtasks(:, 1:nmpisendtasks+1)
-            wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
-                mpirecvtasks(:, 1:nmpirecvtasks+1)
-
-            !$omp target enter data map(to: &
-            !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
-            !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1), &
-            !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
-
-            wptr%is_init = .TRUE.
-
-            ! Deallocating the temporary arrays (already gone on device)
-            DEALLOCATE(sendtasks, recvtasks, selftasks, mpisendtasks, &
-                mpirecvtasks)
-
+            CALL recorded_ctof(wptr, ff, fc)
         END IF
 
         END ASSOCIATE
-
     END SUBROUTINE ctof2
 
 
-    SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
+    SUBROUTINE recorded_ctof(wptr, ff, fc)
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(in) :: wptr
+        TYPE(field_t), TARGET, INTENT(inout) :: ff
+        TYPE(field_t), TARGET, INTENT(in) :: fc
 
+        ! Local variables
+        INTEGER(intk) :: nsendtasks, nrecvtasks
+        INTEGER(intk) :: nselftasks
+        INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
+
+        ! Obtaining numbers of tasks from the workpackage
+        nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
+        nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
+        nsendtasks = SIZE(wptr%sendtasks, 2) - 1
+        nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
+        nselftasks = SIZE(wptr%selftasks, 2) - 1
+
+        CALL process_mpirecvtasks(wptr%mpirecvtasks, nmpirecvtasks)
+        CALL process_sendtasks(fc, nsendtasks, wptr%sendtasks)
+        CALL process_mpisendtasks(wptr%mpisendtasks, nmpisendtasks)
+
+        ! While MPI messages travel, local work is done
+        CALL process_selftasks(fc, ff, nselftasks, wptr%selftasks)
+
+        CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
+        CALL process_recvtasks(ff, nrecvtasks, wptr%recvtasks)
+        CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
+    END SUBROUTINE recorded_ctof
+
+
+    SUBROUTINE recording_pass(wptr, ilevel, ff, fc)
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(inout) :: wptr
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), TARGET, INTENT(inout) :: ff
+        TYPE(field_t), TARGET, INTENT(in) :: fc
+
+        ! Local variables
+        INTEGER(intk) :: nsendtasks, nrecvtasks
+        INTEGER(intk) :: nselftasks
+        INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
+
+        ! During the recording phase, the workpackage is stored
+        IF (wptr%is_init) THEN
+            WRITE(*, *) "Repeated recording for ilevel = ", ilevel
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Allocating oversized temporary arrays to record the tasks
+        maxsize = noflevel(ilevel) + 1
+        ALLOCATE(sendtasks(sendtasksize, maxsize))
+        ALLOCATE(recvtasks(recvtasksize, maxsize))
+        ALLOCATE(selftasks(selftasksize, maxsize))
+        ALLOCATE(mpisendtasks(mpitasksize, maxsize))
+        ALLOCATE(mpirecvtasks(mpitasksize, maxsize))
+
+        CALL prepare_allsendtasks(&
+            sendtasks, nsendtasks, &
+            selftasks, nselftasks, &
+            mpisendtasks, nmpisendtasks, ilevel)
+
+        CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel)
+
+        !$omp target enter data map(to: &
+        !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
+        CALL process_sendtasks(fc, nsendtasks, sendtasks)
+        !$omp target exit data map(delete: &
+        !$omp&  sendtasks(1:sendtasksize, 1:nsendtasks+1))
+
+        CALL process_mpirecvtasks(mpirecvtasks, nmpirecvtasks)
+        CALL process_mpisendtasks(mpisendtasks, nmpisendtasks)
+
+        ! Includes waiting for MPI communication to finish
+        CALL prepare_recvtasks(nrecvtasks, recvtasks)
+
+        !$omp target enter data map(to: &
+        !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
+        CALL process_recvtasks(ff, nrecvtasks, recvtasks)
+        !$omp target exit data map(delete: &
+        !$omp&  recvtasks(1:recvtasksize, 1:nrecvtasks+1))
+
+        !$omp target enter data map(to: &
+        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
+        CALL process_selftasks(fc, ff, nselftasks, selftasks)
+        !$omp target exit data map(delete: &
+        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
+
+        ! At this point, one execution has been performed.
+
+        ! Allocating persistent workpackage with accurate dimensions
+        ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
+        ALLOCATE(wptr%recvtasks(recvtasksize, nrecvtasks+1))
+        ALLOCATE(wptr%selftasks(selftasksize, nselftasks+1))
+
+        ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
+        ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
+
+        ! Transferring the recorded tasks to the persistent workpackage
+        wptr%sendtasks(:, 1:nsendtasks+1) = sendtasks(:, 1:nsendtasks+1)
+        wptr%recvtasks(:, 1:nrecvtasks+1) = recvtasks(:, 1:nrecvtasks+1)
+        wptr%selftasks(:, 1:nselftasks+1) = selftasks(:, 1:nselftasks+1)
+
+        wptr%mpisendtasks(:, 1:nmpisendtasks+1) = &
+            mpisendtasks(:, 1:nmpisendtasks+1)
+        wptr%mpirecvtasks(:, 1:nmpirecvtasks+1) = &
+            mpirecvtasks(:, 1:nmpirecvtasks+1)
+
+        !$omp target enter data map(to: &
+        !$omp&  wptr%sendtasks(1:sendtasksize, 1:nsendtasks+1), &
+        !$omp&  wptr%recvtasks(1:recvtasksize, 1:nrecvtasks+1), &
+        !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
+
+        wptr%is_init = .TRUE.
+
+        ! Deallocating the temporary arrays (already gone on device)
+        DEALLOCATE(sendtasks, recvtasks, selftasks, mpisendtasks, &
+            mpirecvtasks)
+    END SUBROUTINE recording_pass
+
+
+    SUBROUTINE prepare_mpirecvtasks(mpirtasks, nmpirtasks, ilevel)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nmpirtasks
@@ -260,7 +261,6 @@ CONTAINS
 
         ! Adding a dummy entry at position (end+1)
         mpirtasks(:, nmpirtasks+1) = -1
-
     END SUBROUTINE prepare_mpirecvtasks
 
 
@@ -285,7 +285,6 @@ CONTAINS
 
         recvcounter = recvcounter + messagelength
         messagelength = 0
-
     END SUBROUTINE add_mpi_task
 
 
@@ -331,24 +330,18 @@ CONTAINS
 
         ! Setting the number of posted receives
         nrecv = nmpirtasks
-
     END SUBROUTINE process_mpirecvtasks
 
 
-    ! Perform all Send-calls
     SUBROUTINE prepare_allsendtasks(stasks, nstasks, etasks, netasks, &
         mpistasks, nmpistasks, ilevel)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: stasks(sendtasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nstasks
-
         INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxsize)
         INTEGER(intk), INTENT(out) :: netasks
-
         INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxsize)
         INTEGER(intk), INTENT(out) :: nmpistasks
-
         INTEGER(intk), INTENT(in) :: ilevel   ! Level of the *fine* side
 
         ! Local variables
@@ -368,29 +361,23 @@ CONTAINS
 
         ! Iteration over all send connections
         DO i = 1, isend
-
             iprocnbr = sendconns(1, i)
             igridf = sendconns(3, i)
             igridc = sendconns(4, i)
 
             IF (ilevel == level(igridf)) THEN
-
                 IF (myid == iprocnbr) THEN
-
                     ! Purely local connection, no MPI communication needed
                     ietasks = ietasks + 1
                     CALL add_selftask(etasks(:, ietasks), igridf, igridc)
 
                     ! Cycling to avoid adding a new MPI send task
                     CYCLE
-
                 ELSE
-
                     ! Connection to a different process, MPI communication
                     istasks = istasks + 1
                     CALL add_sendtask(stasks(:, istasks), i, messagelength, &
                         sendcounter)
-
                 END IF
             END IF
 
@@ -406,10 +393,8 @@ CONTAINS
                     impistasks = impistasks + 1
                     CALL add_mpi_task(mpistasks(:, impistasks), iprocnbr, &
                         messagelength, sendcounter)
-
                 END IF
             END IF
-
         END DO
 
         ! Assign the number of tasks to the output variable
@@ -421,12 +406,10 @@ CONTAINS
         mpistasks(:, nmpistasks+1) = -1
         stasks(:, nstasks+1) = -1
         etasks(:, netasks+1) = -1
-
     END SUBROUTINE prepare_allsendtasks
 
 
     SUBROUTINE add_selftask(etask, igridf, igridc)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: etask(selftasksize)
         INTEGER(int32), INTENT(in) :: igridf, igridc
@@ -454,14 +437,15 @@ CONTAINS
         etask(6) = isto
         etask(7) = jsto
         etask(8) = ksto
-
     END SUBROUTINE add_selftask
 
 
-    SUBROUTINE process_selftasks(selftasks, nselftasks)
+    SUBROUTINE process_selftasks(fc, ff, nselftasks, etasks)
         ! Subroutine arguments
+        TYPE(field_t), TARGET, INTENT(in) :: fc
+        TYPE(field_t), TARGET, INTENT(inout) :: ff
         INTEGER(intk), INTENT(in) :: nselftasks
-        INTEGER(intk), INTENT(in) :: selftasks(selftasksize, nselftasks+1)
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, nselftasks+1)
 
         ! Local variables
         INTEGER(intk) :: itask, ista, jsta, ksta, isto, jsto, ksto
@@ -483,14 +467,14 @@ CONTAINS
         DO itask = 1, nselftasks
 
             ! Unpacking the task
-            igridf = selftasks(1, itask)
-            igridc = selftasks(2, itask)
-            ista = selftasks(3, itask)
-            jsta = selftasks(4, itask)
-            ksta = selftasks(5, itask)
-            isto = selftasks(6, itask)
-            jsto = selftasks(7, itask)
-            ksto = selftasks(8, itask)
+            igridf = etasks(1, itask)
+            igridc = etasks(2, itask)
+            ista = etasks(3, itask)
+            jsta = etasks(4, itask)
+            ksta = etasks(5, itask)
+            isto = etasks(6, itask)
+            jsto = etasks(7, itask)
+            ksto = etasks(8, itask)
 
             ! Getting the parameters of the grids
             CALL get_ip3(ip3f, igridf)
@@ -510,10 +494,9 @@ CONTAINS
 #endif
 
         ! Checking for the dummy entry at position (end+1)
-        IF (selftasks(1, nselftasks+1) /= -1) THEN
+        IF (etasks(1, nselftasks+1) /= -1) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
-
     END SUBROUTINE process_selftasks
 
 
@@ -555,7 +538,6 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
-
     END SUBROUTINE copy_kernel
 
 
@@ -601,13 +583,13 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
     END SUBROUTINE process_mpisendtasks
 
 
 
-    SUBROUTINE process_sendtasks(stasks, nstasks)
+    SUBROUTINE process_sendtasks(fc, nstasks, stasks)
         ! Subroutine arguments
+        TYPE(field_t), TARGET, INTENT(in) :: fc
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
@@ -654,7 +636,6 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
     END SUBROUTINE process_sendtasks
 
 
@@ -688,7 +669,6 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
-
     END SUBROUTINE write_buffer
 
 
@@ -738,14 +718,13 @@ CONTAINS
         stask(9) = offset + thismessagelength - 1
 
         messagelength = messagelength + thismessagelength
-
     END SUBROUTINE add_sendtask
 
 
-    SUBROUTINE prepare_recvtasks(rtasks, nrtasks)
+    SUBROUTINE prepare_recvtasks(nrtasks, rtasks)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtasks(:, :)
         INTEGER(intk), INTENT(out) :: nrtasks
+        INTEGER(intk), INTENT(inout) :: rtasks(:, :)
 
         ! Local variables
         TYPE(MPI_Status) :: recvstatus
@@ -775,7 +754,7 @@ CONTAINS
                         igridf = recvconns(3, i)
                         offset = recvidxlist(3, i) + 1
 
-                        ! Adding new recevive task
+                        ! Adding new receive task
                         ! (= storing fine grid and offset in recv buffer)
                         irtasks = irtasks + 1
                         rtasks(1, irtasks) = igridf
@@ -805,13 +784,13 @@ CONTAINS
 
         ! Adding a dummy entry at position (end+1)
         rtasks(:, nrtasks+1) = -1
-
     END SUBROUTINE prepare_recvtasks
 
 
 
-    SUBROUTINE process_recvtasks(rtasks, nrtasks)
+    SUBROUTINE process_recvtasks(ff, nrtasks, rtasks)
         ! Subroutine arguments
+        TYPE(field_t), TARGET, INTENT(inout) :: ff
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
@@ -851,7 +830,6 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
     END SUBROUTINE process_recvtasks
 
 
@@ -868,7 +846,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i, kc, jc, ic, idx
         INTEGER(intk) :: kkc, jjc, iic
 
-        ! The counter for the buffer reflects the coarse frid
+        ! The counter for the buffer reflects the coarse grid
         kkc = kk/2
         jjc = jj/2
         iic = ii/2
@@ -888,57 +866,69 @@ CONTAINS
             END DO
         END DO
         !$omp end parallel do
-
     END SUBROUTINE write_fine
 
 
-
-
-    ! Initialize arrays and data types
     SUBROUTINE init_ctof2()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (is_init) CALL errr(__FILE__, __LINE__)
+
+        ! Check if ctof_core_mod necessary provides infrastructure
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
+
+        ALLOCATE(sendreqs(isend))
+        ALLOCATE(recvreqs(irecv))
+        ALLOCATE(recvlist(irecv))
+        ALLOCATE(recvidxlist(3, irecv))
+        nrecv = 0
+        nsend = 0
+
+        ! Allocate the workrecords array for all possible ilevels
+        ALLOCATE(workrecords(minlevel:maxlevel))
+
+        is_init = .TRUE.
+
+        ! Initialization is done, now record the workpackages
+        CALL run_recording_pass()
+    END SUBROUTINE init_ctof2
+
+
+    SUBROUTINE run_recording_pass()
+        ! Subroutine arguments
+        ! none...
 
         ! Local variables
         INTEGER(intk) :: ilevel
         TYPE(field_t) :: dummy
 
-        ! Check if ctof_core_mod necessary provides infrastructure
-        IF (.NOT. has_infrastructure) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-
-        ! Local variables
-        ALLOCATE(sendreqs(isend))
-        ALLOCATE(recvreqs(irecv))
-        ALLOCATE(recvlist(irecv))
-        ALLOCATE(recvidxlist(3, irecv))
-
-        nrecv = 0
-        nsend = 0
-        is_init = .TRUE.
-
-        ! Allocate the workrecords array for all possible ilevels
-        ALLOCATE(workrecords(minlevel:maxlevel))
-
         CALL dummy%init("DUMMY")
 
-        ! Recording operations for all levels
         is_recording = .TRUE.
+
+        ! Recording operations for all levels
         DO ilevel = minlevel+1, maxlevel
             CALL ctof2(ilevel, dummy, dummy)
         END DO
+
         is_recording = .FALSE.
 
         CALL dummy%finish()
-
-    END SUBROUTINE init_ctof2
-
+    END SUBROUTINE run_recording_pass
 
 
     SUBROUTINE finish_ctof2()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
         INTEGER(intk) :: ilevel
 
-        IF (.NOT. is_init) RETURN
-        is_init = .FALSE.
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
@@ -948,19 +938,21 @@ CONTAINS
         ! Deallocate the workpackage components for each level
         DO ilevel = minlevel+1, maxlevel
             IF (workrecords(ilevel)%is_init) THEN
-
                 !$omp target exit data map(delete: &
                 !$omp&  workrecords(ilevel)%sendtasks(:, :), &
-                !$omp&  workrecords(ilevel)%recvtasks(:, :))
+                !$omp&  workrecords(ilevel)%recvtasks(:, :), &
+                !$omp&  workrecords(ilevel)%selftasks(:, :))
 
                 DEALLOCATE(workrecords(ilevel)%sendtasks)
                 DEALLOCATE(workrecords(ilevel)%recvtasks)
+                DEALLOCATE(workrecords(ilevel)%selftasks)
                 DEALLOCATE(workrecords(ilevel)%mpisendtasks)
                 DEALLOCATE(workrecords(ilevel)%mpirecvtasks)
+                workrecords(ilevel)%is_init = .FALSE.
             END IF
         END DO
         DEALLOCATE(workrecords)
 
+        is_init = .FALSE.
     END SUBROUTINE finish_ctof2
-
 END MODULE ctof2_mod

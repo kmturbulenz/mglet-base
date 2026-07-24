@@ -1,5 +1,4 @@
 MODULE ctof1_mod
-
     USE core_mod
     USE ctof_core_mod
     USE MPI_f08
@@ -19,9 +18,7 @@ MODULE ctof1_mod
     LOGICAL :: is_init = .FALSE.
 
     PUBLIC :: ctof1, init_ctof1, finish_ctof1
-
 CONTAINS
-
     SUBROUTINE ctof1(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
@@ -150,7 +147,6 @@ CONTAINS
                     CALL post_send(iprocnbr, messagelength, sendcounter)
                 END IF
             END IF
-
         END DO
     END SUBROUTINE send_all
 
@@ -286,7 +282,6 @@ CONTAINS
 
         ! Make sure that also all non-blocking sends have completed
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-
     END SUBROUTINE process_bufs
 
 
@@ -342,34 +337,44 @@ CONTAINS
 
 
     SUBROUTINE init_ctof1()
-
-        ! Check if ctof_core_mod necessary provides infrastructure
-        IF (.NOT. has_infrastructure) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
+        ! Subroutine arguments
+        ! none...
 
         ! Local variables
+        ! none...
+
+        IF (is_init) CALL errr(__FILE__, __LINE__)
+
+        ! Check if ctof_core_mod necessary provides infrastructure
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
+
+        nrecv = 0
+        nsend = 0
         ALLOCATE(sendreqs(isend))
         ALLOCATE(recvreqs(irecv))
         ALLOCATE(recvlist(irecv))
         ALLOCATE(recvidxlist(3, irecv))
 
-        nrecv = 0
-        nsend = 0
         is_init = .TRUE.
-
     END SUBROUTINE init_ctof1
 
 
     SUBROUTINE finish_ctof1()
+        ! Subroutine arguments
+        ! none...
 
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
+
+        nrecv = 0
+        nsend = 0
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
 
         is_init = .FALSE.
-
     END SUBROUTINE finish_ctof1
-
 END MODULE ctof1_mod

@@ -1,5 +1,4 @@
 MODULE ctof_core_mod
-
     USE core_mod
     USE MPI_f08
 
@@ -17,17 +16,17 @@ MODULE ctof_core_mod
     INTEGER(intk), PROTECTED :: isend = 0, irecv = 0
 
     ! Variable to indicate if the required data structures have been created
-    LOGICAL, PROTECTED :: has_infrastructure = .FALSE.
+    LOGICAL, PROTECTED :: is_ctof_core_init = .FALSE.
 
-    PUBLIC :: init_core_ctof, finish_core_ctof, sendconns, recvconns, &
-        isend, irecv, has_infrastructure
-
+    PUBLIC :: init_ctof_core, finish_ctof_core, sendconns, recvconns, &
+        isend, irecv, is_ctof_core_init
 CONTAINS
-
     ! Initialize the communication infrastructure for coarse-to-fine
     ! communication with bundling of all transfer between two processes.
-    !
-    SUBROUTINE init_core_ctof()
+    SUBROUTINE init_ctof_core()
+        ! Subroutine arguments
+        ! none...
+
         ! Local variables
         INTEGER :: i, igrid, iprocc, ipar, maxconns
         INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
@@ -35,12 +34,15 @@ CONTAINS
         INTEGER(intk), PARAMETER :: ncols = 4
         INTEGER(intk), ALLOCATABLE :: recvtmp(:, :)
 
-        CALL set_timer(230, "CTOF")
-
-        IF (has_infrastructure) THEN
+        IF (is_ctof_core_init) THEN
             WRITE(*, *) "CTOF infrastructure already initialized"
             CALL errr(__FILE__, __LINE__)
         END IF
+
+        CALL set_timer(230, "CTOF")
+        CALL set_timer(231, "CTOF_BEGIN")
+        CALL set_timer(232, "CTOF_END")
+        CALL set_timer(235, "CTOF_PROLONG_FINISH")
 
         ! Fine grids only need information from one coarse grid
         maxconns = nmygrids
@@ -53,7 +55,6 @@ CONTAINS
 
         irecv = 0
         DO i = 1, nmygrids
-
             ! Obtaining the grid ID of the fine grid and its parent
             igrid = mygrids(i)
             ipar = iparent(igrid)
@@ -129,25 +130,18 @@ CONTAINS
         ALLOCATE(recvtmp(ncols, irecv), SOURCE=recvconns(:, 1:irecv))
         CALL move_alloc(recvtmp, recvconns)
 
-        has_infrastructure = .TRUE.
+        is_ctof_core_init = .TRUE.
+    END SUBROUTINE init_ctof_core
 
-    END SUBROUTINE init_core_ctof
 
+    SUBROUTINE finish_ctof_core()
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
 
-    ! Clearing the allocated communicaiton infrastructure.
-    !
-    SUBROUTINE finish_core_ctof()
-
-        IF (.NOT. has_infrastructure) RETURN
-
-        has_infrastructure = .FALSE.
-        isend = -1
-        irecv = -1
-
-        ! Deallocation of infrastructure arrays
+        isend = 0
+        irecv = 0
         DEALLOCATE(sendconns)
         DEALLOCATE(recvconns)
 
-    END SUBROUTINE finish_core_ctof
-
+        is_ctof_core_init = .FALSE.
+    END SUBROUTINE finish_ctof_core
 END MODULE ctof_core_mod
