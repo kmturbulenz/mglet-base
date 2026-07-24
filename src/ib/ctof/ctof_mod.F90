@@ -36,7 +36,7 @@ CONTAINS
             ! Use the GPU version
             CALL ctof2(ilevel, ff_f, fc_f)
         ELSE
-#ifndef _MGLET_OFFLOAD_
+#ifdef _MGLET_OFFLOAD_
             WRITE(*, *) "ctof1 is not supported with offloading"
             CALL errr(__FILE__, __LINE__)
 #endif
