@@ -47,7 +47,7 @@ MODULE conn2_mod
     END TYPE work_t
 
     ! Multidimensional array to store work_t for different conn types
-    TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
+    TYPE(work_t), ALLOCATABLE :: workrecords(:, :, :, :, :, :)
     LOGICAL :: is_recording = .FALSE.
 
     TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
@@ -200,14 +200,19 @@ CONTAINS
 
         IF (is_recording) THEN
             ! During the recording phase, the workpackage is not yet initialized
-            ! and needs to be created and data is offloaded for later efficient
-            ! usage on device
+            ! and needs to be created. Tasks arrays are offloaded for later
+            ! efficient task execution on device
             CALL recording_pass(wptr, minconlvl, maxconlvl, nplane, vertices, &
                 normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
         ELSE
             IF (wptr%is_init) THEN
+                ! Using recorded workpackage with tasks arrays on device
                 CALL recorded_conn(wptr)
             ELSE
+                ! Using just-in-time (jit) variant, where a non-recorded
+                ! workpackage is assembled on CPU and offloaded to device
+                ! right before execution. If overheads are too high, the jit
+                ! variant can be avoided by recording the relevant workpackage.
                 CALL jit_conn(minconlvl, maxconlvl, nplane, vertices, normal2, &
                     fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
             END IF
@@ -254,10 +259,7 @@ CONTAINS
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        !$omp target update to( &
-        !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1)) nowait
-
-        !$omp taskwait
+        !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
     END SUBROUTINE jit_conn
@@ -332,10 +334,8 @@ CONTAINS
         CALL process_selftasks(nselftasks, selftasks)
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
-        !$omp taskwait
 
-        !$omp target update to( &
-        !$omp&  recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
         CALL process_recvtasks(nrecvtasks, recvtasks)
 
         ! Allocate the workpackage arrays in the exact sizes
@@ -390,9 +390,9 @@ CONTAINS
         ALLOCATE(recvtasks(buffertasksize, maxrecvtasks))
         !$omp target enter data map(always, to: sendtasks, recvtasks)
 
-        ! One grid has up to 26 neighbors that may live on the same rank
-        ! Data may be exchanged in forward and backward direction
-        ! In total, up to 6 variables may be exchanged
+        ! One grid has up to 26 neighbors that may live on the same rank.
+        ! Data may be exchanged in forward and backward direction.
+        ! In total, up to 6 variables may be exchanged.
         ! Upper bound: nmygrids*26*2*6+1 (that is a lot of combinations...)
         ! Instead, count the number of selftasks upfront and take the upper
         ! bound for 6 fields
@@ -464,6 +464,8 @@ CONTAINS
         CALL vdummy%init("DUMMY", jstag=1)
         CALL wdummy%init("DUMMY", kstag=1)
 
+        ! START -- This section defines the recored variants of conn2 ---
+
         DO ilevel = minlevel, maxlevel
             ! Inner pressuresolver iterations
             CALL conn2(ilevel, layers=1, s1=pdummy)
@@ -472,6 +474,8 @@ CONTAINS
 
         ! Outer pressuresolver iterations
         CALL conn2(layers=1, s1=pdummy)
+
+        ! END -- This section defines the recored variants of conn2 ---
 
         CALL pdummy%finish()
         CALL udummy%finish()
@@ -483,9 +487,6 @@ CONTAINS
 
 
     SUBROUTINE finish_conn2()
-        ! Local variables
-        TYPE(work_t), POINTER :: wr1d(:)
-        INTEGER(intk) :: i
 
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
@@ -503,29 +504,35 @@ CONTAINS
         DEALLOCATE(mpirecvtasks)
 
         ! Deallocate the workpackage arrays in the workrecords array
-        wr1d(1:SIZE(workrecords)) => workrecords
-        DO i = 1, SIZE(wr1d)
-            IF (.NOT. wr1d(i)%is_init) CYCLE
+        CALL purge_workrecords(workrecords, SIZE(workrecords))
 
-            !$omp target exit data map(delete: &
-            !$omp& wr1d(i)%sendtasks, wr1d(i)%recvtasks, wr1d(i)%selftasks)
-
-            IF (ALLOCATED(wr1d(i)%sendtasks)) DEALLOCATE(wr1d(i)%sendtasks)
-            IF (ALLOCATED(wr1d(i)%recvtasks)) DEALLOCATE(wr1d(i)%recvtasks)
-            IF (ALLOCATED(wr1d(i)%selftasks)) DEALLOCATE(wr1d(i)%selftasks)
-            IF (ALLOCATED(wr1d(i)%mpisendtasks)) &
-                DEALLOCATE(wr1d(i)%mpisendtasks)
-            IF (ALLOCATED(wr1d(i)%mpirecvtasks)) &
-                DEALLOCATE(wr1d(i)%mpirecvtasks)
-            wr1d(i)%is_init = .FALSE.
-        END DO
-
-        ! Deallocate the workrecords array
+        ! Deallocate the workrecords array itself
         DEALLOCATE(workrecords)
 
     END SUBROUTINE finish_conn2
 
 
+    SUBROUTINE purge_workrecords(arr_wr, n_wr)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: n_wr
+        TYPE(work_t), INTENT(inout) :: arr_wr(n_wr)
+        INTEGER(intk) :: i
+
+        ! Deallocate the workpackage arrays in the workrecords array
+        DO i = 1, n_wr
+            IF (.NOT. arr_wr(i)%is_init) CYCLE
+
+            IF (ALLOCATED(arr_wr(i)%sendtasks)) DEALLOCATE(arr_wr(i)%sendtasks)
+            IF (ALLOCATED(arr_wr(i)%recvtasks)) DEALLOCATE(arr_wr(i)%recvtasks)
+            IF (ALLOCATED(arr_wr(i)%selftasks)) DEALLOCATE(arr_wr(i)%selftasks)
+            IF (ALLOCATED(arr_wr(i)%mpisendtasks)) &
+                DEALLOCATE(arr_wr(i)%mpisendtasks)
+            IF (ALLOCATED(arr_wr(i)%mpirecvtasks)) &
+                DEALLOCATE(arr_wr(i)%mpirecvtasks)
+            arr_wr(i)%is_init = .FALSE.
+        END DO
+
+    END SUBROUTINE purge_workrecords
 
 
     ! Host routine for preparing the sendtasks, selftasks and mpisendtasks
