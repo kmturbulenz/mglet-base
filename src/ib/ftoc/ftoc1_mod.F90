@@ -1,17 +1,11 @@
-MODULE ftoc_mod
+MODULE ftoc1_mod
     USE core_mod
+    USE ftoc_core_mod
     USE ibcore_mod, ONLY: ib
     USE MPI_f08
 
     IMPLICIT NONE (type, external)
     PRIVATE
-
-    ! The information in the first dimension is sorted as follows:
-    !   Field 1: Rank of sending process
-    !   Field 2: Rank of receiving process
-    !   Field 3: ID of sending grid (fine grid)
-    !   Field 4: ID of receiving grid (coarse grid)
-    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
 
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
@@ -21,18 +15,15 @@ MODULE ftoc_mod
     INTEGER(int32), ALLOCATABLE :: recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
-    ! Number of send and receive connections
-    INTEGER(intk) :: isend = 0, irecv = 0
-
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    INTERFACE ftoc
+    INTERFACE ftoc1
         MODULE PROCEDURE :: ftoc_one, ftoc_multiple
-    END INTERFACE ftoc
+    END INTERFACE ftoc1
 
     ! contained functions
-    PUBLIC :: ftoc, init_ftoc, finish_ftoc
+    PUBLIC :: ftoc1, init_ftoc1, finish_ftoc1
 
 
 CONTAINS
@@ -476,79 +467,15 @@ CONTAINS
     END SUBROUTINE read_buffer
 
 
-    SUBROUTINE init_ftoc()
-        ! Local variables
-        INTEGER(intk) :: i, igrid, iprocc, ipar, maxconns
-        INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
-        INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
-        INTEGER(intk), PARAMETER :: ncols = 4
+    SUBROUTINE init_ftoc1()
 
-        CALL set_timer(220, "FTOC")
-
+        ! Make sure that this module has not already been initialized
         IF (is_init) CALL errr(__FILE__, __LINE__)
 
-        maxconns = nmygrids*8
-        ALLOCATE(sendconns(ncols, maxconns))
+        ! Make sure that ftoc_core_mod has been initialized
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
 
-        ALLOCATE(sendcounts(0:numprocs-1), SOURCE=0)
-        ALLOCATE(sdispls(0:numprocs-1), SOURCE=0)
-        ALLOCATE(recvcounts(0:numprocs-1), SOURCE=0)
-        ALLOCATE(rdispls(0:numprocs-1), SOURCE=0)
-
-        nsend = 0
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            ipar = iparent(igrid)
-            IF (ipar == 0) CYCLE
-
-            iprocc = idprocofgrd(ipar)
-
-            nsend = nsend + 1
-            IF (nsend > maxconns) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-            sendconns(1, nsend) = myid
-            sendconns(2, nsend) = iprocc
-            sendconns(3, nsend) = igrid
-            sendconns(4, nsend) = ipar
-
-            sendcounts(iprocc) = sendcounts(iprocc) + ncols
-        END DO
-        isend = nsend
-
-        ! Sort sendconns by process ID (col 2)
-        CALL sort_conns(sendconns(:, 1:nsend), 2)
-
-        ! Calculate sdispl offset
-        DO i = 1, numprocs-1
-            sdispls(i) = sdispls(i-1) + sendcounts(i-1)
-        END DO
-
-        ! First exchange NUMBER OF ELEMENTS TO RECEIVE, to be able to
-        ! calculate rdispls array
-        CALL MPI_Alltoall(sendcounts, 1, MPI_INTEGER, recvcounts, 1, &
-            MPI_INTEGER, MPI_COMM_WORLD)
-
-        ! Calculate rdispl offset
-        DO i = 1, numprocs-1
-            rdispls(i) = rdispls(i-1) + recvcounts(i-1)
-        END DO
-
-        irecv = (rdispls(numprocs-1) + recvcounts(numprocs-1))/ncols
-        ALLOCATE(recvconns(ncols, irecv))
-        recvconns = 0
-
-        ! Exchange connection information
-        CALL MPI_Alltoallv(sendconns, sendcounts, sdispls, MPI_INTEGER, &
-            recvconns, recvcounts, rdispls, MPI_INTEGER, &
-            MPI_COMM_WORLD)
-
-        DEALLOCATE(rdispls)
-        DEALLOCATE(recvcounts)
-        DEALLOCATE(sdispls)
-        DEALLOCATE(sendcounts)
-
+        ! Values of "isend" and "irecv" provided by ftoc_core_mod module
         ALLOCATE(sendreqs(numprocs))
         ALLOCATE(recvreqs(numprocs))
         ALLOCATE(recvlist(irecv))
@@ -557,25 +484,23 @@ CONTAINS
         is_init = .TRUE.
         nsend = 0
         nrecv = 0
-    END SUBROUTINE init_ftoc
+
+    END SUBROUTINE init_ftoc1
 
 
-    SUBROUTINE finish_ftoc()
-        ! Function to deallocate arrays.
-        ! After successful execution, the module varaible "is_init" is set
-        ! to false.
+    SUBROUTINE finish_ftoc1()
+
         IF (.NOT. is_init) RETURN
 
         is_init = .FALSE.
-        isend = 0
-        irecv = 0
-        DEALLOCATE(sendconns)
-        DEALLOCATE(recvconns)
+        nsend = -1
+        nrecv = -1
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
-    END SUBROUTINE finish_ftoc
+
+    END SUBROUTINE finish_ftoc1
 
 
     SUBROUTINE restrict_recieve_open(kk, jj, ii, fc, buffer, igridf, flag)
@@ -667,4 +592,4 @@ CONTAINS
         END DO
     END SUBROUTINE restrict_recieve_open_n
 
-END MODULE ftoc_mod
+END MODULE ftoc1_mod

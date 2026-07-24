@@ -3,7 +3,7 @@ MODULE ftoc_core_mod
     ! Module provides the shared communication infrastructure for the
     ! implementations of FTOC (Fine to Coarse) operations
 
-    USE precision_mod
+    USE core_mod
     USE MPI_f08
 
     IMPLICIT NONE (type, external)
