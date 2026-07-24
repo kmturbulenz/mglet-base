@@ -26,6 +26,8 @@ CONTAINS
         ! The coarsest level cannot obtain values from a coarser level
         IF (ilevel == minlevel) RETURN
 
+        IF (.NOT. is_ctof_core_init) CALL errr(__FILE__, __LINE__)
+
         IF (PRESENT(device)) THEN
             device2 = device
         ELSE
@@ -56,9 +58,7 @@ CONTAINS
     SUBROUTINE finish_ctof()
         CALL finish_ctof1()
         CALL finish_ctof2()
-        IF (is_ctof_core_init) THEN
-            CALL finish_ctof_core()
-        END IF
+        CALL finish_ctof_core()
     END SUBROUTINE finish_ctof
 END MODULE ctof_mod
 
