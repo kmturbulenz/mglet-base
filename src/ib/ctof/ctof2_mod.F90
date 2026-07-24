@@ -935,7 +935,7 @@ CONTAINS
         DEALLOCATE(recvidxlist)
 
         ! Deallocate the workpackage components for each level
-        DO ilevel = minlevel, maxlevel
+        DO ilevel = minlevel+1, maxlevel
             IF (workrecords(ilevel)%is_init) THEN
 
                 !$omp target exit data map(delete: &

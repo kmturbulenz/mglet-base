@@ -27,6 +27,9 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: fc_f
         LOGICAL, OPTIONAL, INTENT(in) :: device
 
+        ! The coarsest level cannot obtain values from a coarser level
+        IF (ilevel == minlevel) RETURN
+
         ! Check prerequisites for ctof operation
         IF (.NOT. has_infrastructure) THEN
             WRITE(*, *) "ctof_core_mod not initialized"
