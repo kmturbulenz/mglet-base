@@ -45,6 +45,10 @@ CONTAINS
 
 
     SUBROUTINE init_ftoc()
+
+        ! Initialize the core module first (provides infrastructure)
+        CALL init_ftoc_core()
+
 #ifdef _MGLET_OFFLOAD_
         CALL init_ftoc2()
 #else
@@ -54,11 +58,16 @@ CONTAINS
 
 
     SUBROUTINE finish_ftoc()
+
 #ifdef _MGLET_OFFLOAD_
         CALL finish_ftoc2()
 #else
         CALL finish_ftoc1()
 #endif
+
+        ! Finish the core module last
+        CALL finish_ftoc_core()
+
     END SUBROUTINE finish_ftoc
 
 END MODULE ftoc_mod
