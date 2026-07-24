@@ -244,13 +244,13 @@ CONTAINS
                     ! Adding a new MPI receive task (replaces "post_recv")
                     impirtasks = impirtasks + 1
                     CALL add_mpi_task(mpirtasks(:, impirtasks), iprocnbr, &
-                        messagelength, recvcounter)
+                        messagelength, recvcounter, "recv")
 
                 ELSE IF (recvconns(2, i + 1) /= iprocnbr) THEN
                     ! Adding a new MPI receive task (replaces "post_recv")
                     impirtasks = impirtasks + 1
                     CALL add_mpi_task(mpirtasks(:, impirtasks), iprocnbr, &
-                        messagelength, recvcounter)
+                        messagelength, recvcounter, "recv")
 
                 END IF
             END IF
@@ -264,29 +264,32 @@ CONTAINS
     END SUBROUTINE prepare_mpirecvtasks
 
 
-
-    SUBROUTINE add_mpi_task(mpitasks, iprocnbr, messagelength, recvcounter)
+    SUBROUTINE add_mpi_task(mpitasks, iprocnbr, messagelength, counter, type)
         ! Subroutine arguments
         INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize)
 
         INTEGER(int32), INTENT(in) :: iprocnbr
         INTEGER(int32), INTENT(inout) :: messagelength
-        INTEGER(int32), INTENT(inout) :: recvcounter
+        INTEGER(int32), INTENT(inout) :: counter
+        CHARACTER(len=4), INTENT(in) :: type
 
         ! Local variables
         ! none...
 
-        nrecv = nrecv + 1
-        recvlist(nrecv) = iprocnbr
+        IF (type == "recv") THEN
+            nrecv = nrecv + 1
+            recvlist(nrecv) = iprocnbr
+        ELSE IF (type /= "send") THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
 
-        mpitasks(1) = recvcounter+1        ! = index for recvbuf
+        mpitasks(1) = counter+1            ! = index for send/recv buffer
         mpitasks(2) = messagelength        ! = length of message
-        mpitasks(3) = iprocnbr             ! = sender process
+        mpitasks(3) = iprocnbr             ! = communication partner process
 
-        recvcounter = recvcounter + messagelength
+        counter = counter + messagelength
         messagelength = 0
     END SUBROUTINE add_mpi_task
-
 
 
     SUBROUTINE process_mpirecvtasks(mpirtasks, nmpirtasks)
@@ -386,13 +389,13 @@ CONTAINS
                     ! Adding a new MPI send task (replaces "post_send")
                     impistasks = impistasks + 1
                     CALL add_mpi_task(mpistasks(:, impistasks), iprocnbr, &
-                        messagelength, sendcounter)
+                        messagelength, sendcounter, "send")
 
                 ELSE IF (sendconns(1, i + 1) /= iprocnbr) THEN
                     ! Adding a new MPI send task (replaces "post_send")
                     impistasks = impistasks + 1
                     CALL add_mpi_task(mpistasks(:, impistasks), iprocnbr, &
-                        messagelength, sendcounter)
+                        messagelength, sendcounter, "send")
                 END IF
             END IF
         END DO
@@ -500,7 +503,6 @@ CONTAINS
     END SUBROUTINE process_selftasks
 
 
-
     SUBROUTINE copy_kernel(kkf, jjf, iif, kkc, jjc, iic, &
         ff, fc, ista, jsta, ksta, isto, jsto, ksto)
         !$omp declare target
@@ -584,7 +586,6 @@ CONTAINS
         CALL profile_range_pop()
 #endif
     END SUBROUTINE process_mpisendtasks
-
 
 
     SUBROUTINE process_sendtasks(fc, nstasks, stasks)
@@ -785,7 +786,6 @@ CONTAINS
         ! Adding a dummy entry at position (end+1)
         rtasks(:, nrtasks+1) = -1
     END SUBROUTINE prepare_recvtasks
-
 
 
     SUBROUTINE process_recvtasks(ff, nrtasks, rtasks)
