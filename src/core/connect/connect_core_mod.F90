@@ -158,14 +158,16 @@ MODULE connect_core_mod
         20, 19, 22, 24, 21, 23, 26, &
         19, 20, 21, 23, 22, 24, 25], SHAPE(rescue_nbr))
 
+    LOGICAL :: is_init = .FALSE.
+
     PUBLIC :: init_connect_core, finish_connect_core, sendconns, recvconns, &
         isend, irecv, start_and_stop, start_and_stop_face, face_area, &
         facelist, facenbr, corr_start_stop, decide
-
 CONTAINS
-
-
     SUBROUTINE init_connect_core()
+        ! Subroutine arguments
+        ! none...
+
         ! Local variables
         INTEGER(intk) :: i, iface, igrid
         INTEGER(intk) :: iface1, iface2, iface3
@@ -179,6 +181,8 @@ CONTAINS
         INTEGER(intk), ALLOCATABLE :: recvconns2(:, :)
         INTEGER(intk) :: neighbours(26)
         INTEGER :: iexchange
+
+        IF (is_init) CALL errr(__FILE__, __LINE__)
 
         CALL set_timer(150, "CONNECT")
 
@@ -362,7 +366,7 @@ CONTAINS
         ALLOCATE(recvconns(8, irecv), SOURCE=recvconns2(:, 1:irecv))
         DEALLOCATE(recvconns2)
 
-        !$omp target enter data map(always, to: sendconns, recvconns)
+        is_init = .TRUE.
     END SUBROUTINE init_connect_core
 
 
@@ -430,12 +434,20 @@ CONTAINS
 
 
     SUBROUTINE finish_connect_core()
-        !$omp target exit data map(always, delete: sendconns, recvconns)
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         isend = 0
         irecv = 0
         DEALLOCATE(sendconns)
         DEALLOCATE(recvconns)
+
+        is_init = .FALSE.
     END SUBROUTINE finish_connect_core
 
 

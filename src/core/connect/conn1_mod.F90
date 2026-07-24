@@ -1,5 +1,4 @@
 MODULE conn1_mod
-
     USE MPI_f08
     USE precision_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf
@@ -19,20 +18,18 @@ MODULE conn1_mod
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
     INTEGER(intk) :: nsend, nrecv
 
+    LOGICAL :: is_init = .FALSE.
+
     PUBLIC :: conn1, init_conn1, finish_conn1
-
 CONTAINS
-
+    ! conn1 is a more compact version of connect aiming for CPU offloading.
+    ! It will only connect real fields, not integer fields, and does
+    ! not have the same capabilities as connect. Over time features
+    ! can be transferred, however, initially the goal is to have a
+    ! light and easy code for GPU offloading while keeping the
+    ! traditional connect in place.
     SUBROUTINE conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
             forward, ityp)
-
-        ! conn1 is a more compact version of connect aiming for CPU offloading.
-        ! It will only connect real fields, not integer fields, and does
-        ! not have the same capabilities as connect. Over time features
-        ! can be transferred, however, initially the goal is to have a
-        ! light and easy code for GPU offloading while keeping the
-        ! traditional connect in place.
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
         TYPE(field_t), OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
@@ -44,6 +41,8 @@ CONTAINS
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         IF (PRESENT(ilevel)) THEN
             minconlvl = ilevel
@@ -127,14 +126,12 @@ CONTAINS
         CALL send_all(minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
             flag, nvars, v1, v2, v3, s1, s2, s3)
         CALL process_bufs(nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
-
     END SUBROUTINE conn1
 
 
     ! Perform all Recv-calls
     SUBROUTINE recv_all(minconlvl, maxconlvl, nplane, vertices, normal, fwd, &
             flag, nvars)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
         LOGICAL, INTENT(in) :: vertices, normal
@@ -753,6 +750,14 @@ CONTAINS
 
 
     SUBROUTINE init_conn1()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (is_init) CALL errr(__FILE__, __LINE__)
+
         ! The maximum number of concurrent communications are the number
         ! of processes
         ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)))
@@ -765,14 +770,26 @@ CONTAINS
         recvlist = 0
         nrecv = 0
         nsend = 0
+
+        is_init = .TRUE.
     END SUBROUTINE init_conn1
 
 
     SUBROUTINE finish_conn1()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
+
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
         DEALLOCATE(recvlist)
         DEALLOCATE(sendreqs)
         DEALLOCATE(recvreqs)
+
+        is_init = .FALSE.
     END SUBROUTINE finish_conn1
 END MODULE conn1_mod

@@ -53,16 +53,14 @@ MODULE conn2_mod
     TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
     TYPE(field_t), TARGET :: pdummy, udummy, vdummy, wdummy
 
+    LOGICAL :: is_init = .FALSE.
+
     PUBLIC :: conn2, init_conn2, finish_conn2
-
 CONTAINS
-
+    ! conn2 makes conn1 available for efficient execution on GPUs.
+    ! The implementation provides the same functionality as conn1.
     SUBROUTINE conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
             forward, ityp)
-
-        ! conn2 makes conn1 availabel for efficient execution on GPUs.
-        ! The implementation provides the same functionality as conn1.
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
@@ -78,6 +76,8 @@ CONTAINS
         ! Indices for the position within the workrecords array
         INTEGER(intk) :: idx_ilevel, idx_layers, idx_args, idx_corners, &
             idx_normal, idx_forward
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Setting all field pointers to uninitialized dummy field
         f1 => pdummy
@@ -369,6 +369,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: nselfsend, nselfrecv
 
+        IF (is_init) CALL errr(__FILE__, __LINE__)
+
         ! The maximum number of concurrent communications are the number
         ! of processes
         ALLOCATE(recvidxlist(3, SIZE(recvconns, 2)), source=0_intk)
@@ -415,6 +417,8 @@ CONTAINS
         ! dimension 5 = normal (0 or 1)
         ! dimension 6 = forward (-1, 0, 1)
         ALLOCATE(workrecords(minlevel:maxlevel+1, 1:2, 1:63, 0:1, 0:1, -1:1))
+
+        is_init = .TRUE.
 
         ! Recording relevant conn calls for later efficient reusage on device
         CALL run_recording_pass()
@@ -487,6 +491,13 @@ CONTAINS
 
 
     SUBROUTINE finish_conn2()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         DEALLOCATE(recvidxlist)
         DEALLOCATE(sendlist)
@@ -509,6 +520,7 @@ CONTAINS
         ! Deallocate the workrecords array itself
         DEALLOCATE(workrecords)
 
+        is_init = .FALSE.
     END SUBROUTINE finish_conn2
 
 
