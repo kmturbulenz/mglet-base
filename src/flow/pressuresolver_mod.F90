@@ -221,22 +221,13 @@ CONTAINS
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
                 CALL ctof(ilevel, hilf, hilf, device=.TRUE.)
-
-                ! TODO(offload): Remove once surrounding subroutines are offloaded
-                CALL map_arr_from_device(hilf, message="from:hilf%arr")
-
-                CALL parent(ilevel, s1=hilf)
-
-                ! TODO(offload): Remove once surrounding subroutines offloaded
-                CALL map_buffers_to_device(hilf, message="to:hilf%buffers")
-
+                CALL parent(ilevel, s1=hilf, device=.TRUE.)
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
             CALL stop_timer(322)
 
             ! TODO(offload): Remove once surrounding subroutines offloaded
             CALL map_arr_from_device(hilf, message="from:hilf%arr")
-            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             ! --- intermediate state ---
             ! every grid level has an inner solution
@@ -323,19 +314,16 @@ CONTAINS
             CALL print_plog(ittot, irk, ipcount-1)
         END IF
 
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_from_device(dp, message="from:dp%arr")
-
         ! --- intermediate state ---
         ! The outer iteration has been left after
         ! a value of dp was found that leads to a acceptably small residual
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, s1=dp)
-            CALL map_arr_to_device(dp, message="to:dp%arr")
-            CALL map_buffers_to_device(dp, message="to:dp%buffers")
+            CALL parent(ilevel, s1=dp, device=.TRUE.)
             CALL bound_pressure(ilevel, dp, bp)
-            CALL map_arr_from_device(dp, message="from:dp%arr")
         END DO
+
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_from_device(dp, message="from:dp%arr")
 
         ! Pressure correction: P = P + dtrk/rho*DP
         ! Velocity fields are modified and become solenoidal based on DP
