@@ -28,24 +28,12 @@ CONTAINS
         ! Local variables
         TYPE(field_t), POINTER :: dx_f, dy_f, dz_f, ddx_f, ddy_f, ddz_f
         TYPE(field_t), POINTER :: rdx_f, rdy_f, rdz_f, rddx_f, rddy_f, rddz_f
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: uo, vo, wo
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: u, v, w
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: ut, vt, wt
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: p, g
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: rdx(:), rdy(:), rdz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
-
+        TYPE(field_t), POINTER :: wcu_f, wcv_f, wcw_f
         CALL start_timer(310)
 
-        ! Set all the output to zero everywhere before we start!
-        uo_f%arr = 0.0_realk
-        vo_f%arr = 0.0_realk
-        wo_f%arr = 0.0_realk
+        CALL set_field_arr(uo_f, 0.0_realk, device=.TRUE.)
+        CALL set_field_arr(vo_f, 0.0_realk, device=.TRUE.)
+        CALL set_field_arr(wo_f, 0.0_realk, device=.TRUE.)
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")
@@ -63,61 +51,183 @@ CONTAINS
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
 
+        CALL push_field(wcu_f, "TSTLE4_WCU")
+        CALL push_field(wcv_f, "TSTLE4_WCV")
+        CALL push_field(wcw_f, "TSTLE4_WCW")
+
+        CALL start_timer(311)
+        CALL tstle4_kon_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
+            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+            rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
+            rddz_f%arr)
+        CALL stop_timer(311)
+
+        CALL start_timer(312)
+        CALL tstle4_diff_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr, rdx_f%arr, rdy_f%arr, &
+            rdz_f%arr, rddx_f%arr, rddy_f%arr, rddz_f%arr)
+        CALL stop_timer(312)
+
+        CALL start_timer(313)
+        CALL tstle4_gradp_impl(uo_f%arr, vo_f%arr, wo_f%arr, p_f%arr, &
+            dx_f%arr, dy_f%arr, dz_f%arr)
+        CALL stop_timer(313)
+
+        CALL start_timer(314)
+        CALL tstle4_par_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
+            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+            rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
+            rddz_f%arr, wcu_f%arr, wcv_f%arr, wcw_f%arr)
+        CALL stop_timer(314)
+
+        CALL pop_field(wcw_f)
+        CALL pop_field(wcv_f)
+        CALL pop_field(wcu_f)
+
+        CALL stop_timer(310)
+    END SUBROUTINE tstle4
+
+
+    SUBROUTINE tstle4_kon_impl(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, &
+            dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+
+        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
         DO i = 1, nmygrids
             igrid = mygrids(i)
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
 
-            CALL uo_f%get_ptr(uo, igrid)
-            CALL vo_f%get_ptr(vo, igrid)
-            CALL wo_f%get_ptr(wo, igrid)
-
-            CALL u_f%get_ptr(u, igrid)
-            CALL v_f%get_ptr(v, igrid)
-            CALL w_f%get_ptr(w, igrid)
-
-            CALL ut_f%get_ptr(ut, igrid)
-            CALL vt_f%get_ptr(vt, igrid)
-            CALL wt_f%get_ptr(wt, igrid)
-
-            CALL p_f%get_ptr(p, igrid)
-            CALL g_f%get_ptr(g, igrid)
-
-            CALL dx_f%get_ptr(dx, igrid)
-            CALL dy_f%get_ptr(dy, igrid)
-            CALL dz_f%get_ptr(dz, igrid)
-
-            CALL ddx_f%get_ptr(ddx, igrid)
-            CALL ddy_f%get_ptr(ddy, igrid)
-            CALL ddz_f%get_ptr(ddz, igrid)
-
-            CALL rdx_f%get_ptr(rdx, igrid)
-            CALL rdy_f%get_ptr(rdy, igrid)
-            CALL rdz_f%get_ptr(rdz, igrid)
-
-            CALL rddx_f%get_ptr(rddx, igrid)
-            CALL rddy_f%get_ptr(rddy, igrid)
-            CALL rddz_f%get_ptr(rddz, igrid)
-
-            CALL tstle4_kon(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
-                dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
-
-            CALL tstle4_diff(kk, jj, ii, uo, vo, wo, u, v, w, g, &
-                dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
-
-            CALL tstle4_gradp(kk, jj, ii, uo, vo, wo, p, dx, dy, dz, &
-                nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-
-            CALL tstle4_par(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
-                dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
+            !$omp parallel
+            CALL tstle4_kon(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
+                v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
+                dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
+                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, &
+                nlft, nbot, ntop)
+            !$omp end parallel
         END DO
+        !$omp end target teams distribute
+    END SUBROUTINE tstle4_kon_impl
 
-        CALL stop_timer(310)
-    END SUBROUTINE tstle4
+
+    SUBROUTINE tstle4_diff_impl(uo, vo, wo, u, v, w, g, dx, dy, dz, ddx, &
+            ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+
+        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_diff(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
+                v(ip3), w(ip3), g(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
+                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
+                rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE tstle4_diff_impl
+
+
+    SUBROUTINE tstle4_gradp_impl(uo, vo, wo, p, dx, dy, dz)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
+
+        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_gradp(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), p(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), &
+                nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE tstle4_gradp_impl
+
+
+    SUBROUTINE tstle4_par_impl(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, wcu, wcv, wcw)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(inout) :: wcu(*), wcv(*), wcw(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+
+        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_par(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
+                v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
+                dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
+                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                wcu(ip3), wcv(ip3), wcw(ip3), &
+                nfro, nbac, nrgt, nlft, nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE tstle4_par_impl
 
 
     ! The convective terms are computed in two steps:
@@ -139,6 +249,7 @@ CONTAINS
     SUBROUTINE tstle4_kon(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
             dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
             nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
@@ -179,6 +290,8 @@ CONTAINS
         IF (nbot == 3) nbw = 1
         IF (ntop == 3) ntw = 1
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
+        !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
         DO i = 3-nfu, ii-3+nbu
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -206,7 +319,10 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
+        !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
         DO i = 3, ii-2
             DO j = 3-nrv, jj-3+nlv
                 DO k = 3, kk-2
@@ -234,7 +350,10 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
+        !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3-nbw, kk-3+ntw
@@ -262,12 +381,14 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE tstle4_kon
 
 
     SUBROUTINE tstle4_diff(kk, jj, ii, uo, vo, wo, u, v, w, g, &
             dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
             nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
@@ -315,6 +436,8 @@ CONTAINS
         CALL swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, &
             ddx, ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
+        !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
         DO i = 3-nfu, ii-3+nbu
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -361,7 +484,10 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
+        !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
         DO i = 3, ii-2
             DO j = 3-nrv, jj-3+nlv
                 DO k = 3, kk-2
@@ -408,7 +534,10 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
+        !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3-nbw, kk-3+ntw
@@ -455,11 +584,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE tstle4_diff
 
 
     SUBROUTINE tstle4_gradp(kk, jj, ii, uo, vo, wo, p, dx, dy, dz, &
             nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
@@ -500,6 +631,7 @@ CONTAINS
         gpy = gradp(2)*gradpflag
         gpz = gradp(3)*gradpflag
 
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3-nfu, ii-3+nbu
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -508,7 +640,9 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3-nrv, jj-3+nlv
                 DO k = 3, kk-2
@@ -517,7 +651,9 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
 
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3-nbw, kk-3+ntw
@@ -526,12 +662,14 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE tstle4_gradp
 
 
     SUBROUTINE tstle4_par(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
             dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-            nfro, nbac, nrgt, nlft, nbot, ntop)
+            wcu, wcv, wcw, nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
@@ -543,6 +681,8 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
         REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        REAL(realk), INTENT(inout) :: wcu(kk, jj, ii), wcv(kk, jj, ii), &
+            wcw(kk, jj, ii)
         INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! Local variables
@@ -559,18 +699,12 @@ CONTAINS
         REAL(realk) :: dxi, ddxi, dyj, ddyj, dzk, ddzk, rdzk, rddzk
         REAL(realk), PARAMETER :: wkon = 1.0
 
-        ! Temporary storage
-        ! TODO: Can this be replaced with a single tmp(:, :, :) array??
-        ! I see no places where three arrays are needed at the same time...
-        REAL(realk), ALLOCATABLE :: wcu(:, :, :), wcv(:, :, :), wcw(:, :, :)
-
-        ALLOCATE(wcu(kk, jj, ii))
-        ALLOCATE(wcv(kk, jj, ii))
-        ALLOCATE(wcw(kk, jj, ii))
-
         ! Upwind in vorletzter schicht bei PAR-randbedingung
         IF (nfro == 8) THEN
             i = 4
+            !$omp do private(j, k, dyj, ddyj, fkdtu, fkdtv, fkdtw, &
+            !$omp& dzk, rdzk, ddzk, rddzk, avx, awx, fvw, qkvwadd, fww, &
+            !$omp& qkwwadd)
             DO j = 3, jj-2
                 dyj = dy(j)
                 ddyj = ddy(j)
@@ -600,10 +734,15 @@ CONTAINS
                     wo(k, j, i-1) = wo(k, j, i-1) + fkdtw * rdzk * (+qkwwadd)
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nbac == 8) THEN
             i = ii-2
+            !$omp do private(j, k, dyj, ddyj, fkdtu, fkdtv, fkdtw, &
+            !$omp& dzk, rdzk, ddzk, rddzk, avx, awx, fvw, qkvwadd, fww, &
+            !$omp& qkwwadd)
             DO j = 3, jj-2
                 dyj = dy(j)
                 ddyj = ddy(j)
@@ -634,9 +773,14 @@ CONTAINS
                     wo(k, j, i-1) = wo(k, j, i-1) + fkdtw * rdzk * (+qkwwadd)
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nrgt == 8) THEN
+            !$omp do private(i, j, k, dxi, ddxi, fkdtu, fkdtv, &
+            !$omp& fkdtw, dzk, rdzk, ddzk, rddzk, auy, awy, fus, qkusadd, &
+            !$omp& fws, qkwsadd)
             DO i = 3, ii-2
                 j = 4
                 dxi = dx(i)
@@ -668,9 +812,14 @@ CONTAINS
                     wo(k, j-1, i) = wo(k, j-1, i) + fkdtw * rdzk * (+qkwsadd)
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nlft == 8) THEN
+            !$omp do private(i, j, k, dxi, ddxi, fkdtu, fkdtv, &
+            !$omp& fkdtw, dzk, rdzk, ddzk, rddzk, auy, awy, fus, qkusadd, &
+            !$omp& fws, qkwsadd)
             DO i = 3, ii-2
                 j = jj-2
                 dxi = dx(i)
@@ -701,9 +850,14 @@ CONTAINS
                     wo(k, j-1, i) = wo(k, j-1, i) + fkdtw * rdzk * (+qkwsadd)
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nbot == 8) THEN
+            !$omp do private(i, j, k, dxi, ddxi, fkdtu, fkdtv, &
+            !$omp& fkdtw, dyj, ddyj, auz, avz, rdzk, rddzk, fub, qkubadd, &
+            !$omp& fvb, qkvbadd)
             DO i = 3, ii-2
                 dxi = dx(i)
                 ddxi = ddx(i)
@@ -736,9 +890,14 @@ CONTAINS
                     vo(k-1, j, i) = vo(k-1, j, i) + fkdtv * rddzk * (+qkvbadd)
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (ntop == 8) THEN
+            !$omp do private(i, j, k, dxi, ddxi, fkdtu, fkdtv, &
+            !$omp& fkdtw, dyj, ddyj, auz, avz, rdzk, rddzk, fub, qkubadd, &
+            !$omp& fvb, qkvbadd)
             DO i = 3, ii-2
                 dxi = dx(i)
                 ddxi = ddx(i)
@@ -772,7 +931,8 @@ CONTAINS
                     vo(k-1, j, i) = vo(k-1, j, i) + fkdtv * rddzk * (+qkvbadd)
                 END DO
             END DO
-
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend BACK
@@ -780,6 +940,7 @@ CONTAINS
             ! W-Impulszelle
             ! STANDART-BERECHNUNG DES KONVEKTIVEN FLUSSES
             i = ii-2
+            !$omp do private(j, k, ddyj, dzk, awx, fwe, qkwe)
             DO j = 3, jj-2
                 ddyj = ddy(j)
                 DO k = 2, kk-2
@@ -790,10 +951,13 @@ CONTAINS
                     wcw(k, j, i+1) = qkwe
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEITT
             i = ii-2
+            !$omp do private(j, k, ddyj, dzk, awx, fwe, qkwe)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 k = 2
@@ -829,16 +993,22 @@ CONTAINS
                 qkwe = 0.5*fwe*(w(k, j+1, i) + w(k, j+1, i+1))
                 wcw(k, j+1, i) = qkwe
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             i = ii-2
+            !$omp do collapse(2) private(j, k)
             DO j = 3, jj-2
                 DO k = 2, kk-4, 2
                     wcw(k+1, j, i) = 0.5*(wcw(k, j, i) + wcw(k+2, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF WO SCHREIBEN
+            !$omp do private(j, k, fkdtw, rdzk)
             DO j = 3, jj-2
                 fkdtw = -1.0*rddx(i)*rddy(j)*wkon
                 DO k = 2, kk-2
@@ -847,10 +1017,13 @@ CONTAINS
                         + fkdtw*rdzk*(-wcw(k, j, i+1) + wcw(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! V-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             i = ii-2
+            !$omp do private(j, k, dyj, ddzk, avx, fve, qkve)
             DO j = 2, jj-2
                 dyj = dy(j)
                 DO k = 3, kk-2
@@ -861,6 +1034,8 @@ CONTAINS
                     wcv(k, j, i+1) = qkve
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -869,6 +1044,7 @@ CONTAINS
             ! YM-RAND
             j = 2
             dyj = dy(j)
+            !$omp do private(k, ddzk, avx, fve, qkve)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 avx = ddzk*dyj
@@ -880,8 +1056,11 @@ CONTAINS
                 qkve = 0.5*fve*(v(k+1, j, i) + v(k+1, j, i+1))
                 wcv(k+1, j, i) = qkve
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(j, k, dyj, ddzk, avx, fve, qkve)
             DO j = 4, jj-4, 2
                 dyj = dy(j)
                 DO k = 3, kk-2, 2
@@ -897,10 +1076,13 @@ CONTAINS
                     wcv(k+1, j, i) = qkve
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! YP-RAND
             j = jj-2
             dyj = dy(j)
+            !$omp do private(k, ddzk, avx, fve, qkve)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 avx = ddzk*dyj
@@ -912,16 +1094,22 @@ CONTAINS
                 qkve = 0.5*fve*(v(k+1, j, i) + v(k+1, j, i+1))
                 wcv(k+1, j, i) = qkve
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             i = ii-2
+            !$omp do collapse(2) private(j, k)
             DO j = 2, jj-4, 2
                 DO k = 3, kk-2
                     wcv(k, j+1, i) = 0.5*(wcv(k, j, i) + wcv(k, j+2, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF VO SCHREIBEN
+            !$omp do private(j, k, fkdtv, rddzk)
             DO j = 2, jj-2
                 fkdtv = -1.0*rddx(i)* rdy(j)*wkon
                 DO k = 3, kk-2
@@ -930,6 +1118,8 @@ CONTAINS
                         + fkdtv*rddzk*(wcv(k, j, i) - wcv(k, j, i+1))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend FRONT
@@ -937,6 +1127,7 @@ CONTAINS
             ! W-Impulszelle
             ! STANDART-BERECHNUNG DES KONVEKTIVEN FLUSSES
             i = 3
+            !$omp do private(j, k, ddyj, dzk, awx, fww, qkww)
             DO j = 3, jj-2
                 ddyj = ddy(j)
                 DO k = 2, kk-2
@@ -947,10 +1138,13 @@ CONTAINS
                     wcw(k, j, i-1) = qkww
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
             i = 3
+            !$omp do private(j, k, ddyj, dzk, awx, fww, qkww)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 k = 2
@@ -986,16 +1180,22 @@ CONTAINS
                 qkww = 0.5*fww*(w(k, j+1, i) + w(k, j+1, i-1))
                 wcw(k, j+1, i) = qkww
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             i = 3
+            !$omp do collapse(2) private(j, k)
             DO j = 3, jj-2
                 DO k = 2, kk-4, 2
                     wcw(k+1, j, i) = 0.5*(wcw(k, j, i) + wcw(k+2, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF WO SCHREIBEN
+            !$omp do private(j, k, fkdtw, rdzk)
             DO j = 3, jj-2
                 fkdtw = -1.0*rddx(i)*rddy(j)*wkon
                 DO k = 2, kk-2
@@ -1004,10 +1204,13 @@ CONTAINS
                         + fkdtw*rdzk*(wcw(k, j, i-1) - wcw(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! V-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             i = 3
+            !$omp do private(j, k, dyj, ddzk, avx, fvw, qkvw)
             DO j = 2, jj-2
                 dyj = dy(j)
                 DO k = 3, kk-2
@@ -1018,6 +1221,8 @@ CONTAINS
                     wcv(k, j, i-1) = qkvw
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -1026,6 +1231,7 @@ CONTAINS
             ! YM-RAND
             j = 2
             dyj = dy(j)
+            !$omp do private(k, ddzk, avx, fvw, qkvw)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 avx = ddzk*dyj
@@ -1037,8 +1243,11 @@ CONTAINS
                 qkvw = 0.5*fvw*(v(k+1, j, i) + v(k+1, j, i-1))
                 wcv(k+1, j, i) = qkvw
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(j, k, dyj, ddzk, avx, fvw, qkvw)
             DO j = 4, jj-4, 2
                 dyj = dy(j)
                 DO k = 3, kk-2, 2
@@ -1054,10 +1263,13 @@ CONTAINS
                     wcv(k+1, j, i) = qkvw
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! YP-RAND
             j = jj-2
             dyj = dy(j)
+            !$omp do private(k, ddzk, avx, fvw, qkvw)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 avx = ddzk*dyj
@@ -1069,16 +1281,22 @@ CONTAINS
                 qkvw = 0.5*fvw*(v(k+1, j, i) + v(k+1, j, i-1))
                 wcv(k+1, j, i) = qkvw
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             i = 3
+            !$omp do collapse(2) private(j, k)
             DO j = 2, jj-4, 2
                 DO k = 3, kk-2
                     wcv(k, j+1, i) = 0.5*(wcv(k, j, i) + wcv(k, j+2, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF VO SCHREIBEN
+            !$omp do private(j, k, fkdtv, rddzk)
             DO j = 2, jj-2
                 fkdtv = -1.0*rddx(i)*rdy(j)*wkon
                 DO k = 3, kk-2
@@ -1087,6 +1305,8 @@ CONTAINS
                         + fkdtv*rddzk*(-wcv(k, j, i) + wcv(k, j, i-1))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend TOP
@@ -1095,6 +1315,7 @@ CONTAINS
             ! U-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             k = kk-2
+            !$omp do private(i, j, dxi, ddyj, auz, fut, qkut)
             DO i = 2, ii-2
                 dxi = dx(i)
                 DO j = 3, jj-2
@@ -1105,6 +1326,8 @@ CONTAINS
                     wcu(k+1, j, i) = qkut
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -1113,6 +1336,7 @@ CONTAINS
             ! XM-RAND
             i = 2
             dxi = dx(i)
+            !$omp do private(j, ddyj, auz, fut, qkut)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 auz = dxi*ddyj
@@ -1124,8 +1348,11 @@ CONTAINS
                 qkut = 0.5*fut*(u(k, j+1, i) + u(k+1, j+1, i))
                 wcu(k, j+1, i) = qkut
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(i, j, dxi, ddyj, auz, fut, qkut)
             DO i = 4, ii-4, 2
                 dxi = dx(i)
                 DO j = 3, jj-2, 2
@@ -1141,10 +1368,13 @@ CONTAINS
                     wcu(k, j+1, i) = qkut
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! XP-RAND
             i = ii-2
             dxi = dx(i)
+            !$omp do private(j, ddyj, auz, fut, qkut)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 auz = dxi*ddyj
@@ -1156,17 +1386,23 @@ CONTAINS
                 qkut = 0.5*fut*(u(k, j+1, i) + u(k+1, j+1, i))
                 wcu(k, j+1, i) = qkut
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             k = kk-2
+            !$omp do collapse(1) private(i, j)
             DO i = 2, ii-4, 2
                 DO j = 3, jj-2
                     wcu(k, j, i+1) = 0.5*(wcu(k, j, i) + wcu(k, j, i+2))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF U0 SCHREIBEN
             rddzk = rddz(k)
+            !$omp do collapse(2) private(i, j, fkdtu)
             DO i = 2, ii-2
                 DO j = 3, jj-2
                     fkdtu = -1.0*rddy(j)*rdx(i)*wkon
@@ -1174,10 +1410,13 @@ CONTAINS
                         + fkdtu*rddzk*(wcu(k, j, i) - wcu(k+1, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! V-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             k = kk-2
+            !$omp do private(i, j, ddxi, dyj, avz, fvt, qkvt)
             DO i = 3, ii-2
                 ddxi = ddx(i)
                 DO j = 2, jj-2
@@ -1188,10 +1427,13 @@ CONTAINS
                     wcv(k+1, j, i) = qkvt
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
             k = kk-2
+            !$omp do private(i, j, ddxi, dyj, avz, fvt, qkvt)
             DO i = 3, ii-2, 2
                 ddxi = ddx(i)
 
@@ -1233,17 +1475,23 @@ CONTAINS
                 qkvt = 0.5*fvt*(v(k, j, i+1) + v(k+1, j, i+1))
                 wcv(k, j, i+1) = qkvt
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             k = kk-2
+            !$omp do collapse(2) private(i, j)
             DO i = 3, ii-2
                 DO j = 2, jj-4, 2
                     wcv(k, j+1, i) = 0.5*(wcv(k, j, i) + wcv(k, j+2, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF VO SCHREIBEN
             rddzk = rddz(k)
+            !$omp do collapse(2) private(i, j, fkdtv)
             DO i = 3, ii-2
                 DO j = 2, jj-2
                     fkdtv = -1.0*rddx(i)*rdy(j)*wkon
@@ -1251,6 +1499,8 @@ CONTAINS
                         + fkdtv*rddzk*(wcv(k, j, i) - wcv(k+1, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend BOTTOM
@@ -1258,6 +1508,7 @@ CONTAINS
             ! U-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             k = 3
+            !$omp do private(i, j, dxi, ddyj, auz, fub, qkub)
             DO i = 2, ii-2
                 dxi = dx(i)
                 DO j = 3, jj-2
@@ -1268,6 +1519,8 @@ CONTAINS
                     wcu(k-1, j, i) = qkub
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -1276,6 +1529,7 @@ CONTAINS
             ! XM-RAND
             i = 2
             dxi = dx(i)
+            !$omp do private(j, ddyj, auz, fub, qkub)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 auz = dxi*ddyj
@@ -1287,8 +1541,11 @@ CONTAINS
                 qkub = 0.5*fub*(u(k, j+1, i) + u(k-1, j+1, i))
                 wcu(k, j+1, i) = qkub
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(i, j, dxi, ddyj, auz, fub, qkub)
             DO i = 4, ii-4, 2
                 dxi = dx(i)
                 DO j = 3, jj-2, 2
@@ -1304,10 +1561,13 @@ CONTAINS
                     wcu(k, j+1, i) = qkub
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! XP-RAND
             i = ii-2
             dxi = dx(i)
+            !$omp do private(j, ddyj, auz, fub, qkub)
             DO j = 3, jj-2, 2
                 ddyj = ddy(j)
                 auz = dxi*ddyj
@@ -1319,17 +1579,23 @@ CONTAINS
                 qkub = 0.5*fub*(u(k, j+1, i) + u(k-1, j+1, i))
                 wcu(k, j+1, i) = qkub
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             k = 3
+            !$omp do collapse(2) private(i, j)
             DO i = 2, ii-4, 2
                 DO j = 3, jj-2
                     wcu(k, j, i+1) = 0.5*(wcu(k, j, i) + wcu(k, j, i+2))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF U0 SCHREIBEN
             rddzk = rddz(k)
+            !$omp do collapse(2) private(i, j, fkdtu)
             DO i = 2, ii-2
                 DO j = 3, jj-2
                     fkdtu = -1.0*rddy(j)*rdx(i)*wkon
@@ -1337,10 +1603,13 @@ CONTAINS
                         + fkdtu*rddzk*(-wcu(k, j, i) + wcu(k-1, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! V-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             k = 3
+            !$omp do private(i, j, ddxi, dyj, avz, fvb, qkvb)
             DO i = 3, ii-2
                 ddxi = ddx(i)
                 DO j = 2, jj-2
@@ -1351,10 +1620,13 @@ CONTAINS
                     wcv(k-1, j, i) = qkvb
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
             k = 3
+            !$omp do private(i, j, ddxi, dyj, avz, fvb, qkvb)
             DO i = 3, ii-2, 2
                 ddxi = ddx(i)
 
@@ -1397,17 +1669,23 @@ CONTAINS
                 qkvb = 0.5*fvb*(v(k, j, i+1) + v(k-1, j, i+1))
                 wcv(k, j, i+1) = qkvb
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             k = 3
+            !$omp do collapse(2) private(i, j)
             DO i = 3, ii-2
                 DO j = 2, jj-4, 2
                     wcv(k, j+1, i) = 0.5*(wcv(k, j, i) + wcv(k, j+2, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF VO SCHREIBEN
             rddzk = rddz(k)
+            !$omp do collapse(2) private(i, j, fkdtv)
             DO i = 3, ii-2
                 DO j = 2, jj-2
                     fkdtv = -1.0*rddx(i)*rdy(j)*wkon
@@ -1415,6 +1693,8 @@ CONTAINS
                         + fkdtv*rddzk*(-wcv(k, j, i) + wcv(k-1, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend LEFT
@@ -1422,6 +1702,7 @@ CONTAINS
             ! U-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             j = jj-2
+            !$omp do private(i, k, dxi, ddzk, auy, fun, qkun)
             DO i = 2, ii-2
                 dxi = dx(i)
                 DO k = 3, kk-2
@@ -1432,6 +1713,8 @@ CONTAINS
                     wcu(k, j+1, i) = qkun
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -1440,6 +1723,7 @@ CONTAINS
             ! XM-RAND
             i = 2
             dxi = dx(i)
+            !$omp do private(k, ddzk, auy, fun, qkun)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 auy = dxi*ddzk
@@ -1451,8 +1735,11 @@ CONTAINS
                 qkun = 0.5*fun*(u(k+1, j, i) + u(k+1, j+1, i))
                 wcu(k+1, j, i) = qkun
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(i, k, dxi, ddzk, auy, fun, qkun)
             DO i = 4, ii-4, 2
                 dxi = dx(i)
                 DO k = 3, kk-2, 2
@@ -1468,10 +1755,13 @@ CONTAINS
                     wcu(k+1, j, i) = qkun
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! XP-RAND
             i = ii-2
             dxi = dx(i)
+            !$omp do private(k, ddzk, auy, fun, qkun)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 auy = dxi*ddzk
@@ -1483,17 +1773,23 @@ CONTAINS
                 qkun = 0.5*fun*(u(k+1, j, i) + u(k+1, j+1, i))
                 wcu(k+1, j, i) = qkun
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             j = jj-2
+            !$omp do collapse(2) private(i, k)
             DO i = 2, ii-4, 2
                 DO k = 3, kk-2
                     wcu(k, j, i+1) = 0.5*(wcu(k, j, i) + wcu(k, j, i+2))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF U0 SCHREIBEN
             j = jj-2
+            !$omp do private(i, k, fkdtu, rddzk)
             DO i = 2, ii-2
                 fkdtu = -1.0*rddy(j)*rdx(i)*wkon
                 DO k = 3, kk-2
@@ -1502,10 +1798,13 @@ CONTAINS
                         + fkdtu*rddzk*(wcu(k, j, i) - wcu(k, j+1, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! W-IMPULSZELLE
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             j = jj-2
+            !$omp do private(i, k, ddxi, dzk, awy, fwn, qkwn)
             DO i = 3, ii-2
                 ddxi = ddx(i)
                 DO k = 2, kk-2
@@ -1516,10 +1815,13 @@ CONTAINS
                     wcw(k, j+1, i) = qkwn
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
             j = jj-2
+            !$omp do private(i, k, ddxi, dzk, awy, fwn, qkwn)
             DO i = 3, ii-2, 2
                 ddxi = ddx(i)
 
@@ -1561,17 +1863,23 @@ CONTAINS
                 qkwn = 0.5*fwn*(w(k, j, i+1) + w(k, j+1, i+1))
                 wcw(k, j, i+1) = qkwn
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             j = jj-2
+            !$omp do collapse(2) private(i, k)
             DO i = 3, ii-2
                 DO k = 2, kk-4, 2
                     wcw(k+1, j, i) = 0.5*(wcw(k, j, i) + wcw(k+2, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF W0 SCHREIBEN
             j = jj-2
+            !$omp do private(i, k, fkdtw, rdzk)
             DO i = 3, ii-2
                 fkdtw = -1.0*rddx(i)*rddy(j)*wkon
                 DO k = 2, kk-2
@@ -1580,6 +1888,8 @@ CONTAINS
                         + fkdtw*rdzk*(-wcw(k, j+1, i) + wcw(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         ! PAR-RB Impulserhaltend RIGHT
@@ -1587,6 +1897,7 @@ CONTAINS
             ! U-Impulszelle
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             j = 3
+            !$omp do private(i, k, dxi, ddzk, auy, fus, qkus)
             DO i = 2, ii-2
                 dxi = dx(i)
                 DO k = 3, kk-2
@@ -1597,6 +1908,8 @@ CONTAINS
                     wcu(k, j-1, i) = qkus
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
@@ -1605,6 +1918,7 @@ CONTAINS
             ! XM-RAND
             i = 2
             dxi = dx(i)
+            !$omp do private(k, ddzk, auy, fus, qkus)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 auy = dxi*ddzk
@@ -1616,8 +1930,11 @@ CONTAINS
                 qkus = 0.5*fus*(u(k+1, j, i) + u(k+1, j-1, i))
                 wcu(k+1, j, i) = qkus
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! IM GEBIET
+            !$omp do private(i, k, dxi, ddzk, auy, fus, qkus)
             DO i = 4, ii-4, 2
                 dxi = dx(i)
                 DO k = 3, kk-2, 2
@@ -1633,10 +1950,13 @@ CONTAINS
                     wcu(k+1, j, i) = qkus
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! XP-RAND
             i = ii-2
             dxi = dx(i)
+            !$omp do private(k, ddzk, auy, fus, qkus)
             DO k = 3, kk-2, 2
                 ddzk = ddz(k)
                 auy = dxi*ddzk
@@ -1648,17 +1968,23 @@ CONTAINS
                 qkus = 0.5*fus*(u(k+1, j, i) + u(k+1, j-1, i))
                 wcu(k+1, j, i) = qkus
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             j = 3
+            !$omp do collapse(2) private(i, k)
             DO i = 2, ii-4, 2
                 DO k = 3, kk-2
                     wcu(k, j, i+1) = 0.5*(wcu(k, j, i) + wcu(k, j, i+2))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF U0 SCHREIBEN
             j = 3
+            !$omp do private(i, k, fkdtu, rddzk)
             DO i = 2, ii-2
                 fkdtu = -1.0*rddy(j)*rdx(i)*wkon
                 DO k = 3, kk-2
@@ -1667,10 +1993,13 @@ CONTAINS
                         + fkdtu*rddzk*(-wcu(k, j, i) + wcu(k, j-1, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! W-IMPULSZELLE
             ! STANDARD-BERECHNUNG DES KONVEKTIVEN FLUSSES
             j = 3
+            !$omp do private(i, k, ddxi, dzk, awy, fws, qkws)
             DO i = 3, ii-2
                 ddxi = ddx(i)
                 DO k = 2, kk-2
@@ -1681,10 +2010,13 @@ CONTAINS
                     wcw(k, j-1, i) = qkws
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! NEUE BERECHNUNG DES KONVEKTIVEN FLUSSES
             ! FUER JEDE GROBGITTERGESCHWINDIGKEIT
             j = 3
+            !$omp do private(i, k, ddxi, dzk, awy, fws, qkws)
             DO i = 3, ii-2, 2
                 ddxi = ddx(i)
 
@@ -1726,17 +2058,23 @@ CONTAINS
                 qkws = 0.5*fws*(w(k, j, i+1) + w(k, j-1, i+1))
                 wcw(k, j, i+1) = qkws
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! VERTEILUNG
             j = 3
+            !$omp do collapse(2) private(i, k)
             DO i = 3, ii-2
                 DO k = 2, kk-4, 2
                     wcw(k+1, j, i) = 0.5*(wcw(k, j, i) + wcw(k+2, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
 
             ! AUF W0 SCHREIBEN
             j = 3
+            !$omp do private(i, k, fkdtw, rdzk)
             DO i = 3, ii-2
                 fkdtw = -1.0*rddx(i)*rddy(j)*wkon
                 DO k = 2, kk-2
@@ -1745,16 +2083,16 @@ CONTAINS
                         + fkdtw*rdzk*(wcw(k, j-1, i) - wcw(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            ! no need for a barrier here since this is the last operation in
+            ! the subroutine
         END IF
-
-        DEALLOCATE(wcu)
-        DEALLOCATE(wcv)
-        DEALLOCATE(wcw)
     END SUBROUTINE tstle4_par
 
 
     SUBROUTINE swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, ddx, ddy, ddz, &
             nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -1769,67 +2107,87 @@ CONTAINS
 
         IF (nfro == 5) THEN
             i = 3
+            !$omp do collapse(2) private(j, k)
             DO j = 2, jj-1
                 DO k = 2, kk-1
                     vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddx(i), v(k, j, i))
                     wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddx(i), w(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nbac == 5) THEN
             i = ii-2
+            !$omp do collapse(2) private(j, k)
             DO j = 2, jj-1
                 DO k = 2, kk-1
                     vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddx(i), v(k, j, i))
                     wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddx(i), w(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nrgt == 5) THEN
             j = 3
+            !$omp do collapse(2) private(i, k)
             DO i = 2, ii-1
                 DO k = 2, kk-1
                     uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddy(j), u(k, j, i))
                     wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddy(j), w(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nlft == 5) THEN
             j = jj-2
+            !$omp do collapse(2) private(i, k)
             DO i = 2, ii-1
                 DO k = 2, kk-1
                     uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddy(j), u(k, j, i))
                     wo(k, j, i) = wo(k, j, i) - swcle3d_one(ddy(j), w(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (nbot == 5) THEN
             k = 3
+            !$omp do collapse(2) private(i, j)
             DO i = 2, ii-1
                 DO j = 2, jj-1
                     uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddz(k), u(k, j, i))
                     vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddz(k), v(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            !$omp barrier
         END IF
 
         IF (ntop == 5) THEN
             k = kk-2
+            !$omp do collapse(2) private(i, j)
             DO i = 2, ii-1
                 DO j = 2, jj-1
                     uo(k, j, i) = uo(k, j, i) - swcle3d_one(ddz(k), u(k, j, i))
                     vo(k, j, i) = vo(k, j, i) - swcle3d_one(ddz(k), v(k, j, i))
                 END DO
             END DO
+            !$omp end do
+            ! no need for a barrier here since this is the last operation in
+            ! the subroutine
         END IF
     END SUBROUTINE swcle3d
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION swcle3d_one(ddz, u) RESULT(uo)
+        !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(swcle3d_one)
 #endif

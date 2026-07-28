@@ -24,6 +24,7 @@ CONTAINS
         USE itinfo_mod, ONLY: init_itinfo
         USE boussinesqterm_mod, ONLY: init_boussinesqterm
         USE coriolisterm_mod, ONLY: init_coriolisterm
+        USE bound_flow_mod, ONLY: init_bound_flow
 
         ! Local variables
         TYPE(field_t), POINTER :: u, v, w
@@ -33,6 +34,7 @@ CONTAINS
         IF (.NOT. has_flow) RETURN
 
         CALL init_uvwp()
+        CALL init_bound_flow()
         CALL init_flowstat()
 
         ! Wall- and LES models are needed for pure scalar simulation
@@ -46,6 +48,10 @@ CONTAINS
         ! These sould only be needed when flow is actually solved
         CALL set_timer(300, "FLOW")
         CALL set_timer(310, "FLOW_TSTLE4")
+        CALL set_timer(311, "FLOW_TSTLE4_KON")
+        CALL set_timer(312, "FLOW_TSTLE4_DIFF")
+        CALL set_timer(313, "FLOW_TSTLE4_GRADP")
+        CALL set_timer(314, "FLOW_TSTLE4_PAR")
         CALL set_timer(320, "FLOW_MGPOISL")
         CALL set_timer(321, "FLOW_MGPOISIT")
         CALL set_timer(322, "FLOW_MGPOISL_INNER")
@@ -63,6 +69,10 @@ CONTAINS
         CALL init_coriolisterm()
         CALL init_itinfo(dcont)
 
+        CALL get_field(u, "U")
+        CALL get_field(v, "V")
+        CALL get_field(w, "W")
+
         ! Need to call this here - cannot be in flowcore because that
         ! create a circular dependency
         SELECT TYPE(ib)
@@ -77,12 +87,14 @@ CONTAINS
             CALL get_field(pwu, "PWU")
             CALL get_field(pwv, "PWV")
             CALL get_field(pww, "PWW")
-            CALL get_field(u, "U")
-            CALL get_field(v, "V")
-            CALL get_field(w, "W")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
+            CALL map_arr_to_device(pwu, pwv, pww, &
+                message="to:init_pointvalues")
             CALL setibvalues(u, v, w)
         END SELECT
+
+        CALL map_arr_to_device(u, v, w, message="to:init_flow")
+        CALL map_buffers_to_device(u, v, w, message="to:init_flow")
     END SUBROUTINE init_flow
 
 
@@ -96,6 +108,7 @@ CONTAINS
         USE ib_mod
         USE boussinesqterm_mod, ONLY: finish_boussinesqterm
         USE coriolisterm_mod, ONLY: finish_coriolisterm
+        USE bound_flow_mod, ONLY: finish_bound_flow
 
         IF (.NOT. has_flow) RETURN
 
@@ -116,6 +129,7 @@ CONTAINS
 
         CALL finish_lesmodel()
         CALL finish_wernerwengle()
+        CALL finish_bound_flow()
         CALL finish_flowcore()
     END SUBROUTINE finish_flow
 

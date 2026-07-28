@@ -66,6 +66,10 @@ CONTAINS
         IF (.NOT. has_buoyancy) RETURN
         CALL start_timer(360)
 
+        CALL map_arr_from_device(uo_f, vo_f, wo_f, &
+            message="boussinesqterm:from:uo|vo|wo")
+        ! TODO: when scalar is also on device, map scafield from device as well
+
         ! Use "old" value for scalar field since scalar field already have
         ! been timestepped to next time level!
         CALL get_field(scafield, TRIM(scaname)//"_OLD")
@@ -84,6 +88,9 @@ CONTAINS
             CALL boussinesqterm_grid(kk, jj, ii, uo, vo, wo, t, nfro, nbac, &
                 nrgt, nlft, nbot, ntop)
         END DO
+
+        CALL map_arr_to_device(uo_f, vo_f, wo_f, &
+            message="boussinesqterm:to:uo|vo|wo")
 
         CALL stop_timer(360)
     END SUBROUTINE boussinesqterm

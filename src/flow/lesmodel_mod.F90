@@ -10,6 +10,7 @@ MODULE lesmodel_mod
     INTEGER(intk), PARAMETER :: nchar = 16
     CHARACTER(len=nchar) :: clesmodel
     INTEGER(intk), PROTECTED :: ilesmodel
+    !$omp declare target(ilesmodel)
 
     TYPE, EXTENDS(bound_t) :: boundg_t
     CONTAINS
@@ -23,9 +24,15 @@ MODULE lesmodel_mod
 
     ! LES model constant
     REAL(realk) :: Cm
+    !$omp declare target(Cm)
 
     ! Bound operation
     TYPE(boundg_t) :: bound
+
+    INTEGER(intk), PARAMETER :: boundgtasksize = 3
+    INTEGER(intk), ALLOCATABLE :: boundgtasks(:, :, :)
+    INTEGER(intk), ALLOCATABLE :: nboundgtaskslvl(:)
+    !$omp declare target(boundgtasks)
 
     PUBLIC :: init_lesmodel, finish_lesmodel, lesmodel, ilesmodel
 
@@ -54,6 +61,10 @@ CONTAINS
             ilesmodel = 2
             Cm = 0.5
         CASE("sigma")
+#ifdef _MGLET_OFFLOAD_
+            WRITE(*, *) "LES model 'sigma' is not supported with offloading"
+            CALL errr(__FILE__, __LINE__)
+#endif
             ilesmodel = 5
             Cm = 1.35
         CASE DEFAULT
@@ -63,6 +74,9 @@ CONTAINS
 
         ! Override default model parameter
         CALL lesconf%get_value("/Cm", Cm, Cm)
+        !$omp target update to(ilesmodel, Cm)
+
+        CALL init_boundg()
 
         ! Compute viscosity corresponding to initial condition
         CALL get_field(g, "G")
@@ -78,15 +92,19 @@ CONTAINS
                 CALL parent(ilevel, s1=g)
                 CALL bound%bound(ilevel, g)
             END DO
+
+            CALL map_arr_to_device(g, message="to:init_lesmodel")
         ELSE
+            CALL map_arr_to_device(g, message="to:init_lesmodel")
             CALL lesmodel(g)
         END IF
     END SUBROUTINE init_lesmodel
 
 
     SUBROUTINE finish_lesmodel()
-        ! Does nothing right now...
-        CONTINUE
+        !$omp target exit data map(always, delete: boundgtasks)
+        DEALLOCATE(boundgtasks)
+        DEALLOCATE(nboundgtaskslvl)
     END SUBROUTINE finish_lesmodel
 
 
@@ -116,15 +134,7 @@ CONTAINS
         TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
 
-        REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
-            w(:, :, :), bp(:, :, :), g(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
-
-        INTEGER(intk) :: ilevel, i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
+        INTEGER(intk) :: ilevel
 
         CALL get_field(u_f, "U")
         CALL get_field(v_f, "V")
@@ -143,63 +153,212 @@ CONTAINS
         CALL get_field(rddy_f, "RDDY")
         CALL get_field(rddz_f, "RDDZ")
 
-        DO ilevel = maxlevel, minlevel, -1
-            DO i = 1, nmygridslvl(ilevel)
-                igrid = mygridslvl(i, ilevel)
-
-                CALL get_mgdims(kk, jj, ii, igrid)
-                CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-
-                CALL g_f%get_ptr(g, igrid)
-
-                CALL u_f%get_ptr(u, igrid)
-                CALL v_f%get_ptr(v, igrid)
-                CALL w_f%get_ptr(w, igrid)
-                CALL bp_f%get_ptr(bp, igrid)
-
-                CALL dx_f%get_ptr(dx, igrid)
-                CALL dy_f%get_ptr(dy, igrid)
-                CALL dz_f%get_ptr(dz, igrid)
-
-                CALL ddx_f%get_ptr(ddx, igrid)
-                CALL ddy_f%get_ptr(ddy, igrid)
-                CALL ddz_f%get_ptr(ddz, igrid)
-
-                CALL rddx_f%get_ptr(rddx, igrid)
-                CALL rddy_f%get_ptr(rddy, igrid)
-                CALL rddz_f%get_ptr(rddz, igrid)
-
-                CALL efvisc_gc(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
-                    dx, dy, dz, ddx, ddy, ddz, rddx, rddy, rddz, &
-                    u, v, w, gmol, rho, bp, g)
-            END DO
-        END DO
+        CALL lesmodel_gc_impl(g_f%arr, u_f%arr, v_f%arr, w_f%arr, bp_f%arr, &
+            dx_f%arr, dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+            rddx_f%arr, rddy_f%arr, rddz_f%arr)
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, s1=g_f)
-            CALL bound%bound(ilevel, g_f)
-            CALL connect(ilevel, 1, s1=g_f)
+            CALL parent(ilevel, s1=g_f, device=.TRUE.)
+            CALL apply_boundg(ilevel, g_f, bp_f)
+            CALL conn(ilevel, 1, s1=g_f)
         END DO
 
-        DO ilevel = minlevel, maxlevel
-            DO i = 1, nmygridslvl(ilevel)
-                igrid = mygridslvl(i, ilevel)
-                CALL get_mgdims(kk, jj, ii, igrid)
-                CALL g_f%get_ptr(g, igrid)
-                CALL bp_f%get_ptr(bp, igrid)
-                CALL setginbody(kk, jj, ii, bp, g)
-            END DO
-        END DO
+        CALL setginbody_impl(g_f%arr, bp_f%arr)
 
         ! TSTLE4 access corner values of viscosity such as (k, j+1, i+1),
         ! therefore connect with corners
-        CALL connect(layers=1, s1=g_f, corners=.TRUE.)
+        CALL conn(layers=1, s1=g_f, corners=.TRUE.)
     END SUBROUTINE lesmodel_gc
+
+
+    SUBROUTINE lesmodel_gc_impl(g, u, v, w, bp, dx, dy, dz, ddx, ddy, ddz, &
+            rddx, rddy, rddz)
+        REAL(realk), INTENT(inout) :: g(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), bp(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+
+        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, &
+        !$omp& ipz, kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL efvisc_gc(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
+                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
+                rddx(ipx), rddy(ipy), rddz(ipz), u(ip3), v(ip3), w(ip3), &
+                gmol, rho, bp(ip3), g(ip3))
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE lesmodel_gc_impl
+
+
+    SUBROUTINE setginbody_impl(g, bp)
+        REAL(realk), INTENT(inout) :: g(*)
+        REAL(realk), INTENT(in) :: bp(*)
+
+        INTEGER(intk) :: i, igrid, ip3, kk, jj, ii
+
+        !$omp target teams distribute private(i, igrid, ip3, kk, jj, ii)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            !$omp parallel
+            CALL setginbody(kk, jj, ii, bp(ip3), g(ip3))
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE setginbody_impl
+
+
+    SUBROUTINE init_boundg()
+        INTEGER(intk) :: nlevels, ilevel, ilevel_index
+        INTEGER(intk) :: i, igrid, iface, ibocd, nbocd, itask
+        CHARACTER(len=8) :: ctyp
+
+        nlevels = maxlevel - minlevel + 1
+        ALLOCATE(nboundgtaskslvl(nlevels), source=0_intk)
+
+        DO ilevel = minlevel, maxlevel
+            ilevel_index = ilevel - minlevel + 1
+            DO i = 1, nmygridslvl(ilevel)
+                igrid = mygridslvl(i, ilevel)
+                DO iface = 1, 6
+                    nbocd = nboconds(iface, igrid)
+                    DO ibocd = 1, nbocd
+                        CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
+                        IF (boundg_ctyp(ctyp) == 0) CYCLE
+                        nboundgtaskslvl(ilevel_index) = &
+                            nboundgtaskslvl(ilevel_index) + 1
+                    END DO
+                END DO
+            END DO
+        END DO
+
+        ALLOCATE(boundgtasks(boundgtasksize, MAXVAL(nboundgtaskslvl), &
+            nlevels), source=-1_intk)
+
+        DO ilevel = minlevel, maxlevel
+            ilevel_index = ilevel - minlevel + 1
+            itask = 0
+            DO i = 1, nmygridslvl(ilevel)
+                igrid = mygridslvl(i, ilevel)
+                DO iface = 1, 6
+                    nbocd = nboconds(iface, igrid)
+                    DO ibocd = 1, nbocd
+                        CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
+                        IF (boundg_ctyp(ctyp) == 0) CYCLE
+                        itask = itask + 1
+                        boundgtasks(:, itask, ilevel_index) = &
+                            [igrid, iface, boundg_ctyp(ctyp)]
+                    END DO
+                END DO
+            END DO
+        END DO
+
+        !$omp target enter data map(always, to: boundgtasks)
+    END SUBROUTINE init_boundg
+
+
+    INTEGER(intk) FUNCTION boundg_ctyp(ctyp)
+        CHARACTER(len=*), INTENT(in) :: ctyp
+
+        SELECT CASE (ctyp)
+        CASE ("NOS", "SLI")
+            boundg_ctyp = 1
+        CASE ("FIX", "OP1")
+            boundg_ctyp = 2
+        CASE ("PAR")
+            boundg_ctyp = 3
+        CASE DEFAULT
+            boundg_ctyp = 0
+        END SELECT
+    END FUNCTION boundg_ctyp
+
+
+    SUBROUTINE apply_boundg(ilevel, g_f, bp_f)
+        INTEGER(intk), INTENT(in) :: ilevel
+        TYPE(field_t), INTENT(inout) :: g_f
+        TYPE(field_t), INTENT(in) :: bp_f
+
+        INTEGER(intk) :: ilevel_index, ntasks
+
+        ilevel_index = ilevel - minlevel + 1
+        ntasks = nboundgtaskslvl(ilevel_index)
+
+        CALL apply_boundg_impl(ilevel_index, ntasks, g_f%arr, g_f%buffers, &
+            bp_f%arr)
+    END SUBROUTINE apply_boundg
+
+
+    SUBROUTINE apply_boundg_impl(ilevel_index, ntasks, g, gbuffer, bp)
+        INTEGER(intk), INTENT(in) :: ilevel_index, ntasks
+        REAL(realk), INTENT(inout) :: g(*), gbuffer(*)
+        REAL(realk), INTENT(in) :: bp(*)
+
+        INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii, ip3, ipbb
+
+        !$omp target teams distribute private(itask, igrid, iface, ityp, &
+        !$omp& kk, jj, ii, ip3, ipbb)
+        DO itask = 1, ntasks
+            igrid = boundgtasks(1, itask, ilevel_index)
+            iface = boundgtasks(2, itask, ilevel_index)
+            ityp = boundgtasks(3, itask, ilevel_index)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            IF (ityp /= 3) THEN
+                !$omp parallel
+                CALL boundg_nobuffer_device(kk, jj, ii, iface, ityp, g(ip3))
+                !$omp end parallel
+                CYCLE
+            END IF
+            CALL get_ipbb(ipbb, iface, igrid)
+
+            !$omp parallel
+            SELECT CASE (iface)
+            CASE (1)
+                CALL bfront_device(kk, jj, ii, 2, 3, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            CASE (2)
+                CALL bfront_device(kk, jj, ii, ii-1, ii-2, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            CASE (3)
+                CALL bright_device(kk, jj, ii, 2, 3, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            CASE (4)
+                CALL bright_device(kk, jj, ii, jj-1, jj-2, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            CASE (5)
+                CALL bbottom_device(kk, jj, ii, 2, 3, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            CASE (6)
+                CALL bbottom_device(kk, jj, ii, kk-1, kk-2, ityp, &
+                    gbuffer(ipbb), g(ip3), bp(ip3))
+            END SELECT
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE apply_boundg_impl
 
 
     SUBROUTINE efvisc_gc(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
             dx, dy, dz, ddx, ddy, ddz, rddx, rddy, rddz, u, v, w, gmol, rho, &
             bp, g)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -214,159 +373,132 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: k, j, i
-        REAL(realk) :: dudx(kk-4), dudy(kk-4), dudz(kk-4), &
-            dvdx(kk-4), dvdy(kk-4), dvdz(kk-4), &
-            dwdx(kk-4), dwdy(kk-4), dwdz(kk-4)
+        REAL(realk) :: dudx, dudy, dudz, dvdx, dvdy, dvdz
+        REAL(realk) :: dwdx, dwdy, dwdz
         REAL(realk) :: dxf, dyf, dzf
         REAL(realk) :: dxf2, dyf2, dzf2
-        REAL(realk) :: delta(kk-4), dm
+        REAL(realk) :: delta, dm
 
+        !$omp do collapse(3) private(i, j, k, dudx, dudy, dudz, &
+        !$omp& dvdx, dvdy, dvdz, dwdx, dwdy, dwdz, dxf, dyf, dzf, dxf2, &
+        !$omp& dyf2, dzf2, delta, dm)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
                     dxf = 0.25*dx(i-1)*rddx(i)
                     ! dU/dX
-                    dudx(k-2) = (u(k, j, i) - u(k, j, i-1))*rddx(i)
+                    dudx = (u(k, j, i) - u(k, j, i-1))*rddx(i)
                     ! dU/dY
-                    dudy(k-2) = ((u(k, j+1, i) - u(k, j-1, i))*dxf &
+                    dudy = ((u(k, j+1, i) - u(k, j-1, i))*dxf &
                         + (u(k, j+1, i-1) - u(k, j-1, i-1))*(0.5-dxf))*rddy(j)
                     ! dU/dZ
-                    dudz(k-2) = ((u(k+1, j, i) - u(k-1, j, i))*dxf &
+                    dudz = ((u(k+1, j, i) - u(k-1, j, i))*dxf &
                         + (u(k+1, j, i-1) - u(k-1, j, i-1))*(0.5-dxf))*rddz(k)
 
                     dyf = 0.25*dy(j-1)*rddy(j)
                     ! dV/dX
-                    dvdx(k-2) = ((v(k, j, i+1) - v(k, j, i-1))*dyf &
+                    dvdx = ((v(k, j, i+1) - v(k, j, i-1))*dyf &
                         + (v(k, j-1, i+1) - v(k, j-1, i-1))*(0.5-dyf))*rddx(i)
                     ! dV/dY
-                    dvdy(k-2) = (v(k, j, i) - v(k, j-1, i))*rddy(j)
+                    dvdy = (v(k, j, i) - v(k, j-1, i))*rddy(j)
                     ! dV/dZ
-                    dvdz(k-2) = ((v(k+1, j, i) - v(k-1, j, i))*dyf &
+                    dvdz = ((v(k+1, j, i) - v(k-1, j, i))*dyf &
                         + (v(k+1, j-1, i) - v(k-1, j-1, i))*(0.5-dyf))*rddz(k)
 
                     dzf = 0.25*dz(k-1)*rddz(k)
                     ! dW/dX
-                    dwdx(k-2) = ((w(k, j, i+1) - w(k, j, i-1))*dzf &
+                    dwdx = ((w(k, j, i+1) - w(k, j, i-1))*dzf &
                         + (w(k-1, j, i+1) - w(k-1, j, i-1))*(0.5-dzf))*rddx(i)
                     ! dW/dY
-                    dwdy(k-2) = ((w(k, j+1, i) - w(k, j-1, i))*dzf &
+                    dwdy = ((w(k, j+1, i) - w(k, j-1, i))*dzf &
                         + (w(k-1, j+1, i) - w(k-1, j-1, i))*(0.5-dzf))*rddy(j)
                     ! dW/dZ
-                    dwdz(k-2) = (w(k, j, i) - w(k-1, j, i))*rddz(k)
-                END DO
+                    dwdz = (w(k, j, i) - w(k-1, j, i))*rddz(k)
 
-#ifndef _MGLET_OFFLOAD_
-                !$omp simd
-#endif
-                DO k = 3, kk-2
-                    delta(k-2) = cube_root(ddx(i)*ddy(j)*ddz(k))
-                    delta(k-2) = delta(k-2)*bp(k, j, i)
-                END DO
+                    delta = cube_root(ddx(i)*ddy(j)*ddz(k))*bp(k, j, i)
 
-                ! NOS corrections to gradients
-                ! GRADP2 uses thw WW wall model to compute the gradient
-                ! ddx/2 away from the wall
-                IF (nfro == 5 .AND. i == 3) THEN
-                    DO k = 3, kk-2
+                    ! NOS corrections to gradients
+                    ! GRADP2 uses the WW wall model to compute the gradient
+                    ! half a cell away from the wall.
+                    IF (nfro == 5 .AND. i == 3) THEN
                         dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdx(k-2) = gradp2(dyf2*v(k, j, i) &
+                        dvdx = gradp2(dyf2*v(k, j, i) &
                             + (1.0-dyf2)*v(k, j-1, i), ddx(i))
 
                         dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdx(k-2) = gradp2(dzf2*w(k, j, i) &
+                        dwdx = gradp2(dzf2*w(k, j, i) &
                             + (1.0-dzf2)*w(k-1, j, i), ddx(i))
-                    END DO
-                END IF
-                IF (nbac == 5 .AND. i == ii-2) THEN
-                    DO k = 3, kk-2
+                    END IF
+                    IF (nbac == 5 .AND. i == ii-2) THEN
                         dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdx(k-2) = -gradp2(dyf2*v(k, j, i) &
+                        dvdx = -gradp2(dyf2*v(k, j, i) &
                             + (1.0-dyf2)*v(k, j-1, i), ddx(i))
 
                         dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdx(k-2) = -gradp2(dzf2*w(k, j, i) &
+                        dwdx = -gradp2(dzf2*w(k, j, i) &
                             + (1.0-dzf2)*w(k-1, j, i), ddx(i))
-                    END DO
-                END IF
-                IF (nrgt == 5 .AND. j == 3) THEN
-                    DO k = 3, kk-2
+                    END IF
+                    IF (nrgt == 5 .AND. j == 3) THEN
                         dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudy(k-2) = gradp2(dxf2*u(k, j, i) &
+                        dudy = gradp2(dxf2*u(k, j, i) &
                             + (1.0-dxf2)*u(k, j, i-1), ddy(j))
 
                         dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdy(k-2) = gradp2(dzf2*w(k, j, i) &
+                        dwdy = gradp2(dzf2*w(k, j, i) &
                             + (1.0-dzf2)*w(k-1, j, i), ddy(j))
-                    END DO
-                END IF
-                IF (nlft == 5 .AND. j == jj-2) THEN
-                    DO k = 3, kk-2
+                    END IF
+                    IF (nlft == 5 .AND. j == jj-2) THEN
                         dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudy(k-2) = -gradp2(dxf2*u(k, j, i) &
+                        dudy = -gradp2(dxf2*u(k, j, i) &
                             + (1.0-dxf2)*u(k, j, i-1), ddy(j))
 
                         dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdy(k-2) = -gradp2(dzf2*w(k, j, i) &
+                        dwdy = -gradp2(dzf2*w(k, j, i) &
                             + (1.0-dzf2)*w(k-1, j, i), ddy(j))
-                    END DO
-                END IF
-                IF (nbot == 5) THEN
-                    ! The programmer is lazy and the compiler intelligent...
-                    DO k = 3, 3
+                    END IF
+                    IF (nbot == 5 .AND. k == 3) THEN
                         dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudz(k-2) = gradp2(dxf2*u(k, j, i) &
+                        dudz = gradp2(dxf2*u(k, j, i) &
                             + (1.0-dxf2)*u(k, j, i-1), ddz(k))
 
                         dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdz(k-2) = gradp2(dyf2*v(k, j, i) &
+                        dvdz = gradp2(dyf2*v(k, j, i) &
                             + (1.0-dyf2)*v(k, j-1, i), ddz(k))
-                    END DO
-                END IF
-                IF (ntop == 5) THEN
-                    DO k = kk-2, kk-2
+                    END IF
+                    IF (ntop == 5 .AND. k == kk-2) THEN
                         dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudz(k-2) = -gradp2(dxf2*u(k, j, i) &
+                        dudz = -gradp2(dxf2*u(k, j, i) &
                             + (1.0-dxf2)*u(k, j, i-1), ddz(k))
 
                         dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdz(k-2) = -gradp2(dyf2*v(k, j, i) &
+                        dvdz = -gradp2(dyf2*v(k, j, i) &
                             + (1.0-dyf2)*v(k, j-1, i), ddz(k))
-                    END DO
-                END IF
+                    END IF
 
-                SELECT CASE (ilesmodel)
-                CASE (1)
+                    SELECT CASE (ilesmodel)
+                    CASE (1)
+                        dm = smagorinsky(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
+                            dwdx, dwdy, dwdz)
+                    CASE (2)
+                        dm = wale(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
+                            dwdx, dwdy, dwdz)
 #ifndef _MGLET_OFFLOAD_
-                    !$omp simd private(dm)
+                    CASE (5)
+                        dm = sigma(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
+                            dwdx, dwdy, dwdz)
 #endif
-                    DO k = 3, kk-2
-                        dm = smagorinsky(dudx(k-2), dudy(k-2), dudz(k-2), &
-                            dvdx(k-2), dvdy(k-2), dvdz(k-2), &
-                            dwdx(k-2), dwdy(k-2), dwdz(k-2))
-                        g(k, j, i) = rho*delta(k-2)**2*dm + gmol
-                    END DO
-                CASE (2)
-                    DO k = 3, kk-2
-                        dm = wale(dudx(k-2), dudy(k-2), dudz(k-2), &
-                            dvdx(k-2), dvdy(k-2), dvdz(k-2), &
-                            dwdx(k-2), dwdy(k-2), dwdz(k-2))
-                        g(k, j, i) = rho*delta(k-2)**2*dm + gmol
-                    END DO
-                CASE (5)
-                    DO k = 3, kk-2
-                        dm = sigma(dudx(k-2), dudy(k-2), dudz(k-2), &
-                            dvdx(k-2), dvdy(k-2), dvdz(k-2), &
-                            dwdx(k-2), dwdy(k-2), dwdz(k-2))
-                        g(k, j, i) = rho*delta(k-2)**2*dm + gmol
-                    END DO
-                END SELECT
+                    END SELECT
+                    g(k, j, i) = rho*delta**2*dm + gmol
+                END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE efvisc_gc
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
     dvdy, dvdz, dwdx, dwdy, dwdz)
+        !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(smagorinsky)
 #endif
@@ -389,6 +521,7 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION wale(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
+        !$omp declare target
 
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
@@ -491,7 +624,6 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION sigma(dudx, dudy, dudz, &
             dvdx, dvdy, dvdz, dwdx, dwdy, dwdz)
-
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
@@ -523,6 +655,7 @@ CONTAINS
 
     PURE ELEMENTAL REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
+        !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(sabs)
 #endif
@@ -540,7 +673,8 @@ CONTAINS
     END FUNCTION sabs
 
 
-    PURE SUBROUTINE setginbody(kk, jj, ii, bp, g)
+    SUBROUTINE setginbody(kk, jj, ii, bp, g)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
@@ -550,24 +684,235 @@ CONTAINS
         INTEGER(intk) :: k, j, i
         REAL(realk) :: gbpn, nn
 
+        !$omp do collapse(3) private(i, j, k, gbpn, nn)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
-                    nn = bp(k, j, i+1) + bp(k, j, i-1) + bp(k, j+1, i) + &
-                        bp(k, j-1, i) + bp(k+1, j, i) + bp(k-1, j, i)
-                    nn = MAX(nn, 1.0_realk)
-                    gbpn = (g(k, j, i+1)*bp(k, j, i+1) &
-                        + g(k, j, i-1)*bp(k, j, i-1) &
-                        + g(k, j+1, i)*bp(k, j+1, i) &
-                        + g(k, j-1, i)*bp(k, j-1, i) &
-                        + g(k+1, j, i)*bp(k+1, j, i) &
-                        + g(k-1, j, i)*bp(k-1, j, i))/nn
-                    g(k, j, i) = bp(k, j, i)*g(k, j, i) + &
-                        (1.0 - bp(k, j, i))*gbpn
+                    IF (bp(k, j, i) > 0.5_realk) CYCLE
+                    nn = 0.0_realk
+                    gbpn = 0.0_realk
+                    IF (bp(k, j, i+1) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k, j, i+1)
+                    END IF
+                    IF (bp(k, j, i-1) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k, j, i-1)
+                    END IF
+                    IF (bp(k, j+1, i) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k, j+1, i)
+                    END IF
+                    IF (bp(k, j-1, i) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k, j-1, i)
+                    END IF
+                    IF (bp(k+1, j, i) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k+1, j, i)
+                    END IF
+                    IF (bp(k-1, j, i) > 0.5_realk) THEN
+                        nn = nn + 1.0_realk
+                        gbpn = gbpn + g(k-1, j, i)
+                    END IF
+                    g(k, j, i) = gbpn/MAX(nn, 1.0_realk)
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE setginbody
+
+
+    SUBROUTINE boundg_nobuffer_device(kk, jj, ii, iface, ityp, g)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, iface, ityp
+        REAL(realk), INTENT(inout) :: g(kk, jj, ii)
+
+        INTEGER(intk) :: k, j, i, i2, i3, j2, j3, k2, k3
+
+        SELECT CASE (iface)
+        CASE (1, 2)
+            IF (iface == 1) THEN
+                i2 = 2
+                i3 = 3
+            ELSE
+                i2 = ii - 1
+                i3 = ii - 2
+            END IF
+            !$omp do collapse(2) private(j, k)
+            DO j = 1, jj
+                DO k = 1, kk
+                    IF (ityp == 1) THEN
+                        g(k, j, i2) = -EPSILON(1.0_realk)*gmol
+                    ELSE
+                        g(k, j, i2) = g(k, j, i3)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        CASE (3, 4)
+            IF (iface == 3) THEN
+                j2 = 2
+                j3 = 3
+            ELSE
+                j2 = jj - 1
+                j3 = jj - 2
+            END IF
+            !$omp do collapse(2) private(i, k)
+            DO i = 1, ii
+                DO k = 1, kk
+                    IF (ityp == 1) THEN
+                        g(k, j2, i) = -EPSILON(1.0_realk)*gmol
+                    ELSE
+                        g(k, j2, i) = g(k, j3, i)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        CASE (5, 6)
+            IF (iface == 5) THEN
+                k2 = 2
+                k3 = 3
+            ELSE
+                k2 = kk - 1
+                k3 = kk - 2
+            END IF
+            !$omp do collapse(2) private(i, j)
+            DO i = 1, ii
+                DO j = 1, jj
+                    IF (ityp == 1) THEN
+                        g(k2, j, i) = -EPSILON(1.0_realk)*gmol
+                    ELSE
+                        g(k2, j, i) = g(k3, j, i)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        END SELECT
+    END SUBROUTINE boundg_nobuffer_device
+
+
+    SUBROUTINE bfront_device(kk, jj, ii, i2, i3, ityp, buffer, g, bp)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, i2, i3, ityp
+        REAL(realk), INTENT(in) :: buffer(kk, jj)
+        REAL(realk), INTENT(inout) :: g(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+
+        INTEGER(intk) :: k, j
+        REAL(realk) :: sbp
+
+        SELECT CASE (ityp)
+        CASE (1)
+            !$omp do collapse(2) private(j, k)
+            DO j = 1, jj
+                DO k = 1, kk
+                    g(k, j, i2) = -EPSILON(1.0_realk)*gmol
+                END DO
+            END DO
+            !$omp end do
+        CASE (2)
+            !$omp do collapse(2) private(j, k)
+            DO j = 1, jj
+                DO k = 1, kk
+                    g(k, j, i2) = g(k, j, i3)
+                END DO
+            END DO
+            !$omp end do
+        CASE (3)
+            !$omp do collapse(2) private(j, k, sbp)
+            DO j = 2, jj-1
+                DO k = 2, kk-1
+                    sbp = bp(k, j, i2)
+                    g(k, j, i2) = buffer(k, j)*sbp &
+                        + (1.0-sbp)*g(k, j, i2)
+                END DO
+            END DO
+            !$omp end do
+        END SELECT
+    END SUBROUTINE bfront_device
+
+
+    SUBROUTINE bright_device(kk, jj, ii, j2, j3, ityp, buffer, g, bp)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, j2, j3, ityp
+        REAL(realk), INTENT(in) :: buffer(kk, ii)
+        REAL(realk), INTENT(inout) :: g(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+
+        INTEGER(intk) :: k, i
+        REAL(realk) :: sbp
+
+        SELECT CASE (ityp)
+        CASE (1)
+            !$omp do collapse(2) private(i, k)
+            DO i = 1, ii
+                DO k = 1, kk
+                    g(k, j2, i) = -EPSILON(1.0_realk)*gmol
+                END DO
+            END DO
+            !$omp end do
+        CASE (2)
+            !$omp do collapse(2) private(i, k)
+            DO i = 1, ii
+                DO k = 1, kk
+                    g(k, j2, i) = g(k, j3, i)
+                END DO
+            END DO
+            !$omp end do
+        CASE (3)
+            !$omp do collapse(2) private(i, k, sbp)
+            DO i = 2, ii-1
+                DO k = 2, kk-1
+                    sbp = bp(k, j2, i)
+                    g(k, j2, i) = buffer(k, i)*sbp &
+                        + (1.0-sbp)*g(k, j2, i)
+                END DO
+            END DO
+            !$omp end do
+        END SELECT
+    END SUBROUTINE bright_device
+
+
+    SUBROUTINE bbottom_device(kk, jj, ii, k2, k3, ityp, buffer, g, bp)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, k2, k3, ityp
+        REAL(realk), INTENT(in) :: buffer(jj, ii)
+        REAL(realk), INTENT(inout) :: g(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+
+        INTEGER(intk) :: j, i
+        REAL(realk) :: sbp
+
+        SELECT CASE (ityp)
+        CASE (1)
+            !$omp do collapse(2) private(i, j)
+            DO i = 1, ii
+                DO j = 1, jj
+                    g(k2, j, i) = -EPSILON(1.0_realk)*gmol
+                END DO
+            END DO
+            !$omp end do
+        CASE (2)
+            !$omp do collapse(2) private(i, j)
+            DO i = 1, ii
+                DO j = 1, jj
+                    g(k2, j, i) = g(k3, j, i)
+                END DO
+            END DO
+            !$omp end do
+        CASE (3)
+            !$omp do collapse(2) private(i, j, sbp)
+            DO i = 2, ii-1
+                DO j = 2, jj-1
+                    sbp = bp(k2, j, i)
+                    g(k2, j, i) = buffer(j, i)*sbp &
+                        + (1.0-sbp)*g(k2, j, i)
+                END DO
+            END DO
+            !$omp end do
+        END SELECT
+    END SUBROUTINE bbottom_device
 
 
     SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
