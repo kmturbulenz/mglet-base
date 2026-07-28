@@ -47,11 +47,11 @@ MODULE conn2_mod
     END TYPE work_t
 
     ! Multidimensional array to store work_t for different conn types
-    TYPE(work_t), ALLOCATABLE :: workrecords(:, :, :, :, :, :)
+    TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
     LOGICAL :: is_recording = .FALSE.
 
     TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
-    TYPE(field_t), TARGET :: pdummy, udummy, vdummy, wdummy
+    TYPE(field_t), TARGET :: dummy
 
     LOGICAL :: is_init = .FALSE.
 
@@ -80,12 +80,12 @@ CONTAINS
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Setting all field pointers to uninitialized dummy field
-        f1 => pdummy
-        f2 => pdummy
-        f3 => pdummy
-        f4 => pdummy
-        f5 => pdummy
-        f6 => pdummy
+        f1 => dummy
+        f2 => dummy
+        f3 => dummy
+        f4 => dummy
+        f5 => dummy
+        f6 => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -459,6 +459,7 @@ CONTAINS
         ! none...
 
         ! Local variables
+        TYPE(field_t) :: pdummy, udummy, vdummy, wdummy
         INTEGER(intk) :: ilevel
 
         is_recording = .TRUE.
@@ -514,36 +515,35 @@ CONTAINS
         DEALLOCATE(mpisendtasks)
         DEALLOCATE(mpirecvtasks)
 
-        ! Deallocate the workpackage arrays in the workrecords array
-        CALL purge_workrecords(workrecords, SIZE(workrecords))
-
-        ! Deallocate the workrecords array itself
+        CALL purge_workrecords()
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
     END SUBROUTINE finish_conn2
 
 
-    SUBROUTINE purge_workrecords(arr_wr, n_wr)
+    SUBROUTINE purge_workrecords()
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: n_wr
-        TYPE(work_t), INTENT(inout) :: arr_wr(n_wr)
+        ! none...
+
+        ! Local variables
+        TYPE(work_t), POINTER :: wrptr(:)
         INTEGER(intk) :: i
 
-        ! Deallocate the workpackage arrays in the workrecords array
-        DO i = 1, n_wr
-            IF (.NOT. arr_wr(i)%is_init) CYCLE
+        wrptr(1:SIZE(workrecords)) => workrecords
 
-            IF (ALLOCATED(arr_wr(i)%sendtasks)) DEALLOCATE(arr_wr(i)%sendtasks)
-            IF (ALLOCATED(arr_wr(i)%recvtasks)) DEALLOCATE(arr_wr(i)%recvtasks)
-            IF (ALLOCATED(arr_wr(i)%selftasks)) DEALLOCATE(arr_wr(i)%selftasks)
-            IF (ALLOCATED(arr_wr(i)%mpisendtasks)) &
-                DEALLOCATE(arr_wr(i)%mpisendtasks)
-            IF (ALLOCATED(arr_wr(i)%mpirecvtasks)) &
-                DEALLOCATE(arr_wr(i)%mpirecvtasks)
-            arr_wr(i)%is_init = .FALSE.
+        DO i = 1, SIZE(workrecords)
+            IF (.NOT. wrptr(i)%is_init) CYCLE
+
+            !$omp target exit data map(delete: wrptr(i)%sendtasks, &
+            !$omp& wrptr(i)%recvtasks, wrptr(i)%selftasks)
+            DEALLOCATE(wrptr(i)%sendtasks)
+            DEALLOCATE(wrptr(i)%recvtasks)
+            DEALLOCATE(wrptr(i)%selftasks)
+            DEALLOCATE(wrptr(i)%mpisendtasks)
+            DEALLOCATE(wrptr(i)%mpirecvtasks)
+            wrptr(i)%is_init = .FALSE.
         END DO
-
     END SUBROUTINE purge_workrecords
 
 

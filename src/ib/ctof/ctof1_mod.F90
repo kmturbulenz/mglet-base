@@ -28,8 +28,6 @@ CONTAINS
         ! Local variables
         ! none...
 
-        CALL start_timer(230)
-
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Posting non-blocking receives and preparing lists for unpacking
@@ -40,9 +38,6 @@ CONTAINS
 
         ! Querying MPI for completed receives and unpacking the recv buffer
         CALL process_bufs(ff)
-
-        CALL stop_timer(230)
-
     END SUBROUTINE ctof1
 
 
