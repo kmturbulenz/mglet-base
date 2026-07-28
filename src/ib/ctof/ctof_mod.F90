@@ -58,13 +58,17 @@ CONTAINS
     SUBROUTINE init_ctof()
         CALL init_ctof_core()
         CALL init_ctof1()
+#ifdef _MGLET_OFFLOAD_
         CALL init_ctof2()
+#endif
     END SUBROUTINE init_ctof
 
 
     SUBROUTINE finish_ctof()
         CALL finish_ctof1()
+#ifdef _MGLET_OFFLOAD_
         CALL finish_ctof2()
+#endif
         CALL finish_ctof_core()
     END SUBROUTINE finish_ctof
 END MODULE ctof_mod
