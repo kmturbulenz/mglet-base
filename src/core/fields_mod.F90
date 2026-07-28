@@ -218,6 +218,10 @@ CONTAINS
         ELSE
             map_device = .TRUE.
         END IF
+
+        ! SIMON: I could imagine this to be problematic -- LLVM crashes here
+        ! The buffer is not always allocated, but seems always to be pushed to device...
+
         IF (map_device) THEN
             !$omp target enter data map(to: fields(nfields)%arr, &
             !$omp& fields(nfields)%buffers)
