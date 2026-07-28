@@ -51,7 +51,7 @@ MODULE conn2_mod
     LOGICAL :: is_recording = .FALSE.
 
     TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
-    TYPE(field_t), TARGET :: pdummy, udummy, vdummy, wdummy
+    TYPE(field_t), TARGET :: dummy
 
     LOGICAL :: is_init = .FALSE.
 
@@ -80,12 +80,12 @@ CONTAINS
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         ! Setting all field pointers to uninitialized dummy field
-        f1 => pdummy
-        f2 => pdummy
-        f3 => pdummy
-        f4 => pdummy
-        f5 => pdummy
-        f6 => pdummy
+        f1 => dummy
+        f2 => dummy
+        f3 => dummy
+        f4 => dummy
+        f5 => dummy
+        f6 => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -459,6 +459,7 @@ CONTAINS
         ! none...
 
         ! Local variables
+        TYPE(field_t) :: pdummy, udummy, vdummy, wdummy
         INTEGER(intk) :: ilevel
 
         is_recording = .TRUE.
