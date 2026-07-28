@@ -10,6 +10,7 @@ MODULE conn2_mod
     USE field_mod
     USE connect_core_mod
     USE fieldhelper_mod
+    USE fieldpool_mod
     USE pointers_mod, ONLY: get_ip3
     USE profile_tools_mod
 
@@ -50,8 +51,9 @@ MODULE conn2_mod
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
     LOGICAL :: is_recording = .FALSE.
 
-    TYPE(field_t), POINTER :: f1, f2, f3, f4, f5, f6
-    TYPE(field_t), TARGET :: dummy
+    ! Pointers to fields passed to conn2, point to dummy field if not present
+    TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
+        f4 => NULL(), f5 => NULL(), f6 => NULL()
 
     LOGICAL :: is_init = .FALSE.
 
@@ -69,6 +71,7 @@ CONTAINS
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
 
         ! Local variables
+        TYPE(field_t), POINTER :: dummy
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
@@ -79,7 +82,8 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        ! Setting all field pointers to uninitialized dummy field
+        CALL push_field(dummy, "CONN2_DUMMY", zero=.FALSE.)
+
         f1 => dummy
         f2 => dummy
         f3 => dummy
@@ -219,6 +223,15 @@ CONTAINS
         END IF
 
         END ASSOCIATE
+
+        f1 => NULL()
+        f2 => NULL()
+        f3 => NULL()
+        f4 => NULL()
+        f5 => NULL()
+        f6 => NULL()
+
+        CALL pop_field(dummy)
     END SUBROUTINE conn2
 
 
