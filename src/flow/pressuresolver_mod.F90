@@ -211,11 +211,11 @@ CONTAINS
             CALL print_plog(ittot, irk, 0)
         END IF
 
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
+
         ipc = 0
         outer: DO ipcount = 1, nouter
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(rhs, message="to:rhs%arr")
-
             ! Inner pressure iterations
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
@@ -267,6 +267,9 @@ CONTAINS
             DO ilevel = maxlevel, minlevel+1, -1
                 CALL ftoc(ilevel, rhs, rhs, 'R')
             END DO
+
+            ! TODO(offload): Remove once surrounding subroutines are offloaded
+            CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
             ! Max of RHS scaled according to levels
             CALL maxabscal(maxrhs, maxrhslvl, rhs)
@@ -617,35 +620,55 @@ CONTAINS
     END SUBROUTINE sipiter2_hyperplane_level
 
 
-    SUBROUTINE maxabscal(maxabs, maxabslevel, phi)
+    SUBROUTINE maxabscal(maxabs, maxabslevel, phi_f)
         ! Subroutine arguments
         REAL(realk), INTENT(out) :: maxabs
         REAL(realk), INTENT(inout), ALLOCATABLE :: maxabslevel(:)
-        TYPE(field_t), INTENT(in) :: phi
+        TYPE(field_t), INTENT(in) :: phi_f
 
         ! Local variables
-        REAL(realk) :: maxabsgrid
-        INTEGER(intk) :: i, igrid, ilevel, ip3
+        REAL(realk) :: maxabsgrid(nmygrids)
+        INTEGER(intk) :: imygrid, igrid, ilevel, ip3
         INTEGER(intk) :: kk, jj, ii
 
         maxabs = 0.0
         maxabslevel = 0.0
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            ilevel = level(igrid)
+        ASSOCIATE(phi => phi_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("maxabscal")
+#endif
+
+        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3) &
+        !$omp& map(from: maxabsgrid)
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL maxabscal_grid(kk, jj, ii, maxabsgrid, phi%arr(ip3))
+            CALL maxabscal_grid(kk, jj, ii, maxabsgrid(imygrid), phi(ip3))
+        END DO
+        !$omp end target teams distribute
 
-            maxabs = MAX(ABS(maxabsgrid*(2.0**(maxlevel-ilevel))), maxabs)
-            maxabslevel(ilevel) = MAX(maxabslevel(ilevel), maxabsgrid)
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        END ASSOCIATE
+
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            ilevel = level(igrid)
+            maxabs = MAX(ABS(maxabsgrid(imygrid)*(2.0**(maxlevel-ilevel))), &
+                maxabs)
+            maxabslevel(ilevel) = MAX(maxabslevel(ilevel), maxabsgrid(imygrid))
         END DO
     END SUBROUTINE maxabscal
 
 
     PURE SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
         ! Subroutine arguments
+        !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(out) :: maxabs
         REAL(realk), INTENT(in) :: phi(kk, jj, ii)
@@ -654,6 +677,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         maxabs = 0.0
+        !$omp parallel do collapse(3) private(i, j, k) reduction(max:maxabs)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -661,6 +685,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE maxabscal_grid
 
 
