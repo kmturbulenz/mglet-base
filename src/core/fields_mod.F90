@@ -64,8 +64,10 @@ CONTAINS
         DO i = 1, nfields
             CALL is_field_mapped(mapped, fields(i))
             IF (mapped) THEN
-                !$omp target exit data map(delete: fields(i)%arr, &
-                !$omp& fields(i)%buffers)
+                !$omp target exit data map(delete: fields(i)%arr)
+                IF (ALLOCATED(fields(i)%buffers)) THEN
+                    !$omp target exit data map(delete: fields(i)%buffers)
+                END IF
             END IF
             CALL fields(i)%finish()
         END DO
@@ -218,9 +220,12 @@ CONTAINS
         ELSE
             map_device = .TRUE.
         END IF
+
         IF (map_device) THEN
-            !$omp target enter data map(to: fields(nfields)%arr, &
-            !$omp& fields(nfields)%buffers)
+            !$omp target enter data map(to: fields(nfields)%arr)
+            IF (ALLOCATED(fields(nfields)%buffers)) THEN
+                !$omp target enter data map(to: fields(nfields)%buffers)
+            END IF
         END IF
     END SUBROUTINE set_field
 

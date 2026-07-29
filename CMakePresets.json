@@ -225,6 +225,18 @@
             }
         },
         {
+            "name": "llvm-offload-example",
+            "displayName": "LLVM compilers (clang, clang++, flang) (offload)",
+            "description": "Offload configuration using the LLVM compilers (clang, clang++, flang)",
+            "inherits": "llvm-release",
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
+                "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=sm_121",
+                "MGLET_Fortran_FLAGS_RELEASE": ""
+            }
+        },
+        {
             "name": "amd",
             "hidden": true,
             "displayName": "AMD compilers (amdclang, amdclang++, amdflang)",

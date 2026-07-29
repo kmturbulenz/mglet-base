@@ -1543,6 +1543,10 @@ CONTAINS
         CALL wdummy%init_buffers()
         CALL pdummy%init_buffers()
 
+        !$omp target enter data map(to: &
+        !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr, &
+        !$omp&  udummy%buffers, vdummy%buffers, wdummy%buffers, pdummy%buffers)
+
         ! START -- This section defines the record variants of parent2 ---
 
         DO ilevel = minlevel, maxlevel
@@ -1554,6 +1558,10 @@ CONTAINS
         CALL parent2(minlevel, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy)
 
         ! END -- This section defines the record variants of parent2 ---
+
+        !$omp target exit data map(delete: &
+        !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr, &
+        !$omp&  udummy%buffers, vdummy%buffers, wdummy%buffers, pdummy%buffers)
 
         CALL udummy%finish()
         CALL vdummy%finish()
