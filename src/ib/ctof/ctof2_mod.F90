@@ -904,6 +904,8 @@ CONTAINS
 
         CALL dummy%init("DUMMY")
 
+        !$omp target enter data map(to: dummy%arr)
+
         is_recording = .TRUE.
 
         ! Recording operations for all levels
@@ -912,6 +914,8 @@ CONTAINS
         END DO
 
         is_recording = .FALSE.
+
+        !$omp target exit data map(delete: dummy%arr)
 
         CALL dummy%finish()
     END SUBROUTINE run_recording_pass

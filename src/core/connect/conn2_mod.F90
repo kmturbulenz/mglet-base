@@ -482,6 +482,9 @@ CONTAINS
         CALL vdummy%init("DUMMY", jstag=1)
         CALL wdummy%init("DUMMY", kstag=1)
 
+        !$omp target enter data map(to: &
+        !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr)
+
         ! START -- This section defines the recored variants of conn2 ---
 
         DO ilevel = minlevel, maxlevel
@@ -494,6 +497,9 @@ CONTAINS
         CALL conn2(layers=1, s1=pdummy)
 
         ! END -- This section defines the recored variants of conn2 ---
+
+        !$omp target exit data map(delete: &
+        !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr)
 
         CALL pdummy%finish()
         CALL udummy%finish()
