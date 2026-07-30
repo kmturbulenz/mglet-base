@@ -46,6 +46,7 @@ add_library(ib STATIC
     parent/parent_core_mod.F90
     par_ftoc_mod.F90
     punktekoordinaten_mod.F90
+    restrict_mod.F90
     stencils_mod.F90
     topol_mod.F90
 )
