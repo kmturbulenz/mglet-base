@@ -21,7 +21,10 @@ add_library(ib STATIC
     flzelle_mod.F90
     freekante_mod.F90
     freepressure_mod.F90
-    ftoc_mod.F90
+    ftoc/ftoc_mod.F90
+    ftoc/ftoc1_mod.F90
+    ftoc/ftoc2_mod.F90
+    ftoc/ftoc_core_mod.F90
     gc_blockbpfeld_mod.F90
     gc_blockbp_mod.F90
     gc_blockface_mod.F90
