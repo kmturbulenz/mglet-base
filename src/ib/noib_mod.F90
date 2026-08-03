@@ -2,7 +2,6 @@ MODULE noib_mod
     USE core_mod
     USE ibmodel_mod, ONLY: ibmodel_t
     USE fieldhelper_mod, ONLY: map_arr_to_device
-    USE noib_restrict_mod, ONLY: noib_restrict_t
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -34,7 +33,6 @@ CONTAINS
         END IF
 
         ALLOCATE(noib_t :: ib)
-        ALLOCATE(noib_restrict_t :: ib%restrict_op)
 
         ib%type = "NONE"
 
@@ -56,9 +54,7 @@ CONTAINS
     SUBROUTINE destructor(this)
         TYPE(noib_t), INTENT(inout) :: this
 
-        IF (ALLOCATED(this%restrict_op)) THEN
-            DEALLOCATE(this%restrict_op)
-        END IF
+        ! Nothing to do
     END SUBROUTINE destructor
 
 

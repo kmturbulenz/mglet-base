@@ -4,7 +4,6 @@ MODULE gc_mod
     USE ibconst_mod, ONLY: maccur
     USE noib_mod, ONLY: noib_t
     USE bubvbw_mod, ONLY: bubvbw
-    USE gc_restrict_mod, ONLY: gc_restrict_t
     USE gc_blockbp_mod, ONLY: gc_blockbp_t
     USE gc_stencils_mod, ONLY: gc_stencils_t
 
@@ -51,7 +50,6 @@ CONTAINS
         END IF
 
         ALLOCATE(gc_t :: ib)
-        ALLOCATE(gc_restrict_t :: ib%restrict_op)
 
         ib%type = "GHOSTCELL"
 
@@ -106,9 +104,7 @@ CONTAINS
     SUBROUTINE destructor(this)
         TYPE(gc_t), INTENT(inout) :: this
 
-        IF (ALLOCATED(this%restrict_op)) THEN
-            DEALLOCATE(this%restrict_op)
-        END IF
+        ! Nothing to do here
     END SUBROUTINE destructor
 
 

@@ -1,7 +1,8 @@
 MODULE ftoc_mod
+    USE MPI_f08
     USE core_mod
     USE ibcore_mod, ONLY: ib
-    USE MPI_f08
+    USE restrict_mod, ONLY: restrict, message_length, start_and_stop
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -156,37 +157,38 @@ CONTAINS
         TYPE(field_t), INTENT(in), OPTIONAL :: v1, v2, v3, s1, s2, s3
 
         ! Local variables
-        INTEGER(int32) :: n
+        INTEGER(int32) :: messagelength
 
         ncells = 0
 
         IF (flag == '*') THEN
             IF (PRESENT(v1)) THEN
-                n = ib%restrict_op%message_length('U', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'U', igrid)
+                ncells = ncells + messagelength
             END IF
             IF (PRESENT(v2)) THEN
-                n = ib%restrict_op%message_length('V', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'V', igrid)
+                ncells = ncells + messagelength
             END IF
             IF (PRESENT(v3)) THEN
-                n = ib%restrict_op%message_length('W', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'W', igrid)
+                ncells = ncells + messagelength
             END IF
             IF (PRESENT(s1)) THEN
-                n = ib%restrict_op%message_length('P', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'P', igrid)
+                ncells = ncells + messagelength
             END IF
             IF (PRESENT(s2)) THEN
-                n = ib%restrict_op%message_length('P', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'P', igrid)
+                ncells = ncells + messagelength
             END IF
             IF (PRESENT(s3)) THEN
-                n = ib%restrict_op%message_length('P', igrid)
-                ncells = ncells + n
+                CALL message_length(messagelength, 'P', igrid)
+                ncells = ncells + messagelength
             END IF
         ELSE
-            ncells = ib%restrict_op%message_length(flag, igrid)
+            CALL message_length(messagelength, flag, igrid)
+            ncells = ncells + messagelength
         END IF
     END SUBROUTINE count_ncells
 
@@ -258,8 +260,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: igrid
-        INTEGER(int32) :: thismessagelength, offset, ncells
-        REAL(realk), POINTER, CONTIGUOUS :: field(:, :, :)
+        INTEGER(int32) :: thismessagelength, offset
         CHARACTER(len=1) :: flag_u
 
         igrid = sendconns(3, sendid)
@@ -283,57 +284,28 @@ CONTAINS
             ELSE
                 flag_u = flag
             END IF
-            ncells = ib%restrict_op%message_length(flag_u, igrid)
-            CALL v1%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                flag_u, igrid)
-            offset = offset + ncells
+
+            CALL restrict(ib, flag_u, v1, igrid, offset)
         END IF
 
         IF (PRESENT(v2)) THEN
-            ncells = ib%restrict_op%message_length('V', igrid)
-            CALL v2%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                'V', igrid)
-            offset = offset + ncells
+            CALL restrict(ib, 'V', v2, igrid, offset)
         END IF
 
         IF (PRESENT(v3)) THEN
-            ncells = ib%restrict_op%message_length('W', igrid)
-            CALL v3%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                'W', igrid)
-            offset = offset + ncells
+            CALL restrict(ib, 'W', v3, igrid, offset)
         END IF
 
         IF (PRESENT(s1)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
-            CALL s1%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                'P', igrid)
-            offset = offset + ncells
+            CALL restrict(ib, 'P', s1, igrid, offset)
         END IF
 
         IF (PRESENT(s2)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
-            CALL s2%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                'P', igrid)
-            offset = offset + ncells
+            CALL restrict(ib, 'P', s2, igrid, offset)
         END IF
 
         IF (PRESENT(s3)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
-            CALL s3%get_ptr(field, igrid)
-            CALL ib%restrict_op%restrict(kk, jj, ii, field, &
-                sendbuf(offset:offset+ncells-1), &
-                'P', igrid)
-            offset = offset + ncells
+            CALL restrict(ib, 'P', s3, igrid, offset)
         END IF
 
         IF (offset /= sendcounter + messagelength + thismessagelength + 1) THEN
@@ -401,7 +373,7 @@ CONTAINS
         ! Grid dimensions and pointers
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: igrid, igridc
-        INTEGER(int32) :: offset, ncells
+        INTEGER(int32) :: offset, messagelength
         REAL(realk), POINTER, CONTIGUOUS :: field(:, :, :)
         CHARACTER(len=1) :: flag_u
 
@@ -417,57 +389,57 @@ CONTAINS
             ELSE
                 flag_u = flag
             END IF
-            ncells = ib%restrict_op%message_length(flag_u, igrid)
+            CALL message_length(messagelength, flag_u, igrid)
             CALL v1%get_ptr(field, igridc)
 
             IF (flag_u == 'N') THEN
                 CALL restrict_recieve_open_n(kk, jj, ii, field, &
-                    recvbuf(offset:offset+ncells-1), igrid, flag_u)
+                    recvbuf(offset:offset+messagelength-1), igrid, flag_u)
             ELSE
                 CALL restrict_recieve_open(kk, jj, ii, field, &
-                    recvbuf(offset:offset+ncells-1), igrid, flag_u)
+                    recvbuf(offset:offset+messagelength-1), igrid, flag_u)
             END IF
-            offset = offset + ncells
+            offset = offset + messagelength
         END IF
 
         IF (PRESENT(v2)) THEN
-            ncells = ib%restrict_op%message_length('V', igrid)
+            CALL message_length(messagelength, 'V', igrid)
             CALL v2%get_ptr(field, igridc)
             CALL restrict_recieve_open(kk, jj, ii, field, &
-                recvbuf(offset:offset+ncells-1), igrid, 'V')
-            offset = offset + ncells
+                recvbuf(offset:offset+messagelength-1), igrid, 'V')
+            offset = offset + messagelength
         END IF
 
         IF (PRESENT(v3)) THEN
-            ncells = ib%restrict_op%message_length('W', igrid)
+            CALL message_length(messagelength, 'W', igrid)
             CALL v3%get_ptr(field, igridc)
             CALL restrict_recieve_open(kk, jj, ii, field, &
-                recvbuf(offset:offset+ncells-1), igrid, 'W')
-            offset = offset + ncells
+                recvbuf(offset:offset+messagelength-1), igrid, 'W')
+            offset = offset + messagelength
         END IF
 
         IF (PRESENT(s1)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL message_length(messagelength, 'P', igrid)
             CALL s1%get_ptr(field, igridc)
             CALL restrict_recieve_open(kk, jj, ii, field, &
-                recvbuf(offset:offset+ncells-1), igrid, 'P')
-            offset = offset + ncells
+                recvbuf(offset:offset+messagelength-1), igrid, 'P')
+            offset = offset + messagelength
         END IF
 
         IF (PRESENT(s2)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL message_length(messagelength, 'P', igrid)
             CALL s2%get_ptr(field, igridc)
             CALL restrict_recieve_open(kk, jj, ii, field, &
-                recvbuf(offset:offset+ncells-1), igrid, 'P')
-            offset = offset + ncells
+                recvbuf(offset:offset+messagelength-1), igrid, 'P')
+            offset = offset + messagelength
         END IF
 
         IF (PRESENT(s3)) THEN
-            ncells = ib%restrict_op%message_length('P', igrid)
+            CALL message_length(messagelength, 'P', igrid)
             CALL s3%get_ptr(field, igridc)
             CALL restrict_recieve_open(kk, jj, ii, field, &
-                recvbuf(offset:offset+ncells-1), igrid, 'P')
-            offset = offset + ncells
+                recvbuf(offset:offset+messagelength-1), igrid, 'P')
+            offset = offset + messagelength
         END IF
 
         IF (offset - recvidxlist(3, recvid) - 1 /= recvidxlist(2, recvid)) THEN
@@ -591,7 +563,7 @@ CONTAINS
         INTEGER(intk) :: ipos, jpos, kpos
         INTEGER(intk) :: i, j, k, ic, jc, kc, ic0, jc0, kc0, icount
 
-        CALL ib%restrict_op%start_and_stop(istart, istop, jstart, jstop, &
+        CALL start_and_stop(istart, istop, jstart, jstop, &
             kstart, kstop, flag, igridf)
 
         ic0 = 0
@@ -639,7 +611,7 @@ CONTAINS
         INTEGER(intk) :: ipos, jpos, kpos
         INTEGER(intk) :: i, j, k, ic, jc, kc, icount
 
-        CALL ib%restrict_op%start_and_stop(istart, istop, jstart, jstop, &
+        CALL start_and_stop(istart, istop, jstart, jstop, &
             kstart, kstop, flag, igridf)
 
         ipos = iposition(igridf)
