@@ -82,7 +82,8 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        CALL push_field(dummy, "CONN2_DUMMY", zero=.FALSE.)
+        CALL push_field(dummy, "CONN2_DUMMY", zerohost=.FALSE., &
+            zerodevice=.FALSE.)
 
         f1 => dummy
         f2 => dummy

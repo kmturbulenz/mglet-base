@@ -79,7 +79,8 @@ CONTAINS
             IF (normal2) idx_normal = 1
         END IF
 
-        CALL push_field(dummy, "PARENT2_DUMMY", zero=.FALSE.)
+        CALL push_field(dummy, "PARENT2_DUMMY", zerohost=.FALSE., &
+            zerodevice=.FALSE.)
 
         f1 => dummy
         f2 => dummy

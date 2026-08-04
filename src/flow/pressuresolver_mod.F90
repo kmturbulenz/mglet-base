@@ -185,11 +185,10 @@ CONTAINS
             CALL get_field(bp, "BP")
         END IF
 
-        ! All of these fields are initialized to zero automatically
-        CALL push_field(dp, "DP")
-        CALL push_field(hilf, "HILF")
-        CALL push_field(rhs, "RHS")
-        CALL push_field(res, "RES")
+        CALL push_field(dp, "DP", zerohost=.FALSE., zerodevice=.TRUE.)
+        CALL push_field(hilf, "HILF", zerohost=.FALSE., zerodevice=.TRUE.)
+        CALL push_field(rhs, "RHS", zerohost=.TRUE., zerodevice=.FALSE.)
+        CALL push_field(res, "RES", zerohost=.FALSE., zerodevice=.TRUE.)
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt

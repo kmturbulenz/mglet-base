@@ -72,21 +72,31 @@ CONTAINS
     END SUBROUTINE finish_fieldpool
 
 
-    SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units, zero)
+    ! By default: zero on host, do nothing on device
+    ! This is done in order not to interfere with existing host code
+    SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units, &
+            zerohost, zerodevice)
         ! Subroutine arguments
         TYPE(field_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
         INTEGER(intk), INTENT(in), OPTIONAL :: istag, jstag, kstag
         INTEGER(intk), INTENT(in), OPTIONAL :: units(7)
-        LOGICAL, INTENT(in), OPTIONAL :: zero
+        LOGICAL, INTENT(in), OPTIONAL :: zerohost
+        LOGICAL, INTENT(in), OPTIONAL :: zerodevice
 
         ! Local variables
-        LOGICAL :: zero2, did_init
+        LOGICAL :: zerohost2, zerodevice2
 
-        IF (PRESENT(zero)) THEN
-            zero2 = zero
+        IF (PRESENT(zerohost)) THEN
+            zerohost2 = zerohost
         ELSE
-            zero2 = .TRUE.
+            zerohost2 = .TRUE.
+        END IF
+
+        IF (PRESENT(zerodevice)) THEN
+            zerodevice2 = zerodevice
+        ELSE
+            zerodevice2 = .FALSE.
         END IF
 
         IF (stackptr_real > max_realfields) THEN
@@ -98,49 +108,64 @@ CONTAINS
 
         field => realfields(stackptr_real)
 
-        did_init = .FALSE.
         IF (.NOT. field%is_init) THEN
+            ! Allocate on host: field arr with zero on demand and buffers
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=zero2)
+                units=units, zero=zerohost2)
             CALL field%init_buffers()
-            !$omp target enter data map(to: realfields(stackptr_real)%arr)
-            !$omp target enter data map(to: realfields(stackptr_real)%buffers)
-            did_init = .TRUE.
-        ELSE
-            CALL set_field_properties(field, name, istag, jstag, kstag, units)
-        END IF
 
-        IF (zero2 .AND. .NOT. did_init) THEN
-            ! TODO(offload): Once larger portions of the code are ported,
-            ! remove the device=.FALSE. setter and preprocessor ifdef.
-            ! Currently, we can not generalize whether all fields in the
-            ! fieldpool are only required on the device and are thus required
-            ! to set both host and device buffers to zero.
-#ifdef _MGLET_OFFLOAD_
-            CALL set_field_arr(field, 0.0_realk, device=.TRUE.)
+            ! Allocate on device: field arr with zero on demand and buffers
+            !$omp target enter data map(alloc: realfields(stackptr_real)%arr, &
+            !$omp& realfields(stackptr_real)%buffers)
+            IF (zerodevice2) THEN
+                CALL set_field_arr(field, 0.0_realk, device=.TRUE.)
+            END IF
+
+            ! In case of debug build, buffer is initialized as nan on host
+#ifdef _MGLET_DEBUG_
+            !$omp target update to(realfields(stackptr_real)%buffers)
 #endif
-            CALL set_field_arr(field, 0.0_realk, device=.FALSE.)
+        ELSE
+            ! Field is already initialized
+            CALL set_field_properties(field, name, istag, jstag, kstag, units)
+
+            IF (zerohost2) THEN
+                CALL set_field_arr(field, 0.0_realk, device=.FALSE.)
+            END IF
+            IF (zerodevice2) THEN
+                CALL set_field_arr(field, 0.0_realk, device=.TRUE.)
+            END IF
         END IF
 
         stackptr_real = stackptr_real+1
     END SUBROUTINE push_realfield
 
 
-    SUBROUTINE push_intfield(field, name, istag, jstag, kstag, units, zero)
+    ! By default: zero on host, do nothing on device
+    ! This is done in order not to interfere with existing host code
+    SUBROUTINE push_intfield(field, name, istag, jstag, kstag, units, &
+            zerohost, zerodevice)
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
         INTEGER(intk), INTENT(in), OPTIONAL :: istag, jstag, kstag
         INTEGER(intk), INTENT(in), OPTIONAL :: units(7)
-        LOGICAL, INTENT(in), OPTIONAL :: zero
+        LOGICAL, INTENT(in), OPTIONAL :: zerohost
+        LOGICAL, INTENT(in), OPTIONAL :: zerodevice
 
         ! Local variables
-        LOGICAL :: zero2, did_init
+        LOGICAL :: zerohost2, zerodevice2
 
-        IF (PRESENT(zero)) THEN
-            zero2 = zero
+        IF (PRESENT(zerohost)) THEN
+            zerohost2 = zerohost
         ELSE
-            zero2 = .TRUE.
+            zerohost2 = .TRUE.
+        END IF
+
+        IF (PRESENT(zerodevice)) THEN
+            zerodevice2 = zerodevice
+        ELSE
+            zerodevice2 = .FALSE.
         END IF
 
         IF (stackptr_int > max_intfields) THEN
@@ -152,26 +177,26 @@ CONTAINS
 
         field => intfields(stackptr_int)
 
-        did_init = .FALSE.
         IF (.NOT. field%is_init) THEN
+            ! Allocate on host: field arr with zero on demand
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=zero2)
-                !$omp target enter data map(to: intfields(stackptr_int)%arr)
-                did_init = .TRUE.
-        ELSE
-            CALL set_field_properties(field, name, istag, jstag, kstag, units)
-        END IF
+                units=units, zero=zerohost2)
 
-        IF (zero2 .AND. .NOT. did_init) THEN
-            ! TODO(offload): Once larger portions of the code are ported,
-            ! remove the device=.FALSE. setter and preprocessor ifdef.
-            ! Currently, we can not generalize whether all fields in the
-            ! fieldpool are only required on the device and are thus required
-            ! to set both host and device buffers to zero.
-#ifdef _MGLET_OFFLOAD_
-            CALL set_field_arr(field, 0_ifk, device=.TRUE.)
-#endif
-            CALL set_field_arr(field, 0_ifk, device=.FALSE.)
+            ! Allocate on device: field arr with zero on demand
+            !$omp target enter data map(alloc: intfields(stackptr_int)%arr)
+            IF (zerodevice2) THEN
+                CALL set_field_arr(field, 0_ifk, device=.TRUE.)
+            END IF
+        ELSE
+            ! Field is already initialized
+            CALL set_field_properties(field, name, istag, jstag, kstag, units)
+
+            IF (zerohost2) THEN
+                CALL set_field_arr(field, 0_ifk, device=.FALSE.)
+            END IF
+            IF (zerodevice2) THEN
+                CALL set_field_arr(field, 0_ifk, device=.TRUE.)
+            END IF
         END IF
 
         stackptr_int = stackptr_int+1
