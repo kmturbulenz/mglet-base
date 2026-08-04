@@ -194,9 +194,10 @@ CONTAINS
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
         CALL ib%divcal(rhs, u, v, w, prefak)
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, rhs, rhs, 'R')
+            CALL ftoc(ilevel, rhs, rhs, 'R', .TRUE.)
         END DO
 
         ! For debug logging
@@ -211,9 +212,6 @@ CONTAINS
             CALL print_plog(ittot, irk, 0)
         END IF
 
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(rhs, message="to:rhs%arr")
-
         ipc = 0
         outer: DO ipcount = 1, nouter
             ! Inner pressure iterations
@@ -225,9 +223,6 @@ CONTAINS
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
             CALL stop_timer(322)
-
-            ! TODO(offload): Remove once surrounding subroutines offloaded
-            CALL map_arr_from_device(hilf, message="from:hilf%arr")
 
             ! --- intermediate state ---
             ! every grid level has an inner solution
@@ -241,11 +236,8 @@ CONTAINS
             ! vom feinsten zum groebsten (fine to coarse)
             ! hilf = 0.0
             DO ilevel = maxlevel, minlevel, -1
-                CALL ftoc(ilevel, hilf, hilf, 'P')
+                CALL ftoc(ilevel, hilf, hilf, 'P', device=.TRUE.)
             END DO
-
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(hilf, message="to:hilf%arr")
 
             ! --- intermediate state ---
             ! every grid level has the best solution
@@ -261,15 +253,10 @@ CONTAINS
             CALL laplacephi(res, hilf)
             ! rhs <- rhs + res
             CALL rescal(rhs, res)
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, rhs, rhs, 'R')
+                CALL ftoc(ilevel, rhs, rhs, 'R', device=.TRUE.)
             END DO
-
-            ! TODO(offload): Remove once surrounding subroutines are offloaded
-            CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
             ! Max of RHS scaled according to levels
             CALL maxabscal(maxrhs, maxrhslvl, rhs)
@@ -331,9 +318,12 @@ CONTAINS
         ! Pressure correction: P = P + dtrk/rho*DP
         ! Velocity fields are modified and become solenoidal based on DP
         CALL mgpcorr(u, v, w, p, dp, dt/rho, bp)
+
+        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, u, v, w, p)
+            CALL ftoc(ilevel, u, v, w, p, device=.TRUE.)
         END DO
+        CALL map_arr_from_device(u, v, w, p, message="from:u|v|w|p%arr")
 
         ! All levels (coarse to fine)
         ! Propagation of the solution to neighbours and childs
