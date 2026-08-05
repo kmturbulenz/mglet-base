@@ -5,7 +5,7 @@ MODULE ftoc2_mod
     USE ibcore_mod, ONLY: ib
     USE gc_restrict_mod
     USE noib_restrict_mod
-    USE restrict_mod, ONLY: message_length, start_and_stop
+    USE restrict_mod
 
     ! FTOC2 uses the sendbuf from commbuf_mod simultaneously while packing for
     ! MPI sends and for self communication. Since the self communication must
@@ -656,9 +656,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
-        INTEGER(intk) :: fieldid, tasksize, igridf, igridc, &
-            istart, istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos, &
-            scratchidx
+        INTEGER(intk) :: fieldid, igridf, igridc, istart, istop, jstart, &
+            jstop, kstart, kstop, ipos, jpos, kpos
+        INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
@@ -676,8 +676,8 @@ CONTAINS
         DO itask = 1, netasks
             fieldid = etasks(1, itask)
             flag = ACHAR(etasks(2, itask))
-            tasksize = etasks(3, itask)
-            scratchidx = etasks(4, itask)
+            tasksize = INT(etasks(3, itask), kind=int32)
+            scratchidx = INT(etasks(4, itask), kind=int32)
             igridf = etasks(5, itask)
             igridc = etasks(6, itask)
             istart = etasks(7, itask)
@@ -700,54 +700,54 @@ CONTAINS
 
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a1(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (2)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a2(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (3)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a3(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (4)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a4(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a5(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
-                CALL restrict_sendtask_noib(flag, kkf, jjf, iif, &
+                CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a6(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
@@ -779,9 +779,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
-        INTEGER(intk) :: fieldid, tasksize, igridf, igridc, &
-            istart, istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos, &
-            scratchidx
+        INTEGER(intk) :: fieldid, igridf, igridc, istart, istop, jstart, &
+            jstop, kstart, kstop, ipos, jpos, kpos
+        INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
@@ -800,8 +800,8 @@ CONTAINS
         DO itask = 1, netasks
             fieldid = etasks(1, itask)
             flag = ACHAR(etasks(2, itask))
-            tasksize = etasks(3, itask)
-            scratchidx = etasks(4, itask)
+            tasksize = INT(etasks(3, itask), kind=int32)
+            scratchidx = INT(etasks(4, itask), kind=int32)
             igridf = etasks(5, itask)
             igridc = etasks(6, itask)
             istart = etasks(7, itask)
@@ -824,54 +824,54 @@ CONTAINS
 
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a1(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a1(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (2)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a2(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a2(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (3)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a3(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a3(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (4)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a4(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a4(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a5(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a5(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
-                CALL restrict_sendtask_gc(flag, kkf, jjf, iif, a6(ip3f), &
+                CALL restrict_gc_flag(flag, kkf, jjf, iif, a6(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    tasksize, scratchidx, istart, istop, jstart, jstop, &
+                    scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
@@ -1095,8 +1095,9 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: fieldid, icount, tasksize, igrid, &
-            istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
+            kstop
+        INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
 
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
@@ -1113,8 +1114,8 @@ CONTAINS
         DO itask = 1, nstasks
             fieldid = stasks(1, itask)
             flag = ACHAR(stasks(2, itask))
-            icount = stasks(3, itask)
-            tasksize = stasks(4, itask)
+            icount = INT(stasks(3, itask), kind=int32)
+            tasksize = INT(stasks(4, itask), kind=int32)
             igrid = stasks(5, itask)
             istart = stasks(6, itask)
             istop = stasks(7, itask)
@@ -1131,28 +1132,28 @@ CONTAINS
 
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a1(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a1(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE (2)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a2(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a2(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE (3)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a3(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a3(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE (4)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a4(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a4(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE (5)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a5(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a5(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE (6)
-                CALL restrict_sendtask_noib(flag, kk, jj, ii, a6(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), tasksize, icount, &
+                CALL restrict_noib_flag(flag, kk, jj, ii, a6(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
@@ -1179,8 +1180,9 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: fieldid, icount, tasksize, igrid, &
-            istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
+            kstop
+        INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
 
         ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
@@ -1198,8 +1200,8 @@ CONTAINS
         DO itask = 1, nstasks
             fieldid = stasks(1, itask)
             flag = ACHAR(stasks(2, itask))
-            icount = stasks(3, itask)
-            tasksize = stasks(4, itask)
+            icount = INT(stasks(3, itask), kind=int32)
+            tasksize = INT(stasks(4, itask), kind=int32)
             igrid = stasks(5, itask)
             istart = stasks(6, itask)
             istop = stasks(7, itask)
@@ -1216,29 +1218,29 @@ CONTAINS
 
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a1(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a1(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
             CASE (2)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a2(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a2(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
             CASE (3)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a3(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a3(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
             CASE (4)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a4(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a4(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
             CASE (5)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a5(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a5(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
             CASE (6)
-                CALL restrict_sendtask_gc(flag, kk, jj, ii, a6(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), tasksize, &
-                    icount, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(flag, kk, jj, ii, a6(ip3), &
+                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
+                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
@@ -1253,121 +1255,6 @@ CONTAINS
 
         END ASSOCIATE
     END SUBROUTINE process_sendtasks_gc
-
-
-    SUBROUTINE restrict_sendtask_noib(flag, kk, jj, ii, ff, ddx, ddy, &
-            ddz, tasksize, icount, istart, istop, jstart, jstop, kstart, kstop)
-        !$omp declare target
-        ! Subroutine arguments
-        CHARACTER(len=1), INTENT(in) :: flag
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: ff(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        INTEGER(intk), INTENT(in) :: tasksize, icount
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
-
-        ! Local variables
-        INTEGER(int32) :: targetidx, messagelength
-
-        messagelength = INT(tasksize, kind=int32)
-        targetidx = icount + tasksize - 1
-
-        SELECT CASE (flag)
-        CASE ('U')
-            CALL restrict_noib_u(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(icount:targetidx), &
-                istart, istop, jstart, jstop, kstart, kstop)
-        CASE ('V')
-            CALL restrict_noib_v(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(icount:targetidx), &
-                istart, istop, jstart, jstop, kstart, kstop)
-        CASE ('W')
-            CALL restrict_noib_w(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(icount:targetidx), &
-                istart, istop, jstart, jstop, kstart, kstop)
-        CASE ('P', 'R', 'S', 'T')
-            CALL restrict_noib_s(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(icount:targetidx), &
-                istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-#endif
-        END SELECT
-    END SUBROUTINE restrict_sendtask_noib
-
-
-    SUBROUTINE restrict_sendtask_gc(flag, kk, jj, ii, ff, ddx, ddy, &
-            ddz, bp, bt, tasksize, icount, istart, istop, jstart, jstop, &
-            kstart, kstop)
-        !$omp declare target
-        ! Subroutine arguments
-        CHARACTER(len=1), INTENT(in) :: flag
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: ff(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(in) :: bp(kk, jj, ii), bt(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: tasksize, icount
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
-
-        ! Local variables
-        INTEGER(int32) :: messagelength
-        INTEGER(intk) :: targetidx
-
-        messagelength = INT(tasksize, kind=int32)
-        targetidx = icount + tasksize - 1
-
-        SELECT CASE (flag)
-            CASE ('U')
-                CALL restrict_noib_u(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('V')
-                CALL restrict_noib_v(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('W')
-                CALL restrict_noib_w(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('P')
-                CALL restrict_gc_p_t(kk, jj, ii, ff, ddx, ddy, ddz, bp, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('T')
-                CALL restrict_gc_p_t(kk, jj, ii, ff, ddx, ddy, ddz, bt, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('R')
-                CALL restrict_gc_r(kk, jj, ii, ff, ddx, ddy, ddz, bp, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('S')
-                CALL restrict_noib_s(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('N')
-                CALL restrict_gc_n(kk, jj, ii, ff, messagelength, &
-                    sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('E')
-                CALL restrict_gc_e(kk, jj, ii, ff, messagelength, &
-                    sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('F')
-                CALL restrict_gc_f(kk, jj, ii, ff, messagelength, &
-                    sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-            CASE ('I')
-                CALL restrict_gc_i(kk, jj, ii, ff, messagelength, &
-                    sendbuf(icount:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
-            END SELECT
-    END SUBROUTINE restrict_sendtask_gc
 
 
     SUBROUTINE process_mpirecv(nmpirtasks, mpirtasks)
