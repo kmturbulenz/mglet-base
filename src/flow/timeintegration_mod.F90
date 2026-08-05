@@ -58,6 +58,9 @@ CONTAINS
         CALL push_field(uo, "UO")
         CALL push_field(vo, "VO")
         CALL push_field(wo, "WO")
+        CALL set_field_arr(uo, 0.0_realk)
+        CALL set_field_arr(vo, 0.0_realk)
+        CALL set_field_arr(wo, 0.0_realk)
 
         ! Transporting velocities for the convective terms
         ! Only CC use a different transporting velocity

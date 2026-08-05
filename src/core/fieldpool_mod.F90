@@ -72,22 +72,19 @@ CONTAINS
     END SUBROUTINE finish_fieldpool
 
 
-    SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units, zero)
+    ! Returns a pointer to a field with allocated arr and buffers that have
+    ! unspecified values.
+    ! The arr member is NOT zeroed by default and the buffers member is NOT
+    ! guaranteed to be set to nan if _MGLET_DEBUG_ is set.
+    SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units)
         ! Subroutine arguments
         TYPE(field_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
         INTEGER(intk), INTENT(in), OPTIONAL :: istag, jstag, kstag
         INTEGER(intk), INTENT(in), OPTIONAL :: units(7)
-        LOGICAL, INTENT(in), OPTIONAL :: zero
 
         ! Local variables
-        LOGICAL :: zero2, did_init
-
-        IF (PRESENT(zero)) THEN
-            zero2 = zero
-        ELSE
-            zero2 = .TRUE.
-        END IF
+        ! none...
 
         IF (stackptr_real > max_realfields) THEN
             WRITE(*, *) "Exceeded maximum number of realfields in fieldpool."
@@ -98,50 +95,32 @@ CONTAINS
 
         field => realfields(stackptr_real)
 
-        did_init = .FALSE.
         IF (.NOT. field%is_init) THEN
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=zero2)
+                units=units, zero=.FALSE.)
             CALL field%init_buffers()
-            !$omp target enter data map(to: realfields(stackptr_real)%arr)
-            !$omp target enter data map(to: realfields(stackptr_real)%buffers)
-            did_init = .TRUE.
+            !$omp target enter data map(alloc: realfields(stackptr_real)%arr, &
+            !$omp& realfields(stackptr_real)%buffers)
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
-        END IF
-
-        IF (zero2 .AND. .NOT. did_init) THEN
-            ! TODO(offload): Once larger portions of the code are ported,
-            ! remove the device=.FALSE. setter and preprocessor ifdef.
-            ! Currently, we can not generalize whether all fields in the
-            ! fieldpool are only required on the device and are thus required
-            ! to set both host and device buffers to zero.
-#ifdef _MGLET_OFFLOAD_
-            CALL set_field_arr(field, 0.0_realk, device=.TRUE.)
-#endif
-            CALL set_field_arr(field, 0.0_realk, device=.FALSE.)
         END IF
 
         stackptr_real = stackptr_real+1
     END SUBROUTINE push_realfield
 
 
-    SUBROUTINE push_intfield(field, name, istag, jstag, kstag, units, zero)
+    ! Returns a pointer to a field with allocated arr that has unspecified
+    ! values.
+    ! The arr member is NOT zeroed by default
+    SUBROUTINE push_intfield(field, name, istag, jstag, kstag, units)
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(out), POINTER :: field
         CHARACTER(len=*), INTENT(in) :: name
         INTEGER(intk), INTENT(in), OPTIONAL :: istag, jstag, kstag
         INTEGER(intk), INTENT(in), OPTIONAL :: units(7)
-        LOGICAL, INTENT(in), OPTIONAL :: zero
 
         ! Local variables
-        LOGICAL :: zero2, did_init
-
-        IF (PRESENT(zero)) THEN
-            zero2 = zero
-        ELSE
-            zero2 = .TRUE.
-        END IF
+        ! none...
 
         IF (stackptr_int > max_intfields) THEN
             WRITE(*, *) "Exceeded maximum number of intfields in fieldpool."
@@ -152,26 +131,12 @@ CONTAINS
 
         field => intfields(stackptr_int)
 
-        did_init = .FALSE.
         IF (.NOT. field%is_init) THEN
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=zero2)
-                !$omp target enter data map(to: intfields(stackptr_int)%arr)
-                did_init = .TRUE.
+                units=units, zero=.FALSE.)
+                !$omp target enter data map(alloc: intfields(stackptr_int)%arr)
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
-        END IF
-
-        IF (zero2 .AND. .NOT. did_init) THEN
-            ! TODO(offload): Once larger portions of the code are ported,
-            ! remove the device=.FALSE. setter and preprocessor ifdef.
-            ! Currently, we can not generalize whether all fields in the
-            ! fieldpool are only required on the device and are thus required
-            ! to set both host and device buffers to zero.
-#ifdef _MGLET_OFFLOAD_
-            CALL set_field_arr(field, 0_ifk, device=.TRUE.)
-#endif
-            CALL set_field_arr(field, 0_ifk, device=.FALSE.)
         END IF
 
         stackptr_int = stackptr_int+1

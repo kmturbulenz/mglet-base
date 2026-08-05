@@ -592,6 +592,7 @@ CONTAINS
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
+        CALL set_field_arr(ux_f, 0.0_realk)
 
         CALL differentiate(ux_f, u_f, ivar)
 
@@ -687,6 +688,7 @@ CONTAINS
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
+        CALL set_field_arr(ux_f, 0.0_realk)
         CALL differentiate(ux_f, u_f, ivar)
 
         field%arr = ux_f%arr**2
@@ -815,6 +817,8 @@ CONTAINS
             kstag=kstag, units=units_ux)
         CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
+        CALL set_field_arr(ux_f, 0.0_realk)
+        CALL set_field_arr(vx_f, 0.0_realk)
 
         CALL differentiate(ux_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
@@ -887,6 +891,9 @@ CONTAINS
             kstag=kstag, units=units_ux)
         CALL push_field(temp_f, 'tmp', istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
+        CALL set_field_arr(uy_f, 0.0_realk)
+        CALL set_field_arr(vx_f, 0.0_realk)
+        CALL set_field_arr(temp_f, 0.0_realk)
 
         CALL differentiate(uy_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
