@@ -330,11 +330,15 @@ CONTAINS
         END DO
 
         ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_from_device(dp, message="from:dp%arr")
+        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
 
         ! Pressure correction: P = P + dtrk/rho*DP
         ! Velocity fields are modified and become solenoidal based on DP
-        CALL mgpcorr(u, v, w, p, dp, dt/rho, bp)
+        CALL mgpcorr(u, v, w, p, dp, dt/rho)
+
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_from_device(u, v, w, p, message="from:u|v|w|p%arr")
+
         DO ilevel = maxlevel, minlevel, -1
             CALL ftoc(ilevel, u, v, w, p)
         END DO
@@ -746,50 +750,62 @@ CONTAINS
     END SUBROUTINE rescal_grid
 
 
-    SUBROUTINE mgpcorr(u, v, w, p, dp, rfak, bp_f)
+    SUBROUTINE mgpcorr(u_f, v_f, w_f, p_f, dp_f, rfak)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: u, v, w, p
-        TYPE(field_t), INTENT(in) :: dp
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+        TYPE(field_t), INTENT(in) :: dp_f
         REAL(realk), INTENT(in) :: rfak
-        TYPE(field_t), INTENT(in), OPTIONAL :: bp_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, ip3
+        INTEGER(intk) :: i, igrid, ip3, ip1x, ip1y, ip1z
         INTEGER(intk) :: kk, jj, ii
 
         TYPE(field_t), POINTER :: rdx_f
         TYPE(field_t), POINTER :: rdy_f
         TYPE(field_t), POINTER :: rdz_f
-
-        REAL(realk), POINTER, CONTIGUOUS :: rdx(:), rdy(:), rdz(:), bp(:, :, :)
-
-        NULLIFY(bp)
+        TYPE(field_t), POINTER :: bp_f
 
         CALL get_field(rdx_f, "RDX")
         CALL get_field(rdy_f, "RDY")
         CALL get_field(rdz_f, "RDZ")
+        CALL get_field(bp_f, "BP")
 
+        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, p => p_f%arr, &
+            dp => dp_f%arr, bp => bp_f%arr, &
+            rdx => rdx_f%arr, rdy => rdy_f%arr, rdz => rdz_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("mgpcorr")
+#endif
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
+        !$omp& ip1y, ip1z)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ip1x, igrid)
+            CALL get_ip1y(ip1y, igrid)
+            CALL get_ip1z(ip1z, igrid)
 
-            CALL rdx_f%get_ptr(rdx, igrid)
-            CALL rdy_f%get_ptr(rdy, igrid)
-            CALL rdz_f%get_ptr(rdz, igrid)
-
-            IF (PRESENT(bp_f)) THEN
-                CALL bp_f%get_ptr(bp, igrid)
-            END IF
-
-            CALL mgpcorr_grid(kk, jj, ii, u%arr(ip3), v%arr(ip3), w%arr(ip3), &
-                p%arr(ip3), dp%arr(ip3), rdx, rdy, rdz, rfak, bp)
+            !$omp parallel
+            CALL mgpcorr_grid(kk, jj, ii, u(ip3), v(ip3), w(ip3), p(ip3), &
+                dp(ip3), bp(ip3), rdx(ip1x), rdy(ip1y), rdz(ip1z), rfak)
+            !$omp end parallel
         END DO
+        !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        END ASSOCIATE
     END SUBROUTINE mgpcorr
 
 
-    PURE SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, rdx, rdy, rdz, &
-            rfak, bp)
+    PURE SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, bp, rdx, rdy, &
+            rdz, rfak)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: u(kk, jj, ii)
@@ -797,89 +813,60 @@ CONTAINS
         REAL(realk), INTENT(inout) :: w(kk, jj, ii)
         REAL(realk), INTENT(inout) :: p(kk, jj, ii)
         REAL(realk), INTENT(in) :: dp(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(in) :: rdx(ii)
         REAL(realk), INTENT(in) :: rdy(jj)
         REAL(realk), INTENT(in) :: rdz(kk)
         REAL(realk), INTENT(in) :: rfak
-        REAL(realk), INTENT(in), OPTIONAL :: bp(kk, jj, ii)
 
         ! Local variables
         INTEGER(intk) :: k, j, i
 
-        IF (PRESENT(bp)) THEN
-            DO i = 2, ii-1
-                DO j = 2, jj-1
-                    DO k = 2, kk-1
-                        p(k, j, i) = p(k, j, i) + dp(k, j, i)*bp(k, j, i)
-                    END DO
+        !$omp do collapse(3)
+        DO i = 2, ii-1
+            DO j = 2, jj-1
+                DO k = 2, kk-1
+                    p(k, j, i) = p(k, j, i) + dp(k, j, i)*bp(k, j, i)
                 END DO
             END DO
+        END DO
+        !$omp end do
 
-            DO i = 2, ii-2
-                DO j = 3, jj-2
-                    DO k = 3, kk-2
-                        u(k, j, i) = u(k, j, i) &
-                            + (dp(k, j, i) - dp(k, j, i+1)) &
-                            *bp(k, j, i)*bp(k, j, i+1)*rdx(i)*rfak
-                    END DO
+        !$omp do collapse(3)
+        DO i = 2, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    u(k, j, i) = u(k, j, i) &
+                        + (dp(k, j, i) - dp(k, j, i+1)) &
+                        *bp(k, j, i)*bp(k, j, i+1)*rdx(i)*rfak
                 END DO
             END DO
+        END DO
+        !$omp end do
 
-            DO i = 3, ii-2
-                DO j = 2, jj - 2
-                    DO k = 3, kk-2
-                        v(k, j, i) = v(k, j, i) &
-                            + (dp(k, j, i) - dp(k, j+1, i)) &
-                            *bp(k, j, i)*bp(k, j+1, i)*rdy(j)*rfak
-                    END DO
+        !$omp do collapse(3)
+        DO i = 3, ii-2
+            DO j = 2, jj - 2
+                DO k = 3, kk-2
+                    v(k, j, i) = v(k, j, i) &
+                        + (dp(k, j, i) - dp(k, j+1, i)) &
+                        *bp(k, j, i)*bp(k, j+1, i)*rdy(j)*rfak
                 END DO
             END DO
+        END DO
+        !$omp end do
 
-            DO i = 3, ii-2
-                DO j = 3, jj-2
-                    DO k = 2, kk-2
-                        w(k, j, i) = w(k, j, i) &
-                            + (dp(k, j, i) - dp(k+1, j, i)) &
-                            *bp(k, j, i)*bp(k+1, j, i)*rdz(k)*rfak
-                    END DO
+        !$omp do collapse(3)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 2, kk-2
+                    w(k, j, i) = w(k, j, i) &
+                        + (dp(k, j, i) - dp(k+1, j, i)) &
+                        *bp(k, j, i)*bp(k+1, j, i)*rdz(k)*rfak
                 END DO
             END DO
-        ELSE
-            DO i = 2, ii-1
-                DO j = 2, jj-1
-                    DO k = 2, kk-1
-                        p(k, j, i) = p(k, j, i) + dp(k, j, i)
-                    END DO
-                END DO
-            END DO
-
-            DO i = 2, ii-2
-                DO j = 3, jj-2
-                    DO k = 3, kk-2
-                        u(k, j, i) = u(k, j, i) &
-                            + (dp(k, j, i) - dp(k, j, i+1))*rdx(i)*rfak
-                    END DO
-                END DO
-            END DO
-
-            DO i = 3, ii-2
-                DO j = 2, jj - 2
-                    DO k = 3, kk-2
-                        v(k, j, i) = v(k, j, i) &
-                            + (dp(k, j, i) - dp(k, j+1, i))*rdy(j)*rfak
-                    END DO
-                END DO
-            END DO
-
-            DO i = 3, ii-2
-                DO j = 3, jj-2
-                    DO k = 2, kk-2
-                        w(k, j, i) = w(k, j, i) &
-                            + (dp(k, j, i) - dp(k+1, j, i))*rdz(k)*rfak
-                    END DO
-                END DO
-            END DO
-        END IF
+        END DO
+        !$omp end do
     END SUBROUTINE mgpcorr_grid
 
 
