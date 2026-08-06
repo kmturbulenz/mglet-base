@@ -185,11 +185,15 @@ CONTAINS
             CALL get_field(bp, "BP")
         END IF
 
-        ! All of these fields are initialized to zero automatically
         CALL push_field(dp, "DP")
         CALL push_field(hilf, "HILF")
         CALL push_field(rhs, "RHS")
         CALL push_field(res, "RES")
+        CALL set_field_arr(dp, 0.0_realk, device=.TRUE.)
+        CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
+        CALL set_field_arr(rhs, 0.0_realk)
+        CALL set_field_arr(res, 0.0_realk, device=.TRUE.)
+
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt

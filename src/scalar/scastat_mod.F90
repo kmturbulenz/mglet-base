@@ -125,6 +125,7 @@ CONTAINS
             units=units_txtx)
         CALL push_field(tx_f, 'tmp', istag=istag, jstag=jstag, kstag=kstag, &
             units=units_tx)
+        CALL set_field_arr(tx_f, 0.0_realk)
 
         ! central difference on scalar (= no staggering)
         CALL differentiate(tx_f, t_f, ivar)
