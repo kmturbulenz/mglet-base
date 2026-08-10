@@ -191,17 +191,25 @@ CONTAINS
         CALL push_field(res, "RES")
         CALL set_field_arr(dp, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(rhs, 0.0_realk)
+        CALL set_field_arr(rhs, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(res, 0.0_realk, device=.TRUE.)
 
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
-        CALL ib%divcal(rhs, u, v, w, prefak)
+        CALL divcal(rhs, u, v, w, prefak, device=.TRUE.)
+
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_from_device(rhs, message="from:rhs%arr")
 
         DO ilevel = maxlevel, minlevel, -1
             CALL ftoc(ilevel, rhs, rhs, 'R')
         END DO
+
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
         ! For debug logging
         IF (loglevel >= 3) THEN
@@ -214,9 +222,6 @@ CONTAINS
             END DO
             CALL print_plog(ittot, irk, 0)
         END IF
-
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(rhs, message="to:rhs%arr")
 
         ipc = 0
         outer: DO ipcount = 1, nouter
@@ -328,9 +333,6 @@ CONTAINS
             CALL parent(ilevel, s1=dp, device=.TRUE.)
             CALL bound_pressure(ilevel, dp, bp)
         END DO
-
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
 
         ! Pressure correction: P = P + dtrk/rho*DP
         ! Velocity fields are modified and become solenoidal based on DP

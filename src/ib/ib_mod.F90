@@ -5,6 +5,7 @@ MODULE ib_mod
     USE checkzelle_mod, ONLY: checkzelle
     USE ctof_mod
     USE cutcorner_mod
+    USE divcal_mod
     USE filling_mod, ONLY: fillfluid
     USE findinterface_mod
     USE flzelle_mod

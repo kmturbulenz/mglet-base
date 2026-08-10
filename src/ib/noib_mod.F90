@@ -11,8 +11,6 @@ MODULE noib_mod
         PROCEDURE :: blockbp
         PROCEDURE :: read_stencils
         PROCEDURE, NOPASS :: giteig
-        PROCEDURE :: divcal
-        PROCEDURE, NOPASS :: divcal_grid
         FINAL :: destructor
     END TYPE noib_t
 
@@ -244,108 +242,4 @@ CONTAINS
             message="to:gs-neighbors")
         CALL map_arr_to_device(gsap, message="to:gs-ap")
     END SUBROUTINE giteig
-
-
-    SUBROUTINE divcal(this, div, u, v, w, fak, ctyp)
-        ! Subroutine arguments
-        CLASS(noib_t), INTENT(inout) :: this
-        TYPE(field_t), INTENT(inout) :: div
-        TYPE(field_t), INTENT(in) :: u
-        TYPE(field_t), INTENT(in) :: v
-        TYPE(field_t), INTENT(in) :: w
-        REAL(realk), INTENT(in) :: fak
-        CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
-
-        ! Local variables
-        INTEGER(intk) :: i, ilevel, igrid
-        INTEGER(intk) :: kk, jj, ii
-        TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
-        REAL(realk), CONTIGUOUS, POINTER :: rddx(:), rddy(:), rddz(:)
-        REAL(realk), CONTIGUOUS, POINTER :: div_p(:, :, :), u_p(:, :, :), &
-            v_p(:, :, :), w_p(:, :, :)
-
-        CALL start_timer(240)
-
-        CALL get_field(rddx_f, "RDDX")
-        CALL get_field(rddy_f, "RDDY")
-        CALL get_field(rddz_f, "RDDZ")
-
-        DO ilevel = minlevel, maxlevel
-            ! Assume that U, V, W and DIV are defined on the same levels!!!
-            IF (.NOT. u%active_level(ilevel)) CYCLE
-
-            DO i = 1, nmygridslvl(ilevel)
-
-                igrid = mygridslvl(i, ilevel)
-                CALL get_mgdims(kk, jj, ii, igrid)
-
-                CALL rddx_f%get_ptr(rddx, igrid)
-                CALL rddy_f%get_ptr(rddy, igrid)
-                CALL rddz_f%get_ptr(rddz, igrid)
-
-                CALL div%get_ptr(div_p, igrid)
-                CALL u%get_ptr(u_p, igrid)
-                CALL v%get_ptr(v_p, igrid)
-                CALL w%get_ptr(w_p, igrid)
-
-                CALL divcal_grid(kk, jj, ii, fak, div_p, u_p, &
-                    v_p, w_p, rddx, rddy, rddz)
-            END DO
-        END DO
-
-        CALL stop_timer(240)
-    END SUBROUTINE divcal
-
-
-    PURE SUBROUTINE divcal_grid(kk, jj, ii, fak, div, u, v, w, rddx, rddy, &
-            rddz, bp, sdiv)
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: fak
-        REAL(realk), INTENT(inout) :: div(kk, jj, ii)
-        REAL(realk), INTENT(in) :: u(kk, jj, ii)
-        REAL(realk), INTENT(in) :: v(kk, jj, ii)
-        REAL(realk), INTENT(in) :: w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: rddx(ii)
-        REAL(realk), INTENT(in) :: rddy(jj)
-        REAL(realk), INTENT(in) :: rddz(kk)
-        REAL(realk), INTENT(in), OPTIONAL :: bp(kk, jj, ii)
-        REAL(realk), INTENT(in), OPTIONAL :: sdiv(kk, jj, ii)
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    div(k, j, i) = fak*((u(k, j, i) - u(k, j, i-1))*rddx(i) &
-                        + (v(k, j, i) - v(k, j-1, i))*rddy(j) &
-                        + (w(k, j, i) - w(k-1, j, i))*rddz(k))
-                END DO
-            END DO
-        END DO
-
-        ! TODO: If SDIV is properly masked in the ghost layers, the indices
-        ! here could be from 1 to ii etc. That will lead to ever so slightly
-        ! better performance. I leave it as is until SDIV is properly checked.
-        IF (PRESENT(sdiv)) THEN
-            DO i = 3, ii-2
-                DO j = 3, jj-2
-                    DO k = 3, kk-2
-                        div(k, j, i) = div(k, j, i) + fak*sdiv(k, j, i)
-                    END DO
-                END DO
-            END DO
-        END IF
-
-        IF (PRESENT(bp)) THEN
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        div(k, j, i) = bp(k, j, i)*div(k, j, i)
-                    END DO
-                END DO
-            END DO
-        END IF
-    END SUBROUTINE divcal_grid
 END MODULE noib_mod

@@ -26,7 +26,6 @@ MODULE gc_mod
     CONTAINS
         PROCEDURE :: blockbp
         PROCEDURE :: read_stencils
-        PROCEDURE :: divcal
         PROCEDURE, PRIVATE :: calc_nvecs
         PROCEDURE, NOPASS, PRIVATE :: calc_nvecs_grid
         FINAL :: destructor
@@ -269,77 +268,4 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE calc_nvecs_grid
-
-
-    SUBROUTINE divcal(this, div, u, v, w, fak, ctyp)
-        ! Subroutine arguments
-        CLASS(gc_t), INTENT(inout) :: this
-        TYPE(field_t), INTENT(inout) :: div
-        TYPE(field_t), INTENT(in) :: u
-        TYPE(field_t), INTENT(in) :: v
-        TYPE(field_t), INTENT(in) :: w
-        REAL(realk), INTENT(in) :: fak
-        CHARACTER(len=1), INTENT(in), OPTIONAL :: ctyp
-
-        ! Local variables
-        INTEGER(intk) :: i, igrid, ilevel
-        INTEGER(intk) :: kk, jj, ii
-        LOGICAL :: use_sdiv
-        TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
-        TYPE(field_t), POINTER :: sdiv_f, bp_f
-        REAL(realk), CONTIGUOUS, POINTER :: rddx(:), rddy(:), rddz(:)
-        REAL(realk), CONTIGUOUS, POINTER :: sdiv(:, :, :), bp(:, :, :), &
-            div_p(:, :, :), u_p(:, :, :), v_p(:, :, :), w_p(:, :, :)
-
-        CALL start_timer(240)
-
-        ! For safety
-        NULLIFY(bp_f)
-        NULLIFY(sdiv_f)
-        NULLIFY(sdiv)
-
-        CALL get_field(rddx_f, "RDDX")
-        CALL get_field(rddy_f, "RDDY")
-        CALL get_field(rddz_f, "RDDZ")
-        CALL get_field(bp_f, "BP")
-
-        use_sdiv = .TRUE.
-        IF (PRESENT(ctyp)) THEN
-            IF (ctyp == "W") THEN
-                use_sdiv = .FALSE.
-            END IF
-        END IF
-
-        IF (use_sdiv) THEN
-            CALL get_field(sdiv_f, "SDIV")
-        END IF
-
-        DO ilevel = minlevel, maxlevel
-            ! Assume that U, V, W and DIV are defined on the same levels!!!
-            IF (.NOT. u%active_level(ilevel)) CYCLE
-
-            DO i = 1, nmygridslvl(ilevel)
-                igrid = mygridslvl(i, ilevel)
-                CALL get_mgdims(kk, jj, ii, igrid)
-
-                CALL rddx_f%get_ptr(rddx, igrid)
-                CALL rddy_f%get_ptr(rddy, igrid)
-                CALL rddz_f%get_ptr(rddz, igrid)
-                CALL bp_f%get_ptr(bp, igrid)
-
-                CALL div%get_ptr(div_p, igrid)
-                CALL u%get_ptr(u_p, igrid)
-                CALL v%get_ptr(v_p, igrid)
-                CALL w%get_ptr(w_p, igrid)
-
-                IF (use_sdiv) CALL sdiv_f%get_ptr(sdiv, igrid)
-
-                CALL this%divcal_grid(kk, jj, ii, fak, div_p, &
-                    u_p, v_p, w_p, rddx, rddy, rddz, bp, sdiv)
-            END DO
-        END DO
-
-        CALL stop_timer(240)
-    END SUBROUTINE divcal
-
 END MODULE gc_mod
