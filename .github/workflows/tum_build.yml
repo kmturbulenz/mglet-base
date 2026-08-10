@@ -1,0 +1,72 @@
+name: tum-mglet-build
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'michael/**'
+      - 'lukas/**'
+      - 'yoshi/**'
+      - 'simon/**'
+      - 'philip/**'
+      - 'julius/**'
+      - 'javier/**'
+      - 'feyza/**'
+      - 'jakob/**'
+      - 'mohammadreza/**'
+      - 'particle/**'
+      - 'softwarelab/**'
+      - 'catalyst/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        image: ["build-base-image:master"]
+        build: ["debug"]
+        prec: ["Single", "Double"]
+      fail-fast: false
+
+    container:
+      image: ghcr.io/tum-hydromechanics/${{ matrix.image }}
+      options: "--cap-add=SYS_PTRACE --shm-size=4gb"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build MGLET
+      run: |
+        source /root/.bashrc || true
+        mkdir build
+        cd build
+        TOOLCHAIN=${{ contains(matrix.image, 'base') && 'gnu' || 'intel' }}
+        cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
+        ninja
+        ls -R
+
+    - name: Run testcases
+      run: |
+        source /root/.bashrc || true
+        cd build
+        export OMPI_ALLOW_RUN_AS_ROOT=1
+        export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+        export I_MPI_FABRICS=shm
+        export I_MPI_PLATFORM=ivb
+        export I_MPI_DEBUG=5
+        EXITCODE=0
+        TIC=`date +%s`
+        ctest --timeout ${{ matrix.build == 'Debug' && '600' || '150' }} --output-on-failure --test-dir tests  || EXITCODE=1
+        TOC=`date +%s`
+        DURATION=$((TOC-TIC))
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Total test time: $DURATION sec" >> $GITHUB_STEP_SUMMARY
+        CPUNAME=$(lscpu | grep 'Model name' | cut -f 2 -d ":" | awk '{$1=$1}1')
+        echo "CPU model name: $CPUNAME" >> $GITHUB_STEP_SUMMARY
+        exit $EXITCODE
