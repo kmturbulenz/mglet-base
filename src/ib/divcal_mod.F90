@@ -1,7 +1,7 @@
 MODULE divcal_mod
     USE core_mod
 
-    IMPLICIT NONE
+    IMPLICIT NONE(type, external)
     PRIVATE
 
     PUBLIC :: divcal
