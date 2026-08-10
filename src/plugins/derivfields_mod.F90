@@ -1,5 +1,6 @@
 MODULE derivfields_mod
     USE core_mod
+    USE divcal_mod
     USE MPI_f08
     USE ib_mod, ONLY: ib
 
@@ -77,7 +78,7 @@ CONTAINS
                     CALL get_field(u, "U")
                     CALL get_field(v, "V")
                     CALL get_field(w, "W")
-                    CALL ib%divcal(field, u, v, w, 1.0_realk)
+                    CALL divcal(field, u, v, w, 1.0_realk)
                 END BLOCK
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
