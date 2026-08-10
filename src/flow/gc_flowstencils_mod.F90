@@ -1532,6 +1532,8 @@ CONTAINS
             CALL ddz_f%get_ptr(ddz, igrid)
             CALL getsdivfield_grid(igrid, kk, jj, ii, sdiv, ddx, ddy, ddz)
         END DO
+
+        CALL map_arr_to_device(sdiv_f, message="to:sdiv%arr")
     END SUBROUTINE setsdivfield
 
 
