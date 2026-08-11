@@ -41,6 +41,7 @@ MODULE comms_mod
 
     ! Rank and number of processes in global communicator (MPI_COMM_WORLD)
     INTEGER(int32), PROTECTED :: myid = -1, numprocs = -1
+    !$omp declare target(myid)
 
     ! Number of compute nodes (i.e. number of ranks in iocomm)
     INTEGER(int32), PROTECTED :: numnodes = -1
@@ -85,6 +86,7 @@ CONTAINS
 
         CALL MPI_Comm_rank(MPI_COMM_WORLD, myid)
         CALL MPI_Comm_size(MPI_COMM_WORLD, numprocs)
+        !$omp target update to(myid)
 
         IF (myid == 0) THEN
             WRITE(*, '()')
