@@ -70,6 +70,31 @@ CONTAINS
         IF (zero2) THEN
             this%arr = 0.0_realk
         END IF
+
+#ifdef _MGLET_DEBUG_
+        BLOCK
+            USE, INTRINSIC :: IEEE_ARITHMETIC
+            USE, INTRINSIC :: IEEE_EXCEPTIONS
+
+            LOGICAL :: saved_fpe_mode(SIZE(ieee_all))
+            REAL(realk) :: nan
+
+            IF (.NOT. zero2) THEN
+                ! Make sure we do not trigger floating point exceptions when
+                ! setting the array to NaN
+                CALL IEEE_GET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+                CALL IEEE_SET_HALTING_MODE(IEEE_ALL, .FALSE.)
+
+                ! Define NaN and set that value in the array
+                nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
+                this%arr = nan
+
+                ! Restore the previous floating point exception mode
+                CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
+                CALL IEEE_SET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+            END IF
+        END BLOCK
+#endif
     END SUBROUTINE init
 
 

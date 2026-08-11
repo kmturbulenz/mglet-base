@@ -73,9 +73,9 @@ CONTAINS
 
 
     ! Returns a pointer to a field with allocated arr and buffers that have
-    ! unspecified values.
-    ! The arr member is NOT zeroed by default and the buffers member is NOT
-    ! guaranteed to be set to nan if _MGLET_DEBUG_ is set.
+    ! unspecified values. The arr member is NOT zeroed by default and the
+    ! programmer need to take care to explicitly set the values of the
+    ! array before using it.
     SUBROUTINE push_realfield(field, name, istag, jstag, kstag, units)
         ! Subroutine arguments
         TYPE(field_t), INTENT(out), POINTER :: field
@@ -104,6 +104,39 @@ CONTAINS
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
         END IF
+
+#ifdef _MGLET_DEBUG_
+        ! Fieldpool never set memory to zero. In debug builds, we set the
+        ! array to NaN to catch uninitialized memory usage. In this way,
+        ! if some code tries to make use of some memory that have not been
+        ! initialized, it will be easy to catch the bug.
+        BLOCK
+            USE, INTRINSIC :: IEEE_ARITHMETIC
+            USE, INTRINSIC :: IEEE_EXCEPTIONS
+
+            LOGICAL :: saved_fpe_mode(SIZE(ieee_all))
+            REAL(realk) :: nan
+
+            ! Make sure we do not trigger floating point exceptions when
+            ! setting the array to NaN
+            CALL IEEE_GET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+            CALL IEEE_SET_HALTING_MODE(IEEE_ALL, .FALSE.)
+
+            ! Define NaN and set that value in the array
+            nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
+            field%arr = nan
+            !$omp target update to(realfields(stackptr_real)%arr)
+
+            IF (ALLOCATED(field%buffers)) THEN
+                field%buffers = nan
+                !$omp target update to(realfields(stackptr_real)%buffers)
+            END IF
+
+            ! Restore the previous floating point exception mode
+            CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
+            CALL IEEE_SET_HALTING_MODE(IEEE_ALL, saved_fpe_mode)
+        END BLOCK
+#endif
 
         stackptr_real = stackptr_real+1
     END SUBROUTINE push_realfield
