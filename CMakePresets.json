@@ -248,7 +248,7 @@
 
                 "MGLET_C_FLAGS": "",
                 "MGLET_CXX_FLAGS": "",
-                "MGLET_Fortran_FLAGS": "-fimplicit-none",
+                "MGLET_Fortran_FLAGS": "-fimplicit-none;-Wno-assumed-type-size-dummy",
 
                 "MGLET_C_FLAGS_RELEASE": "-O3;-g",
                 "MGLET_CXX_FLAGS_RELEASE": "-O3;-g",
