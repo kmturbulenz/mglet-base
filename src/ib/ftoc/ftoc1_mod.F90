@@ -1,18 +1,12 @@
-MODULE ftoc_mod
+MODULE ftoc1_mod
     USE MPI_f08
     USE core_mod
+    USE ftoc_core_mod
     USE ibcore_mod, ONLY: ib
     USE restrict_mod, ONLY: restrict, message_length, start_and_stop
 
     IMPLICIT NONE (type, external)
     PRIVATE
-
-    ! The information in the first dimension is sorted as follows:
-    !   Field 1: Rank of sending process
-    !   Field 2: Rank of receiving process
-    !   Field 3: ID of sending grid (fine grid)
-    !   Field 4: ID of receiving grid (coarse grid)
-    INTEGER(intk), ALLOCATABLE :: sendconns(:, :), recvconns(:, :)
 
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
@@ -22,22 +16,17 @@ MODULE ftoc_mod
     INTEGER(int32), ALLOCATABLE :: recvlist(:)
     INTEGER(intk), ALLOCATABLE :: recvidxlist(:, :)
 
-    ! Number of send and receive connections
-    INTEGER(intk) :: isend = 0, irecv = 0
-
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    INTERFACE ftoc
-        MODULE PROCEDURE :: ftoc_one, ftoc_multiple
-    END INTERFACE ftoc
+    INTERFACE ftoc1
+        MODULE PROCEDURE :: ftoc1_one, ftoc1_multiple
+    END INTERFACE ftoc1
 
     ! contained functions
-    PUBLIC :: ftoc, init_ftoc, finish_ftoc
-
-
+    PUBLIC :: ftoc1, init_ftoc1, finish_ftoc1
 CONTAINS
-    SUBROUTINE ftoc_one(ilevel, ff, fc, flag)
+    SUBROUTINE ftoc1_one(ilevel, ff, fc, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(in) :: ff
@@ -47,8 +36,6 @@ CONTAINS
         ! Local variables
         ! none...
 
-        CALL start_timer(220)
-
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         CALL recv_all(ilevel, flag, fc)
@@ -57,20 +44,16 @@ CONTAINS
 
         nrecv = 0
         nsend = 0
-
-        CALL stop_timer(220)
-    END SUBROUTINE ftoc_one
+    END SUBROUTINE ftoc1_one
 
 
-    SUBROUTINE ftoc_multiple(ilevel, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE ftoc1_multiple(ilevel, v1, v2, v3, s1, s2, s3)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(inout), OPTIONAL :: v1, v2, v3, s1, s2, s3
 
         ! Local variables
         CHARACTER(len=*), PARAMETER :: flag = '*'
-
-        CALL start_timer(220)
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
@@ -80,9 +63,7 @@ CONTAINS
 
         nrecv = 0
         nsend = 0
-
-        CALL stop_timer(220)
-    END SUBROUTINE ftoc_multiple
+    END SUBROUTINE ftoc1_multiple
 
 
     SUBROUTINE recv_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
@@ -147,50 +128,6 @@ CONTAINS
         recvcounter = recvcounter + messagelength
         messagelength = 0
     END SUBROUTINE post_recv
-
-
-    SUBROUTINE count_ncells(ncells, flag, igrid, v1, v2, v3, s1, s2, s3)
-        ! Subroutine arguments
-        INTEGER(int32), INTENT(out) :: ncells
-        CHARACTER(len=1), INTENT(in) :: flag
-        INTEGER(intk), INTENT(in) :: igrid
-        TYPE(field_t), INTENT(in), OPTIONAL :: v1, v2, v3, s1, s2, s3
-
-        ! Local variables
-        INTEGER(int32) :: messagelength
-
-        ncells = 0
-
-        IF (flag == '*') THEN
-            IF (PRESENT(v1)) THEN
-                CALL message_length(messagelength, 'U', igrid)
-                ncells = ncells + messagelength
-            END IF
-            IF (PRESENT(v2)) THEN
-                CALL message_length(messagelength, 'V', igrid)
-                ncells = ncells + messagelength
-            END IF
-            IF (PRESENT(v3)) THEN
-                CALL message_length(messagelength, 'W', igrid)
-                ncells = ncells + messagelength
-            END IF
-            IF (PRESENT(s1)) THEN
-                CALL message_length(messagelength, 'P', igrid)
-                ncells = ncells + messagelength
-            END IF
-            IF (PRESENT(s2)) THEN
-                CALL message_length(messagelength, 'P', igrid)
-                ncells = ncells + messagelength
-            END IF
-            IF (PRESENT(s3)) THEN
-                CALL message_length(messagelength, 'P', igrid)
-                ncells = ncells + messagelength
-            END IF
-        ELSE
-            CALL message_length(messagelength, flag, igrid)
-            ncells = ncells + messagelength
-        END IF
-    END SUBROUTINE count_ncells
 
 
     ! Perform all send calls
@@ -448,106 +385,47 @@ CONTAINS
     END SUBROUTINE read_buffer
 
 
-    SUBROUTINE init_ftoc()
-        ! Local variables
-        INTEGER(intk) :: i, igrid, iprocc, ipar, maxconns
-        INTEGER(int32), ALLOCATABLE :: sendcounts(:), sdispls(:)
-        INTEGER(int32), ALLOCATABLE :: recvcounts(:), rdispls(:)
-        INTEGER(intk), PARAMETER :: ncols = 4
+    SUBROUTINE init_ftoc1()
+        ! Subroutine arguments
+        ! none...
 
-        CALL set_timer(220, "FTOC")
+        ! Local variables
+        ! none...
 
         IF (is_init) CALL errr(__FILE__, __LINE__)
 
-        maxconns = nmygrids*8
-        ALLOCATE(sendconns(ncols, maxconns))
+        ! Check if ctof_core_mod provides necessary infrastructure
+        IF (.NOT. is_ftoc_core_init) CALL errr(__FILE__, __LINE__)
 
-        ALLOCATE(sendcounts(0:numprocs-1), SOURCE=0)
-        ALLOCATE(sdispls(0:numprocs-1), SOURCE=0)
-        ALLOCATE(recvcounts(0:numprocs-1), SOURCE=0)
-        ALLOCATE(rdispls(0:numprocs-1), SOURCE=0)
-
-        nsend = 0
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            ipar = iparent(igrid)
-            IF (ipar == 0) CYCLE
-
-            iprocc = idprocofgrd(ipar)
-
-            nsend = nsend + 1
-            IF (nsend > maxconns) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-
-            sendconns(1, nsend) = myid
-            sendconns(2, nsend) = iprocc
-            sendconns(3, nsend) = igrid
-            sendconns(4, nsend) = ipar
-
-            sendcounts(iprocc) = sendcounts(iprocc) + ncols
-        END DO
-        isend = nsend
-
-        ! Sort sendconns by process ID (col 2)
-        CALL sort_conns(sendconns(:, 1:nsend), 2)
-
-        ! Calculate sdispl offset
-        DO i = 1, numprocs-1
-            sdispls(i) = sdispls(i-1) + sendcounts(i-1)
-        END DO
-
-        ! First exchange NUMBER OF ELEMENTS TO RECEIVE, to be able to
-        ! calculate rdispls array
-        CALL MPI_Alltoall(sendcounts, 1, MPI_INTEGER, recvcounts, 1, &
-            MPI_INTEGER, MPI_COMM_WORLD)
-
-        ! Calculate rdispl offset
-        DO i = 1, numprocs-1
-            rdispls(i) = rdispls(i-1) + recvcounts(i-1)
-        END DO
-
-        irecv = (rdispls(numprocs-1) + recvcounts(numprocs-1))/ncols
-        ALLOCATE(recvconns(ncols, irecv))
-        recvconns = 0
-
-        ! Exchange connection information
-        CALL MPI_Alltoallv(sendconns, sendcounts, sdispls, MPI_INTEGER, &
-            recvconns, recvcounts, rdispls, MPI_INTEGER, &
-            MPI_COMM_WORLD)
-
-        DEALLOCATE(rdispls)
-        DEALLOCATE(recvcounts)
-        DEALLOCATE(sdispls)
-        DEALLOCATE(sendcounts)
-
-        ALLOCATE(sendreqs(numprocs))
-        ALLOCATE(recvreqs(numprocs))
-        ALLOCATE(recvlist(irecv))
-        ALLOCATE(recvidxlist(3, irecv))
-
-        is_init = .TRUE.
+        ALLOCATE(recvidxlist(3, irecv), source=0_intk)
+        ALLOCATE(recvlist(irecv), source=0_int32)
+        ALLOCATE(sendreqs(numprocs), source=MPI_REQUEST_NULL)
+        ALLOCATE(recvreqs(numprocs), source=MPI_REQUEST_NULL)
         nsend = 0
         nrecv = 0
-    END SUBROUTINE init_ftoc
+
+        is_init = .TRUE.
+    END SUBROUTINE init_ftoc1
 
 
-    SUBROUTINE finish_ftoc()
-        ! Function to deallocate arrays.
-        ! After successful execution, the module varaible "is_init" is set
-        ! to false.
-        IF (.NOT. is_init) RETURN
+    SUBROUTINE finish_ftoc1()
+        ! Subroutine arguments
+        ! none...
 
-        is_init = .FALSE.
-        isend = 0
-        irecv = 0
-        DEALLOCATE(sendconns)
-        DEALLOCATE(recvconns)
-        DEALLOCATE(sendreqs)
+        ! Local variables
+        ! none...
+
+        IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
+
         DEALLOCATE(recvreqs)
+        DEALLOCATE(sendreqs)
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
-    END SUBROUTINE finish_ftoc
+        nsend = 0
+        nrecv = 0
+
+        is_init = .FALSE.
+    END SUBROUTINE finish_ftoc1
 
 
     SUBROUTINE restrict_recieve_open(kk, jj, ii, fc, buffer, igridf, flag)
@@ -638,5 +516,4 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE restrict_recieve_open_n
-
-END MODULE ftoc_mod
+END MODULE ftoc1_mod

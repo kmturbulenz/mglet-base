@@ -18,10 +18,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
         REAL(realk) :: sum_ua, sum_a
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx, sum_ua, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -32,11 +35,13 @@ CONTAINS
 
                     sum_a = (ddy(j) + ddy(j+1))*(ddz(k) + ddz(k+1))
 
-                    icount = icount + 1
-                    sbuf(icount) = sum_ua/sum_a
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = sum_ua/sum_a
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_noib_u
 
 
@@ -52,10 +57,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
         REAL(realk) :: sum_va, sum_a
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx, sum_va, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -66,11 +74,13 @@ CONTAINS
 
                     sum_a = (ddx(i) + ddx(i+1))*(ddz(k) + ddz(k+1))
 
-                    icount = icount + 1
-                    sbuf(icount) = sum_va/sum_a
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = sum_va/sum_a
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_noib_v
 
 
@@ -86,10 +96,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
         REAL(realk) :: sum_wa, sum_a
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx, sum_wa, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -100,11 +113,13 @@ CONTAINS
 
                     sum_a = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1))
 
-                    icount = icount + 1
-                    sbuf(icount) = sum_wa/sum_a
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = sum_wa/sum_a
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_noib_w
 
 
@@ -120,10 +135,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
         REAL(realk) :: sum_pv, sum_v
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx, sum_pv, sum_v)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -139,10 +157,12 @@ CONTAINS
                     sum_v = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1)) &
                         *(ddz(k) + ddz(k+1))
 
-                    icount = icount + 1
-                    sbuf(icount) = sum_pv/sum_v
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = sum_pv/sum_v
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_noib_s
 END MODULE noib_restrict_mod

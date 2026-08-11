@@ -20,67 +20,46 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
-        INTEGER(intk) :: nk, ink
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        REAL(realk) :: vol1(kk), vol2(kk), vol3(kk), vol4(kk)
-        REAL(realk) :: pv1(kk), pv2(kk), pv3(kk), pv4(kk)
+        REAL(realk) :: vol1, vol2, vol3, vol4, vol5, vol6, vol7, vol8
         REAL(realk) :: sum_pv, sum_v
 
+        nj = (jstop-jstart)/2+1
         ! Number of k iterations
         ! (not to be confused with kk - these are not the same!!!)
         nk = (kstop-kstart)/2+1
 
-        icount = 0
+        !$omp parallel do collapse(3) private(i, j, k, vol1, vol2, vol3, vol4, &
+        !$omp& vol5, vol6, vol7, vol8, sum_pv, sum_v, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
-                ! Vomume
-                DO k = kstart, kstop+1
-                    vol1(k) = b(k, j, i)*ddz(k)*ddy(j)*ddx(i)
-                END DO
-                DO k = kstart, kstop+1
-                    vol2(k) = b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1)
-                END DO
-                DO k = kstart, kstop+1
-                    vol3(k) = b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i)
-                END DO
-                DO k = kstart, kstop+1
-                    vol4(k) = b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1)
-                END DO
+                DO k = kstart, kstop, 2
+                    vol1 = b(k, j, i)*ddz(k)*ddy(j)*ddx(i)
+                    vol2 = b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1)
+                    vol3 = b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i)
+                    vol4 = b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1)
+                    vol5 = b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i)
+                    vol6 = b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1)
+                    vol7 = b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i)
+                    vol8 = b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
 
-                ! Pressure times volume
-                DO k = kstart, kstop+1
-                    pv1(k) = ff(k, j, i)*vol1(k)
-                END DO
-                DO k = kstart, kstop+1
-                    pv2(k) = ff(k, j, i+1)*vol2(k)
-                END DO
-                DO k = kstart, kstop+1
-                    pv3(k) = ff(k, j+1, i)*vol3(k)
-                END DO
-                DO k = kstart, kstop+1
-                    pv4(k) = ff(k, j+1, i+1)*vol4(k)
-                END DO
+                    sum_pv = ff(k, j, i)*vol1 + ff(k, j, i+1)*vol2 &
+                        + ff(k, j+1, i)*vol3 + ff(k, j+1, i+1)*vol4 &
+                        + ff(k+1, j, i)*vol5 + ff(k+1, j, i+1)*vol6 &
+                        + ff(k+1, j+1, i)*vol7 + ff(k+1, j+1, i+1)*vol8
 
-                ! Sum up and divide
-                DO ink = 1, nk
-                    k = kstart + 2*(ink-1)
+                    sum_v = vol1 + vol2 + vol3 + vol4 &
+                        + vol5 + vol6 + vol7 + vol8
 
-                    sum_pv = pv1(k) + pv2(k) + pv3(k) + pv4(k) &
-                        + pv1(k+1) + pv2(k+1) + pv3(k+1) + pv4(k+1)
-
-                    sum_v = vol1(k) + vol2(k) + vol3(k) + vol4(k) &
-                        + vol1(k+1) + vol2(k+1) + vol3(k+1) + vol4(k+1)
-
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
                     IF (sum_v > 0.0) THEN
-                        sbuf(icount + ink) = sum_pv/sum_v
+                        sbuf(idx) = sum_pv/sum_v
                     ELSE
-                        sbuf(icount + ink) = 0.0
+                        sbuf(idx) = 0.0
                     END IF
                 END DO
-
-                ! Increment counter
-                icount = icount + nk
 
                 ! Legacy code - keep for reference
                 ! DO k = kstart, kstop, 2
@@ -107,6 +86,7 @@ CONTAINS
                 ! END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_p_t
 
 
@@ -123,50 +103,39 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
-        INTEGER(intk) :: nk, ink
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        REAL(realk) :: pv1(kk), pv2(kk), pv3(kk), pv4(kk)
         REAL(realk) :: sum_pv, sum_v
 
+        nj = (jstop-jstart)/2+1
         ! Number of k iterations
         ! (not to be confused with kk - these are not the same!!!)
         nk = (kstop-kstart)/2+1
 
-        icount = 0
+        !$omp parallel do collapse(3) private(i, j, k, sum_pv, sum_v, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
-
-                ! Vomume
-                DO k = kstart, kstop+1
-                    pv1(k) = ff(k, j, i)*bp(k, j, i)*ddz(k)*ddy(j)*ddx(i)
-                END DO
-                DO k = kstart, kstop+1
-                    pv2(k) = ff(k, j, i+1)*bp(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1)
-                END DO
-                DO k = kstart, kstop+1
-                    pv3(k) = ff(k, j+1, i)*bp(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i)
-                END DO
-                DO k = kstart, kstop+1
-                    pv4(k) = ff(k, j+1, i+1)*bp(k, j+1, i+1) &
-                        *ddz(k)*ddy(j+1)*ddx(i+1)
-                END DO
-
-                ! Sum up and divide
-                DO ink = 1, nk
-                    k = kstart + 2*(ink-1)
-
-                    sum_pv = pv1(k) + pv2(k) + pv3(k) + pv4(k) &
-                        + pv1(k+1) + pv2(k+1) + pv3(k+1) + pv4(k+1)
+                DO k = kstart, kstop, 2
+                    sum_pv = ff(k, j, i)*bp(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
+                        + ff(k, j, i+1)*bp(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
+                        + ff(k, j+1, i)*bp(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
+                        + ff(k, j+1, i+1)*bp(k, j+1, i+1) &
+                        *ddz(k)*ddy(j+1)*ddx(i+1) &
+                        + ff(k+1, j, i)*bp(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
+                        + ff(k+1, j, i+1)*bp(k+1, j, i+1) &
+                        *ddz(k+1)*ddy(j)*ddx(i+1) &
+                        + ff(k+1, j+1, i)*bp(k+1, j+1, i) &
+                        *ddz(k+1)*ddy(j+1)*ddx(i) &
+                        + ff(k+1, j+1, i+1)*bp(k+1, j+1, i+1) &
+                        *ddz(k+1)*ddy(j+1)*ddx(i+1)
 
                     sum_v = (ddx(i) + ddx(i+1))*(ddy(j) + ddy(j+1)) &
                         *(ddz(k) + ddz(k+1))
 
-                    sbuf(icount + ink) = sum_pv/sum_v
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = sum_pv/sum_v
                 END DO
-
-                ! Increment counter
-                icount = icount + nk
 
                 ! Legacy code - keep for reference
                 ! DO k = kstart, kstop, 2
@@ -187,6 +156,7 @@ CONTAINS
                 ! END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_r
 
 
@@ -201,17 +171,22 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
-                    icount = icount + 1
-                    sbuf(icount) = ff(k, j, i)
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = ff(k, j, i)
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_n
 
 
@@ -226,16 +201,20 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
-                    icount = icount + 1
                     ! TODO: Check purpose of MIN(1.0, ...) MAX(...) is never
                     ! greater than 1 ???
-                    sbuf(icount) = MIN(1.0_realk, MAX(ff(k, j, i), &
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = MIN(1.0_realk, MAX(ff(k, j, i), &
                         ff(k, j, i+1), &
                         ff(k, j+1, i), &
                         ff(k, j+1, i+1), &
@@ -246,6 +225,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_e
 
 
@@ -260,14 +240,18 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
-                    icount = icount + 1
-                    sbuf(icount) = MIN(2.0_realk, MAX(ff(k, j, i), &
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = MIN(2.0_realk, MAX(ff(k, j, i), &
                         ff(k, j, i+1), &
                         ff(k, j+1, i), &
                         ff(k, j+1, i+1), &
@@ -278,6 +262,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_f
 
 
@@ -292,14 +277,18 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, icount
+        INTEGER(intk) :: i, j, k, idx, nj, nk
 
-        icount = 0
+        nj = (jstop-jstart)/2+1
+        nk = (kstop-kstart)/2+1
+
+        !$omp parallel do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
-                    icount = icount + 1
-                    sbuf(icount) = MAX(ff(k, j, i), &
+                    idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
+                        +(k-kstart)/2+1
+                    sbuf(idx) = MAX(ff(k, j, i), &
                         ff(k, j, i+1), &
                         ff(k, j+1, i), &
                         ff(k, j+1, i+1), &
@@ -322,5 +311,6 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end parallel do
     END SUBROUTINE restrict_gc_i
 END MODULE gc_restrict_mod
