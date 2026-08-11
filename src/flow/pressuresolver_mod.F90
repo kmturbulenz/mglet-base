@@ -637,26 +637,29 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: phi_f
 
         ! Local variables
-        REAL(realk) :: maxabsgrid(nmygrids)
+        REAL(realk), ALLOCATABLE :: maxabsgrid(:)
         INTEGER(intk) :: imygrid, igrid, ilevel, ip3
         INTEGER(intk) :: kk, jj, ii
 
+        ALLOCATE(maxabsgrid(nmygrids))
         maxabs = 0.0
         maxabslevel = 0.0
 
-        ASSOCIATE(phi => phi_f%arr)
+        ASSOCIATE(phi => phi_f%arr, maxagrid => maxabsgrid)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maxabscal")
 #endif
 
         !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3) &
-        !$omp& map(from: maxabsgrid)
+        !$omp& map(from: maxagrid)
         DO imygrid = 1, nmygrids
             igrid = mygrids(imygrid)
+            maxagrid(imygrid) = -HUGE(1.0_realk)
+
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
-            CALL maxabscal_grid(kk, jj, ii, maxabsgrid(imygrid), phi(ip3))
+            CALL maxabscal_grid(kk, jj, ii, maxagrid(imygrid), phi(ip3))
         END DO
         !$omp end target teams distribute
 
@@ -673,6 +676,8 @@ CONTAINS
                 maxabs)
             maxabslevel(ilevel) = MAX(maxabslevel(ilevel), maxabsgrid(imygrid))
         END DO
+
+        DEALLOCATE(maxabsgrid)
     END SUBROUTINE maxabscal
 
 

@@ -22,8 +22,7 @@ CONTAINS
         CLASS(ibmodel_t), ALLOCATABLE, INTENT(out) :: ib
 
         ! Local variables
-        TYPE(field_t), POINTER :: bp
-        REAL(realk), POINTER, CONTIGUOUS :: sdiv(:)
+        TYPE(field_t), POINTER :: bp, sdiv
 
         IF (myid == 0) THEN
             WRITE(*, '(A)') "Using 'noib' immersed boundary method"
@@ -44,8 +43,9 @@ CONTAINS
         CALL map_arr_to_device(bp, message="to:bp%arr")
 
         CALL set_field("SDIV")
-        CALL get_fieldptr(sdiv, "SDIV")
-        sdiv = 0.0
+        CALL get_field(sdiv, "SDIV")
+        sdiv%arr = 0.0
+        CALL map_arr_to_device(sdiv, message="to:sdiv%arr")
     END SUBROUTINE constructor
 
 

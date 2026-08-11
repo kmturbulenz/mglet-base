@@ -16,8 +16,17 @@ MODULE timeintegration_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    PUBLIC :: timeintegrate_flow, itinfo_flow
+    ! Custom reductions to bundle a value with its cell indices on the grid.
+    ! Surprisingly, using derived types here does not come with runtime cost.
+    TYPE :: valpos_t
+        REAL(realk) :: val
+        REAL(realk) :: x, y, z
+    END TYPE valpos_t
+    !$omp declare reduction(valpos: valpos_t : &
+    !$omp& omp_out = get_maxvalpos(omp_out, omp_in)) &
+    !$omp& initializer(valpos_init(omp_priv))
 
+    PUBLIC :: timeintegrate_flow, itinfo_flow
 CONTAINS
     SUBROUTINE timeintegrate_flow(itstep, ittot, timeph, dt, irk, rkscheme)
         ! Subroutine arguments
@@ -155,104 +164,501 @@ CONTAINS
         INTEGER(intk), INTENT(inout) :: exploded
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        TYPE(field_t), POINTER :: u_f, v_f, w_f, p_f, g_f, bp_f, sdiv_f
-        TYPE(field_t), POINTER :: x_f, y_f, z_f
-        TYPE(field_t), POINTER :: dx_f, dy_f, dz_f
-        TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
-        TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
-
-        REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
-            w(:, :, :), g(:, :, :), bp(:, :, :), sdiv(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
-
-        REAL(realk) :: cflmax, cflmax_pos(3)
-        REAL(realk) :: divmax, divmax_pos(3)
-        REAL(realk) :: esumg, esums
+        TYPE(field_t), POINTER :: u, v, w, p, g, bp, sdiv
+        TYPE(field_t), POINTER :: x, y, z
+        TYPE(field_t), POINTER :: dx, dy, dz
+        TYPE(field_t), POINTER :: ddx, ddy, ddz
+        TYPE(field_t), POINTER :: rddx, rddy, rddz
 
         IF (.NOT. solve_flow) RETURN
         CALL start_timer(300)
         CALL start_timer(350)
 
         ! Get fields
-        CALL get_field(u_f, "U")
-        CALL get_field(v_f, "V")
-        CALL get_field(w_f, "W")
-        CALL get_field(g_f, "G")
-        CALL get_field(bp_f, "BP")
-        CALL get_field(sdiv_f, "SDIV")
+        CALL get_field(u, "U")
+        CALL get_field(v, "V")
+        CALL get_field(w, "W")
+        CALL get_field(g, "G")
+        CALL get_field(bp, "BP")
+        CALL get_field(sdiv, "SDIV")
 
-        CALL get_field(x_f, "X")
-        CALL get_field(y_f, "Y")
-        CALL get_field(z_f, "Z")
+        CALL get_field(x, "X")
+        CALL get_field(y, "Y")
+        CALL get_field(z, "Z")
 
-        CALL get_field(dx_f, "DX")
-        CALL get_field(dy_f, "DY")
-        CALL get_field(dz_f, "DZ")
+        CALL get_field(dx, "DX")
+        CALL get_field(dy, "DY")
+        CALL get_field(dz, "DZ")
 
-        CALL get_field(ddx_f, "DDX")
-        CALL get_field(ddy_f, "DDY")
-        CALL get_field(ddz_f, "DDZ")
+        CALL get_field(ddx, "DDX")
+        CALL get_field(ddy, "DDY")
+        CALL get_field(ddz, "DDZ")
 
-        CALL get_field(rddx_f, "RDDX")
-        CALL get_field(rddy_f, "RDDY")
-        CALL get_field(rddz_f, "RDDZ")
+        CALL get_field(rddx, "RDDX")
+        CALL get_field(rddy, "RDDY")
+        CALL get_field(rddz, "RDDZ")
 
-        ! Compute CFL, divergence and kinetic energy
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_to_device(u, v, w, g)
 
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL u_f%get_ptr(u, igrid)
-            CALL v_f%get_ptr(v, igrid)
-            CALL w_f%get_ptr(w, igrid)
-            CALL g_f%get_ptr(g, igrid)
-            CALL bp_f%get_ptr(bp, igrid)
-            CALL sdiv_f%get_ptr(sdiv, igrid)
-
-            CALL x_f%get_ptr(x, igrid)
-            CALL y_f%get_ptr(y, igrid)
-            CALL z_f%get_ptr(z, igrid)
-
-            CALL dx_f%get_ptr(dx, igrid)
-            CALL dy_f%get_ptr(dy, igrid)
-            CALL dz_f%get_ptr(dz, igrid)
-
-            CALL ddx_f%get_ptr(ddx, igrid)
-            CALL ddy_f%get_ptr(ddy, igrid)
-            CALL ddz_f%get_ptr(ddz, igrid)
-
-            CALL rddx_f%get_ptr(rddx, igrid)
-            CALL rddy_f%get_ptr(rddy, igrid)
-            CALL rddz_f%get_ptr(rddz, igrid)
-
-            CALL compcflmax(cflmax, cflmax_pos, dt, kk, jj, ii, &
-                u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
-            CALL compdivmax(divmax, divmax_pos, kk, jj, ii, &
-                u, v, w, x, y, z, rddx, rddy, rddz, bp, sdiv)
-            CALL enerfg(esumg, kk, jj, ii, u, v, w, dx, dy, dz, ddx, ddy, ddz)
-            CALL enerfs(esums, kk, jj, ii, g, ddx, ddy, ddz)
-
-            CALL itinfo_sample(igrid, divmax, divmax_pos, cflmax, cflmax_pos, &
-                esumg, esums)
-        END DO
+        CALL compcflmax(dt, u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
+        CALL compdivmax(u, v, w, bp, x, y, z, rddx, rddy, rddz, sdiv)
+        CALL compenergy(u, v, w, g, dx, dy, dz, ddx, ddy, ddz)
 
         CALL itinfo_print(itstep, ittot, timeph, globalcflmax, exploded)
 
         CALL stop_timer(350)
 
         IF (compbodyforce .AND. ib%type == "GHOSTCELL") THEN
-            CALL get_field(p_f, "P")
-            CALL sample_compbodyforce(u_f, v_f, w_f, p_f, g_f, ittot, timeph)
+            CALL get_field(p, "P")
+            CALL sample_compbodyforce(u, v, w, p, g, ittot, timeph)
         END IF
 
         CALL stop_timer(300)
     END SUBROUTINE itinfo_flow
+
+
+    SUBROUTINE compcflmax(dt, u_f, v_f, w_f, bp_f, x_f, y_f, z_f, &
+            dx_f, dy_f, dz_f, ddx_f, ddy_f, ddz_f)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: dt
+        TYPE(field_t), INTENT(in) :: u_f, v_f, w_f
+        TYPE(field_t), INTENT(in) :: bp_f
+        TYPE(field_t), INTENT(in) :: x_f, y_f, z_f
+        TYPE(field_t), INTENT(in) :: dx_f, dy_f, dz_f
+        TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: cflmax_grid(:)
+        REAL(realk), ALLOCATABLE :: cflmax_pos_grid(:, :)
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+
+        ALLOCATE(cflmax_grid(nmygrids))
+        ALLOCATE(cflmax_pos_grid(3, nmygrids))
+
+        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, bp => bp_f%arr, &
+            x => x_f%arr, y => y_f%arr, z => z_f%arr, &
+            dx => dx_f%arr, dy => dy_f%arr, dz => dz_f%arr, &
+            ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
+            cflmaxgrid => cflmax_grid, cflmaxposgrid => cflmax_pos_grid)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("compcflmax")
+#endif
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
+        !$omp& ip1y, ip1z) &
+        !$omp& map(from: cflmaxgrid, cflmaxposgrid)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            cflmaxgrid(i) = -HUGE(1.0_realk)
+            cflmaxposgrid(1, i) = -HUGE(1.0_realk)
+            cflmaxposgrid(2, i) = -HUGE(1.0_realk)
+            cflmaxposgrid(3, i) = -HUGE(1.0_realk)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ip1x, igrid)
+            CALL get_ip1y(ip1y, igrid)
+            CALL get_ip1z(ip1z, igrid)
+
+            CALL compcflmax_grid(cflmaxgrid(i), cflmaxposgrid(:, i), dt, &
+                kk, jj, ii, u(ip3), v(ip3), w(ip3), bp(ip3), &
+                x(ip1x), y(ip1y), z(ip1z), dx(ip1x), dy(ip1y), dz(ip1z), &
+                ddx(ip1x), ddy(ip1y), ddz(ip1z))
+        END DO
+        !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, cflmax=cflmaxgrid(i), &
+                cflmax_pos=cflmaxposgrid(:, i))
+        END DO
+
+        END ASSOCIATE
+
+        DEALLOCATE(cflmax_grid)
+        DEALLOCATE(cflmax_pos_grid)
+    END SUBROUTINE compcflmax
+
+
+    SUBROUTINE compcflmax_grid(cflmax, cflmax_pos, dt, kk, jj, ii, &
+            u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
+        !$omp declare target
+        ! Subroutine arguments
+        REAL(realk), INTENT(out) :: cflmax, cflmax_pos(3)
+        REAL(realk), INTENT(in) :: dt
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+        REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+
+        ! Local variables
+        TYPE(valpos_t) :: maxvalpos, localvalpos
+        REAL(realk) :: cflmaxtemp, cflu, cflv, cflw
+        INTEGER(intk) :: k, j, i
+
+        cflmaxtemp = -HUGE(1.0_realk)
+        cflmax = -HUGE(1.0_realk)
+        cflmax_pos = -HUGE(1.0_realk)
+        CALL valpos_init(maxvalpos)
+
+        !$omp parallel do collapse(3) private(i, j, k, cflu, cflv, cflw, &
+        !$omp& cflmaxtemp, localvalpos) &
+        !$omp& reduction(valpos:maxvalpos)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    cflu = ABS(2.0*u(k, j, i-1) + (u(k, j, i) &
+                            - u(k, j, i-1))*dx(i-1)/ddx(i))/ddx(i) &
+                        + ABS(2.0*u(k, j, i) + (u(k, j, i+1) &
+                            - u(k, j, i))*dx(i)/ddx(i+1))/ddx(i) &
+                        + ABS(v(k, j, i) + v(k, j, i+1))/ddy(j) &
+                        + ABS(v(k, j-1, i) + v(k, j-1, i+1))/ddy(j) &
+                        + ABS(w(k, j, i) + w(k, j, i+1))/ddz(k) &
+                        + ABS(w(k-1, j, i) + w(k-1, j, i+1))/ddz(k)
+                    cflu = cflu*bp(k, j, i)*bp(k, j, i+1)
+
+                    cflv = ABS(u(k, j, i) + u(k, j+1, i))/ddx(i) &
+                        + ABS(u(k, j, i-1) + u(k, j+1, i-1))/ddx(i) &
+                        + ABS(2.0*v(k, j-1, i) + (v(k, j, i) &
+                            - v(k, j-1, i))*dy(j-1)/ddy(j))/ddy(j) &
+                        + ABS(2.0*v(k, j, i) + (v(k, j+1, i) &
+                            - v(k, j, i))*dy(j)/ddy(j+1))/ddy(j) &
+                        + ABS(w(k, j, i) + w(k, j+1, i))/ddz(k) &
+                        + ABS(w(k-1, j, i) + w(k-1, j+1, i))/ddz(k)
+                    cflv = cflv*bp(k, j, i)*bp(k, j+1, i)
+
+                    cflw = ABS(u(k, j, i) + u(k+1, j, i))/ddx(i) &
+                        + ABS(u(k, j, i-1) + u(k+1, j, i-1))/ddx(i) &
+                        + ABS(v(k, j, i) + v(k+1, j, i))/ddy(j) &
+                        + ABS(v(k, j-1, i) + v(k+1, j-1, i))/ddy(j) &
+                        + ABS(2.0*w(k-1, j, i) + (w(k, j, i) &
+                            - w(k-1, j, i))*dz(k-1)/ddz(k))/ddz(k) &
+                        + ABS(2.0*w(k, j, i) + (w(k+1, j, i) &
+                            - w(k, j, i))*dz(k)/ddz(k+1))/ddz(k)
+                    cflw = cflw*bp(k, j, i)*bp(k+1, j, i)
+
+                    cflmaxtemp = MAX(cflu, cflv, cflw)
+
+                    localvalpos%val = cflmaxtemp
+                    localvalpos%x = x(i)
+                    localvalpos%y = y(j)
+                    localvalpos%z = z(k)
+                    maxvalpos = get_maxvalpos(maxvalpos, localvalpos)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+        ! Only write output if a valid cell was found.
+        IF (maxvalpos%val >= 0.0_realk) THEN
+            cflmax = maxvalpos%val * 0.25 * dt
+            cflmax_pos(1) = maxvalpos%x
+            cflmax_pos(2) = maxvalpos%y
+            cflmax_pos(3) = maxvalpos%z
+        END IF
+    END SUBROUTINE compcflmax_grid
+
+
+    SUBROUTINE compdivmax(u_f, v_f, w_f, bp_f, x_f, y_f, z_f, &
+            rddx_f, rddy_f, rddz_f, sdiv_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: u_f, v_f, w_f
+        TYPE(field_t), INTENT(in) :: bp_f
+        TYPE(field_t), INTENT(in) :: x_f, y_f, z_f
+        TYPE(field_t), INTENT(in) :: rddx_f, rddy_f, rddz_f
+        TYPE(field_t), INTENT(in) :: sdiv_f
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: divmax_grid(:)
+        REAL(realk), ALLOCATABLE :: divmax_pos_grid(:, :)
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+
+        ALLOCATE(divmax_grid(nmygrids))
+        ALLOCATE(divmax_pos_grid(3, nmygrids))
+
+        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, bp => bp_f%arr, &
+            x => x_f%arr, y => y_f%arr, z => z_f%arr, &
+            rddx => rddx_f%arr, rddy => rddy_f%arr, rddz => rddz_f%arr, &
+            sdiv => sdiv_f%arr, &
+            divmaxgrid => divmax_grid, divmaxposgrid => divmax_pos_grid)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("compdivmax")
+#endif
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
+        !$omp& ip1y, ip1z) &
+        !$omp& map(from: divmaxgrid, divmaxposgrid)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            divmaxgrid(i) = -HUGE(1.0_realk)
+            divmaxposgrid(1, i) = -HUGE(1.0_realk)
+            divmaxposgrid(2, i) = -HUGE(1.0_realk)
+            divmaxposgrid(3, i) = -HUGE(1.0_realk)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ip1x, igrid)
+            CALL get_ip1y(ip1y, igrid)
+            CALL get_ip1z(ip1z, igrid)
+
+            CALL compdivmax_grid(divmaxgrid(i), divmaxposgrid(:, i), &
+                kk, jj, ii, u(ip3), v(ip3), w(ip3), x(ip1x), y(ip1y), z(ip1z), &
+                rddx(ip1x), rddy(ip1y), rddz(ip1z), bp(ip3), sdiv(ip3))
+        END DO
+        !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, divmax=divmaxgrid(i), &
+                divmax_pos=divmaxposgrid(:, i))
+        END DO
+
+        END ASSOCIATE
+
+        DEALLOCATE(divmax_grid)
+        DEALLOCATE(divmax_pos_grid)
+    END SUBROUTINE compdivmax
+
+
+    ! Simpler routine than "divcal", because this one does only compute the
+    ! /max/ divergence and its location, and does not explicitly fill in
+    ! a full 3-D divergcence field.
+    SUBROUTINE compdivmax_grid(divmax, divmax_pos, kk, jj, ii, u, v, w, &
+            x, y, z, rddx, rddy, rddz, bp, sdiv)
+        !$omp declare target
+        ! Subroutine arguments
+        REAL(realk), INTENT(out) :: divmax, divmax_pos(3)
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: u(kk, jj, ii)
+        REAL(realk), INTENT(in) :: v(kk, jj, ii)
+        REAL(realk), INTENT(in) :: w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+        REAL(realk), INTENT(in) :: sdiv(kk, jj, ii)
+
+        ! Local variables
+        TYPE(valpos_t) :: maxvalpos, localvalpos
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: div
+
+        divmax = -HUGE(1.0_realk)
+        divmax_pos = -HUGE(1.0_realk)
+        CALL valpos_init(maxvalpos)
+
+        !$omp parallel do collapse(3) private(i, j, k, div, localvalpos) &
+        !$omp& reduction(valpos:maxvalpos)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    div = sdiv(k, j, i) &
+                        + (u(k, j, i) - u(k, j, i-1))*rddx(i) &
+                        + (v(k, j, i) - v(k, j-1, i))*rddy(j) &
+                        + (w(k, j, i) - w(k-1, j, i))*rddz(k)
+                    div = bp(k, j, i)*div
+
+                    localvalpos%val = ABS(div)
+                    localvalpos%x = x(i)
+                    localvalpos%y = y(j)
+                    localvalpos%z = z(k)
+                    maxvalpos = get_maxvalpos(maxvalpos, localvalpos)
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+        ! Only write output if a valid cell was found.
+        IF (maxvalpos%val >= 0.0_realk) THEN
+            divmax = maxvalpos%val
+            divmax_pos(1) = maxvalpos%x
+            divmax_pos(2) = maxvalpos%y
+            divmax_pos(3) = maxvalpos%z
+        END IF
+    END SUBROUTINE compdivmax_grid
+
+
+    PURE SUBROUTINE valpos_init(priv)
+        !$omp declare target
+        ! Subroutine arguments
+        TYPE(valpos_t), INTENT(out) :: priv
+
+        ! Local variables
+        ! none...
+
+        priv%val = -HUGE(1.0_realk)
+        priv%x = HUGE(1.0_realk)
+        priv%y = HUGE(1.0_realk)
+        priv%z = HUGE(1.0_realk)
+    END SUBROUTINE valpos_init
+
+
+    PURE TYPE(valpos_t) FUNCTION get_maxvalpos(lhs, rhs) RESULT(best)
+        !$omp declare target
+        ! Function arguments
+        TYPE(valpos_t), INTENT(in) :: lhs, rhs
+
+        ! Local variables
+        ! none...
+
+        best = lhs
+
+        IF (rhs%val > lhs%val) THEN
+            best = rhs
+        END IF
+    END FUNCTION get_maxvalpos
+
+
+    SUBROUTINE compenergy(u_f, v_f, w_f, g_f, dx_f, dy_f, dz_f, &
+            ddx_f, ddy_f, ddz_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: u_f, v_f, w_f
+        TYPE(field_t), INTENT(in) :: g_f
+        TYPE(field_t), INTENT(in) :: dx_f, dy_f, dz_f
+        TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: esumg_grid(:)
+        REAL(realk), ALLOCATABLE :: esums_grid(:)
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+
+        ALLOCATE(esumg_grid(nmygrids))
+        ALLOCATE(esums_grid(nmygrids))
+
+        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, g => g_f%arr, &
+            dx => dx_f%arr, dy => dy_f%arr, dz => dz_f%arr, &
+            ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
+            esumggrid => esumg_grid, esumsgrid => esums_grid)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("compenergy")
+#endif
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
+        !$omp& ip1y, ip1z) &
+        !$omp& map(from: esumggrid, esumsgrid)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            esumggrid(i) = 0.0_realk
+            esumsgrid(i) = 0.0_realk
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ip1x, igrid)
+            CALL get_ip1y(ip1y, igrid)
+            CALL get_ip1z(ip1z, igrid)
+
+            CALL enerfg_grid(esumggrid(i), kk, jj, ii, u(ip3), v(ip3), w(ip3), &
+                dx(ip1x), dy(ip1y), dz(ip1z), ddx(ip1x), ddy(ip1y), ddz(ip1z))
+            CALL enerfs_grid(esumsgrid(i), kk, jj, ii, g(ip3), &
+                ddx(ip1x), ddy(ip1y), ddz(ip1z))
+        END DO
+        !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, esumg=esumggrid(i), esums=esumsgrid(i))
+        END DO
+
+        END ASSOCIATE
+
+        DEALLOCATE(esumg_grid)
+        DEALLOCATE(esums_grid)
+    END SUBROUTINE compenergy
+
+
+    SUBROUTINE enerfg_grid(esum, kk, jj, ii, u, v, w, dx, dy, dz, ddx, ddy, ddz)
+        !$omp declare target
+        ! Subroutine arguments
+        REAL(realk), INTENT(out) :: esum
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+
+        ! Local variables
+        REAL(realk) :: up, vp, wp, vsum, vol
+        INTEGER(intk) :: k, j, i
+
+        esum = 0.0_realk
+        vsum = 0.0_realk
+
+        !$omp parallel do collapse(3) private(i, j, k, up, vp, wp, vol) &
+        !$omp& reduction(+:esum, vsum)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    up = u(k, j, i-1) &
+                        + (u(k, j, i) - u(k, j, i-1))*0.5*dx(i-1)/ddx(i)
+
+                    vp = v(k, j-1, i) &
+                        + (v(k, j, i) - v(k, j-1, i))*0.5*dy(j-1)/ddy(j)
+
+                    wp = (w(k-1, j, i) &
+                        + (w(k, j, i) - w(k-1, j, i))*0.5*dz(k-1)/ddz(k))
+
+                    vol = ddx(i)*ddy(j)*ddz(k)
+                    esum = esum + vol*0.5*(up**2 + vp**2 + wp**2)
+                    vsum = vsum + vol
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+        esum = esum/vsum
+    END SUBROUTINE enerfg_grid
+
+
+    SUBROUTINE enerfs_grid(esum, kk, jj, ii, g, ddx, ddy, ddz)
+        !$omp declare target
+        ! Subroutine arguments
+        REAL(realk), INTENT(out) :: esum
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(in) :: g(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+
+        ! Local variables
+        REAL(realk), PARAMETER :: conv2s = 0.094
+        REAL(realk) :: delta, ener, vsum, vol
+        INTEGER(intk) :: k, j, i
+
+        esum = 0.0_realk
+        vsum = 0.0_realk
+
+        !$omp parallel do collapse(3) private(i, j, k, delta, ener, vol) &
+        !$omp& reduction(+:esum, vsum)
+        DO i = 3, ii-2
+            DO j = 3, jj-2
+                DO k = 3, kk-2
+                    delta = cube_root(ddx(i)*ddy(j)*ddz(k))
+                    ener = ((g(k, j, i) - gmol)/(rho*conv2s*delta))**2
+
+                    vol = ddx(i)*ddy(j)*ddz(k)
+                    esum = esum + vol*ener
+                    vsum = vsum + vol
+                END DO
+            END DO
+        END DO
+        !$omp end parallel do
+
+        esum = esum/vsum
+    END SUBROUTINE enerfs_grid
 
 
     SUBROUTINE maskbp(u, v, w, p)
@@ -304,185 +710,4 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE maskbp_grid
-
-
-    PURE SUBROUTINE compcflmax(cflmax, cflmax_pos, dt, kk, jj, ii, &
-            u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: cflmax, cflmax_pos(3)
-        REAL(realk), INTENT(in) :: dt
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
-        REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
-        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-
-        ! Local variables
-        REAL(realk) :: cflmaxtemp, cflu, cflv, cflw
-        INTEGER(intk) :: k, j, i
-
-        cflmaxtemp = 0.0
-        cflmax = 0.0
-        cflmax_pos = 0.0
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    cflu = ABS(2.0*u(k, j, i-1) + (u(k, j, i) &
-                            - u(k, j, i-1))*dx(i-1)/ddx(i))/ddx(i) &
-                        + ABS(2.0*u(k, j, i) + (u(k, j, i+1) &
-                            - u(k, j, i))*dx(i)/ddx(i+1))/ddx(i) &
-                        + ABS(v(k, j, i) + v(k, j, i+1))/ddy(j) &
-                        + ABS(v(k, j-1, i) + v(k, j-1, i+1))/ddy(j) &
-                        + ABS(w(k, j, i) + w(k, j, i+1))/ddz(k) &
-                        + ABS(w(k-1, j, i) + w(k-1, j, i+1))/ddz(k)
-                    cflu = cflu*bp(k, j, i)*bp(k, j, i+1)
-
-                    cflv = ABS(u(k, j, i) + u(k, j+1, i))/ddx(i) &
-                        + ABS(u(k, j, i-1) + u(k, j+1, i-1))/ddx(i) &
-                        + ABS(2.0*v(k, j-1, i) + (v(k, j, i) &
-                            - v(k, j-1, i))*dy(j-1)/ddy(j))/ddy(j) &
-                        + ABS(2.0*v(k, j, i) + (v(k, j+1, i) &
-                            - v(k, j, i))*dy(j)/ddy(j+1))/ddy(j) &
-                        + ABS(w(k, j, i) + w(k, j+1, i))/ddz(k) &
-                        + ABS(w(k-1, j, i) + w(k-1, j+1, i))/ddz(k)
-                    cflv = cflv*bp(k, j, i)*bp(k, j+1, i)
-
-                    cflw = ABS(u(k, j, i) + u(k+1, j, i))/ddx(i) &
-                        + ABS(u(k, j, i-1) + u(k+1, j, i-1))/ddx(i) &
-                        + ABS(v(k, j, i) + v(k+1, j, i))/ddy(j) &
-                        + ABS(v(k, j-1, i) + v(k+1, j-1, i))/ddy(j) &
-                        + ABS(2.0*w(k-1, j, i) + (w(k, j, i) &
-                            - w(k-1, j, i))*dz(k-1)/ddz(k))/ddz(k) &
-                        + ABS(2.0*w(k, j, i) + (w(k+1, j, i) &
-                            - w(k, j, i))*dz(k)/ddz(k+1))/ddz(k)
-                    cflw = cflw*bp(k, j, i)*bp(k+1, j, i)
-
-                    IF (MAX(cflu, cflv, cflw) > cflmaxtemp) THEN
-                        cflmaxtemp = MAX(cflu, cflv, cflw)
-                        cflmax_pos(1) = x(i)
-                        cflmax_pos(2) = y(j)
-                        cflmax_pos(3) = z(k)
-                    END IF
-                END DO
-            END DO
-        END DO
-
-        cflmax = cflmaxtemp * 0.25 * dt
-    END SUBROUTINE compcflmax
-
-
-    ! Simpler routine than "divcal", because this one does only compute the
-    ! /max/ divergence and its location, and does not explicitly fill in
-    ! a full 3-D divergcence field.
-    PURE SUBROUTINE compdivmax(divmax, divmax_pos, kk, jj, ii, u, v, w, &
-            x, y, z, rddx, rddy, rddz, bp, sdiv)
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: divmax, divmax_pos(3)
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: u(kk, jj, ii)
-        REAL(realk), INTENT(in) :: v(kk, jj, ii)
-        REAL(realk), INTENT(in) :: w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
-        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
-        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
-        REAL(realk), INTENT(in) :: sdiv(kk, jj, ii)
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-        REAL(realk) :: div
-
-        divmax = 0.0
-        divmax_pos = 0.0
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    div = sdiv(k, j, i) &
-                        + (u(k, j, i) - u(k, j, i-1))*rddx(i) &
-                        + (v(k, j, i) - v(k, j-1, i))*rddy(j) &
-                        + (w(k, j, i) - w(k-1, j, i))*rddz(k)
-                    div = bp(k, j, i)*div
-
-                    IF (ABS(div) > divmax) THEN
-                        divmax = ABS(div)
-                        divmax_pos(1) = x(i)
-                        divmax_pos(2) = y(j)
-                        divmax_pos(3) = z(k)
-                    END IF
-                END DO
-            END DO
-        END DO
-    END SUBROUTINE compdivmax
-
-
-    SUBROUTINE enerfg(esum, kk, jj, ii, u, v, w, dx, dy, dz, ddx, ddy, ddz)
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: esum
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-
-        ! Local variables
-        REAL(realk) :: up, vp, wp, vsum, vol
-        INTEGER(intk) :: k, j, i
-
-        esum = 0.0
-        vsum = 0.0
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    up = u(k, j, i-1) &
-                        + (u(k, j, i) - u(k, j, i-1))*0.5*dx(i-1)/ddx(i)
-
-                    vp = v(k, j-1, i) &
-                        + (v(k, j, i) - v(k, j-1, i))*0.5*dy(j-1)/ddy(j)
-
-                    wp = (w(k-1, j, i) &
-                        + (w(k, j, i) - w(k-1, j, i))*0.5*dz(k-1)/ddz(k))
-
-                    vol = ddx(i)*ddy(j)*ddz(k)
-                    esum = esum + vol*0.5*(up**2 + vp**2 + wp**2)
-                    vsum = vsum + vol
-                END DO
-            END DO
-        END DO
-
-        esum = esum/vsum
-    END SUBROUTINE enerfg
-
-
-    SUBROUTINE enerfs(esum, kk, jj, ii, g, ddx, ddy, ddz)
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: esum
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: g(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-
-        ! Local variables
-        REAL(realk), PARAMETER :: conv2s = 0.094
-        REAL(realk) :: delta, ener, vsum, vol
-        INTEGER(intk) :: k, j, i
-
-        esum = 0.0
-        vsum = 0.0
-
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    delta = cube_root(ddx(i)*ddy(j)*ddz(k))
-                    ener = ((g(k, j, i) - gmol)/(rho*conv2s*delta))**2
-
-                    vol = ddx(i)*ddy(j)*ddz(k)
-                    esum = esum + vol*ener
-                    vsum = vsum + vol
-                END DO
-            END DO
-        END DO
-
-        esum = esum/vsum
-    END SUBROUTINE enerfs
 END MODULE timeintegration_mod
