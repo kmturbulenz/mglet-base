@@ -2,7 +2,7 @@ PROGRAM main
     USE builtin_plugins_mod, ONLY: register_builtin_plugins
     USE core_mod, ONLY: init_core, finish_core, fields_begin_read, &
         fields_begin_write, fields_write, fields_end_rw, init_plugins, &
-        finish_plugins
+        finish_plugins, intk
     USE flow_mod, ONLY: init_flow, finish_flow
     USE ib_mod, ONLY: init_ib, finish_ib, ib
     USE timeloop_mod, ONLY: init_timeloop, finish_timeloop, timeloop
@@ -11,6 +11,9 @@ PROGRAM main
     IMPLICIT NONE (type, external)
 
     LOGICAL :: exit_now
+    INTEGER(intk) :: exploded
+
+    exploded = 0
 
     ! Initialization of core data structures
     CALL init_core()
@@ -43,7 +46,7 @@ PROGRAM main
         CALL fields_end_rw()
 
         ! Run time loop
-        CALL timeloop()
+        CALL timeloop(exploded)
 
         ! Writes RUNINFO-table
         CALL fields_begin_write()
@@ -64,4 +67,7 @@ PROGRAM main
     ! Deallocate core consructs
     CALL finish_ib()
     CALL finish_core()
+
+    ! Make sure return code is non-zero if exploded (exploded == 0 on success)
+    STOP exploded, QUIET=.TRUE.
 END PROGRAM main

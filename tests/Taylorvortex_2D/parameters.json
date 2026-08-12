@@ -30,7 +30,7 @@
         ],
         "gradp": [0.0, 0.0, 0.0],
         "pressuresolver": {
-            "type": "sor",
+            "type": "sip",
             //"epcorr": 0.0016,
             "epcorr": 0.0,
             "nouter_min": 0,
