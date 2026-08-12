@@ -202,12 +202,16 @@ CONTAINS
     END SUBROUTINE finish_timeloop
 
 
-    SUBROUTINE timeloop()
+    SUBROUTINE timeloop(exploded)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(OUT) :: exploded
+
         ! Local variables
         LOGICAL :: stop_now, allow_checkpoint
-        INTEGER(intk) :: irk, exploded
+        INTEGER(intk) :: irk
         REAL(realk) :: cflmax
 
+        exploded = 0
         IF (skip_timeloop) RETURN
 
         ! Initialize and set timer
