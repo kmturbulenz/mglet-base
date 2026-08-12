@@ -10,6 +10,24 @@ MODULE fieldhelper_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
+    INTERFACE
+        SUBROUTINE set_field_arr_realk_backend(arr, val) &
+                BIND(C, name="set_field_arr_realk_c")
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_int64_t
+            USE precision_mod, ONLY: c_realk
+            REAL(c_realk), INTENT(inout) :: arr(:)
+            REAL(c_realk), VALUE, INTENT(in) :: val
+        END SUBROUTINE set_field_arr_realk_backend
+
+        SUBROUTINE set_field_arr_ifk_backend(arr, val) &
+                BIND(C, name="set_field_arr_ifk_c")
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_int64_t
+            USE precision_mod, ONLY: c_ifk
+            INTEGER(c_ifk), INTENT(inout) :: arr(:)
+            INTEGER(c_ifk), VALUE, INTENT(in) :: val
+        END SUBROUTINE set_field_arr_ifk_backend
+    END INTERFACE
+
     INTERFACE set_field_arr
         PROCEDURE set_field_arr_realk
         PROCEDURE set_field_arr_ifk
@@ -35,8 +53,10 @@ CONTAINS
         END IF
 
         IF (device2) THEN
+#ifdef _MGLET_USE_BACKEND_
+            CALL set_field_arr_realk_backend(field%arr, val)
+#else
             n = SIZE(field%arr)
-
             ASSOCIATE(arr => field%arr)
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_realk")
@@ -50,6 +70,7 @@ CONTAINS
             CALL profile_range_pop()
 #endif
             END ASSOCIATE
+#endif
         ELSE
             field%arr = val
         END IF
@@ -73,8 +94,10 @@ CONTAINS
         END IF
 
         IF (device2) THEN
+#ifdef _MGLET_USE_BACKEND_
+            CALL set_field_arr_ifk_backend(field%arr, val)
+#else
             n = SIZE(field%arr)
-
             ASSOCIATE(arr => field%arr)
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_ifk")
@@ -88,6 +111,7 @@ CONTAINS
             CALL profile_range_pop()
 #endif
             END ASSOCIATE
+#endif
         ELSE
             field%arr = val
         END IF

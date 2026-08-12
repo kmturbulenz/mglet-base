@@ -28,6 +28,7 @@ target_include_directories(flow
 )
 
 target_link_libraries(flow
+    PRIVATE backend
     PRIVATE core
     PRIVATE ib
     PRIVATE ${MPI_Fortran_LIBRARIES}

@@ -14,6 +14,15 @@ MODULE pressuresolver_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    INTERFACE
+        SUBROUTINE accumulate_pcorr_backend(dp, hilf) &
+                BIND(C, name="add_field_arr_realk_c")
+            USE precision_mod, ONLY: c_realk
+            REAL(c_realk), INTENT(inout) :: dp(:)
+            REAL(c_realk), INTENT(in) :: hilf(:)
+        END SUBROUTINE accumulate_pcorr_backend
+    END INTERFACE
+
     ! Type of pressure solver
     !   0 : Hyperplane SIP
     !   1 : SIP on coarsest level, then SOR on subsequent levels
@@ -869,6 +878,9 @@ CONTAINS
 
         IF (SIZE(dp%arr) /= SIZE(hilf%arr)) CALL errr(__FILE__, __LINE__)
 
+#ifdef _MGLET_USE_BACKEND_
+        CALL accumulate_pcorr_backend(dp%arr, hilf%arr)
+#else
         n = SIZE(dp%arr)
 
         ASSOCIATE(dp => dp%arr, hilf => hilf%arr)
@@ -885,5 +897,6 @@ CONTAINS
         CALL profile_range_pop()
 #endif
         END ASSOCIATE
+#endif
     END SUBROUTINE accumulate_pcorr
 END MODULE pressuresolver_mod
