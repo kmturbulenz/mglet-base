@@ -25,7 +25,7 @@ CONTAINS
         LOGICAL, OPTIONAL, INTENT(in) :: device
 
         ! Local variables
-        INTEGER(intk) :: i, n
+        INTEGER(intk) :: n
         LOGICAL :: device2
 
         IF (PRESENT(device)) THEN
@@ -34,26 +34,38 @@ CONTAINS
             device2 = .FALSE.
         END IF
 
-        IF (device2) THEN
-            n = SIZE(field%arr)
-
-            ASSOCIATE(arr => field%arr)
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_realk")
 #endif
-            !$omp target teams loop
-            DO i = 1, n
-                arr(i) = val
-            END DO
-            !$omp end target teams loop
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_pop()
-#endif
-            END ASSOCIATE
+
+        IF (device2) THEN
+            n = SIZE(field%arr)
+            CALL set_field_arr_realk_impl(field%arr, n, val)
         ELSE
             field%arr = val
         END IF
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_pop()
+#endif
     END SUBROUTINE set_field_arr_realk
+
+
+    SUBROUTINE set_field_arr_realk_impl(arr, n, val)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: n
+        REAL(realk), INTENT(in) :: val
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            arr(i) = val
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE set_field_arr_realk_impl
 
 
     SUBROUTINE set_field_arr_ifk(field, val, device)
@@ -63,7 +75,7 @@ CONTAINS
         LOGICAL, OPTIONAL, INTENT(in) :: device
 
         ! Local variables
-        INTEGER(intk) :: i, n
+        INTEGER(intk) :: n
         LOGICAL :: device2
 
         IF (PRESENT(device)) THEN
@@ -72,26 +84,38 @@ CONTAINS
             device2 = .FALSE.
         END IF
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("set_field_arr_ifk")
+#endif
+
         IF (device2) THEN
             n = SIZE(field%arr)
-
-            ASSOCIATE(arr => field%arr)
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_push("set_field_arr_ifk")
-#endif
-            !$omp target teams loop
-            DO i = 1, n
-                arr(i) = val
-            END DO
-            !$omp end target teams loop
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_pop()
-#endif
-            END ASSOCIATE
+            CALL set_field_arr_ifk_impl(field%arr, n, val)
         ELSE
             field%arr = val
         END IF
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+            CALL profile_range_pop()
+#endif
     END SUBROUTINE set_field_arr_ifk
+
+
+    SUBROUTINE set_field_arr_ifk_impl(arr, n, val)
+        ! Subroutine arguments
+        INTEGER(ifk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: n
+        INTEGER(ifk), INTENT(in) :: val
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            arr(i) = val
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE set_field_arr_ifk_impl
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)

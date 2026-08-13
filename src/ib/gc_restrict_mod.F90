@@ -30,7 +30,7 @@ CONTAINS
         ! (not to be confused with kk - these are not the same!!!)
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, vol1, vol2, vol3, vol4, &
+        !$omp do collapse(3) private(i, j, k, vol1, vol2, vol3, vol4, &
         !$omp& vol5, vol6, vol7, vol8, sum_pv, sum_v, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
@@ -86,7 +86,7 @@ CONTAINS
                 ! END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_p_t
 
 
@@ -112,7 +112,7 @@ CONTAINS
         ! (not to be confused with kk - these are not the same!!!)
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, sum_pv, sum_v, idx)
+        !$omp do collapse(3) private(i, j, k, sum_pv, sum_v, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -156,7 +156,7 @@ CONTAINS
                 ! END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_r
 
 
@@ -176,7 +176,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -186,7 +186,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_n
 
 
@@ -206,7 +206,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -225,7 +225,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_e
 
 
@@ -245,7 +245,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -262,7 +262,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_f
 
 
@@ -282,7 +282,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -311,6 +311,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_gc_i
 END MODULE gc_restrict_mod

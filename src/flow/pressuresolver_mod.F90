@@ -504,37 +504,48 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: siplpr
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii, ip3
-
-        ASSOCIATE( &
-            lw => siplw%arr, &
-            ls => sipls%arr, &
-            lb => siplb%arr, &
-            lpr => siplpr%arr, &
-            res => res_f%arr, &
-            rhs => rhs_f%arr, &
-            mip => mip_hp_f%arr, &
-            idx => idx_hp_f%arr)
+        ! none...
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter1_hp")
 #endif
+
+        CALL sipiter1_hyperplane_level_impl(ilevel, rhs_f%arr, res_f%arr, &
+            siplw%arr, sipls%arr, siplb%arr, siplpr%arr, mip_hp_f%arr, &
+            idx_hp_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE sipiter1_hyperplane_level
+
+
+    SUBROUTINE sipiter1_hyperplane_level_impl(ilevel, rhs, res, lw, ls, lb, &
+            lpr, mip, idx)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(in) :: rhs(*)
+        REAL(realk), INTENT(inout) :: res(*)
+        REAL(realk), INTENT(in) :: lw(*), ls(*), lb(*), lpr(*)
+        INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
+
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL sipiter1_hp(kk, jj, ii, rhs(ip3), res(ip3), lw(ip3), ls(ip3), &
                 lb(ip3), lpr(ip3), mip(ip3), idx(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE sipiter1_hyperplane_level
+    END SUBROUTINE sipiter1_hyperplane_level_impl
 
 
     SUBROUTINE sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
@@ -580,36 +591,47 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: siput_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii, ip3
-
-        ASSOCIATE( &
-            dp => dp_f%arr, &
-            res => res_f%arr, &
-            sipue => sipue_f%arr, &
-            sipun => sipun_f%arr, &
-            siput => siput_f%arr, &
-            mip => mip_hp_f%arr, &
-            idx => idx_hp_f%arr)
+        ! none...
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter2_hp")
 #endif
+
+        CALL sipiter2_hyperplane_level_impl(ilevel, dp_f%arr, res_f%arr, &
+            sipue_f%arr, sipun_f%arr, siput_f%arr, mip_hp_f%arr, &
+            idx_hp_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE sipiter2_hyperplane_level
+
+
+    SUBROUTINE sipiter2_hyperplane_level_impl(ilevel, dp, res, sipue, sipun, &
+            siput, mip, idx)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(inout) :: dp(*), res(*)
+        REAL(realk), INTENT(in) :: sipue(*), sipun(*), siput(*)
+        INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
+
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygridslvl(ilevel)
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL sipiter2_hp(kk, jj, ii, dp(ip3), res(ip3), sipue(ip3), &
                 sipun(ip3), siput(ip3), mip(ip3), idx(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE sipiter2_hyperplane_level
+    END SUBROUTINE sipiter2_hyperplane_level_impl
 
 
     SUBROUTINE maxabscal(maxabs, maxabslevel, phi_f)
@@ -620,36 +642,21 @@ CONTAINS
 
         ! Local variables
         REAL(realk), ALLOCATABLE :: maxabsgrid(:)
-        INTEGER(intk) :: imygrid, igrid, ilevel, ip3
-        INTEGER(intk) :: kk, jj, ii
+        INTEGER(intk) :: imygrid, igrid, ilevel
 
         ALLOCATE(maxabsgrid(nmygrids))
         maxabs = 0.0
         maxabslevel = 0.0
 
-        ASSOCIATE(phi => phi_f%arr, maxagrid => maxabsgrid)
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maxabscal")
 #endif
 
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3) &
-        !$omp& map(from: maxagrid)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            maxagrid(imygrid) = -HUGE(1.0_realk)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL maxabscal_grid(kk, jj, ii, maxagrid(imygrid), phi(ip3))
-        END DO
-        !$omp end target teams distribute
+        CALL maxabscal_impl(phi_f%arr, maxabsgrid)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
-        END ASSOCIATE
 
         DO imygrid = 1, nmygrids
             igrid = mygrids(imygrid)
@@ -663,18 +670,42 @@ CONTAINS
     END SUBROUTINE maxabscal
 
 
+    SUBROUTINE maxabscal_impl(phi, maxagrid)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: phi(*)
+        REAL(realk), INTENT(inout) :: maxagrid(*)
+
+        ! Local variables
+        INTEGER(intk) :: imygrid, igrid, ip3
+        INTEGER(intk) :: kk, jj, ii
+
+        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3) &
+        !$omp& map(from: maxagrid(1:nmygrids))
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            maxagrid(imygrid) = -HUGE(1.0_realk)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            !$omp parallel
+            CALL maxabscal_grid(kk, jj, ii, maxagrid(imygrid), phi(ip3))
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE maxabscal_impl
+
+
     PURE SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
         ! Subroutine arguments
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(out) :: maxabs
+        REAL(realk), INTENT(inout) :: maxabs
         REAL(realk), INTENT(in) :: phi(kk, jj, ii)
 
         ! Local variables
         INTEGER(intk) :: k, j, i
 
-        maxabs = 0.0
-        !$omp parallel do collapse(3) private(i, j, k) reduction(max:maxabs)
+        !$omp do collapse(3) private(i, j, k) reduction(max:maxabs)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -682,7 +713,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE maxabscal_grid
 
 
@@ -692,28 +723,41 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: res_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii, ip3
-
-        ASSOCIATE(rhs => rhs_f%arr, res => res_f%arr)
+        ! none...
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rescal")
 #endif
+
+        CALL rescal_impl(rhs_f%arr, res_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE rescal
+
+
+    SUBROUTINE rescal_impl(rhs, res)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: rhs(*)
+        REAL(realk), INTENT(in) :: res(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
+
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL rescal_grid(kk, jj, ii, rhs(ip3), res(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE rescal
+    END SUBROUTINE rescal_impl
 
 
     PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
@@ -727,7 +771,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
-        !$omp parallel do collapse(3) private(i, j, k)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -735,7 +779,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE rescal_grid
 
 
@@ -746,26 +790,36 @@ CONTAINS
         REAL(realk), INTENT(in) :: rfak
 
         ! Local variables
-        INTEGER(intk) :: i, igrid, ip3, ip1x, ip1y, ip1z
-        INTEGER(intk) :: kk, jj, ii
-
-        TYPE(field_t), POINTER :: rdx_f
-        TYPE(field_t), POINTER :: rdy_f
-        TYPE(field_t), POINTER :: rdz_f
-        TYPE(field_t), POINTER :: bp_f
+        TYPE(field_t), POINTER :: rdx_f, rdy_f, rdz_f, bp_f
 
         CALL get_field(rdx_f, "RDX")
         CALL get_field(rdy_f, "RDY")
         CALL get_field(rdz_f, "RDZ")
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, p => p_f%arr, &
-            dp => dp_f%arr, bp => bp_f%arr, &
-            rdx => rdx_f%arr, rdy => rdy_f%arr, rdz => rdz_f%arr)
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("mgpcorr")
 #endif
+
+        CALL mgpcorr_impl(u_f%arr, v_f%arr, w_f%arr, p_f%arr, dp_f%arr, &
+            bp_f%arr, rdx_f%arr, rdy_f%arr, rdz_f%arr, rfak)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE mgpcorr
+
+
+    SUBROUTINE mgpcorr_impl(u, v, w, p, dp, bp, rdx, rdy, rdz, rfak)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
+        REAL(realk), INTENT(in) :: dp(*), bp(*)
+        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(realk), INTENT(in) :: rfak
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, ip3, ip1x, ip1y, ip1z
+        INTEGER(intk) :: kk, jj, ii
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
         !$omp& ip1y, ip1z)
@@ -783,13 +837,7 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE mgpcorr
+    END SUBROUTINE mgpcorr_impl
 
 
     PURE SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, bp, rdx, rdy, &
@@ -865,25 +913,36 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: hilf
 
         ! Local variables
-        INTEGER(intk) :: i, n
+        INTEGER(intk) :: n
 
         IF (SIZE(dp%arr) /= SIZE(hilf%arr)) CALL errr(__FILE__, __LINE__)
-
-        n = SIZE(dp%arr)
-
-        ASSOCIATE(dp => dp%arr, hilf => hilf%arr)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("accumulate_pcorr")
 #endif
+
+        n = SIZE(dp%arr)
+        CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE accumulate_pcorr
+
+
+    SUBROUTINE accumulate_pcorr_impl(dp, hilf, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: dp(*)
+        REAL(realk), INTENT(in) :: hilf(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
         !$omp target teams loop
         DO i = 1, n
             dp(i) = dp(i) + hilf(i)
         END DO
         !$omp end target teams loop
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE accumulate_pcorr
+    END SUBROUTINE accumulate_pcorr_impl
 END MODULE pressuresolver_mod
