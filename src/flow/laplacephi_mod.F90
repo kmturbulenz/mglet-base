@@ -32,16 +32,16 @@ CONTAINS
         CALL get_field(bp_f, "BP")
 
         ASSOCIATE ( &
-            phi => phi_f%arr, &
-            res => res_f%arr, &
-            ap  => gsap%arr, &
-            aw  => gsaw%arr, &
-            ae  => gsae%arr, &
-            an  => gsan%arr, &
-            as  => gsas%arr, &
-            at  => gsat%arr, &
-            ab  => gsab%arr, &
-            bp  => bp_f%arr)
+            phi => phi_f%arr(:), &
+            res => res_f%arr(:), &
+            ap  => gsap%arr(:), &
+            aw  => gsaw%arr(:), &
+            ae  => gsae%arr(:), &
+            an  => gsan%arr(:), &
+            as  => gsas%arr(:), &
+            at  => gsat%arr(:), &
+            ab  => gsab%arr(:), &
+            bp  => bp_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi")
@@ -57,9 +57,11 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             CALL laplacephi_grid(kk, jj, ii, res(ip3), phi(ip3), &
                 aw(ipx), ae(ipx), an(ipy), as(ipy), at(ipz), ab(ipz), &
                 ap(ip3), bp(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -94,16 +96,16 @@ CONTAINS
         CALL get_field(bp_f, "BP")
 
         ASSOCIATE ( &
-            phi => phi_f%arr, &
-            res => res_f%arr, &
-            ap  => gsap%arr, &
-            aw  => gsaw%arr, &
-            ae  => gsae%arr, &
-            an  => gsan%arr, &
-            as  => gsas%arr, &
-            at  => gsat%arr, &
-            ab  => gsab%arr, &
-            bp  => bp_f%arr)
+            phi => phi_f%arr(:), &
+            res => res_f%arr(:), &
+            ap  => gsap%arr(:), &
+            aw  => gsaw%arr(:), &
+            ae  => gsae%arr(:), &
+            an  => gsan%arr(:), &
+            as  => gsas%arr(:), &
+            at  => gsat%arr(:), &
+            ab  => gsab%arr(:), &
+            bp  => bp_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi_level")
@@ -119,9 +121,11 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             CALL laplacephi_grid(kk, jj, ii, res(ip3), phi(ip3), &
                 aw(ipx), ae(ipx), an(ipy), as(ipy), at(ipz), ab(ipz), &
                 ap(ip3), bp(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -146,7 +150,7 @@ CONTAINS
         ! Local variables
         INTEGER :: k, j, i
 
-        !$omp parallel do collapse(3) private(i, j, k)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -161,6 +165,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE laplacephi_grid
 END MODULE laplacephi_mod

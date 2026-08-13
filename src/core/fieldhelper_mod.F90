@@ -57,7 +57,7 @@ CONTAINS
             CALL set_field_arr_realk_backend(field%arr, val)
 #else
             n = SIZE(field%arr)
-            ASSOCIATE(arr => field%arr)
+            ASSOCIATE(arr => field%arr(:))
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_realk")
 #endif
@@ -98,7 +98,7 @@ CONTAINS
             CALL set_field_arr_ifk_backend(field%arr, val)
 #else
             n = SIZE(field%arr)
-            ASSOCIATE(arr => field%arr)
+            ASSOCIATE(arr => field%arr(:))
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_push("set_field_arr_ifk")
 #endif

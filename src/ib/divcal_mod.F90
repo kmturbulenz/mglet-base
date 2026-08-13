@@ -15,10 +15,13 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f, bp_f
+        LOGICAL, ALLOCATABLE :: active_levels(:)
         INTEGER(intk) :: i, igrid, ilevel, ip3, ip1x, ip1y, ip1z, kk, jj, ii
         LOGICAL :: device2
 
         CALL start_timer(240)
+
+        ALLOCATE(active_levels(1:maxlevel-minlevel+1))
 
         IF (PRESENT(device)) THEN
             device2 = device
@@ -31,24 +34,31 @@ CONTAINS
         CALL get_field(rddz_f, "RDDZ")
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE(div => div_f%arr, u => u_f%arr, v => v_f%arr, w => w_f%arr, &
-                  rddx => rddx_f%arr, rddy => rddy_f%arr, rddz => rddz_f%arr, &
-                  bp => bp_f%arr, active_level => u_f%active_level)
+        active_levels = u_f%active_level(minlevel:maxlevel)
 
-        ! For now, avoid mapping active_level for every field in order not to
-        ! pollute the mapping table. Mapping one array of size minlevel:maxlevel
-        ! per kernel launch is still very cheap.
+        ASSOCIATE(div => div_f%arr(:), &
+            u => u_f%arr(:), v => v_f%arr(:), w => w_f%arr(:), &
+            rddx => rddx_f%arr(:), &
+            rddy => rddy_f%arr(:), &
+            rddz => rddz_f%arr(:), &
+            bp => bp_f%arr(:))
+
+        ! active_level must be handled specially because it might start at
+        ! minlvl=0 or minlvl=1. If we want to avoid copying descriptors, then
+        ! it should be ensured that active_level always starts at minlvl=1.
+        ! This explains the allocatable array active_levels, which is a copy of
+        ! the active_level array of u_f.
 
         !$omp target teams distribute private(kk, jj, ii, ip3, ip1x, ip1y, &
         !$omp& ip1z, igrid, ilevel) &
-        !$omp& map(to: active_level) &
+        !$omp& map(to: active_levels) &
         !$omp& if(device2)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             ilevel = level(igrid)
 
             ! Assume that U, V, W and DIV are defined on the same levels!!!
-            IF (.NOT. active_level(ilevel)) CYCLE
+            IF (.NOT. active_levels(ilevel-minlevel+1)) CYCLE
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
@@ -56,8 +66,10 @@ CONTAINS
             CALL get_ip1y(ip1y, igrid)
             CALL get_ip1z(ip1z, igrid)
 
+            !$omp parallel
             CALL divcal_grid(kk, jj, ii, div(ip3), u(ip3), v(ip3), w(ip3), &
                 bp(ip3), rddx(ip1x), rddy(ip1y), rddz(ip1z), fak)
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -82,7 +94,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, j, i
 
-        !$omp parallel do collapse(3) private(k, j, i)
+        !$omp do collapse(3) private(k, j, i)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -93,6 +105,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE divcal_grid
 END MODULE divcal_mod

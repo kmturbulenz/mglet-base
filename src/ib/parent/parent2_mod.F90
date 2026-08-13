@@ -407,8 +407,8 @@ CONTAINS
 
         IF (nstasks == 0) RETURN
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
@@ -430,6 +430,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL arr_to_sendbuf(kk, jj, ii, a1(ip3), istart, istop, &
@@ -454,6 +455,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -480,7 +482,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -489,7 +491,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE arr_to_sendbuf
 
 
@@ -505,8 +507,9 @@ CONTAINS
 
         IF (nrtasks == 0) RETURN
 
-        ASSOCIATE(a1 => f1%buffers, a2 => f2%buffers, a3 => f3%buffers, &
-                  a4 => f4%buffers, a5 => f5%buffers, a6 => f6%buffers)
+        ASSOCIATE(a1 => f1%buffers(:), a2 => f2%buffers(:), &
+            a3 => f3%buffers(:), a4 => f4%buffers(:), &
+            a5 => f5%buffers(:), a6 => f6%buffers(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
@@ -524,6 +527,7 @@ CONTAINS
             stag1 = rtasks(7, itask)
             stag2 = rtasks(8, itask)
 
+            !$omp parallel
             SELECT CASE (fieldid)
             CASE (1)
                 CALL recvbuf_to_buffers(a1, icount, ibb, jjc2d, jj2d, ii2d, &
@@ -548,6 +552,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -570,7 +575,7 @@ CONTAINS
         REAL(realk) :: val_c, val_jm1, val_i, val_im1, val_out
         LOGICAL :: odd_j, odd_i
 
-        !$omp parallel do collapse(2) private(i, j, jc, ic, idst, val_c, &
+        !$omp do collapse(2) private(i, j, jc, ic, idst, val_c, &
         !$omp& val_jm1, val_i, val_im1, val_out, odd_j, odd_i)
         DO i = 1, ii2d
             DO j = 1, jj2d
@@ -607,7 +612,7 @@ CONTAINS
                 buffers(idst) = val_out
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE recvbuf_to_buffers
 
 
@@ -679,10 +684,11 @@ CONTAINS
 
         IF (nstasks == 0) RETURN
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  b1 => f1%buffers, b2 => f2%buffers, b3 => f3%buffers, &
-                  b4 => f4%buffers, b5 => f5%buffers, b6 => f6%buffers)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:), &
+                  b1 => f1%buffers(:), b2 => f2%buffers(:), &
+                  b3 => f3%buffers(:), b4 => f4%buffers(:), &
+                  b5 => f5%buffers(:), b6 => f6%buffers(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
@@ -709,6 +715,7 @@ CONTAINS
             CALL get_ip3(ip3, igridc)
             CALL get_mgdims(kk, jj, ii, igridc)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL arr_to_buffers(kk, jj, ii, a1(ip3), &
@@ -739,6 +746,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -763,7 +771,7 @@ CONTAINS
         REAL(realk) :: val_c, val_jm1, val_i, val_im1, val_out
         LOGICAL :: odd_j, odd_i
 
-        !$omp parallel do collapse(2) private(i, j, jc, ic, idst, val_c, &
+        !$omp do collapse(2) private(i, j, jc, ic, idst, val_c, &
         !$omp& val_jm1, val_i, val_im1, val_out, odd_j, odd_i)
         DO i = 1, ii2d
             DO j = 1, jj2d
@@ -812,7 +820,7 @@ CONTAINS
                 buffers(idst) = val_out
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE arr_to_buffers
 
 

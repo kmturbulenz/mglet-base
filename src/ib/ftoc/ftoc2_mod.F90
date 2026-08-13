@@ -409,8 +409,8 @@ CONTAINS
 
         IF (nrtasks == 0) RETURN
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
@@ -438,6 +438,7 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igridc)
             CALL get_ip3(ip3, igridc)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a1(ip3), &
@@ -468,6 +469,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -661,9 +663,9 @@ CONTAINS
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx%arr, ddy => ddy%arr, ddz => ddz%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:), &
+                  ddx => ddx%arr(:), ddy => ddy%arr(:), ddz => ddz%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_noib")
@@ -698,6 +700,7 @@ CONTAINS
             CALL get_ip1y(ipy, igridf)
             CALL get_ip1z(ipz, igridf)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
@@ -758,6 +761,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -784,10 +788,11 @@ CONTAINS
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-                  bp => bp_f%arr, bt => bt_f%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), &
+            a3 => f3%arr(:), a4 => f4%arr(:), &
+            a5 => f5%arr(:), a6 => f6%arr(:), &
+            ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:), &
+            bp => bp_f%arr(:), bt => bt_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_gc")
@@ -822,6 +827,7 @@ CONTAINS
             CALL get_ip1y(ipy, igridf)
             CALL get_ip1z(ipz, igridf)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a1(ip3f), &
@@ -880,6 +886,7 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -946,7 +953,7 @@ CONTAINS
         nj = (jstop - jstart)/2 + 1
         nk = (kstop - kstart)/2 + 1
 
-        !$omp parallel do collapse(3) private(ic, jc, kc, icount)
+        !$omp do collapse(3) private(ic, jc, kc, icount)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -959,7 +966,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
 #ifdef _MGLET_DEBUG_
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
@@ -985,7 +992,7 @@ CONTAINS
         nj = (jstop - jstart)/2 + 1
         nk = (kstop - kstart)/2 + 1
 
-        !$omp parallel do collapse(3) private(ic, jc, kc, icount)
+        !$omp do collapse(3) private(ic, jc, kc, icount)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -1001,7 +1008,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
 #ifdef _MGLET_DEBUG_
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
@@ -1100,9 +1107,9 @@ CONTAINS
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:), &
+                  ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_noib")
@@ -1130,6 +1137,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a1(ip3), &
@@ -1160,6 +1168,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -1185,10 +1194,11 @@ CONTAINS
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
 
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-                  bp => bp_f%arr, bt => bt_f%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), &
+            a3 => f3%arr(:), a4 => f4%arr(:), &
+            a5 => f5%arr(:), a6 => f6%arr(:), &
+            ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:), &
+            bp => bp_f%arr(:), bt => bt_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_gc")
@@ -1216,6 +1226,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_gc_flag(flag, kk, jj, ii, a1(ip3), &
@@ -1246,6 +1257,7 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 

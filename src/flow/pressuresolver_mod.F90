@@ -517,14 +517,14 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii, ip3
 
         ASSOCIATE( &
-            lw => siplw%arr, &
-            ls => sipls%arr, &
-            lb => siplb%arr, &
-            lpr => siplpr%arr, &
-            res => res_f%arr, &
-            rhs => rhs_f%arr, &
-            mip => mip_hp_f%arr, &
-            idx => idx_hp_f%arr)
+            lw => siplw%arr(:), &
+            ls => sipls%arr(:), &
+            lb => siplb%arr(:), &
+            lpr => siplpr%arr(:), &
+            res => res_f%arr(:), &
+            rhs => rhs_f%arr(:), &
+            mip => mip_hp_f%arr(:), &
+            idx => idx_hp_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter1_hp")
@@ -535,8 +535,10 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL sipiter1_hp(kk, jj, ii, rhs(ip3), res(ip3), lw(ip3), ls(ip3), &
                 lb(ip3), lpr(ip3), mip(ip3), idx(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -593,13 +595,13 @@ CONTAINS
         INTEGER(intk) :: kk, jj, ii, ip3
 
         ASSOCIATE( &
-            dp => dp_f%arr, &
-            res => res_f%arr, &
-            sipue => sipue_f%arr, &
-            sipun => sipun_f%arr, &
-            siput => siput_f%arr, &
-            mip => mip_hp_f%arr, &
-            idx => idx_hp_f%arr)
+            dp => dp_f%arr(:), &
+            res => res_f%arr(:), &
+            sipue => sipue_f%arr(:), &
+            sipun => sipun_f%arr(:), &
+            siput => siput_f%arr(:), &
+            mip => mip_hp_f%arr(:), &
+            idx => idx_hp_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter2_hp")
@@ -610,8 +612,10 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL sipiter2_hp(kk, jj, ii, dp(ip3), res(ip3), sipue(ip3), &
                 sipun(ip3), siput(ip3), mip(ip3), idx(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -636,7 +640,7 @@ CONTAINS
         maxabs = 0.0
         maxabslevel = 0.0
 
-        ASSOCIATE(phi => phi_f%arr, maxagrid => maxabsgrid)
+        ASSOCIATE(phi => phi_f%arr(:), maxagrid => maxabsgrid(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maxabscal")
@@ -650,7 +654,9 @@ CONTAINS
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
+            !$omp parallel
             CALL maxabscal_grid(kk, jj, ii, maxagrid(imygrid), phi(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -683,7 +689,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         maxabs = 0.0
-        !$omp parallel do collapse(3) private(i, j, k) reduction(max:maxabs)
+        !$omp do collapse(3) private(i, j, k) reduction(max:maxabs)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -691,7 +697,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE maxabscal_grid
 
 
@@ -704,7 +710,7 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        ASSOCIATE(rhs => rhs_f%arr, res => res_f%arr)
+        ASSOCIATE(rhs => rhs_f%arr(:), res => res_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rescal")
@@ -715,7 +721,9 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
+            !$omp parallel
             CALL rescal_grid(kk, jj, ii, rhs(ip3), res(ip3))
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -736,7 +744,7 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
-        !$omp parallel do collapse(3) private(i, j, k)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -744,7 +752,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE rescal_grid
 
 
@@ -768,9 +776,9 @@ CONTAINS
         CALL get_field(rdz_f, "RDZ")
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, p => p_f%arr, &
-            dp => dp_f%arr, bp => bp_f%arr, &
-            rdx => rdx_f%arr, rdy => rdy_f%arr, rdz => rdz_f%arr)
+        ASSOCIATE(u => u_f%arr(:), v => v_f%arr(:), w => w_f%arr(:), &
+            p => p_f%arr(:), dp => dp_f%arr(:), bp => bp_f%arr(:), &
+            rdx => rdx_f%arr(:), rdy => rdy_f%arr(:), rdz => rdz_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("mgpcorr")
@@ -883,7 +891,7 @@ CONTAINS
 #else
         n = SIZE(dp%arr)
 
-        ASSOCIATE(dp => dp%arr, hilf => hilf%arr)
+        ASSOCIATE(dp => dp%arr(:), hilf => hilf%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("accumulate_pcorr")

@@ -1258,8 +1258,8 @@ CONTAINS
 
         ! At all cost, avoid pointers within the kernel or, even worse,
         ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
@@ -1284,6 +1284,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
@@ -1307,7 +1308,7 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1331,7 +1332,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        !$omp do collapse(3) private(i, j, k, idx_b)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -1341,8 +1342,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
+        !$omp end do
     END SUBROUTINE arr_to_buf
 
 
@@ -1364,8 +1364,8 @@ CONTAINS
 
         ! At all cost, avoid pointers within the kernel or, even worse,
         ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1392,6 +1392,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             ! Assign the correct field pointer
             SELECT CASE (fieldid)
             CASE (1)
@@ -1415,7 +1416,7 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1439,7 +1440,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        !$omp do collapse(3) private(i, j, k, idx_b)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -1449,7 +1450,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
     END SUBROUTINE buf_to_arr
 
@@ -1474,8 +1475,8 @@ CONTAINS
 
         ! At all cost, avoid pointers within the kernel or, even worse,
         ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
+        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
+                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
@@ -1509,6 +1510,7 @@ CONTAINS
             CALL get_ip3(ip3_d, igrid_d)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             SELECT CASE (fieldid)
             CASE (1)
                 CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
@@ -1537,7 +1539,7 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1564,7 +1566,7 @@ CONTAINS
         joff = jstart - jstart_d
         ioff = istart - istart_d
 
-        !$omp parallel do collapse(3) private(i, j, k)
+        !$omp do collapse(3) private(i, j, k)
         DO i = istart_d, istop_d
             DO j = jstart_d, jstop_d
                 DO k = kstart_d, kstop_d
@@ -1573,7 +1575,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
     END SUBROUTINE arr_to_arr
 

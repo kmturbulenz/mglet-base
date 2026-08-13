@@ -458,7 +458,7 @@ CONTAINS
         CALL profile_range_push("process_selftasks")
 #endif
 
-        ASSOCIATE(fc => fc%arr, ff => ff%arr)
+        ASSOCIATE(fc => fc%arr(:), ff => ff%arr(:))
 
         !$omp target teams distribute private(itask, igridf, igridc, &
         !$omp&  ista, jsta, ksta, isto, jsto, ksto, ip3f, ip3c, &
@@ -481,8 +481,10 @@ CONTAINS
             CALL get_mgdims(kkf, jjf, iif, igridf)
             CALL get_mgdims(kkc, jjc, iic, igridc)
 
+            !$omp parallel
             CALL copy_kernel(kkf, jjf, iif, kkc, jjc, iic, &
                 ff(ip3f), fc(ip3c), ista, jsta, ksta, isto, jsto, ksto)
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -514,7 +516,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, j, k, ic, jc, kc
 
-        !$omp parallel do collapse(3) private(i, j, k, ic, jc, kc)
+        !$omp do collapse(3) private(i, j, k, ic, jc, kc)
         DO i = 1, iif
             DO j = 1, jjf
                 DO k = 1, kkf
@@ -535,7 +537,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE copy_kernel
 
 
@@ -601,7 +603,7 @@ CONTAINS
         CALL profile_range_push("process_sendtasks")
 #endif
 
-        ASSOCIATE(coarse => fc%arr)
+        ASSOCIATE(coarse => fc%arr(:))
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
         !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
@@ -622,9 +624,10 @@ CONTAINS
             CALL get_ip3(ip3, igridc)
             CALL get_mgdims(kk, jj, ii, igridc)
 
+            !$omp parallel
             CALL write_buffer(kk, jj, ii, sendbuf(idx1:idx2), &
                 coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -656,7 +659,7 @@ CONTAINS
         jjc = jsto - jsta + 1
         kkc = ksto - ksta + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = ista, isto
             DO j = jsta, jsto
                 DO k = ksta, ksto
@@ -665,7 +668,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE write_buffer
 
 
@@ -800,7 +803,7 @@ CONTAINS
         CALL profile_range_push("process_recvtasks")
 #endif
 
-        ASSOCIATE(fine => ff%arr)
+        ASSOCIATE(fine => ff%arr(:))
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
         !$omp&  igridf, idx, len)
@@ -815,9 +818,11 @@ CONTAINS
             CALL get_ip3(ip3, igridf)
             len = kk * jj * ii / 8
 
+
+            !$omp parallel
             ! Copying from buffer to the fine grid
             CALL write_fine(kk, jj, ii, fine(ip3), len, recvbuf(idx:idx+len-1))
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
 
@@ -847,7 +852,7 @@ CONTAINS
         jjc = jj/2
         iic = ii/2
 
-        !$omp parallel do collapse(3) private(i, j, k, idx, kc, jc, ic)
+        !$omp do collapse(3) private(i, j, k, idx, kc, jc, ic)
         DO i = 1, ii
             DO j = 1, jj
                 DO k = 1, kk
@@ -861,7 +866,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE write_fine
 
 
