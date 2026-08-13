@@ -31,17 +31,20 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE ( &
-            phi => phi_f%arr(:), &
-            res => res_f%arr(:), &
-            ap  => gsap%arr(:), &
-            aw  => gsaw%arr(:), &
-            ae  => gsae%arr(:), &
-            an  => gsan%arr(:), &
-            as  => gsas%arr(:), &
-            at  => gsat%arr(:), &
-            ab  => gsab%arr(:), &
-            bp  => bp_f%arr(:))
+        CALL laplacephi_impl(res_f%arr, phi_f%arr, gsaw%arr, gsae%arr, &
+            gsas%arr, gsan%arr, gsab%arr, gsat%arr, gsap%arr, bp_f%arr)
+    END SUBROUTINE laplacephi
+
+
+    SUBROUTINE laplacephi_impl(res, phi, aw, ae, as, an, ab, at, ap, bp)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: res(*)
+        REAL(realk), INTENT(in) :: phi(*)
+        REAL(realk), INTENT(in) :: aw(*), ae(*), as(*), an(*), ab(*), at(*)
+        REAL(realk), INTENT(in) :: ap(*), bp(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi")
@@ -67,9 +70,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
-        END ASSOCIATE
-    END SUBROUTINE laplacephi
+    END SUBROUTINE laplacephi_impl
 
 
     SUBROUTINE laplacephi_level(ilevel, res_f, phi_f)
@@ -95,17 +96,24 @@ CONTAINS
         ! in the kernel or duplicating code for now.
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE ( &
-            phi => phi_f%arr(:), &
-            res => res_f%arr(:), &
-            ap  => gsap%arr(:), &
-            aw  => gsaw%arr(:), &
-            ae  => gsae%arr(:), &
-            an  => gsan%arr(:), &
-            as  => gsas%arr(:), &
-            at  => gsat%arr(:), &
-            ab  => gsab%arr(:), &
-            bp  => bp_f%arr(:))
+        CALL laplacephi_level_impl(ilevel, res_f%arr, phi_f%arr, gsaw%arr, &
+            gsae%arr, gsas%arr, gsan%arr, gsab%arr, gsat%arr, gsap%arr, &
+            bp_f%arr)
+        END SUBROUTINE laplacephi_level
+
+
+    SUBROUTINE laplacephi_level_impl(ilevel, res, phi, aw, ae, as, an, ab, &
+            at, ap, bp)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(inout) :: res(*)
+        REAL(realk), INTENT(in) :: phi(*)
+        REAL(realk), INTENT(in) :: aw(*), ae(*), as(*), an(*), ab(*), at(*)
+        REAL(realk), INTENT(in) :: ap(*), bp(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi_level")
@@ -131,8 +139,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE laplacephi_level
+    END SUBROUTINE laplacephi_level_impl
 
 
     PURE SUBROUTINE laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &

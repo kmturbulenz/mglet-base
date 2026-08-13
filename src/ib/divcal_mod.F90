@@ -16,7 +16,6 @@ CONTAINS
         ! Local variables
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f, bp_f
         LOGICAL, ALLOCATABLE :: active_levels(:)
-        INTEGER(intk) :: i, igrid, ilevel, ip3, ip1x, ip1y, ip1z, kk, jj, ii
         LOGICAL :: device2
 
         CALL start_timer(240)
@@ -36,12 +35,26 @@ CONTAINS
 
         active_levels = u_f%active_level(minlevel:maxlevel)
 
-        ASSOCIATE(div => div_f%arr(:), &
-            u => u_f%arr(:), v => v_f%arr(:), w => w_f%arr(:), &
-            rddx => rddx_f%arr(:), &
-            rddy => rddy_f%arr(:), &
-            rddz => rddz_f%arr(:), &
-            bp => bp_f%arr(:))
+        CALL divcal_impl(div_f%arr, u_f%arr, v_f%arr, w_f%arr, &
+            rddx_f%arr, rddy_f%arr, rddz_f%arr, bp_f%arr, active_levels, &
+            fak, device2)
+
+        CALL stop_timer(240)
+    END SUBROUTINE divcal
+
+
+    SUBROUTINE divcal_impl(div, u, v, w, rddx, rddy, rddz, bp, &
+            active_levels, fak, device2)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: div(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*), bp(*)
+        LOGICAL, INTENT(in) :: active_levels(*)
+        REAL(realk), INTENT(in) :: fak
+        LOGICAL, INTENT(in) :: device2
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, ilevel, ip3, ip1x, ip1y, ip1z, kk, jj, ii
 
         ! active_level must be handled specially because it might start at
         ! minlvl=0 or minlvl=1. If we want to avoid copying descriptors, then
@@ -51,7 +64,7 @@ CONTAINS
 
         !$omp target teams distribute private(kk, jj, ii, ip3, ip1x, ip1y, &
         !$omp& ip1z, igrid, ilevel) &
-        !$omp& map(to: active_levels) &
+        !$omp& map(to: active_levels(1:maxlevel-minlevel+1)) &
         !$omp& if(device2)
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -72,11 +85,7 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-        END ASSOCIATE
-
-        CALL stop_timer(240)
-    END SUBROUTINE divcal
+    END SUBROUTINE divcal_impl
 
 
     SUBROUTINE divcal_grid(kk, jj, ii, div, u, v, w, bp, rddx, rddy, rddz, fak)

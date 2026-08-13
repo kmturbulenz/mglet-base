@@ -446,19 +446,33 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nselftasks
         INTEGER(intk), INTENT(in) :: etasks(selftasksize, nselftasks+1)
 
+        ! Leaving immediately if there are no tasks to process
+        IF (nselftasks < 1) RETURN
+
+        CALL process_selftasks_impl(fc%arr, ff%arr, nselftasks, etasks)
+
+        ! Checking for the dummy entry at position (end+1)
+        IF (etasks(1, nselftasks+1) /= -1) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+        END SUBROUTINE process_selftasks
+
+
+        SUBROUTINE process_selftasks_impl(fc, ff, nselftasks, etasks)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: fc(*)
+        REAL(realk), INTENT(inout) :: ff(*)
+        INTEGER(intk), INTENT(in) :: nselftasks
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, nselftasks+1)
+
         ! Local variables
         INTEGER(intk) :: itask, ista, jsta, ksta, isto, jsto, ksto
         INTEGER(intk) :: iif, jjf, kkf, iic, jjc, kkc
         INTEGER(intk) :: igridc, igridf, ip3c, ip3f
 
-        ! Leaving immediately if there are no tasks to process
-        IF (nselftasks < 1) RETURN
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
 #endif
-
-        ASSOCIATE(fc => fc%arr(:), ff => ff%arr(:))
 
         !$omp target teams distribute private(itask, igridf, igridc, &
         !$omp&  ista, jsta, ksta, isto, jsto, ksto, ip3f, ip3c, &
@@ -488,17 +502,10 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-        END ASSOCIATE
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-
-        ! Checking for the dummy entry at position (end+1)
-        IF (etasks(1, nselftasks+1) /= -1) THEN
-            CALL errr(__FILE__, __LINE__)
-        END IF
-    END SUBROUTINE process_selftasks
+    END SUBROUTINE process_selftasks_impl
 
 
     SUBROUTINE copy_kernel(kkf, jjf, iif, kkc, jjc, iic, &
@@ -526,10 +533,10 @@ CONTAINS
                     jc = (j-1)/2 + jsta
                     kc = (k-1)/2 + ksta
 
-                    ! Checking that the coarse grid indices are within bounds
-                    IF (ic > isto .OR. jc > jsto .OR. kc > ksto) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
+                    !! Checking that the coarse grid indices are within bounds
+                    !IF (ic > isto .OR. jc > jsto .OR. kc > ksto) THEN
+                    !    CALL errr(__FILE__, __LINE__)
+                    !END IF
 
                     ! Copying the value from the coarse grid to the fine grid
                     ff(k, j, i) = fc(kc, jc, ic)
@@ -592,18 +599,26 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
+        ! Leaving immediately if there are no tasks to process
+        IF (nstasks < 1) RETURN
+
+        CALL process_sendtasks_impl(fc%arr, nstasks, stasks)
+        END SUBROUTINE process_sendtasks
+
+
+        SUBROUTINE process_sendtasks_impl(coarse, nstasks, stasks)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: coarse(*)
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+
         ! Local variables
         INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
         INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1, idx2
 
-        ! Leaving immediately if there are no tasks to process
-        IF (nstasks < 1) RETURN
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
 #endif
-
-        ASSOCIATE(coarse => fc%arr(:))
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
         !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
@@ -625,18 +640,16 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igridc)
 
             !$omp parallel
-            CALL write_buffer(kk, jj, ii, sendbuf(idx1:idx2), &
+            CALL write_buffer(kk, jj, ii, sendbuf(idx1), &
                 coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
 
-        END ASSOCIATE
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-    END SUBROUTINE process_sendtasks
+    END SUBROUTINE process_sendtasks_impl
 
 
     SUBROUTINE write_buffer(kk, jj, ii, buf, fc, ista, jsta, ksta, &
@@ -645,7 +658,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: buf(:)
+        REAL(realk), INTENT(inout) :: buf(*)
         REAL(realk), INTENT(in) :: fc(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: ista, jsta, ksta
         INTEGER(intk), INTENT(in) :: isto, jsto, ksto
@@ -793,17 +806,25 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
-        ! Local variables
-        INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
-
         ! Leaving immediately if there are no tasks to process
         IF (nrtasks < 1) RETURN
+
+        CALL process_recvtasks_impl(ff%arr, nrtasks, rtasks)
+        END SUBROUTINE process_recvtasks
+
+
+        SUBROUTINE process_recvtasks_impl(fine, nrtasks, rtasks)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: fine(*)
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+
+        ! Local variables
+        INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
 #endif
-
-        ASSOCIATE(fine => ff%arr(:))
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
         !$omp&  igridf, idx, len)
@@ -821,17 +842,15 @@ CONTAINS
 
             !$omp parallel
             ! Copying from buffer to the fine grid
-            CALL write_fine(kk, jj, ii, fine(ip3), len, recvbuf(idx:idx+len-1))
+            CALL write_fine(kk, jj, ii, fine(ip3), len, recvbuf(idx))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
 
-        END ASSOCIATE
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE process_recvtasks_impl
 
 
     SUBROUTINE write_fine(kk, jj, ii, fff, len, fc)

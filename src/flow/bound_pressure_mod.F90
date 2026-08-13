@@ -145,16 +145,23 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-        ASSOCIATE( &
-            p => dp_f%arr(:), &
-            pbuffer => dp_f%buffers(:), &
-            bp => bp_f%arr(:), &
-            dx => dx_f%arr(:), &
-            dy => dy_f%arr(:), &
-            dz => dz_f%arr(:), &
-            ddx => ddx_f%arr(:), &
-            ddy => ddy_f%arr(:), &
-            ddz => ddz_f%arr(:))
+        CALL bound_pressure_impl_bp_arr(nboundtasks, ilevel_index, dp_f%arr, &
+            dp_f%buffers, bp_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr)
+    END SUBROUTINE bound_pressure_impl_bp
+
+
+    SUBROUTINE bound_pressure_impl_bp_arr(nboundtasks, ilevel_index, p, &
+            pbuffer, bp, dx, dy, dz, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nboundtasks, ilevel_index
+        REAL(realk), INTENT(inout) :: p(*), pbuffer(*)
+        REAL(realk), INTENT(in) :: bp(*), dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, iface
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
 
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -206,8 +213,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE bound_pressure_impl_bp
+    END SUBROUTINE bound_pressure_impl_bp_arr
 
 
     SUBROUTINE bound_pressure_impl_nobp(ilevel, dp_f, dx_f, dy_f, dz_f, &
@@ -225,15 +231,23 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-        ASSOCIATE( &
-            p => dp_f%arr(:), &
-            pbuffer => dp_f%buffers(:), &
-            dx => dx_f%arr(:), &
-            dy => dy_f%arr(:), &
-            dz => dz_f%arr(:), &
-            ddx => ddx_f%arr(:), &
-            ddy => ddy_f%arr(:), &
-            ddz => ddz_f%arr(:))
+        CALL bound_pressure_impl_nobp_arr(nboundtasks, ilevel_index, &
+            dp_f%arr, dp_f%buffers, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr)
+    END SUBROUTINE bound_pressure_impl_nobp
+
+
+    SUBROUTINE bound_pressure_impl_nobp_arr(nboundtasks, ilevel_index, p, &
+            pbuffer, dx, dy, dz, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nboundtasks, ilevel_index
+        REAL(realk), INTENT(inout) :: p(*), pbuffer(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, iface
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("bound_pressure_impl_nobp")
@@ -282,8 +296,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE bound_pressure_impl_nobp
+    END SUBROUTINE bound_pressure_impl_nobp_arr
 
 
     SUBROUTINE bfront(kk, jj, ii, i2, i3, i4, istag2, pbuffer, &

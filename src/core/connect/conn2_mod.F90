@@ -1248,18 +1248,24 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
 
-        ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
-
         IF (nstasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
+        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+    END SUBROUTINE process_sendtasks
+
+
+    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
@@ -1314,8 +1320,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks
+    END SUBROUTINE process_sendtasks_impl
 
 
     SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
@@ -1354,18 +1359,24 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
 
-        ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
-
         IF (nrtasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
+        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+    END SUBROUTINE process_recvtasks
+
+
+    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1422,8 +1433,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE process_recvtasks_impl
 
 
     SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
@@ -1463,20 +1473,26 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
 
-        ! Local variables
-        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
-            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
-            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
-
         ! Precheck to avoid kernel launch overhead
         IF (nstasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
+        CALL process_selftasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+    END SUBROUTINE process_selftasks
+
+
+    SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
+            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
+            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
@@ -1545,8 +1561,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks
+    END SUBROUTINE process_selftasks_impl
 
 
     PURE SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &

@@ -400,17 +400,27 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
+        IF (nrtasks == 0) RETURN
+
+        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL check_recvtasks_dummy(nrtasks, rtasks)
+        END SUBROUTINE process_recvtasks
+
+
+        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
+            a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
         ! Local variables
         INTEGER(intk) :: itask, fieldid, tasksize, recvidx, igridc
         CHARACTER(len=1) :: flag
         INTEGER(intk) :: kk, jj, ii, ip3
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
         INTEGER(intk) :: ipos, jpos, kpos
-
-        IF (nrtasks == 0) RETURN
-
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
@@ -442,27 +452,27 @@ CONTAINS
             SELECT CASE(fieldid)
             CASE (1)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a1(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
             CASE (2)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a2(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
             CASE (3)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a3(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
             CASE (4)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a4(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
             CASE (5)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a5(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
             CASE (6)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a6(ip3), &
-                    recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
+                    recvbuf(recvidx), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
@@ -477,13 +487,22 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
+    END SUBROUTINE process_recvtasks_impl
+
+
+    SUBROUTINE check_recvtasks_dummy(nrtasks, rtasks)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+
+        ! Local variables
+        ! none...
 
         IF (.NOT. ALL(rtasks(:, nrtasks+1) == -1)) THEN
             WRITE(*, *) "Did not encounter the expected dummy task."
             CALL errr(__FILE__, __LINE__)
         END IF
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE check_recvtasks_dummy
 
 
     SUBROUTINE prepare_recvtasks_all(rtasks, nrtasks, flag, &
@@ -655,6 +674,19 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
         TYPE(field_t), INTENT(in) :: ddx, ddy, ddz
 
+        CALL process_selftasks_noib_impl(netasks, etasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx%arr, ddy%arr, ddz%arr)
+    END SUBROUTINE process_selftasks_noib
+
+
+    SUBROUTINE process_selftasks_noib_impl(netasks, etasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: netasks
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
@@ -662,10 +694,6 @@ CONTAINS
             jstop, kstart, kstop, ipos, jpos, kpos
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:), &
-                  ddx => ddx%arr(:), ddy => ddy%arr(:), ddz => ddz%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_noib")
@@ -708,7 +736,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a1(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (2)
@@ -717,7 +745,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a2(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (3)
@@ -726,7 +754,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a3(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (4)
@@ -735,7 +763,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a4(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
@@ -744,7 +772,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a5(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
@@ -753,7 +781,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a6(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
 #ifdef _MGLET_DEBUG_
@@ -769,8 +797,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks_noib
+    END SUBROUTINE process_selftasks_noib_impl
 
 
     SUBROUTINE process_selftasks_gc(netasks, etasks, ddx_f, ddy_f, ddz_f, &
@@ -780,6 +807,20 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f, bp_f, bt_f
 
+        CALL process_selftasks_gc_impl(netasks, etasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr, bp_f%arr, bt_f%arr)
+    END SUBROUTINE process_selftasks_gc
+
+
+    SUBROUTINE process_selftasks_gc_impl(netasks, etasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz, bp, bt)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: netasks
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
@@ -787,12 +828,6 @@ CONTAINS
             jstop, kstart, kstop, ipos, jpos, kpos
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), &
-            a3 => f3%arr(:), a4 => f4%arr(:), &
-            a5 => f5%arr(:), a6 => f6%arr(:), &
-            ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:), &
-            bp => bp_f%arr(:), bt => bt_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_gc")
@@ -835,7 +870,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a1(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (2)
@@ -844,7 +879,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a2(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (3)
@@ -853,7 +888,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a3(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (4)
@@ -862,7 +897,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a4(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
@@ -871,7 +906,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a5(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
@@ -880,7 +915,7 @@ CONTAINS
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a6(ip3c), sendbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE DEFAULT
@@ -894,8 +929,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks_gc
+    END SUBROUTINE process_selftasks_gc_impl
 
 
     SUBROUTINE unpack_restricted_buffer(flag, kk, jj, ii, fc, buffer, &
@@ -1100,16 +1134,26 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f
 
+        CALL process_sendtasks_noib_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr)
+    END SUBROUTINE process_sendtasks_noib
+
+
+    SUBROUTINE process_sendtasks_noib_impl(nstasks, stasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
             kstop
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), a3 => f3%arr(:), &
-                  a4 => f4%arr(:), a5 => f5%arr(:), a6 => f6%arr(:), &
-                  ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_noib")
@@ -1176,8 +1220,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks_noib
+    END SUBROUTINE process_sendtasks_noib_impl
 
 
     SUBROUTINE process_sendtasks_gc(nstasks, stasks, ddx_f, ddy_f, ddz_f, &
@@ -1187,18 +1230,26 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f, bp_f, bt_f
 
+        CALL process_sendtasks_gc_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr, bp_f%arr, bt_f%arr)
+    END SUBROUTINE process_sendtasks_gc
+
+
+    SUBROUTINE process_sendtasks_gc_impl(nstasks, stasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz, bp, bt)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
             kstop
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr(:), a2 => f2%arr(:), &
-            a3 => f3%arr(:), a4 => f4%arr(:), &
-            a5 => f5%arr(:), a6 => f6%arr(:), &
-            ddx => ddx_f%arr(:), ddy => ddy_f%arr(:), ddz => ddz_f%arr(:), &
-            bp => bp_f%arr(:), bt => bt_f%arr(:))
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_gc")
@@ -1265,8 +1316,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks_gc
+    END SUBROUTINE process_sendtasks_gc_impl
 
 
     SUBROUTINE process_mpirecv(nmpirtasks, mpirtasks)

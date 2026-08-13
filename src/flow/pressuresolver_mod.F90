@@ -516,15 +516,24 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        ASSOCIATE( &
-            lw => siplw%arr(:), &
-            ls => sipls%arr(:), &
-            lb => siplb%arr(:), &
-            lpr => siplpr%arr(:), &
-            res => res_f%arr(:), &
-            rhs => rhs_f%arr(:), &
-            mip => mip_hp_f%arr(:), &
-            idx => idx_hp_f%arr(:))
+        CALL sipiter1_hyperplane_level_impl(ilevel, rhs_f%arr, res_f%arr, &
+            siplw%arr, sipls%arr, siplb%arr, siplpr%arr, mip_hp_f%arr, &
+            idx_hp_f%arr)
+    END SUBROUTINE sipiter1_hyperplane_level
+
+
+    SUBROUTINE sipiter1_hyperplane_level_impl(ilevel, rhs, res, lw, ls, lb, &
+            lpr, mip, idx)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(in) :: rhs(*)
+        REAL(realk), INTENT(inout) :: res(*)
+        REAL(realk), INTENT(in) :: lw(*), ls(*), lb(*), lpr(*)
+        INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter1_hp")
@@ -544,8 +553,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE sipiter1_hyperplane_level
+    END SUBROUTINE sipiter1_hyperplane_level_impl
 
 
     SUBROUTINE sipiter2_classic_level(ilevel, dp, res, sipue, sipun, siput)
@@ -594,14 +602,23 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        ASSOCIATE( &
-            dp => dp_f%arr(:), &
-            res => res_f%arr(:), &
-            sipue => sipue_f%arr(:), &
-            sipun => sipun_f%arr(:), &
-            siput => siput_f%arr(:), &
-            mip => mip_hp_f%arr(:), &
-            idx => idx_hp_f%arr(:))
+        CALL sipiter2_hyperplane_level_impl(ilevel, dp_f%arr, res_f%arr, &
+            sipue_f%arr, sipun_f%arr, siput_f%arr, mip_hp_f%arr, &
+            idx_hp_f%arr)
+    END SUBROUTINE sipiter2_hyperplane_level
+
+
+    SUBROUTINE sipiter2_hyperplane_level_impl(ilevel, dp, res, sipue, sipun, &
+            siput, mip, idx)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ilevel
+        REAL(realk), INTENT(inout) :: dp(*), res(*)
+        REAL(realk), INTENT(in) :: sipue(*), sipun(*), siput(*)
+        INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter2_hp")
@@ -621,8 +638,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE sipiter2_hyperplane_level
+    END SUBROUTINE sipiter2_hyperplane_level_impl
 
 
     SUBROUTINE maxabscal(maxabs, maxabslevel, phi_f)
@@ -640,14 +656,35 @@ CONTAINS
         maxabs = 0.0
         maxabslevel = 0.0
 
-        ASSOCIATE(phi => phi_f%arr(:), maxagrid => maxabsgrid(:))
+        CALL maxabscal_impl(phi_f%arr, maxabsgrid)
+
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            ilevel = level(igrid)
+            maxabs = MAX(ABS(maxabsgrid(imygrid)*(2.0**(maxlevel-ilevel))), &
+                maxabs)
+            maxabslevel(ilevel) = MAX(maxabslevel(ilevel), maxabsgrid(imygrid))
+        END DO
+
+        DEALLOCATE(maxabsgrid)
+    END SUBROUTINE maxabscal
+
+
+    SUBROUTINE maxabscal_impl(phi, maxagrid)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: phi(*)
+        REAL(realk), INTENT(inout) :: maxagrid(*)
+
+        ! Local variables
+        INTEGER(intk) :: imygrid, igrid, ip3
+        INTEGER(intk) :: kk, jj, ii
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maxabscal")
 #endif
 
         !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3) &
-        !$omp& map(from: maxagrid)
+        !$omp& map(from: maxagrid(1:nmygrids))
         DO imygrid = 1, nmygrids
             igrid = mygrids(imygrid)
             maxagrid(imygrid) = -HUGE(1.0_realk)
@@ -664,18 +701,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            ilevel = level(igrid)
-            maxabs = MAX(ABS(maxabsgrid(imygrid)*(2.0**(maxlevel-ilevel))), &
-                maxabs)
-            maxabslevel(ilevel) = MAX(maxabslevel(ilevel), maxabsgrid(imygrid))
-        END DO
-
-        DEALLOCATE(maxabsgrid)
-    END SUBROUTINE maxabscal
+    END SUBROUTINE maxabscal_impl
 
 
     PURE SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
@@ -710,7 +736,18 @@ CONTAINS
         INTEGER(intk) :: i, igrid
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        ASSOCIATE(rhs => rhs_f%arr(:), res => res_f%arr(:))
+        CALL rescal_impl(rhs_f%arr, res_f%arr)
+    END SUBROUTINE rescal
+
+
+    SUBROUTINE rescal_impl(rhs, res)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: rhs(*)
+        REAL(realk), INTENT(in) :: res(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: kk, jj, ii, ip3
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rescal")
@@ -729,8 +766,7 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-    END SUBROUTINE rescal
+    END SUBROUTINE rescal_impl
 
 
     PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
@@ -776,9 +812,21 @@ CONTAINS
         CALL get_field(rdz_f, "RDZ")
         CALL get_field(bp_f, "BP")
 
-        ASSOCIATE(u => u_f%arr(:), v => v_f%arr(:), w => w_f%arr(:), &
-            p => p_f%arr(:), dp => dp_f%arr(:), bp => bp_f%arr(:), &
-            rdx => rdx_f%arr(:), rdy => rdy_f%arr(:), rdz => rdz_f%arr(:))
+        CALL mgpcorr_impl(u_f%arr, v_f%arr, w_f%arr, p_f%arr, dp_f%arr, &
+            bp_f%arr, rdx_f%arr, rdy_f%arr, rdz_f%arr, rfak)
+    END SUBROUTINE mgpcorr
+
+
+    SUBROUTINE mgpcorr_impl(u, v, w, p, dp, bp, rdx, rdy, rdz, rfak)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
+        REAL(realk), INTENT(in) :: dp(*), bp(*)
+        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(realk), INTENT(in) :: rfak
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, ip3, ip1x, ip1y, ip1z
+        INTEGER(intk) :: kk, jj, ii
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("mgpcorr")
@@ -805,8 +853,7 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        END ASSOCIATE
-    END SUBROUTINE mgpcorr
+    END SUBROUTINE mgpcorr_impl
 
 
     PURE SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, bp, rdx, rdy, &
@@ -891,7 +938,19 @@ CONTAINS
 #else
         n = SIZE(dp%arr)
 
-        ASSOCIATE(dp => dp%arr(:), hilf => hilf%arr(:))
+        CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
+    #endif
+        END SUBROUTINE accumulate_pcorr
+
+
+        SUBROUTINE accumulate_pcorr_impl(dp, hilf, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: dp(*)
+        REAL(realk), INTENT(in) :: hilf(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("accumulate_pcorr")
@@ -904,7 +963,5 @@ CONTAINS
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
 #endif
-        END ASSOCIATE
-#endif
-    END SUBROUTINE accumulate_pcorr
+    END SUBROUTINE accumulate_pcorr_impl
 END MODULE pressuresolver_mod
