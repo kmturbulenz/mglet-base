@@ -3,7 +3,7 @@ MODULE fieldhelper_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
-    USE pointers_mod, ONLY: get_ipbb
+    USE pointers_mod, ONLY: get_ipbb, get_ip3
     USE precision_mod, ONLY: realk, intk, ifk
     USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
 
@@ -40,7 +40,7 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
-            CALL set_field_arr_realk_impl(field%arr, n, val)
+            CALL set_field_arr_realk_impl(field%arr, val)
         ELSE
             field%arr = val
         END IF
@@ -51,20 +51,33 @@ CONTAINS
     END SUBROUTINE set_field_arr_realk
 
 
-    SUBROUTINE set_field_arr_realk_impl(arr, n, val)
+    SUBROUTINE set_field_arr_realk_impl(arr, val)
         ! Subroutine arguments
         REAL(realk), INTENT(inout) :: arr(*)
-        INTEGER(intk), INTENT(in) :: n
         REAL(realk), INTENT(in) :: val
 
         ! Local variables
-        INTEGER(intk) :: i
+        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
-        !$omp target teams loop
-        DO i = 1, n
-            arr(i) = val
+        ! This is a 4D loop only because there are random crashes with 1D loops
+        ! using the amd compiler
+        !$omp target teams distribute
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+
+            !$omp parallel do collapse(3)
+            DO i = 1, ii
+                DO j = 1, jj
+                    DO k = 1, kk
+                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj
+                        arr(idx) = val
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
         END DO
-        !$omp end target teams loop
     END SUBROUTINE set_field_arr_realk_impl
 
 
@@ -90,7 +103,7 @@ CONTAINS
 
         IF (device2) THEN
             n = SIZE(field%arr)
-            CALL set_field_arr_ifk_impl(field%arr, n, val)
+            CALL set_field_arr_ifk_impl(field%arr, val)
         ELSE
             field%arr = val
         END IF
@@ -101,20 +114,33 @@ CONTAINS
     END SUBROUTINE set_field_arr_ifk
 
 
-    SUBROUTINE set_field_arr_ifk_impl(arr, n, val)
+    SUBROUTINE set_field_arr_ifk_impl(arr, val)
         ! Subroutine arguments
         INTEGER(ifk), INTENT(inout) :: arr(*)
-        INTEGER(intk), INTENT(in) :: n
         INTEGER(ifk), INTENT(in) :: val
 
         ! Local variables
-        INTEGER(intk) :: i
+        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
-        !$omp target teams loop
-        DO i = 1, n
-            arr(i) = val
+        ! This is a 4D loop only because there are random crashes with 1D loops
+        ! using the amd compiler
+        !$omp target teams distribute
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+
+            !$omp parallel do collapse(3)
+            DO i = 1, ii
+                DO j = 1, jj
+                    DO k = 1, kk
+                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj
+                        arr(idx) = val
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
         END DO
-        !$omp end target teams loop
     END SUBROUTINE set_field_arr_ifk_impl
 
 

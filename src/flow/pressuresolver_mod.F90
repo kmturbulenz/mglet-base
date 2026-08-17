@@ -937,12 +937,26 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: n
 
         ! Local variables
-        INTEGER(intk) :: i
+        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
-        !$omp target teams loop
-        DO i = 1, n
-            dp(i) = dp(i) + hilf(i)
+        ! This is a 4D loop only because there are random crashes with 1D loops
+        ! using the amd compiler
+        !$omp target teams distribute
+        DO imygrid = 1, nmygrids
+            igrid = mygrids(imygrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+
+            !$omp parallel do collapse(3)
+            DO i = 1, ii
+                DO j = 1, jj
+                    DO k = 1, kk
+                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj
+                        dp(idx) = dp(idx) + hilf(idx)
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
         END DO
-        !$omp end target teams loop
     END SUBROUTINE accumulate_pcorr_impl
 END MODULE pressuresolver_mod
