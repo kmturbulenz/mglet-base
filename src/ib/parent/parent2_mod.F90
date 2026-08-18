@@ -402,17 +402,32 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        ! none...
 
         IF (nstasks == 0) RETURN
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
 #endif
+
+        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_sendtasks
+
+
+    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
         !$omp target teams distribute private(itask, fieldid, icount, igrid, &
         !$omp& istart, istop, jstart, jstop, kstart, kstop, ii, jj, kk, ip3)
@@ -430,6 +445,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL arr_to_sendbuf(kk, jj, ii, a1(ip3), istart, istop, &
@@ -454,15 +470,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks
+    END SUBROUTINE process_sendtasks_impl
 
 
     SUBROUTINE arr_to_sendbuf(kk, jj, ii, arr, istart, istop, jstart, jstop, &
@@ -480,7 +491,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -489,7 +500,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE arr_to_sendbuf
 
 
@@ -499,18 +510,34 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid
-        INTEGER(intk) :: jjc2d, ii2d, jj2d, ibb, stag1, stag2
-        INTEGER(int32) :: icount
+        ! none...
 
         IF (nrtasks == 0) RETURN
-
-        ASSOCIATE(a1 => f1%buffers, a2 => f2%buffers, a3 => f3%buffers, &
-                  a4 => f4%buffers, a5 => f5%buffers, a6 => f6%buffers)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
 #endif
+
+        CALL process_recvtasks_impl(nrtasks, rtasks, f1%buffers, &
+            f2%buffers, f3%buffers, f4%buffers, f5%buffers, f6%buffers)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_recvtasks
+
+
+    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
+            a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid
+        INTEGER(intk) :: jjc2d, ii2d, jj2d, ibb, stag1, stag2
+        INTEGER(int32) :: icount
 
         !$omp target teams distribute private(itask, fieldid, icount, ibb, &
         !$omp& jjc2d, jj2d, ii2d, stag1, stag2)
@@ -524,6 +551,7 @@ CONTAINS
             stag1 = rtasks(7, itask)
             stag2 = rtasks(8, itask)
 
+            !$omp parallel
             SELECT CASE (fieldid)
             CASE (1)
                 CALL recvbuf_to_buffers(a1, icount, ibb, jjc2d, jj2d, ii2d, &
@@ -548,20 +576,16 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE process_recvtasks_impl
 
 
     SUBROUTINE recvbuf_to_buffers(buffers, icount, ibb, jjc2d, jj2d, ii2d, &
             stag1, stag2)
         !$omp declare target
-        REAL(realk), INTENT(inout) :: buffers(:)
+        REAL(realk), INTENT(inout) :: buffers(*)
         INTEGER(int32), INTENT(in) :: icount
         INTEGER(intk), INTENT(in) :: ibb, jjc2d, jj2d, ii2d
         INTEGER(intk), INTENT(in) :: stag1, stag2
@@ -570,7 +594,7 @@ CONTAINS
         REAL(realk) :: val_c, val_jm1, val_i, val_im1, val_out
         LOGICAL :: odd_j, odd_i
 
-        !$omp parallel do collapse(2) private(i, j, jc, ic, idst, val_c, &
+        !$omp do collapse(2) private(i, j, jc, ic, idst, val_c, &
         !$omp& val_jm1, val_i, val_im1, val_out, odd_j, odd_i)
         DO i = 1, ii2d
             DO j = 1, jj2d
@@ -607,7 +631,7 @@ CONTAINS
                 buffers(idst) = val_out
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE recvbuf_to_buffers
 
 
@@ -673,20 +697,36 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks+1)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, igridc, ibb, istart, istop, jstart
-        INTEGER(intk) :: jstop, kstart, kstop, jj2d, ii2d
-        INTEGER(intk) :: stag1, stag2, kk, jj, ii, ip3
+        ! none...
 
         IF (nstasks == 0) RETURN
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  b1 => f1%buffers, b2 => f2%buffers, b3 => f3%buffers, &
-                  b4 => f4%buffers, b5 => f5%buffers, b6 => f6%buffers)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
 #endif
+
+        CALL process_selftasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, f1%buffers, f2%buffers, &
+            f3%buffers, f4%buffers, f5%buffers, f6%buffers)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+        END SUBROUTINE process_selftasks
+
+
+        SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, &
+            a6, b1, b2, b3, b4, b5, b6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(inout) :: b1(*), b2(*), b3(*), b4(*), b5(*), b6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, igridc, ibb, istart, istop, jstart
+        INTEGER(intk) :: jstop, kstart, kstop, jj2d, ii2d
+        INTEGER(intk) :: stag1, stag2, kk, jj, ii, ip3
 
         !$omp target teams distribute private(itask, fieldid, igridc, ibb, &
         !$omp& istart, istop, jstart, jstop, kstart, kstop, jj2d, ii2d, &
@@ -709,6 +749,7 @@ CONTAINS
             CALL get_ip3(ip3, igridc)
             CALL get_mgdims(kk, jj, ii, igridc)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL arr_to_buffers(kk, jj, ii, a1(ip3), &
@@ -739,14 +780,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks
+    END SUBROUTINE process_selftasks_impl
 
 
     SUBROUTINE arr_to_buffers(kk, jj, ii, arr, buffers, ibb, &
@@ -755,7 +792,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: buffers(:)
+        REAL(realk), INTENT(inout) :: buffers(*)
         INTEGER(intk), INTENT(in) :: ibb, istart, istop, jstart, jstop
         INTEGER(intk), INTENT(in) :: kstart, kstop, jj2d, ii2d, stag1, stag2
 
@@ -763,7 +800,7 @@ CONTAINS
         REAL(realk) :: val_c, val_jm1, val_i, val_im1, val_out
         LOGICAL :: odd_j, odd_i
 
-        !$omp parallel do collapse(2) private(i, j, jc, ic, idst, val_c, &
+        !$omp do collapse(2) private(i, j, jc, ic, idst, val_c, &
         !$omp& val_jm1, val_i, val_im1, val_out, odd_j, odd_i)
         DO i = 1, ii2d
             DO j = 1, jj2d
@@ -790,7 +827,8 @@ CONTAINS
                     stag1, odd_j)
 
                 ! Then, if needed, interpolate the neighboring parent i line
-                ! the same way before combining along the face-local i direction.
+                ! the same way before combining along the face-local i
+                ! direction.
                 val_im1 = val_i
                 IF (stag2 == 1 .AND. odd_i) THEN
                     CALL get_parent_face_value(val_c, kk, jj, ii, arr, &
@@ -812,7 +850,7 @@ CONTAINS
                 buffers(idst) = val_out
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE arr_to_buffers
 
 

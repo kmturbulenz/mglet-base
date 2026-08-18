@@ -139,27 +139,37 @@ CONTAINS
         TYPE(field_t), POINTER, INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
-        INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
-        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+        INTEGER(intk) :: nboundtasks, ilevel_index
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-        ASSOCIATE( &
-            p => dp_f%arr, &
-            pbuffer => dp_f%buffers, &
-            bp => bp_f%arr, &
-            dx => dx_f%arr, &
-            dy => dy_f%arr, &
-            dz => dz_f%arr, &
-            ddx => ddx_f%arr, &
-            ddy => ddy_f%arr, &
-            ddz => ddz_f%arr)
-
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("bound_pressure_impl_bp")
 #endif
+
+        CALL bound_pressure_impl_bp_arr(nboundtasks, ilevel_index, dp_f%arr, &
+            dp_f%buffers, bp_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE bound_pressure_impl_bp
+
+
+    SUBROUTINE bound_pressure_impl_bp_arr(nboundtasks, ilevel_index, p, &
+            pbuffer, bp, dx, dy, dz, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nboundtasks, ilevel_index
+        REAL(realk), INTENT(inout) :: p(*), pbuffer(*)
+        REAL(realk), INTENT(in) :: bp(*), dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, iface
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
@@ -173,6 +183,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE (iface)
             CASE (1)
                 CALL bfront_bp(kk, jj, ii, 2, 3, 4, 2, &
@@ -199,13 +210,10 @@ CONTAINS
                     pbuffer(ipbb), p(ip3), bp(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE bound_pressure_impl_bp
+    END SUBROUTINE bound_pressure_impl_bp_arr
 
 
     SUBROUTINE bound_pressure_impl_nobp(ilevel, dp_f, dx_f, dy_f, dz_f, &
@@ -217,25 +225,37 @@ CONTAINS
         TYPE(field_t), POINTER, INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
-        INTEGER(intk) :: nboundtasks, ilevel_index, i, igrid, iface
-        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+        INTEGER(intk) :: nboundtasks, ilevel_index
 
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-        ASSOCIATE( &
-            p => dp_f%arr, &
-            pbuffer => dp_f%buffers, &
-            dx => dx_f%arr, &
-            dy => dy_f%arr, &
-            dz => dz_f%arr, &
-            ddx => ddx_f%arr, &
-            ddy => ddy_f%arr, &
-            ddz => ddz_f%arr)
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("bound_pressure_impl_nobp")
 #endif
+
+        CALL bound_pressure_impl_nobp_arr(nboundtasks, ilevel_index, &
+            dp_f%arr, dp_f%buffers, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE bound_pressure_impl_nobp
+
+
+    SUBROUTINE bound_pressure_impl_nobp_arr(nboundtasks, ilevel_index, p, &
+            pbuffer, dx, dy, dz, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nboundtasks, ilevel_index
+        REAL(realk), INTENT(inout) :: p(*), pbuffer(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, iface
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
@@ -249,6 +269,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE (iface)
             CASE (1)
                 CALL bfront(kk, jj, ii, 2, 3, 4, 2, &
@@ -275,13 +296,10 @@ CONTAINS
                     pbuffer(ipbb), p(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), dz(ipz))
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE bound_pressure_impl_nobp
+    END SUBROUTINE bound_pressure_impl_nobp_arr
 
 
     SUBROUTINE bfront(kk, jj, ii, i2, i3, i4, istag2, pbuffer, &
@@ -300,7 +318,7 @@ CONTAINS
 
         i = MIN(i3, i4)
 
-        !$omp parallel do collapse(2) private(j, k, pcnew, bpc, m, n)
+        !$omp do collapse(2) private(j, k, pcnew, bpc, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -314,7 +332,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bfront
 
 
@@ -335,7 +353,7 @@ CONTAINS
 
         i = MIN(i3, i4)
 
-        !$omp parallel do collapse(2) private(j, k, pcnew, bpc, sb11, sb12, &
+        !$omp do collapse(2) private(j, k, pcnew, bpc, sb11, sb12, &
         !$omp& sb13, sb14, fak, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
@@ -363,7 +381,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bfront_bp
 
 
@@ -383,7 +401,7 @@ CONTAINS
 
         j = MIN(j3, j4)
 
-        !$omp parallel do collapse(2) private(i, k, pcnew, bpc, l, n)
+        !$omp do collapse(2) private(i, k, pcnew, bpc, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -397,7 +415,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bright
 
 
@@ -418,7 +436,7 @@ CONTAINS
 
         j = MIN(j3, j4)
 
-        !$omp parallel do collapse(2) private(i, k, pcnew, bpc, sb11, sb12, &
+        !$omp do collapse(2) private(i, k, pcnew, bpc, sb11, sb12, &
         !$omp& sb13, sb14, fak, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
@@ -446,7 +464,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bright_bp
 
 
@@ -466,7 +484,7 @@ CONTAINS
 
         k = MIN(k3, k4)
 
-        !$omp parallel do collapse(2) private(j, i, pcnew, bpc, l, m)
+        !$omp do collapse(2) private(j, i, pcnew, bpc, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, &
@@ -480,7 +498,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bbottom
 
 
@@ -501,7 +519,7 @@ CONTAINS
 
         k = MIN(k3, k4)
 
-        !$omp parallel do collapse(2) private(j, i, pcnew, bpc, sb11, sb12, &
+        !$omp do collapse(2) private(j, i, pcnew, bpc, sb11, sb12, &
         !$omp& sb13, sb14, fak, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
@@ -529,7 +547,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE bbottom_bp
 
 

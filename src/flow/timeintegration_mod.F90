@@ -231,24 +231,54 @@ CONTAINS
         ! Local variables
         REAL(realk), ALLOCATABLE :: cflmax_grid(:)
         REAL(realk), ALLOCATABLE :: cflmax_pos_grid(:, :)
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+        INTEGER(intk) :: i, igrid
 
         ALLOCATE(cflmax_grid(nmygrids))
         ALLOCATE(cflmax_pos_grid(3, nmygrids))
-
-        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, bp => bp_f%arr, &
-            x => x_f%arr, y => y_f%arr, z => z_f%arr, &
-            dx => dx_f%arr, dy => dy_f%arr, dz => dz_f%arr, &
-            ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-            cflmaxgrid => cflmax_grid, cflmaxposgrid => cflmax_pos_grid)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compcflmax")
 #endif
 
+        CALL compcflmax_impl(u_f%arr, v_f%arr, w_f%arr, bp_f%arr, &
+            x_f%arr, y_f%arr, z_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr, cflmax_grid, &
+            cflmax_pos_grid, dt)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, cflmax=cflmax_grid(i), &
+                cflmax_pos=cflmax_pos_grid(:, i))
+        END DO
+
+        DEALLOCATE(cflmax_grid)
+        DEALLOCATE(cflmax_pos_grid)
+    END SUBROUTINE compcflmax
+
+
+    SUBROUTINE compcflmax_impl(u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, &
+            ddz, cflmaxgrid, cflmaxposgrid, dt)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), bp(*)
+        REAL(realk), INTENT(in) :: x(*), y(*), z(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(inout) :: cflmaxgrid(*)
+        REAL(realk), INTENT(inout) :: cflmaxposgrid(3, *)
+        REAL(realk), INTENT(in) :: dt
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+        TYPE(valpos_t) :: maxvalpos
+
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
-        !$omp& ip1y, ip1z) &
-        !$omp& map(from: cflmaxgrid, cflmaxposgrid)
+        !$omp& ip1y, ip1z, maxvalpos) &
+        !$omp& map(from: cflmaxgrid(1:nmygrids), &
+        !$omp& cflmaxposgrid(1:3, 1:nmygrids))
         DO i = 1, nmygrids
             igrid = mygrids(i)
             cflmaxgrid(i) = -HUGE(1.0_realk)
@@ -262,35 +292,30 @@ CONTAINS
             CALL get_ip1y(ip1y, igrid)
             CALL get_ip1z(ip1z, igrid)
 
-            CALL compcflmax_grid(cflmaxgrid(i), cflmaxposgrid(:, i), dt, &
+            CALL valpos_init(maxvalpos)
+            !$omp parallel
+            CALL compcflmax_grid(maxvalpos, dt, &
                 kk, jj, ii, u(ip3), v(ip3), w(ip3), bp(ip3), &
                 x(ip1x), y(ip1y), z(ip1z), dx(ip1x), dy(ip1y), dz(ip1z), &
                 ddx(ip1x), ddy(ip1y), ddz(ip1z))
+            !$omp end parallel
+
+            IF (maxvalpos%val >= 0.0_realk) THEN
+                cflmaxgrid(i) = maxvalpos%val * 0.25 * dt
+                cflmaxposgrid(1, i) = maxvalpos%x
+                cflmaxposgrid(2, i) = maxvalpos%y
+                cflmaxposgrid(3, i) = maxvalpos%z
+            END IF
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL itinfo_sample(igrid, cflmax=cflmaxgrid(i), &
-                cflmax_pos=cflmaxposgrid(:, i))
-        END DO
-
-        END ASSOCIATE
-
-        DEALLOCATE(cflmax_grid)
-        DEALLOCATE(cflmax_pos_grid)
-    END SUBROUTINE compcflmax
+    END SUBROUTINE compcflmax_impl
 
 
-    SUBROUTINE compcflmax_grid(cflmax, cflmax_pos, dt, kk, jj, ii, &
+    SUBROUTINE compcflmax_grid(maxvalpos, dt, kk, jj, ii, &
             u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
         !$omp declare target
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: cflmax, cflmax_pos(3)
+        TYPE(valpos_t), INTENT(inout) :: maxvalpos
         REAL(realk), INTENT(in) :: dt
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
@@ -300,16 +325,13 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
 
         ! Local variables
-        TYPE(valpos_t) :: maxvalpos, localvalpos
+        TYPE(valpos_t) :: localvalpos
         REAL(realk) :: cflmaxtemp, cflu, cflv, cflw
         INTEGER(intk) :: k, j, i
 
         cflmaxtemp = -HUGE(1.0_realk)
-        cflmax = -HUGE(1.0_realk)
-        cflmax_pos = -HUGE(1.0_realk)
-        CALL valpos_init(maxvalpos)
 
-        !$omp parallel do collapse(3) private(i, j, k, cflu, cflv, cflw, &
+        !$omp do collapse(3) private(i, j, k, cflu, cflv, cflw, &
         !$omp& cflmaxtemp, localvalpos) &
         !$omp& reduction(valpos:maxvalpos)
         DO i = 3, ii-2
@@ -355,15 +377,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
-        ! Only write output if a valid cell was found.
-        IF (maxvalpos%val >= 0.0_realk) THEN
-            cflmax = maxvalpos%val * 0.25 * dt
-            cflmax_pos(1) = maxvalpos%x
-            cflmax_pos(2) = maxvalpos%y
-            cflmax_pos(3) = maxvalpos%z
-        END IF
+        !$omp end do
     END SUBROUTINE compcflmax_grid
 
 
@@ -379,24 +393,51 @@ CONTAINS
         ! Local variables
         REAL(realk), ALLOCATABLE :: divmax_grid(:)
         REAL(realk), ALLOCATABLE :: divmax_pos_grid(:, :)
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+        INTEGER(intk) :: i, igrid
 
         ALLOCATE(divmax_grid(nmygrids))
         ALLOCATE(divmax_pos_grid(3, nmygrids))
-
-        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, bp => bp_f%arr, &
-            x => x_f%arr, y => y_f%arr, z => z_f%arr, &
-            rddx => rddx_f%arr, rddy => rddy_f%arr, rddz => rddz_f%arr, &
-            sdiv => sdiv_f%arr, &
-            divmaxgrid => divmax_grid, divmaxposgrid => divmax_pos_grid)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compdivmax")
 #endif
 
+        CALL compdivmax_impl(u_f%arr, v_f%arr, w_f%arr, bp_f%arr, &
+            x_f%arr, y_f%arr, z_f%arr, rddx_f%arr, rddy_f%arr, &
+            rddz_f%arr, sdiv_f%arr, divmax_grid, divmax_pos_grid)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, divmax=divmax_grid(i), &
+                divmax_pos=divmax_pos_grid(:, i))
+        END DO
+
+        DEALLOCATE(divmax_grid)
+        DEALLOCATE(divmax_pos_grid)
+    END SUBROUTINE compdivmax
+
+
+    SUBROUTINE compdivmax_impl(u, v, w, bp, x, y, z, rddx, rddy, rddz, &
+            sdiv, divmaxgrid, divmaxposgrid)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), bp(*)
+        REAL(realk), INTENT(in) :: x(*), y(*), z(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*), sdiv(*)
+        REAL(realk), INTENT(inout) :: divmaxgrid(*)
+        REAL(realk), INTENT(inout) :: divmaxposgrid(3, *)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+        TYPE(valpos_t) :: maxvalpos
+
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
-        !$omp& ip1y, ip1z) &
-        !$omp& map(from: divmaxgrid, divmaxposgrid)
+        !$omp& ip1y, ip1z, maxvalpos) &
+        !$omp& map(from: divmaxgrid(1:nmygrids), &
+        !$omp& divmaxposgrid(1:3, 1:nmygrids))
         DO i = 1, nmygrids
             igrid = mygrids(i)
             divmaxgrid(i) = -HUGE(1.0_realk)
@@ -410,37 +451,32 @@ CONTAINS
             CALL get_ip1y(ip1y, igrid)
             CALL get_ip1z(ip1z, igrid)
 
-            CALL compdivmax_grid(divmaxgrid(i), divmaxposgrid(:, i), &
+            CALL valpos_init(maxvalpos)
+            !$omp parallel
+            CALL compdivmax_grid(maxvalpos, &
                 kk, jj, ii, u(ip3), v(ip3), w(ip3), x(ip1x), y(ip1y), z(ip1z), &
                 rddx(ip1x), rddy(ip1y), rddz(ip1z), bp(ip3), sdiv(ip3))
+            !$omp end parallel
+
+            IF (maxvalpos%val >= 0.0_realk) THEN
+                divmaxgrid(i) = maxvalpos%val
+                divmaxposgrid(1, i) = maxvalpos%x
+                divmaxposgrid(2, i) = maxvalpos%y
+                divmaxposgrid(3, i) = maxvalpos%z
+            END IF
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL itinfo_sample(igrid, divmax=divmaxgrid(i), &
-                divmax_pos=divmaxposgrid(:, i))
-        END DO
-
-        END ASSOCIATE
-
-        DEALLOCATE(divmax_grid)
-        DEALLOCATE(divmax_pos_grid)
-    END SUBROUTINE compdivmax
+    END SUBROUTINE compdivmax_impl
 
 
     ! Simpler routine than "divcal", because this one does only compute the
     ! /max/ divergence and its location, and does not explicitly fill in
     ! a full 3-D divergcence field.
-    SUBROUTINE compdivmax_grid(divmax, divmax_pos, kk, jj, ii, u, v, w, &
+    SUBROUTINE compdivmax_grid(maxvalpos, kk, jj, ii, u, v, w, &
             x, y, z, rddx, rddy, rddz, bp, sdiv)
         !$omp declare target
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: divmax, divmax_pos(3)
+        TYPE(valpos_t), INTENT(inout) :: maxvalpos
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: u(kk, jj, ii)
         REAL(realk), INTENT(in) :: v(kk, jj, ii)
@@ -451,15 +487,11 @@ CONTAINS
         REAL(realk), INTENT(in) :: sdiv(kk, jj, ii)
 
         ! Local variables
-        TYPE(valpos_t) :: maxvalpos, localvalpos
+        TYPE(valpos_t) :: localvalpos
         INTEGER(intk) :: k, j, i
         REAL(realk) :: div
 
-        divmax = -HUGE(1.0_realk)
-        divmax_pos = -HUGE(1.0_realk)
-        CALL valpos_init(maxvalpos)
-
-        !$omp parallel do collapse(3) private(i, j, k, div, localvalpos) &
+        !$omp do collapse(3) private(i, j, k, div, localvalpos) &
         !$omp& reduction(valpos:maxvalpos)
         DO i = 3, ii-2
             DO j = 3, jj-2
@@ -478,15 +510,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
-        ! Only write output if a valid cell was found.
-        IF (maxvalpos%val >= 0.0_realk) THEN
-            divmax = maxvalpos%val
-            divmax_pos(1) = maxvalpos%x
-            divmax_pos(2) = maxvalpos%y
-            divmax_pos(3) = maxvalpos%z
-        END IF
+        !$omp end do
     END SUBROUTINE compdivmax_grid
 
 
@@ -530,17 +554,43 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
-        REAL(realk), ALLOCATABLE :: esumg_grid(:)
-        REAL(realk), ALLOCATABLE :: esums_grid(:)
-        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+        REAL(realk), ALLOCATABLE :: esumg_grid(:), vsumg_grid(:)
+        REAL(realk), ALLOCATABLE :: esums_grid(:), vsums_grid(:)
+        INTEGER(intk) :: i, igrid
 
         ALLOCATE(esumg_grid(nmygrids))
         ALLOCATE(esums_grid(nmygrids))
+        ALLOCATE(vsumg_grid(nmygrids))
+        ALLOCATE(vsums_grid(nmygrids))
 
-        ASSOCIATE(u => u_f%arr, v => v_f%arr, w => w_f%arr, g => g_f%arr, &
-            dx => dx_f%arr, dy => dy_f%arr, dz => dz_f%arr, &
-            ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-            esumggrid => esumg_grid, esumsgrid => esums_grid)
+        CALL compenergy_impl(u_f%arr, v_f%arr, w_f%arr, g_f%arr, dx_f%arr, &
+            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+            esumg_grid, esums_grid, vsumg_grid, vsums_grid)
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL itinfo_sample(igrid, esumg=esumg_grid(i), &
+                esums=esums_grid(i))
+        END DO
+
+        DEALLOCATE(esumg_grid)
+        DEALLOCATE(vsumg_grid)
+        DEALLOCATE(esums_grid)
+        DEALLOCATE(vsums_grid)
+    END SUBROUTINE compenergy
+
+
+    SUBROUTINE compenergy_impl(u, v, w, g, dx, dy, dz, ddx, ddy, ddz, &
+            esumggrid, esumsgrid, vsumggrid, vsumsgrid)
+        ! Subroutine arguments
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(inout) :: esumggrid(*), esumsgrid(*)
+        REAL(realk), INTENT(inout) :: vsumggrid(*), vsumsgrid(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compenergy")
@@ -548,11 +598,14 @@ CONTAINS
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
         !$omp& ip1y, ip1z) &
-        !$omp& map(from: esumggrid, esumsgrid)
+        !$omp& map(from: esumggrid(1:nmygrids), esumsgrid(1:nmygrids)) &
+        !$omp& map(alloc: vsumggrid(1:nmygrids), vsumsgrid(1:nmygrids))
         DO i = 1, nmygrids
             igrid = mygrids(i)
             esumggrid(i) = 0.0_realk
             esumsgrid(i) = 0.0_realk
+            vsumggrid(i) = 0.0_realk
+            vsumsgrid(i) = 0.0_realk
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
@@ -560,10 +613,20 @@ CONTAINS
             CALL get_ip1y(ip1y, igrid)
             CALL get_ip1z(ip1z, igrid)
 
-            CALL enerfg_grid(esumggrid(i), kk, jj, ii, u(ip3), v(ip3), w(ip3), &
-                dx(ip1x), dy(ip1y), dz(ip1z), ddx(ip1x), ddy(ip1y), ddz(ip1z))
-            CALL enerfs_grid(esumsgrid(i), kk, jj, ii, g(ip3), &
+            !$omp parallel
+            CALL enerfg_grid(esumggrid(i), vsumggrid(i), kk, jj, ii, &
+                u(ip3), v(ip3), w(ip3), dx(ip1x), dy(ip1y), dz(ip1z), &
                 ddx(ip1x), ddy(ip1y), ddz(ip1z))
+            CALL enerfs_grid(esumsgrid(i), vsumsgrid(i), kk, jj, ii, g(ip3), &
+                ddx(ip1x), ddy(ip1y), ddz(ip1z))
+            !$omp end parallel
+
+            IF (vsumggrid(i) > 0.0_realk) THEN
+                esumggrid(i) = esumggrid(i)/vsumggrid(i)
+            END IF
+            IF (vsumsgrid(i) > 0.0_realk) THEN
+                esumsgrid(i) = esumsgrid(i)/vsumsgrid(i)
+            END IF
         END DO
         !$omp end target teams distribute
 
@@ -571,35 +634,24 @@ CONTAINS
         CALL profile_range_pop()
 #endif
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL itinfo_sample(igrid, esumg=esumggrid(i), esums=esumsgrid(i))
-        END DO
-
-        END ASSOCIATE
-
-        DEALLOCATE(esumg_grid)
-        DEALLOCATE(esums_grid)
-    END SUBROUTINE compenergy
+    END SUBROUTINE compenergy_impl
 
 
-    SUBROUTINE enerfg_grid(esum, kk, jj, ii, u, v, w, dx, dy, dz, ddx, ddy, ddz)
+    SUBROUTINE enerfg_grid(esum, vsum, kk, jj, ii, u, v, w, dx, dy, dz, &
+            ddx, ddy, ddz)
         !$omp declare target
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: esum
+        REAL(realk), INTENT(inout) :: esum, vsum
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
         REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
 
         ! Local variables
-        REAL(realk) :: up, vp, wp, vsum, vol
+        REAL(realk) :: up, vp, wp, vol
         INTEGER(intk) :: k, j, i
 
-        esum = 0.0_realk
-        vsum = 0.0_realk
-
-        !$omp parallel do collapse(3) private(i, j, k, up, vp, wp, vol) &
+        !$omp do collapse(3) private(i, j, k, up, vp, wp, vol) &
         !$omp& reduction(+:esum, vsum)
         DO i = 3, ii-2
             DO j = 3, jj-2
@@ -619,29 +671,24 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
-        esum = esum/vsum
+        !$omp end do
     END SUBROUTINE enerfg_grid
 
 
-    SUBROUTINE enerfs_grid(esum, kk, jj, ii, g, ddx, ddy, ddz)
+    SUBROUTINE enerfs_grid(esum, vsum, kk, jj, ii, g, ddx, ddy, ddz)
         !$omp declare target
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: esum
+        REAL(realk), INTENT(inout) :: esum, vsum
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: g(kk, jj, ii)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
 
         ! Local variables
         REAL(realk), PARAMETER :: conv2s = 0.094
-        REAL(realk) :: delta, ener, vsum, vol
+        REAL(realk) :: delta, ener, vol
         INTEGER(intk) :: k, j, i
 
-        esum = 0.0_realk
-        vsum = 0.0_realk
-
-        !$omp parallel do collapse(3) private(i, j, k, delta, ener, vol) &
+        !$omp do collapse(3) private(i, j, k, delta, ener, vol) &
         !$omp& reduction(+:esum, vsum)
         DO i = 3, ii-2
             DO j = 3, jj-2
@@ -655,9 +702,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
-        esum = esum/vsum
+        !$omp end do
     END SUBROUTINE enerfs_grid
 
 

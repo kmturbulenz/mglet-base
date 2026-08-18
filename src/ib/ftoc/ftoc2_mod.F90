@@ -401,20 +401,38 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
 
         ! Local variables
+        ! none...
+
+        IF (nrtasks == 0) RETURN
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_recvtasks")
+#endif
+
+        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+        CALL check_recvtasks_dummy(nrtasks, rtasks)
+        END SUBROUTINE process_recvtasks
+
+
+        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
+            a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
         INTEGER(intk) :: itask, fieldid, tasksize, recvidx, igridc
         CHARACTER(len=1) :: flag
         INTEGER(intk) :: kk, jj, ii, ip3
         INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
         INTEGER(intk) :: ipos, jpos, kpos
-
-        IF (nrtasks == 0) RETURN
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("process_recvtasks")
-#endif
 
         !$omp target teams distribute private(itask, fieldid, flag, &
         !$omp& tasksize, recvidx, igridc, istart, istop, jstart, jstop, &
@@ -438,6 +456,7 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igridc)
             CALL get_ip3(ip3, igridc)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a1(ip3), &
@@ -468,20 +487,25 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
+    END SUBROUTINE process_recvtasks_impl
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
 
-        END ASSOCIATE
+    SUBROUTINE check_recvtasks_dummy(nrtasks, rtasks)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+
+        ! Local variables
+        ! none...
 
         IF (.NOT. ALL(rtasks(:, nrtasks+1) == -1)) THEN
             WRITE(*, *) "Did not encounter the expected dummy task."
             CALL errr(__FILE__, __LINE__)
         END IF
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE check_recvtasks_dummy
 
 
     SUBROUTINE prepare_recvtasks_all(rtasks, nrtasks, flag, &
@@ -654,20 +678,36 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: ddx, ddy, ddz
 
         ! Local variables
+        ! none...
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_selftasks_noib")
+#endif
+
+        CALL process_selftasks_noib_impl(netasks, etasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx%arr, ddy%arr, ddz%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_selftasks_noib
+
+
+    SUBROUTINE process_selftasks_noib_impl(netasks, etasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: netasks
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igridf, igridc, istart, istop, jstart, &
             jstop, kstart, kstop, ipos, jpos, kpos
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx%arr, ddy => ddy%arr, ddz => ddz%arr)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("process_selftasks_noib")
-#endif
 
         !$omp target teams distribute private(itask, fieldid, flag, &
         !$omp& tasksize, scratchidx, igridf, igridc, istart, istop, jstart, &
@@ -698,6 +738,7 @@ CONTAINS
             CALL get_ip1y(ipy, igridf)
             CALL get_ip1z(ipz, igridf)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
@@ -758,15 +799,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks_noib
+    END SUBROUTINE process_selftasks_noib_impl
 
 
     SUBROUTINE process_selftasks_gc(netasks, etasks, ddx_f, ddy_f, ddz_f, &
@@ -777,21 +813,37 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f, bp_f, bt_f
 
         ! Local variables
+        ! none...
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_selftasks_gc")
+#endif
+
+        CALL process_selftasks_gc_impl(netasks, etasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr, bp_f%arr, bt_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_selftasks_gc
+
+
+    SUBROUTINE process_selftasks_gc_impl(netasks, etasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz, bp, bt)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: netasks
+        INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+
+        ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
         INTEGER(intk) :: ip3f, ip3c, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igridf, igridc, istart, istop, jstart, &
             jstop, kstart, kstop, ipos, jpos, kpos
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-                  bp => bp_f%arr, bt => bt_f%arr)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("process_selftasks_gc")
-#endif
 
         !$omp target teams distribute private(itask, fieldid, flag, &
         !$omp& tasksize, scratchidx, igridf, igridc, istart, istop, jstart, &
@@ -822,6 +874,7 @@ CONTAINS
             CALL get_ip1y(ipy, igridf)
             CALL get_ip1z(ipz, igridf)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a1(ip3f), &
@@ -880,15 +933,10 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks_gc
+    END SUBROUTINE process_selftasks_gc_impl
 
 
     SUBROUTINE unpack_restricted_buffer(flag, kk, jj, ii, fc, buffer, &
@@ -946,7 +994,7 @@ CONTAINS
         nj = (jstop - jstart)/2 + 1
         nk = (kstop - kstart)/2 + 1
 
-        !$omp parallel do collapse(3) private(ic, jc, kc, icount)
+        !$omp do collapse(3) private(ic, jc, kc, icount)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -959,7 +1007,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
 #ifdef _MGLET_DEBUG_
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
@@ -985,7 +1033,7 @@ CONTAINS
         nj = (jstop - jstart)/2 + 1
         nk = (kstop - kstart)/2 + 1
 
-        !$omp parallel do collapse(3) private(ic, jc, kc, icount)
+        !$omp do collapse(3) private(ic, jc, kc, icount)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -1001,7 +1049,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
 #ifdef _MGLET_DEBUG_
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
@@ -1094,19 +1142,36 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f
 
         ! Local variables
+        ! none...
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_sendtasks_noib")
+#endif
+
+        CALL process_sendtasks_noib_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_sendtasks_noib
+
+
+    SUBROUTINE process_sendtasks_noib_impl(nstasks, stasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+
+        ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
             kstop
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("process_sendtasks_noib")
-#endif
 
         !$omp target teams distribute private(itask, fieldid, flag, icount, &
         !$omp& tasksize, igrid, istart, istop, jstart, jstop, kstart, kstop, &
@@ -1130,6 +1195,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a1(ip3), &
@@ -1160,15 +1226,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks_noib
+    END SUBROUTINE process_sendtasks_noib_impl
 
 
     SUBROUTINE process_sendtasks_gc(nstasks, stasks, ddx_f, ddy_f, ddz_f, &
@@ -1179,20 +1240,36 @@ CONTAINS
         TYPE(field_t), INTENT(in) :: ddx_f, ddy_f, ddz_f, bp_f, bt_f
 
         ! Local variables
+        ! none...
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("process_sendtasks_gc")
+#endif
+
+        CALL process_sendtasks_gc_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
+            ddz_f%arr, bp_f%arr, bt_f%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_sendtasks_gc
+
+
+    SUBROUTINE process_sendtasks_gc_impl(nstasks, stasks, a1, a2, a3, a4, &
+            a5, a6, ddx, ddy, ddz, bp, bt)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+
+        ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
         INTEGER(intk) :: fieldid, igrid, istart, istop, jstart, jstop, kstart, &
             kstop
         INTEGER(int32) :: icount, tasksize
         CHARACTER(len=1) :: flag
-
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr, &
-                  ddx => ddx_f%arr, ddy => ddy_f%arr, ddz => ddz_f%arr, &
-                  bp => bp_f%arr, bt => bt_f%arr)
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("process_sendtasks_gc")
-#endif
 
         !$omp target teams distribute private(itask, fieldid, flag, icount, &
         !$omp& tasksize, igrid, istart, istop, jstart, jstop, kstart, kstop, &
@@ -1216,6 +1293,7 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
                 CALL restrict_gc_flag(flag, kk, jj, ii, a1(ip3), &
@@ -1246,15 +1324,10 @@ CONTAINS
                 CALL errr(__FILE__, __LINE__)
 #endif
             END SELECT
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks_gc
+    END SUBROUTINE process_sendtasks_gc_impl
 
 
     SUBROUTINE process_mpirecv(nmpirtasks, mpirtasks)

@@ -469,14 +469,13 @@ CONTAINS
         iacc = -1
 
         ! Iterating over the hyperplanes H(k, j, i) = m
-        !$omp parallel private(m, lm, lp, ip, iacc, idx, idx_km, idx_jm, idx_im)
         DO m = n3dmin, n3dmax
 
             lm = INT(mip(m), intk)
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp loop bind(parallel)
+            !$omp do
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -500,14 +499,15 @@ CONTAINS
                 !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
 
             END DO
-            !$omp end loop
+            !$omp end do
 
-            ! > Implicit barrier at !$omp end do ignored...
+            ! The do construct should be followed by an implicit barrier that
+            ! synchronizes the threads within the team. However, amdflang does
+            ! not seem to implement this behavior as expected. Therefore, we add
+            ! an explicit barrier here to ensure that all threads have completed
+            ! their work before proceeding to the next hyperplane.
             !$omp barrier
-
         END DO
-        !$omp end parallel
-
     END SUBROUTINE sipiter1
 
 
@@ -532,14 +532,13 @@ CONTAINS
         iacc = -1
 
         ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
-        !$omp parallel private(m, lm, lp, ip, iacc, idx, idx_kp, idx_jp, idx_ip)
         DO m = n3dmax, n3dmin, -1
 
             lm = INT(mip(m), intk)
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp loop bind(parallel)
+            !$omp do
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -560,15 +559,20 @@ CONTAINS
                 !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
 
             END DO
-            !$omp end loop
+            !$omp end do
 
-            ! > Implicit barrier at !$omp end do ignored...
+            ! The do construct should be followed by an implicit barrier that
+            ! synchronizes the threads within the team. However, amdflang does
+            ! not seem to implement this behavior as expected. Therefore, we add
+            ! an explicit barrier here to ensure that all threads have completed
+            ! their work before proceeding to the next hyperplane.
             !$omp barrier
-
         END DO
 
+        ! TODO(offload): Barrier maybe not required?
+        !$omp barrier
 
-        !$omp loop bind(parallel) collapse(3) private(i, j, k, idx)
+        !$omp do collapse(3) private(i, j, k, idx)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -577,8 +581,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end loop
-        !$omp end parallel
-
+        !$omp end do
     END SUBROUTINE sipiter2
 END MODULE sip_hyperplane_mod

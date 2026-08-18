@@ -24,7 +24,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx, sum_ua, sum_a)
+        !$omp do collapse(3) private(i, j, k, idx, sum_ua, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -41,7 +41,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_noib_u
 
 
@@ -63,7 +63,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx, sum_va, sum_a)
+        !$omp do collapse(3) private(i, j, k, idx, sum_va, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -80,7 +80,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_noib_v
 
 
@@ -102,7 +102,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx, sum_wa, sum_a)
+        !$omp do collapse(3) private(i, j, k, idx, sum_wa, sum_a)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -119,7 +119,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_noib_w
 
 
@@ -141,7 +141,7 @@ CONTAINS
         nj = (jstop-jstart)/2+1
         nk = (kstop-kstart)/2+1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx, sum_pv, sum_v)
+        !$omp do collapse(3) private(i, j, k, idx, sum_pv, sum_v)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
@@ -163,6 +163,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
     END SUBROUTINE restrict_noib_s
 END MODULE noib_restrict_mod

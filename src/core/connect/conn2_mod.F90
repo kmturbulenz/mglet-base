@@ -1243,27 +1243,40 @@ CONTAINS
     ! Routine with offloaded kernel to process all sendtasks on the device
     !
     SUBROUTINE process_sendtasks(nstasks, stasks)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        ! none...
 
         IF (nstasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
 #endif
+
+        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_sendtasks
+
+
+    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
+        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  ii, jj, kk, ip3)
@@ -1284,6 +1297,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
@@ -1307,14 +1321,10 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE process_sendtasks
+    END SUBROUTINE process_sendtasks_impl
 
 
     SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
@@ -1331,7 +1341,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        !$omp do collapse(3) private(i, j, k, idx_b)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -1341,36 +1351,46 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
-
+        !$omp end do
     END SUBROUTINE arr_to_buf
 
 
     ! Routine with offloaded kernel to process all receive tasks on the device
     !
     SUBROUTINE process_recvtasks(nrtasks, rtasks)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
-            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        ! none...
 
         IF (nrtasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
-
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
 #endif
+
+        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_recvtasks
+
+
+    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nrtasks
+        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
+            jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
@@ -1392,6 +1412,7 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             ! Assign the correct field pointer
             SELECT CASE (fieldid)
             CASE (1)
@@ -1415,14 +1436,10 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE process_recvtasks
+    END SUBROUTINE process_recvtasks_impl
 
 
     SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
@@ -1439,7 +1456,7 @@ CONTAINS
         kkl = kstop - kstart + 1
         jjl = jstop - jstart + 1
 
-        !$omp parallel do collapse(3) private(i, j, k, idx_b)
+        !$omp do collapse(3) private(i, j, k, idx_b)
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
@@ -1449,7 +1466,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
     END SUBROUTINE buf_to_arr
 
@@ -1457,29 +1474,41 @@ CONTAINS
     ! Routine with offloaded kernel to process all selftasks on the device
     !
     SUBROUTINE process_selftasks(nstasks, stasks)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
 
         ! Local variables
-        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
-            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
-            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        ! none...
 
         ! Precheck to avoid kernel launch overhead
         IF (nstasks == 0) THEN
             RETURN
         END IF
 
-        ! At all cost, avoid pointers within the kernel or, even worse,
-        ! pointer operations within the kernel!
-        ASSOCIATE(a1 => f1%arr, a2 => f2%arr, a3 => f3%arr, &
-                  a4 => f4%arr, a5 => f5%arr, a6 => f6%arr)
-
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
 #endif
+
+        CALL process_selftasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+            f3%arr, f4%arr, f5%arr, f6%arr)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+    END SUBROUTINE process_selftasks
+
+
+    SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nstasks
+        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
+        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
+        ! Local variables
+        INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
+            kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
+            istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
 
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
@@ -1509,6 +1538,7 @@ CONTAINS
             CALL get_ip3(ip3_d, igrid_d)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            !$omp parallel
             SELECT CASE (fieldid)
             CASE (1)
                 CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
@@ -1537,14 +1567,10 @@ CONTAINS
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
-
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_pop()
-#endif
-        END ASSOCIATE
-    END SUBROUTINE process_selftasks
+    END SUBROUTINE process_selftasks_impl
 
 
     PURE SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &
@@ -1564,7 +1590,7 @@ CONTAINS
         joff = jstart - jstart_d
         ioff = istart - istart_d
 
-        !$omp parallel do collapse(3) private(i, j, k)
+        !$omp do collapse(3) private(i, j, k)
         DO i = istart_d, istop_d
             DO j = jstart_d, jstop_d
                 DO k = kstart_d, kstop_d
@@ -1573,7 +1599,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        !$omp end do
 
     END SUBROUTINE arr_to_arr
 
