@@ -134,7 +134,7 @@ CONTAINS
     END SUBROUTINE laplacephi_level_impl
 
 
-    PURE SUBROUTINE laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
+    SUBROUTINE laplacephi_grid(kk, jj, ii, res, phi, aw, ae, an, as, &
             at, ab, ap, bp)
         !$omp declare target
         ! Subroutine arguments

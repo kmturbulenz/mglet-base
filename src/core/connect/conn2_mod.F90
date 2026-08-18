@@ -1573,7 +1573,7 @@ CONTAINS
     END SUBROUTINE process_selftasks_impl
 
 
-    PURE SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &
+    SUBROUTINE arr_to_arr(kk, jj, ii, dst_rarr, src_rarr, &
             istart, istop, jstart, jstop, kstart, kstop, &
             istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         !$omp declare target
