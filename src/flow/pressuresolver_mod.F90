@@ -951,7 +951,7 @@ CONTAINS
             DO i = 1, ii
                 DO j = 1, jj
                     DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj
+                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
                         dp(idx) = dp(idx) + hilf(idx)
                     END DO
                 END DO
