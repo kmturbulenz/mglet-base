@@ -1,11 +1,18 @@
+
 MODULE commbuf_mod
+
     USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: int8
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_LOC, &
+        C_ASSOCIATED, C_NULL_PTR, c_size_t, c_int
+
     USE MPI_f08
+    USE omp_lib, ONLY: omp_get_default_device, omp_target_alloc, &
+        omp_target_associate_ptr, omp_target_disassociate_ptr, omp_target_free
 
     USE precision_mod, ONLY: int64, intk, realk, int_bytes, real_bytes, &
         ifk, ifk_bytes
     USE pointers_mod, ONLY: idim3d
+    USE err_mod, ONLY: errr
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -16,7 +23,7 @@ MODULE commbuf_mod
 
     ! A 1-byte integer data buffer as a core for simplicity
     INTEGER(int8), ALLOCATABLE, TARGET :: buffer(:)
-    !$omp declare target(buffer)
+    TYPE(C_PTR) :: device_buffer = C_NULL_PTR
 
     ! Various buffers that all point to the same core buffer
     REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:) => NULL()
@@ -25,12 +32,17 @@ MODULE commbuf_mod
     INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:) => NULL()
     !$omp declare target(sendbuf, recvbuf, bigbuf, intbuf)
 
+    ! Device-native aliases used only as MPI buffer arguments
+    REAL(realk), POINTER, CONTIGUOUS :: device_bigbuf(:) => NULL()
+    REAL(realk), POINTER, CONTIGUOUS :: device_sendbuf(:) => NULL()
+    REAL(realk), POINTER, CONTIGUOUS :: device_recvbuf(:) => NULL()
+
     INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:) => NULL()
     INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:) => NULL()
     INTEGER(ifk), POINTER, CONTIGUOUS :: irecvbuf(:) => NULL()
     !$omp declare target(ifkbuf, isendbuf, irecvbuf)
 
-    PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, &
+    PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, device_sendbuf, device_recvbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &
         increase_bigbuf, increase_intbuf, increase_ifkbuf, &
         init_commbuf, finish_commbuf, ifkbuf, isendbuf, irecvbuf
@@ -50,6 +62,9 @@ CONTAINS
 
 
     SUBROUTINE finish_commbuf()
+        INTEGER(c_int) :: errorcode
+        INTEGER :: device
+
         idim_mg_bufs = 0
         idim_mg_big = 0
         idim_mg_intbuf = 0
@@ -60,10 +75,20 @@ CONTAINS
         NULLIFY(recvbuf)
         NULLIFY(bigbuf)
         NULLIFY(intbuf)
+        NULLIFY(device_sendbuf)
+        NULLIFY(device_recvbuf)
+        NULLIFY(device_bigbuf)
         !$omp target update to(ifkbuf, isendbuf, irecvbuf, sendbuf, recvbuf, &
         !$omp& bigbuf, intbuf)
-        !$omp target exit data map(delete: buffer)
+
+        device = omp_get_default_device()
+        errorcode = omp_target_disassociate_ptr(C_LOC(buffer(1)), device)
+        IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
+        CALL omp_target_free(device_buffer, device)
+
         DEALLOCATE(buffer)
+        device_buffer = C_NULL_PTR
+
     END SUBROUTINE finish_commbuf
 
 
@@ -104,6 +129,8 @@ CONTAINS
         INTEGER(int64) :: corrlength
         TYPE(C_PTR) :: cptr
         INTEGER(int64) :: ifklength
+        INTEGER(c_int) :: errorcode
+        INTEGER :: device
 
         ! We correct the length to be a multiple of 32, to have a size that is
         ! dividable by two of quad prec reals
@@ -115,16 +142,33 @@ CONTAINS
         IF (ASSOCIATED(recvbuf)) NULLIFY(recvbuf)
         IF (ASSOCIATED(bigbuf)) NULLIFY(bigbuf)
         IF (ASSOCIATED(intbuf)) NULLIFY(intbuf)
+        IF (ASSOCIATED(device_bigbuf)) NULLIFY(device_bigbuf)
+        IF (ASSOCIATED(device_sendbuf)) NULLIFY(device_sendbuf)
+        IF (ASSOCIATED(device_recvbuf)) NULLIFY(device_recvbuf)
         IF (ASSOCIATED(ifkbuf)) NULLIFY(ifkbuf)
         IF (ASSOCIATED(isendbuf)) NULLIFY(isendbuf)
         IF (ASSOCIATED(irecvbuf)) NULLIFY(irecvbuf)
 
         IF (ALLOCATED(buffer)) THEN
-            !$omp target exit data map(delete: buffer)
+            device = omp_get_default_device()
+            errorcode = omp_target_disassociate_ptr(C_LOC(buffer(1)), device)
+            IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
+            CALL omp_target_free(device_buffer, device)
             DEALLOCATE(buffer)
+            device_buffer = C_NULL_PTR
         END IF
+
         ALLOCATE(buffer(corrlength))
-        !$omp target enter data map(always, to: buffer)
+
+        ! Allocating on device and checking device pointer association
+        device = omp_get_default_device()
+        device_buffer = omp_target_alloc(INT(corrlength, c_size_t), device)
+        IF (.NOT. C_ASSOCIATED(device_buffer)) CALL errr(__FILE__, __LINE__)
+
+        ! Telling OpenMP about the connections (H: buffer = D: device_buffer)
+        errorcode = omp_target_associate_ptr(C_LOC(buffer(1)), device_buffer, &
+            INT(corrlength, c_size_t), 0_c_size_t, device)
+        IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
 
         idim_mg_big = corrlength/real_bytes
         idim_mg_bufs = idim_mg_big/2
@@ -136,6 +180,12 @@ CONTAINS
         sendbuf => bigbuf(1:idim_mg_bufs)
         recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
         !$omp target update to(sendbuf, recvbuf)
+
+        ! Conversion of device pointer to Fortran pointer
+        CALL C_F_POINTER(device_buffer, device_bigbuf, [idim_mg_big])
+        ! Setting the Fortran pointers to relevant parts of the device buffer
+        device_sendbuf => device_bigbuf(1:idim_mg_bufs)
+        device_recvbuf => device_bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
 
         CALL C_F_POINTER(cptr, intbuf, [idim_mg_intbuf])
         !$omp target update to(intbuf)

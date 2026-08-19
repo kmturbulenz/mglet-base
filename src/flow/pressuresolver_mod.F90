@@ -695,7 +695,7 @@ CONTAINS
     END SUBROUTINE maxabscal_impl
 
 
-    PURE SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
+    SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
         ! Subroutine arguments
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -760,7 +760,7 @@ CONTAINS
     END SUBROUTINE rescal_impl
 
 
-    PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
+    SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -840,7 +840,7 @@ CONTAINS
     END SUBROUTINE mgpcorr_impl
 
 
-    PURE SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, bp, rdx, rdy, &
+    SUBROUTINE mgpcorr_grid(kk, jj, ii, u, v, w, p, dp, bp, rdx, rdy, &
             rdz, rfak)
         !$omp declare target
         ! Subroutine arguments
