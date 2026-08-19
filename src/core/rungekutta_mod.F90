@@ -318,42 +318,65 @@ CONTAINS
     ! U_j = U_(j-1) + B_j*dU_j
     SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
         ! Subroutine arguments
+#ifdef _MGLET_WORKAROUNDS_
         REAL(realk), INTENT(inout) :: p(*)
         REAL(realk), INTENT(inout) :: dp(*)
         REAL(realk), INTENT(in) :: rhsp(*)
+#else
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: p(:)
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: dp(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: rhsp(:)
+#endif
         REAL(realk), INTENT(in) :: frhs
         REAL(realk), INTENT(in) :: dtfu
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rkstep")
 #endif
 
-        ! Perform the update in a manually crafted loop is faster than using an
-        ! implicit loop, because of cache effects (dp(i) is already in cache
-        ! when p(i) is updated)
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
+#ifdef _MGLET_WORKAROUNDS_
+        BLOCK
+            ! Local variables
+            INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        dp(idx) = frhs*dp(idx) + rhsp(idx)
-                        p(idx) = p(idx) + dtfu*dp(idx)
+            ! Perform the update in a manually crafted loop is faster than
+            ! using an implicit loop, because of cache effects (dp(i) is
+            ! already in cache when p(i) is updated)
+            ! This is a 4D loop only because there are random crashes with
+            ! 1D loops using the amd compiler
+            !$omp target teams distribute private(imygrid, igrid, kk, jj, &
+            !$omp& ii, ip3)
+            DO imygrid = 1, nmygrids
+                igrid = mygrids(imygrid)
+                CALL get_mgdims(kk, jj, ii, igrid)
+                CALL get_ip3(ip3, igrid)
+
+                !$omp parallel do collapse(3) private(i, j, k, idx)
+                DO i = 1, ii
+                    DO j = 1, jj
+                        DO k = 1, kk
+                            idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
+                            dp(idx) = frhs*dp(idx) + rhsp(idx)
+                            p(idx) = p(idx) + dtfu*dp(idx)
+                        END DO
                     END DO
                 END DO
+                !$omp end parallel do
             END DO
-            !$omp end parallel do
-        END DO
+        END BLOCK
+#else
+        BLOCK
+            ! Local variables
+            INTEGER(intk) :: i
+
+            !$omp target teams loop
+            DO i = 1, SIZE(p)
+                dp(i) = frhs*dp(i) + rhsp(i)
+                p(i) = p(i) + dtfu*dp(i)
+            END DO
+            !$omp end target teams loop
+        END BLOCK
+#endif
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()

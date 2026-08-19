@@ -2,7 +2,6 @@ MODULE fieldpool_mod
     USE precision_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: basefield_t, field_t, intfield_t, nchar_name
-    USE fieldhelper_mod, ONLY: set_field_arr
 
     IMPLICIT NONE(type, external)
     PRIVATE
