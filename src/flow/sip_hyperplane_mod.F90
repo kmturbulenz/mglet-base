@@ -29,8 +29,8 @@ CONTAINS
         ! Setting up the hyperplane traversal infrastructure
         CALL mip_hp_f%init("SIP_MIP_HP")
         CALL idx_hp_f%init("SIP_IDX_HP")
-        CALL set_field_arr(mip_hp_f, 0_ifk, device=.FALSE.)
-        CALL set_field_arr(idx_hp_f, -1_ifk, device=.FALSE.)
+        CALL zero_field_arr(mip_hp_f)
+        CALL zero_field_arr(idx_hp_f)
 
         ASSOCIATE (mip => mip_hp_f%arr, idx => idx_hp_f%arr)
 

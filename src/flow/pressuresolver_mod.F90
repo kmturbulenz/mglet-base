@@ -189,10 +189,10 @@ CONTAINS
         CALL push_field(hilf, "HILF")
         CALL push_field(rhs, "RHS")
         CALL push_field(res, "RES")
-        CALL set_field_arr(dp, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(rhs, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(res, 0.0_realk, device=.TRUE.)
+        CALL zero_field_arr(dp, device=.TRUE.)
+        CALL zero_field_arr(hilf, device=.TRUE.)
+        CALL zero_field_arr(rhs, device=.TRUE.)
+        CALL zero_field_arr(res, device=.TRUE.)
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
@@ -265,7 +265,7 @@ CONTAINS
 
             ! dp = dp + hilf
             CALL accumulate_pcorr(dp, hilf)
-            CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
+            CALL zero_field_arr(hilf, device=.TRUE.)
             ipc = ipc + ninner
 
             ! Pressure solver debug logging
@@ -907,17 +907,30 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: dp
         TYPE(field_t), INTENT(in) :: hilf
 
-        ! Local variables
-        INTEGER(intk) :: n
-
         IF (SIZE(dp%arr) /= SIZE(hilf%arr)) CALL errr(__FILE__, __LINE__)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("accumulate_pcorr")
 #endif
 
-        n = SIZE(dp%arr)
-        CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
+#ifdef _MGLET_WORKAROUNDS_
+        BLOCK
+            INTEGER(intk) :: n
+            n = SIZE(dp%arr)
+            CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
+        END BLOCK
+#else
+        BLOCK
+            INTEGER(intk) :: i
+            ASSOCIATE (dp_arr => dp%arr, hilf_arr => hilf%arr)
+                !$omp target teams loop
+                DO i = 1, SIZE(dp_arr)
+                    dp_arr(i) = dp_arr(i) + hilf_arr(i)
+                END DO
+                !$omp end target teams loop
+            END ASSOCIATE
+        END BLOCK
+#endif
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -925,6 +938,7 @@ CONTAINS
     END SUBROUTINE accumulate_pcorr
 
 
+#ifdef _MGLET_WORKAROUNDS_
     SUBROUTINE accumulate_pcorr_impl(dp, hilf, n)
         ! Subroutine arguments
         REAL(realk), INTENT(inout) :: dp(*)
@@ -954,4 +968,6 @@ CONTAINS
             !$omp end parallel do
         END DO
     END SUBROUTINE accumulate_pcorr_impl
+#endif
+
 END MODULE pressuresolver_mod

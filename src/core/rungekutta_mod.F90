@@ -318,18 +318,25 @@ CONTAINS
     ! U_j = U_(j-1) + B_j*dU_j
     SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
         ! Subroutine arguments
+#ifdef _MGLET_WORKAROUNDS_
         REAL(realk), INTENT(inout) :: p(*)
         REAL(realk), INTENT(inout) :: dp(*)
         REAL(realk), INTENT(in) :: rhsp(*)
+#else
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: p(:)
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: dp(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: rhsp(:)
+#endif
         REAL(realk), INTENT(in) :: frhs
         REAL(realk), INTENT(in) :: dtfu
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rkstep")
 #endif
+
+#ifdef _MGLET_WORKAROUNDS_
+        ! Local variables
+        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
         ! Perform the update in a manually crafted loop is faster than using an
         ! implicit loop, because of cache effects (dp(i) is already in cache
@@ -354,6 +361,17 @@ CONTAINS
             END DO
             !$omp end parallel do
         END DO
+#else
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, SIZE(p)
+            dp(i) = frhs*dp(i) + rhsp(i)
+            p(i) = p(i) + dtfu*dp(i)
+        END DO
+        !$omp end target teams loop
+#endif
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
