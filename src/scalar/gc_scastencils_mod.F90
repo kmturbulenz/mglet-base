@@ -12,19 +12,20 @@ MODULE gc_scastencils_mod
 
     ! Stores both coeff and coeffp since MGLET does not decide which one is used
     ! upon initialization. It is only seen once set_scastencils is called.
-    TYPE scastencil_t
-        INTEGER(intk) :: icell
-        INTEGER(intk) :: body
-        INTEGER(intk) :: npts
-        INTEGER(intk) :: pts(nperi)
-        REAL(realk) :: areabyvol
-        REAL(realk) :: acoeff
-        REAL(realk) :: coeff(nperi)
-        REAL(realk) :: acoeffp
-        REAL(realk) :: coeffp(nperi)
+    TYPE, BIND(C) :: scastencil_t
+        INTEGER(c_intk) :: icell
+        INTEGER(c_intk) :: body
+        INTEGER(c_intk) :: npts
+        INTEGER(c_intk) :: pts(nperi)
+        REAL(c_realk) :: areabyvol
+        REAL(c_realk) :: acoeff
+        REAL(c_realk) :: coeff(nperi)
+        REAL(c_realk) :: acoeffp
+        REAL(c_realk) :: coeffp(nperi)
     END TYPE scastencil_t
 
-    TYPE(scastencil_t), ALLOCATABLE :: scastencils(:)
+    TYPE(scastencil_t), ALLOCATABLE, TARGET :: scastencils(:)
+    !$omp declare target(scastencils)
 
 
     ! Used only for creation of scalar stencils. Final result is stored in
@@ -50,6 +51,33 @@ MODULE gc_scastencils_mod
     INTEGER(intk), PARAMETER :: isize = 3 + nperi
     INTEGER(intk), PARAMETER :: rsize = 2 + nperi
 
+    INTERFACE
+        SUBROUTINE set_scastencils_t_c(ctyp, nstencils, stencils, &
+                geometries, t) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_char
+            USE precision_mod, ONLY: c_realk, c_intk
+            USE scacore_mod, ONLY: scalar_bc_t
+            IMPORT :: scastencil_t
+            CHARACTER(c_char), VALUE, INTENT(in) :: ctyp
+            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
+            TYPE(scastencil_t), INTENT(in) :: stencils(*)
+            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
+            REAL(c_realk), INTENT(inout) :: t(*)
+        END SUBROUTINE set_scastencils_t_c
+
+        SUBROUTINE set_scastencils_qtt_c(nstencils, stencils, &
+                geometries, qtt) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_ptr
+            USE scacore_mod, ONLY: scalar_bc_t
+            USE precision_mod, ONLY: c_realk, c_intk
+            IMPORT :: scastencil_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
+            TYPE(scastencil_t), INTENT(in) :: stencils(*)
+            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
+            REAL(c_realk), INTENT(inout) :: qtt(*)
+        END SUBROUTINE set_scastencils_qtt_c
+    END INTERFACE
+
     PUBLIC :: create_scastencils, finish_scastencils, set_scastencils
 CONTAINS
     SUBROUTINE create_scastencils(gc)
@@ -73,6 +101,7 @@ CONTAINS
                 nscastencils)
         END DO
         CALL trim_scastencils(nscastencils)
+        !$omp target enter data map(always, to: scastencils)
 
         ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
@@ -117,6 +146,7 @@ CONTAINS
 
 
     SUBROUTINE finish_scastencils()
+        !$omp target exit data map(always, delete: scastencils)
         DEALLOCATE(scastencils)
     END SUBROUTINE finish_scastencils
 
@@ -1083,71 +1113,27 @@ CONTAINS
     SUBROUTINE set_scastencils_t(ctyp, sca, t)
         ! Subroutine arguments
         CHARACTER(len=1), INTENT(in) :: ctyp
-        TYPE(scalar_t), INTENT(in) :: sca
+        TYPE(scalar_t), TARGET, INTENT(in) :: sca
         REAL(realk), INTENT(inout) :: t(*)
 
         ! Local variables
-        INTEGER(intk) :: i, n, bctype
-        REAL(realk) :: bcval, val
+        ! none...
 
-        IF (ctyp == "C") THEN
-            DO i = 1, SIZE(scastencils)
-                bctype = sca%geometries(scastencils(i)%body)%flag
-
-                val = 0.0
-                DO n = 1, scastencils(i)%npts
-                    val = val + t(scastencils(i)%pts(n)) &
-                        * scastencils(i)%coeff(n)
-                END DO
-
-                IF (bctype == 0) THEN
-                    bcval = sca%geometries(scastencils(i)%body)%value
-
-                    t(scastencils(i)%icell) = val + scastencils(i)%acoeff &
-                        * bcval
-                END IF
-            END DO
-        ELSE IF (ctyp == "P") THEN
-            DO i = 1, SIZE(scastencils)
-                bctype = sca%geometries(scastencils(i)%body)%flag
-
-                val = 0.0
-                DO n = 1, scastencils(i)%npts
-                    val = val + t(scastencils(i)%pts(n)) &
-                        * scastencils(i)%coeffp(n)
-                END DO
-
-                IF (bctype == 0) THEN
-                    bcval = sca%geometries(scastencils(i)%body)%value
-
-                    t(scastencils(i)%icell) = val + scastencils(i)%acoeffp &
-                        * bcval
-                END IF
-            END DO
-        END IF
+        CALL set_scastencils_t_c(ctyp, SIZE(scastencils), scastencils, &
+            sca%geometries, t)
     END SUBROUTINE set_scastencils_t
 
 
     SUBROUTINE set_scastencils_qtt(sca, qtt)
         ! Subroutine arguments
-        TYPE(scalar_t), INTENT(in) :: sca
+        TYPE(scalar_t), TARGET, INTENT(in) :: sca
         REAL(realk), INTENT(inout) :: qtt(*)
 
         ! Local variables
-        INTEGER(intk) :: istencil, bctype
-        REAL(realk) :: bcval
+        ! none...
 
-        DO istencil = 1, SIZE(scastencils)
-            bctype = sca%geometries(scastencils(istencil)%body)%flag
-
-            IF (bctype == 1) THEN
-                bcval = sca%geometries(scastencils(istencil)%body)%value
-
-                qtt(scastencils(istencil)%icell) &
-                    = qtt(scastencils(istencil)%icell) &
-                    + scastencils(istencil)%areabyvol*bcval
-            END IF
-        END DO
+        CALL set_scastencils_qtt_c(SIZE(scastencils), scastencils, &
+            sca%geometries, qtt)
     END SUBROUTINE set_scastencils_qtt
 
 

@@ -73,7 +73,9 @@ CONTAINS
 
             ! Ghost cell "flux" boundary condition applied to qtt field
             IF (ib%type == "GHOSTCELL") THEN
+                CALL map_arr_to_device(qtt, message="to:qtt")
                 CALL set_scastencils("P", scalar(l), qtt=qtt)
+                CALL map_arr_from_device(qtt, message="from:qtt")
             END IF
 
             ! In IRK 1, FRHS is zero, therefore we do not need to zeroize
@@ -92,7 +94,9 @@ CONTAINS
             ! Ghost cell "value" boundary condition applied to t field
             IF (ib%type == "GHOSTCELL") THEN
                 CALL connect(layers=2, s1=t, corners=.TRUE.)
+                CALL map_arr_to_device(t, message="to:t")
                 CALL set_scastencils("P", scalar(l), t=t)
+                CALL map_arr_from_device(t, message="from:t")
             END IF
 
             DO ilevel = maxlevel, minlevel+1, -1
