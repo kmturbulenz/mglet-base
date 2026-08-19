@@ -322,10 +322,8 @@ CONTAINS
         nrecv = nrecv + 1
         recvlist(nrecv) = iprocnbr
 
-        !$omp target data use_device_addr(recvbuf)
-        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+        CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
-        !$omp end target data
 
         recvcounter = recvcounter + messagelength
         messagelength = 0
@@ -1075,10 +1073,9 @@ CONTAINS
             messagelength = INT(mpistasks(2, itask), kind=int32)
             sendcounter = INT(mpistasks(3, itask), kind=int32)
 
-            !$omp target data use_device_addr(sendbuf)
-            CALL MPI_Isend(sendbuf(sendcounter+1), messagelength, &
+            CALL MPI_Isend(device_sendbuf(sendcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, sendreqs(itask))
-            !$omp end target data
+
         END DO
 
         nsend = nmpistasks
@@ -1348,10 +1345,9 @@ CONTAINS
             messagelength = INT(mpirtasks(2, itask), kind=int32)
             recvcounter = INT(mpirtasks(3, itask), kind=int32)
 
-            !$omp target data use_device_addr(recvbuf)
-            CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(itask))
-            !$omp end target data
+
         END DO
 
         nrecv = nmpirtasks

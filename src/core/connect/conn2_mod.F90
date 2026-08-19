@@ -2,7 +2,7 @@ MODULE conn2_mod
 
     USE MPI_f08
     USE precision_mod
-    USE commbuf_mod, ONLY: sendbuf, recvbuf
+    USE commbuf_mod, ONLY: sendbuf, recvbuf, device_sendbuf, device_recvbuf
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
@@ -1621,10 +1621,8 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        !$omp target data use_device_addr(recvbuf)
-        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+        CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
-        !$omp end target data
 
         recvcounter = recvcounter + messagelength
         messagelength = 0
@@ -1653,11 +1651,10 @@ CONTAINS
             messagelength = INT(mpistasks(2, itask), int32)
             sendcounter   = INT(mpistasks(3, itask), int32)
 
-            !$omp target data use_device_addr(sendbuf)
-            CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+            CALL MPI_Isend(device_sendbuf(sendcounter + 1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
                 sendreqs(itask))
-            !$omp end target data
+
         END DO
 
         nsend = nmpistasks
@@ -1698,10 +1695,8 @@ CONTAINS
             messagelength = INT(mpirtasks(2, itask), int32)
             recvcounter   = INT(mpirtasks(3, itask), int32)
 
-            !$omp target data use_device_addr(recvbuf)
-            CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(itask))
-            !$omp end target data
 
         END DO
 
