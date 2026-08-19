@@ -10,22 +10,20 @@ MODULE fieldhelper_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    INTERFACE set_field_arr
-        PROCEDURE set_field_arr_realk
-        PROCEDURE set_field_arr_ifk
-    END INTERFACE set_field_arr
+    INTERFACE zero_field_arr
+        PROCEDURE zero_field_arr_realk
+        PROCEDURE zero_field_arr_ifk
+    END INTERFACE zero_field_arr
 
-    PUBLIC :: set_field_arr, map_arr_to_device, map_arr_from_device, &
+    PUBLIC :: zero_field_arr, map_arr_to_device, map_arr_from_device, &
         map_buffers_to_device, map_buffers_from_device
 CONTAINS
-    SUBROUTINE set_field_arr_realk(field, val, device)
+    SUBROUTINE zero_field_arr_realk(field, device)
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: field
-        REAL(realk), INTENT(in) :: val
         LOGICAL, OPTIONAL, INTENT(in) :: device
 
         ! Local variables
-        INTEGER(intk) :: n
         LOGICAL :: device2
 
         IF (PRESENT(device)) THEN
@@ -35,26 +33,38 @@ CONTAINS
         END IF
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_push("set_field_arr_realk")
+            CALL profile_range_push("zero_field_arr_realk")
 #endif
 
         IF (device2) THEN
-            n = SIZE(field%arr)
-            CALL set_field_arr_realk_impl(field%arr, val)
+#ifdef _MGLET_WORKAROUNDS_
+            CALL zero_field_arr_realk_impl(field%arr)
+#else
+            BLOCK
+                INTEGER(intk) :: i
+                ASSOCIATE(arr => field%arr)
+                    !$omp target teams loop
+                    DO i = 1, SIZE(arr)
+                        arr(i) = 0.0_realk
+                    END DO
+                    !$omp end target teams loop
+                END ASSOCIATE
+            END BLOCK
+#endif
         ELSE
-            field%arr = val
+            field%arr = 0.0_realk
         END IF
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_pop()
 #endif
-    END SUBROUTINE set_field_arr_realk
+    END SUBROUTINE zero_field_arr_realk
 
 
-    SUBROUTINE set_field_arr_realk_impl(arr, val)
+#ifdef _MGLET_WORKAROUNDS_
+    SUBROUTINE zero_field_arr_realk_impl(arr)
         ! Subroutine arguments
         REAL(realk), INTENT(inout) :: arr(*)
-        REAL(realk), INTENT(in) :: val
 
         ! Local variables
         INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
@@ -72,23 +82,22 @@ CONTAINS
                 DO j = 1, jj
                     DO k = 1, kk
                         idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = val
+                        arr(idx) = 0.0_realk
                     END DO
                 END DO
             END DO
             !$omp end parallel do
         END DO
-    END SUBROUTINE set_field_arr_realk_impl
+    END SUBROUTINE zero_field_arr_realk_impl
+#endif
 
 
-    SUBROUTINE set_field_arr_ifk(field, val, device)
+    SUBROUTINE zero_field_arr_ifk(field, device)
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(inout) :: field
-        INTEGER(ifk), INTENT(in) :: val
         LOGICAL, OPTIONAL, INTENT(in) :: device
 
         ! Local variables
-        INTEGER(intk) :: n
         LOGICAL :: device2
 
         IF (PRESENT(device)) THEN
@@ -98,26 +107,38 @@ CONTAINS
         END IF
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
-        CALL profile_range_push("set_field_arr_ifk")
+        CALL profile_range_push("zero_field_arr_ifk")
 #endif
 
         IF (device2) THEN
-            n = SIZE(field%arr)
-            CALL set_field_arr_ifk_impl(field%arr, val)
+#ifdef _MGLET_WORKAROUNDS_
+            CALL zero_field_arr_ifk_impl(field%arr)
+#else
+            BLOCK
+                INTEGER(intk) :: i
+                ASSOCIATE(arr => field%arr)
+                    !$omp target teams loop
+                    DO i = 1, SIZE(arr)
+                        arr(i) = 0_intk
+                    END DO
+                    !$omp end target teams loop
+                END ASSOCIATE
+            END BLOCK
+#endif
         ELSE
-            field%arr = val
+            field%arr = 0_intk
         END IF
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
             CALL profile_range_pop()
 #endif
-    END SUBROUTINE set_field_arr_ifk
+    END SUBROUTINE zero_field_arr_ifk
 
 
-    SUBROUTINE set_field_arr_ifk_impl(arr, val)
+#ifdef _MGLET_WORKAROUNDS_
+    SUBROUTINE zero_field_arr_ifk_impl(arr)
         ! Subroutine arguments
         INTEGER(ifk), INTENT(inout) :: arr(*)
-        INTEGER(ifk), INTENT(in) :: val
 
         ! Local variables
         INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
@@ -135,13 +156,14 @@ CONTAINS
                 DO j = 1, jj
                     DO k = 1, kk
                         idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = val
+                        arr(idx) = 0_intk
                     END DO
                 END DO
             END DO
             !$omp end parallel do
         END DO
-    END SUBROUTINE set_field_arr_ifk_impl
+    END SUBROUTINE zero_field_arr_ifk_impl
+#endif
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)

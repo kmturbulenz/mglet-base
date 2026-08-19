@@ -38,10 +38,10 @@ CONTAINS
         CALL push_field(qtu, "QTU", istag=1)
         CALL push_field(qtv, "QTV", jstag=1)
         CALL push_field(qtw, "QTW", kstag=1)
-        CALL set_field_arr(qtt, 0.0_realk)
-        CALL set_field_arr(qtu, 0.0_realk)
-        CALL set_field_arr(qtv, 0.0_realk)
-        CALL set_field_arr(qtw, 0.0_realk)
+        CALL zero_field_arr(qtt)
+        CALL zero_field_arr(qtu)
+        CALL zero_field_arr(qtv)
+        CALL zero_field_arr(qtw)
 
         CALL stop_timer(401)
 

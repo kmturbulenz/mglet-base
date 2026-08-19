@@ -88,7 +88,7 @@ CONTAINS
         finecell%arr = 1.0
 
         CALL push_field(hilf, "HILF")
-        CALL set_field_arr(hilf, 0.0_realk)
+        CALL zero_field_arr(hilf)
 
         DO ilevel = maxlevel, minlevel, -1
             CALL ftoc(ilevel, hilf, finecell, 'P')
