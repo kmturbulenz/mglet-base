@@ -475,7 +475,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp parallel do private(ip, iacc, idx, idx_km, idx_jm, idx_im)
+            ! !$omp do private(ip, iacc, idx, idx_km, idx_jm, idx_im)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -499,7 +499,7 @@ CONTAINS
                 !     - ls(k, j, i)*res(k, j-1, i) - lb(k, j, i)*res(k-1, j, i)
 
             END DO
-            !$omp end parallel do
+            ! !$omp end do
         END DO
 
     END SUBROUTINE sipiter1
@@ -532,7 +532,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp parallel do private(ip, iacc, idx, idx_kp, idx_jp, idx_ip)
+            ! !$omp do private(ip, iacc, idx, idx_kp, idx_jp, idx_ip)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -553,10 +553,10 @@ CONTAINS
                 !     - ue(k, j, i)*res(k, j, i+1) - ut(k, j, i)*res(k+1, j, i)
 
             END DO
-            !$omp end parallel do
+            ! !$omp end do
         END DO
 
-        !$omp parallel do collapse(3) private(i, j, k, idx)
+        ! !$omp do collapse(3) private(i, j, k, idx)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -565,6 +565,7 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
+        ! !$omp end do
     END SUBROUTINE sipiter2
+
 END MODULE sip_hyperplane_mod

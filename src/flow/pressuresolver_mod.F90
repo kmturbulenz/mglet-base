@@ -666,7 +666,7 @@ CONTAINS
     END SUBROUTINE maxabscal
 
 
-    PURE SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
+    SUBROUTINE maxabscal_grid(kk, jj, ii, maxabs, phi)
         ! Subroutine arguments
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -677,7 +677,6 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         maxabs = 0.0
-        !$omp parallel do collapse(3) private(i, j, k) reduction(max:maxabs)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -685,7 +684,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
     END SUBROUTINE maxabscal_grid
 
 
@@ -719,7 +717,7 @@ CONTAINS
     END SUBROUTINE rescal
 
 
-    PURE SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
+    SUBROUTINE rescal_grid(kk, jj, ii, rhs, res)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -730,7 +728,6 @@ CONTAINS
         INTEGER(intk) :: k, j, i
 
         ! TODO: Check if indices can be extended
-        !$omp parallel do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -738,7 +735,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end parallel do
     END SUBROUTINE rescal_grid
 
 
