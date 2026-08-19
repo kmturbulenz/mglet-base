@@ -1,5 +1,6 @@
 MODULE ctof2_mod
     USE core_mod
+    USE commbuf_mod, ONLY: device_sendbuf, device_recvbuf
     USE ctof_core_mod
     USE MPI_f08
 
@@ -303,7 +304,6 @@ CONTAINS
         CALL profile_range_push("process_mpirecv")
 #endif
 
-        !$omp target data use_device_addr(recvbuf)
         DO i = 1, nmpirtasks
 
             ! Getting connection information
@@ -313,10 +313,9 @@ CONTAINS
 
             IF (iprocc == myid) CALL errr(__FILE__, __LINE__)
 
-            CALL MPI_Irecv(recvbuf(offset), messagelength, mglet_mpi_real, &
+            CALL MPI_Irecv(device_recvbuf(offset), messagelength, mglet_mpi_real, &
                 iprocc, 1, MPI_COMM_WORLD, recvreqs(i))
         END DO
-        !$omp end target data
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -554,7 +553,6 @@ CONTAINS
         CALL profile_range_push("process_mpisend")
 #endif
 
-        !$omp target data use_device_addr(sendbuf)
         DO i = 1, nmpistasks
 
             ! Getting connection information
@@ -565,10 +563,9 @@ CONTAINS
             IF (iprocf == myid) CALL errr(__FILE__, __LINE__)
 
             ! Non-blocking MPI call with request handle stored in sendreqs
-            CALL MPI_Isend(sendbuf(idx_sendbuf), messagelength, &
+            CALL MPI_Isend(device_sendbuf(idx_sendbuf), messagelength, &
                 mglet_mpi_real, iprocf, 1, MPI_COMM_WORLD, sendreqs(i))
         END DO
-        !$omp end target data
 
         ! Checking for the dummy entry at position (end+1)
         IF (mpistasks(1, nmpistasks+1) /= -1) THEN
