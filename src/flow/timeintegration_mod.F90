@@ -767,7 +767,7 @@ CONTAINS
     END SUBROUTINE maskbp_impl
 
 
-    PURE SUBROUTINE maskbp_grid(kk, jj, ii, u, v, w, p, bp)
+    SUBROUTINE maskbp_grid(kk, jj, ii, u, v, w, p, bp)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii

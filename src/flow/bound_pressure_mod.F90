@@ -170,6 +170,9 @@ CONTAINS
         INTEGER(intk) :: i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
 
+        ! Avoid kernel launch if no tasks are present
+        IF (nboundtasks == 0) RETURN
+
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
@@ -255,6 +258,9 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+
+        ! Avoid kernel launch if no tasks are present
+        IF (nboundtasks == 0) RETURN
 
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
