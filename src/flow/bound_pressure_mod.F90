@@ -119,6 +119,7 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
+        ! Commenting this function restores execution
         IF (PRESENT(bp_f)) THEN
             CALL bound_pressure_impl_bp(ilevel, dp_f, bp_f, dx_f, dy_f, dz_f, &
                 ddx_f, ddy_f, ddz_f)
@@ -169,6 +170,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+
+        IF (nboundtasks < 1) RETURN
 
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
@@ -255,6 +258,8 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, iface
         INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb
+
+        IF (nboundtasks < 1) RETURN
 
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)

@@ -22,6 +22,7 @@ MODULE timeintegration_mod
         REAL(realk) :: val
         REAL(realk) :: x, y, z
     END TYPE valpos_t
+
     !$omp declare reduction(valpos: valpos_t : &
     !$omp& omp_out = get_maxvalpos(omp_out, omp_in)) &
     !$omp& initializer(valpos_init(omp_priv))
@@ -109,9 +110,22 @@ CONTAINS
 
         ! dU_j = A_j*dU_(j-1) + dt*uo
         ! U_j = U_(j-1) + B_j*dU_j
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("rkstep")
+#endif
+
         CALL rkstep(u%arr, du%arr, uo%arr, frhs, dt*fu)
         CALL rkstep(v%arr, dv%arr, vo%arr, frhs, dt*fu)
         CALL rkstep(w%arr, dw%arr, wo%arr, frhs, dt*fu)
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("getibvalues")
+#endif
 
         IF (ib%type == "GHOSTCELL") THEN
             ! Equivalent to old "cop3dzero"
@@ -121,12 +135,24 @@ CONTAINS
             CALL getibvalues(u, v, w)
         END IF
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("setboundarybuffers")
+#endif
+
         IF (uinf_is_time) THEN
             DO ilevel = minlevel, maxlevel
                 timerk = timeph + dt*dtrk
                 CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=timerk)
             END DO
         END IF
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
 
         ! For divergence computation
         DO ilevel = minlevel, maxlevel
@@ -293,12 +319,11 @@ CONTAINS
             CALL get_ip1z(ip1z, igrid)
 
             CALL valpos_init(maxvalpos)
-            !$omp parallel
+
             CALL compcflmax_grid(maxvalpos, dt, &
                 kk, jj, ii, u(ip3), v(ip3), w(ip3), bp(ip3), &
                 x(ip1x), y(ip1y), z(ip1z), dx(ip1x), dy(ip1y), dz(ip1z), &
                 ddx(ip1x), ddy(ip1y), ddz(ip1z))
-            !$omp end parallel
 
             IF (maxvalpos%val >= 0.0_realk) THEN
                 cflmaxgrid(i) = maxvalpos%val * 0.25 * dt
@@ -331,9 +356,6 @@ CONTAINS
 
         cflmaxtemp = -HUGE(1.0_realk)
 
-        !$omp do collapse(3) private(i, j, k, cflu, cflv, cflw, &
-        !$omp& cflmaxtemp, localvalpos) &
-        !$omp& reduction(valpos:maxvalpos)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -377,7 +399,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end do
     END SUBROUTINE compcflmax_grid
 
 
@@ -452,11 +473,9 @@ CONTAINS
             CALL get_ip1z(ip1z, igrid)
 
             CALL valpos_init(maxvalpos)
-            !$omp parallel
             CALL compdivmax_grid(maxvalpos, &
                 kk, jj, ii, u(ip3), v(ip3), w(ip3), x(ip1x), y(ip1y), z(ip1z), &
                 rddx(ip1x), rddy(ip1y), rddz(ip1z), bp(ip3), sdiv(ip3))
-            !$omp end parallel
 
             IF (maxvalpos%val >= 0.0_realk) THEN
                 divmaxgrid(i) = maxvalpos%val
@@ -491,8 +510,6 @@ CONTAINS
         INTEGER(intk) :: k, j, i
         REAL(realk) :: div
 
-        !$omp do collapse(3) private(i, j, k, div, localvalpos) &
-        !$omp& reduction(valpos:maxvalpos)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -510,7 +527,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end do
     END SUBROUTINE compdivmax_grid
 
 
@@ -613,13 +629,11 @@ CONTAINS
             CALL get_ip1y(ip1y, igrid)
             CALL get_ip1z(ip1z, igrid)
 
-            !$omp parallel
             CALL enerfg_grid(esumggrid(i), vsumggrid(i), kk, jj, ii, &
                 u(ip3), v(ip3), w(ip3), dx(ip1x), dy(ip1y), dz(ip1z), &
                 ddx(ip1x), ddy(ip1y), ddz(ip1z))
             CALL enerfs_grid(esumsgrid(i), vsumsgrid(i), kk, jj, ii, g(ip3), &
                 ddx(ip1x), ddy(ip1y), ddz(ip1z))
-            !$omp end parallel
 
             IF (vsumggrid(i) > 0.0_realk) THEN
                 esumggrid(i) = esumggrid(i)/vsumggrid(i)
@@ -651,8 +665,6 @@ CONTAINS
         REAL(realk) :: up, vp, wp, vol
         INTEGER(intk) :: k, j, i
 
-        !$omp do collapse(3) private(i, j, k, up, vp, wp, vol) &
-        !$omp& reduction(+:esum, vsum)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -671,7 +683,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end do
     END SUBROUTINE enerfg_grid
 
 
@@ -688,8 +699,6 @@ CONTAINS
         REAL(realk) :: delta, ener, vol
         INTEGER(intk) :: k, j, i
 
-        !$omp do collapse(3) private(i, j, k, delta, ener, vol) &
-        !$omp& reduction(+:esum, vsum)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -702,7 +711,6 @@ CONTAINS
                 END DO
             END DO
         END DO
-        !$omp end do
     END SUBROUTINE enerfs_grid
 
 
