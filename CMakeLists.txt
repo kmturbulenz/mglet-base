@@ -62,6 +62,23 @@ if(MGLET_OFFLOAD)
     message(STATUS "Enabling OpenMP offloading")
     find_package(OpenMP REQUIRED)
     add_compile_definitions(_MGLET_OFFLOAD_=1)
+
+    set(MGLET_OFFLOAD_BACKEND "" CACHE STRING
+        "Offload backend (rocm or cuda)")
+    set_property(CACHE MGLET_OFFLOAD_BACKEND PROPERTY STRINGS rocm cuda)
+    if(MGLET_OFFLOAD_BACKEND STREQUAL "rocm")
+        message(STATUS "Enabling ROCm offload backend")
+        find_package(hip REQUIRED CONFIG)
+        find_package(rocblas REQUIRED CONFIG)
+        add_compile_definitions(_MGLET_ROCM_=1)
+    elseif(MGLET_OFFLOAD_BACKEND STREQUAL "cuda")
+        message(STATUS "Enabling CUDA offload backend")
+        find_package(CUDAToolkit REQUIRED)
+        add_compile_definitions(_MGLET_CUDA_=1)
+    else()
+        message(FATAL_ERROR "MGLET_OFFLOAD_BACKEND must be rocm or cuda "
+            "when MGLET_OFFLOAD is enabled")
+    endif()
 else()
     # Make sure MGLET_WORKAROUNDS is not enabled when MGLET_OFFLOAD is disabled
     if(MGLET_WORKAROUNDS)

@@ -1,6 +1,7 @@
 MODULE core_mod
     ! Should absolutely NOT 'USE' external modules like MPI and HDF5 here,
     ! because then they will get re-exported from this module!!!
+    USE blasbind_mod
     USE bound_mod
     USE buildinfo_mod
     USE charfunc_mod
@@ -101,6 +102,7 @@ CONTAINS
 #ifdef _MGLET_OFFLOAD_
         CALL init_offload()
 #endif
+        CALL init_blasbind()
         CALL init_timer()
 
         CALL set_timer(1, "MGLET")
@@ -149,6 +151,7 @@ CONTAINS
 
         CALL stop_timer(1)
         CALL finish_timer()
+        CALL finish_blasbind()
         CALL finish_buildinfo()
         CALL finish_precision()
         CALL finish_comms()
