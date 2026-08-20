@@ -914,11 +914,8 @@ CONTAINS
 #endif
 
 #ifdef _MGLET_WORKAROUNDS_
-        BLOCK
-            INTEGER(intk) :: n
-            n = SIZE(dp%arr)
-            CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
-        END BLOCK
+        CALL axpy(dp%arr, 1.0_realk, hilf%arr)
+        CALL synchronize()
 #else
         BLOCK
             INTEGER(intk) :: i
@@ -936,38 +933,5 @@ CONTAINS
         CALL profile_range_pop()
 #endif
     END SUBROUTINE accumulate_pcorr
-
-
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE accumulate_pcorr_impl(dp, hilf, n)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: dp(*)
-        REAL(realk), INTENT(in) :: hilf(*)
-        INTEGER(intk), INTENT(in) :: n
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        dp(idx) = dp(idx) + hilf(idx)
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE accumulate_pcorr_impl
-#endif
 
 END MODULE pressuresolver_mod
