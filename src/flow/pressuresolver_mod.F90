@@ -185,6 +185,9 @@ CONTAINS
             CALL get_field(bp, "BP")
         END IF
 
+        ! TODO(offload): Remove once surrounding subroutines are offloaded
+        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
+
         CALL push_field(dp, "DP")
         CALL push_field(hilf, "HILF")
         CALL push_field(rhs, "RHS")
@@ -193,9 +196,6 @@ CONTAINS
         CALL set_field_arr(hilf, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(rhs, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(res, 0.0_realk, device=.TRUE.)
-
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt

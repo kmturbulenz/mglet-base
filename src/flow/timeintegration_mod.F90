@@ -24,6 +24,7 @@ MODULE timeintegration_mod
     END TYPE valpos_t
 
     PUBLIC :: timeintegrate_flow, itinfo_flow
+
 CONTAINS
     SUBROUTINE timeintegrate_flow(itstep, ittot, timeph, dt, irk, rkscheme)
         ! Subroutine arguments
@@ -221,7 +222,6 @@ CONTAINS
         CALL get_field(rddz, "RDDZ")
 
         ! CFL and divergence diagnostics run on host data.
-        ! !$omp target update from(u%arr, v%arr, w%arr, bp%arr, sdiv%arr)
         CALL map_arr_to_device(g)
 
         CALL compcflmax(dt, u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
