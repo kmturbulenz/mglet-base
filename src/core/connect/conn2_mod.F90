@@ -265,9 +265,14 @@ CONTAINS
 
         !$omp taskwait
 
+        CALL map_conn_fields_from_device()
         CALL process_sendtasks(nsendtasks, sendtasks)
         CALL process_mpisend(nmpisendtasks, mpisendtasks)
+
+        ! still runs on device
         CALL process_selftasks(nselftasks, selftasks)
+
+        CALL map_conn_fields_from_device()
 
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
@@ -275,6 +280,7 @@ CONTAINS
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
+        CALL map_conn_fields_to_device()
     END SUBROUTINE jit_conn
 
 
@@ -295,11 +301,14 @@ CONTAINS
         nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
         CALL process_mpirecv(nmpirecvtasks, wptr%mpirecvtasks)
+        CALL map_conn_fields_from_device()
         CALL process_sendtasks(nsendtasks, wptr%sendtasks)
         CALL process_mpisend(nmpisendtasks, wptr%mpisendtasks)
         CALL process_selftasks(nselftasks, wptr%selftasks)
+        CALL map_conn_fields_from_device()
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
+        CALL map_conn_fields_to_device()
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
     END SUBROUTINE recorded_conn
 
@@ -342,14 +351,17 @@ CONTAINS
         !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
 
         CALL process_mpirecv(nmpirecvtasks, mpirecvtasks)
+        CALL map_conn_fields_from_device()
         CALL process_sendtasks(nsendtasks, sendtasks)
         CALL process_mpisend(nmpisendtasks, mpisendtasks)
         CALL process_selftasks(nselftasks, selftasks)
+        CALL map_conn_fields_from_device()
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
         CALL process_recvtasks(nrecvtasks, recvtasks)
+        CALL map_conn_fields_to_device()
 
         ! Allocate the workpackage arrays in the exact sizes
         ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
@@ -508,6 +520,18 @@ CONTAINS
 
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE map_conn_fields_from_device()
+        CALL map_arr_from_device(f1, f2, f3, f4, f5, f6, &
+            message="from:conn2 fields")
+    END SUBROUTINE map_conn_fields_from_device
+
+
+    SUBROUTINE map_conn_fields_to_device()
+        CALL map_arr_to_device(f1, f2, f3, f4, f5, f6, &
+            message="to:conn2 fields")
+    END SUBROUTINE map_conn_fields_to_device
 
 
     SUBROUTINE finish_conn2()
@@ -1277,9 +1301,6 @@ CONTAINS
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
-        !$omp target teams distribute private(itask, fieldid, icount, &
-        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3)
         DO itask = 1, nstasks
 
             ! Set variables from sendtasks workpackage
@@ -1323,7 +1344,8 @@ CONTAINS
             END SELECT
             !$omp end parallel
         END DO
-        !$omp end target teams distribute
+
+        !$omp target update to(sendbuf)
     END SUBROUTINE process_sendtasks_impl
 
 
@@ -1392,9 +1414,8 @@ CONTAINS
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
 
-        !$omp target teams distribute private(itask, fieldid, icount, &
-        !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3)
+        !$omp target update from(recvbuf)
+
         DO itask = 1, nrtasks
 
             ! Set variables from recvtasks workpackage
@@ -1438,7 +1459,6 @@ CONTAINS
             END SELECT
             !$omp end parallel
         END DO
-        !$omp end target teams distribute
     END SUBROUTINE process_recvtasks_impl
 
 
