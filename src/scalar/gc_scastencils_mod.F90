@@ -78,9 +78,9 @@ MODULE gc_scastencils_mod
         END SUBROUTINE set_scastencils_qtt_c
     END INTERFACE
 
-    PUBLIC :: create_scastencils, finish_scastencils, set_scastencils
+    PUBLIC :: init_scastencils, finish_scastencils, set_scastencils
 CONTAINS
-    SUBROUTINE create_scastencils(gc)
+    SUBROUTINE init_scastencils(gc)
         ! Subroutine arguments
         TYPE(gc_t), INTENT(in) :: gc
 
@@ -107,7 +107,7 @@ CONTAINS
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
             CALL writestencils()
         END IF
-    END SUBROUTINE create_scastencils
+    END SUBROUTINE init_scastencils
 
 
     SUBROUTINE overestimate_nscastencils(nscastencils, icells)
