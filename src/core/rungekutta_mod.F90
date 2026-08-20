@@ -4,6 +4,8 @@ MODULE rungekutta_mod
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids
     USE pointers_mod, ONLY: get_ip3
     USE precision_mod, ONLY: intk, realk
+    USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
+
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -325,6 +327,10 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("rkstep")
+#endif
+
         ! Perform the update in a manually crafted loop is faster than using an
         ! implicit loop, because of cache effects (dp(i) is already in cache
         ! when p(i) is updated)
@@ -348,5 +354,9 @@ CONTAINS
             END DO
             !$omp end parallel do
         END DO
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE rkstep
 END MODULE rungekutta_mod
