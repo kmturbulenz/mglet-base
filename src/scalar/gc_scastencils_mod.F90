@@ -1092,12 +1092,7 @@ CONTAINS
 
         IF (ctyp == "C") THEN
             DO i = 1, SIZE(scastencils)
-                bctype = 1
-                bcval = 0.0
-                IF (scastencils(i)%body > 0) THEN
-                    bctype = sca%geometries(scastencils(i)%body)%flag
-                    bcval = sca%geometries(scastencils(i)%body)%value
-                END IF
+                bctype = sca%geometries(scastencils(i)%body)%flag
 
                 val = 0.0
                 DO n = 1, scastencils(i)%npts
@@ -1106,18 +1101,15 @@ CONTAINS
                 END DO
 
                 IF (bctype == 0) THEN
+                    bcval = sca%geometries(scastencils(i)%body)%value
+
                     t(scastencils(i)%icell) = val + scastencils(i)%acoeff &
                         * bcval
                 END IF
             END DO
         ELSE IF (ctyp == "P") THEN
             DO i = 1, SIZE(scastencils)
-                bctype = 1
-                bcval = 0.0
-                IF (scastencils(i)%body > 0) THEN
-                    bctype = sca%geometries(scastencils(i)%body)%flag
-                    bcval = sca%geometries(scastencils(i)%body)%value
-                END IF
+                bctype = sca%geometries(scastencils(i)%body)%flag
 
                 val = 0.0
                 DO n = 1, scastencils(i)%npts
@@ -1126,6 +1118,8 @@ CONTAINS
                 END DO
 
                 IF (bctype == 0) THEN
+                    bcval = sca%geometries(scastencils(i)%body)%value
+
                     t(scastencils(i)%icell) = val + scastencils(i)%acoeffp &
                         * bcval
                 END IF
@@ -1144,14 +1138,11 @@ CONTAINS
         REAL(realk) :: bcval
 
         DO istencil = 1, SIZE(scastencils)
-            bctype = 1
-            bcval = 0.0
-            IF (scastencils(istencil)%body > 0) THEN
-                bctype = sca%geometries(scastencils(istencil)%body)%flag
-                bcval = sca%geometries(scastencils(istencil)%body)%value
-            END IF
+            bctype = sca%geometries(scastencils(istencil)%body)%flag
 
             IF (bctype == 1) THEN
+                bcval = sca%geometries(scastencils(istencil)%body)%value
+
                 qtt(scastencils(istencil)%icell) &
                     = qtt(scastencils(istencil)%icell) &
                     + scastencils(istencil)%areabyvol*bcval

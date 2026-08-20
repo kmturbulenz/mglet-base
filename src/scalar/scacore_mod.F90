@@ -117,7 +117,13 @@ CONTAINS
             SELECT TYPE(ib)
             TYPE IS (gc_t)
                 nstl = SIZE(ib%stlnames)
-                ALLOCATE(scalar(l)%geometries(nstl))
+                ! 0th boundary condition is the default
+                ALLOCATE(scalar(l)%geometries(0:nstl))
+
+                ! Default boundary condition
+                scalar(l)%geometries(0)%flag = 1
+                scalar(l)%geometries(0)%value = 0.0
+
                 DO n = 1, nstl
                     ! Read BC type
                     jsonptr = "/geometries/" // TRIM(ib%stlnames(n)) // "/type"
