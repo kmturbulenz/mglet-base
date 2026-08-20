@@ -1,5 +1,6 @@
 
 MODULE fieldhelper_mod
+    USE blasbind_mod, ONLY: memset
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
@@ -38,7 +39,7 @@ CONTAINS
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
-            CALL zero_field_arr_realk_impl(field%arr)
+            CALL memset(field%arr)
 #else
             BLOCK
                 INTEGER(intk) :: i
@@ -61,37 +62,6 @@ CONTAINS
     END SUBROUTINE zero_field_arr_realk
 
 
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE zero_field_arr_realk_impl(arr)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: arr(*)
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = 0.0_realk
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE zero_field_arr_realk_impl
-#endif
-
-
     SUBROUTINE zero_field_arr_ifk(field, device)
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(inout) :: field
@@ -112,7 +82,7 @@ CONTAINS
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
-            CALL zero_field_arr_ifk_impl(field%arr)
+            CALL memset(field%arr)
 #else
             BLOCK
                 INTEGER(intk) :: i
@@ -133,37 +103,6 @@ CONTAINS
             CALL profile_range_pop()
 #endif
     END SUBROUTINE zero_field_arr_ifk
-
-
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE zero_field_arr_ifk_impl(arr)
-        ! Subroutine arguments
-        INTEGER(ifk), INTENT(inout) :: arr(*)
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = 0_intk
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE zero_field_arr_ifk_impl
-#endif
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)
