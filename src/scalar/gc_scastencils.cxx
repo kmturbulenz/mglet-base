@@ -19,8 +19,8 @@ struct scastencil_t {
     mgletreal coeffp[nperi];
 };
 
-extern "C" void set_scastencils_qtt_c(const mgletint nscastencils, 
-        const scastencil_t* scastencils, const scalar_bc_t* geometries, 
+extern "C" void set_scastencils_qtt_c(const mgletint nscastencils,
+        const scastencil_t* scastencils, const scalar_bc_t* geometries,
         mgletreal* qtt) {
     #pragma omp target teams loop
     for (mgletint istencil = 0; istencil < nscastencils; ++istencil) {
@@ -31,7 +31,7 @@ extern "C" void set_scastencils_qtt_c(const mgletint nscastencils,
 
         if (bctype == 1) {
             const auto bcval = geometries[body].value;
-            
+
             // 1-based Fortran index
             const auto icell = scastencils[istencil].icell - 1;
             qtt[icell] = qtt[icell] + scastencils[istencil].areabyvol * bcval;
@@ -45,11 +45,15 @@ extern "C" void set_scastencils_t_c(const char ctyp, mgletint nscastencils,
     if (ctyp == 'C') {
         #pragma omp target teams loop
         for (mgletint istencil = 0; istencil < nscastencils; ++istencil) {
-            // 1-based Fortran index, but the 0th index in the Fortran array is 
-            // the default boundary condition. No need to subtract 1 from the 
+            // 1-based Fortran index, but the 0th index in the Fortran array is
+            // the default boundary condition. No need to subtract 1 from the
             // index.
             const auto body = scastencils[istencil].body;
             const auto bctype = geometries[body].flag;
+
+            if (bctype != 0) {
+                continue;
+            }
 
             auto val = mgletreal{0.0};
             for (mgletint n = 0; n < scastencils[istencil].npts; ++n) {
@@ -58,21 +62,23 @@ extern "C" void set_scastencils_t_c(const char ctyp, mgletint nscastencils,
                 val += t[pt] * scastencils[istencil].coeff[n];
             }
 
-            if (bctype == 0) {
-                const auto bcval = geometries[body].value;
-                // 1-based Fortran index
-                const auto icell = scastencils[istencil].icell - 1;
-                t[icell] = val + scastencils[istencil].acoeff * bcval;
-            }
+            const auto bcval = geometries[body].value;
+            // 1-based Fortran index
+            const auto icell = scastencils[istencil].icell - 1;
+            t[icell] = val + scastencils[istencil].acoeff * bcval;
         }
     } else if (ctyp == 'P') {
         #pragma omp target teams loop
         for (mgletint istencil = 0; istencil < nscastencils; ++istencil) {
-            // 1-based Fortran index, but the 0th index in the Fortran array is 
-            // the default boundary condition. No need to subtract 1 from the 
+            // 1-based Fortran index, but the 0th index in the Fortran array is
+            // the default boundary condition. No need to subtract 1 from the
             // index.
             const auto body = scastencils[istencil].body;
             const auto bctype = geometries[body].flag;
+
+            if (bctype != 0) {
+                continue;
+            }
 
             auto val = mgletreal{0.0};
             for (mgletint n = 0; n < scastencils[istencil].npts; ++n) {
@@ -81,12 +87,10 @@ extern "C" void set_scastencils_t_c(const char ctyp, mgletint nscastencils,
                 val += t[pt] * scastencils[istencil].coeffp[n];
             }
 
-            if (bctype == 0) {
-                const auto bcval = geometries[body].value;
-                // 1-based Fortran index
-                const auto icell = scastencils[istencil].icell - 1;
-                t[icell] = val + scastencils[istencil].acoeffp * bcval;
-            }
+            const auto bcval = geometries[body].value;
+            // 1-based Fortran index
+            const auto icell = scastencils[istencil].icell - 1;
+            t[icell] = val + scastencils[istencil].acoeffp * bcval;
         }
     }
 }
