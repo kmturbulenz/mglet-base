@@ -231,6 +231,7 @@
             "inherits": "llvm-release",
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BACKEND": "cuda",
                 "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
                 "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=sm_121",
                 "MGLET_Fortran_FLAGS_RELEASE": ""
@@ -286,6 +287,7 @@
             "hidden": true,
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BACKEND": "rocm",
                 "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
                 "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=gfx942"
             }
@@ -309,6 +311,7 @@
             "hidden": true,
             "cacheVariables": {
                 "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_BACKEND": "rocm",
                 "MGLET_OFFLOAD_COMPILE_FLAGS": "-fopenmp-version=52",
                 "MGLET_OFFLOAD_ARCH_FLAGS": "--offload-arch=gfx1201"
             }

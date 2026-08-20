@@ -1,4 +1,5 @@
 add_library(core STATIC
+    blasbind_mod.F90
     bound_mod.F90
     buildinfo_mod.F90
     charfunc_mod.F90
@@ -68,6 +69,10 @@ target_link_libraries(core
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},rocm>:hip::amdhip64>
+    PRIVATE $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},rocm>:roc::rocblas>
+    PRIVATE $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},cuda>:CUDA::cudart>
+    PRIVATE $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},cuda>:CUDA::cublas>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},roctx>:rocprofiler-sdk-roctx::rocprofiler-sdk-roctx>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},nvtx>:CUDA::nvtx3>
 )
