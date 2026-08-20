@@ -82,7 +82,9 @@ CONTAINS
 
             ! dT_j = A_j*dT_(j-1) + QTT
             ! T_j = T_(j-1) + B_j*dT_j
+            CALL map_arr_to_device(t, dt_f, qtt, message="to:t|dt|qtt")
             CALL rkstep(t%arr, dt_f%arr, qtt%arr, frhs, dt*fu)
+            CALL map_arr_from_device(t, dt_f, qtt, message="from:t|dt|qtt")
 
             ! Mask blocked cells
             CALL maskbt(t)

@@ -11,12 +11,12 @@ MODULE flowcore_mod
     ! Fluid/physical paramters
     REAL(realk), PROTECTED :: gmol
     REAL(realk), PROTECTED :: rho
-    !$omp declare target(gmol, rho)
     REAL(realk), PROTECTED :: uinf(3) = 0.0
     REAL(realk), PROTECTED :: tu_level
     REAL(realk), PROTECTED :: targetcflmax
     REAL(realk), PROTECTED :: gradp(3)
     LOGICAL, PROTECTED :: compbodyforce
+    !$omp declare target(gmol, rho, gradp)
 
     ! TODO: Allocatable length - some expressions can be LONG!
     CHARACTER(len=10240), PROTECTED :: uinf_expr(3) = ""
@@ -57,7 +57,6 @@ CONTAINS
             WRITE(*, *) "Viscosity must be positive: ", gmol
             CALL errr(__FILE__, __LINE__)
         END IF
-        !$omp target update to(gmol)
 
         ! Either uinf is real or expression
         IF (flowconf%is_real("/uinf/0")) THEN
@@ -102,7 +101,6 @@ CONTAINS
             WRITE(*, *) "Density must be positive: ", rho
             CALL errr(__FILE__, __LINE__)
         END IF
-        !$omp target update to(rho)
 
         CALL flowconf%get_value("/tu_level", tu_level, 0.1)
         IF (tu_level < 0.0) THEN
@@ -125,6 +123,8 @@ CONTAINS
             CALL flowconf%set_value("/gradp/1", 0.0)
             CALL flowconf%set_value("/gradp/2", 0.0)
         END IF
+
+        !$omp target update to(gmol, rho, gradp)
 
         CALL set_field("U", istag=1, units=units_v, dread=dread, &
             required=dread, dwrite=dwrite, buffers=.TRUE.)

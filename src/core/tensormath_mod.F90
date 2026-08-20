@@ -64,6 +64,7 @@ CONTAINS
 
 
     PURE TYPE(tensor_t) FUNCTION t(this)
+        !$omp declare target
         ! Transpose a tensor
 
         ! Function arguments
@@ -74,6 +75,7 @@ CONTAINS
 
 
     PURE TYPE(tensor_t) FUNCTION sqr(this)
+        !$omp declare target
         ! Multiply a tensor with itself (standard matrix multiplication)
         ! T_ij^2 = T_ik*T_kj
 
@@ -92,6 +94,7 @@ CONTAINS
 
 
     PURE REAL(realk) FUNCTION trace(this)
+        !$omp declare target
         ! Trace of a tensor
 
         ! Function arguments
@@ -124,6 +127,7 @@ CONTAINS
 
 
     PURE TYPE(tensor_t) FUNCTION multiply(this, that)
+        !$omp declare target
         ! Multiply two tensors, standard matrix multiplication rules
         ! R_ij = T_ik*G_kj
 
@@ -148,6 +152,7 @@ CONTAINS
 
 
     PURE REAL(realk) FUNCTION det(this)
+        !$omp declare target
         ! Computes determinant
 
         ! Function arguments
@@ -219,6 +224,7 @@ CONTAINS
 
 
     PURE SUBROUTINE eig_b(this, eig1, eig2, eig3)
+        !$omp declare target
         ! Eigenvalue calculation
         ! K. Hasan, P. Basser, D. Parker, and A. Alexander, "Analytical
         ! computation of the eigenvalues and eigenvectors in dt-mri,"

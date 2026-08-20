@@ -194,9 +194,6 @@ CONTAINS
         CALL set_field_arr(rhs, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(res, 0.0_realk, device=.TRUE.)
 
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p%arr")
-
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
         CALL divcal(rhs, u, v, w, prefak, device=.TRUE.)
@@ -325,8 +322,6 @@ CONTAINS
             CALL ftoc(ilevel, u, v, w, p, device=.TRUE.)
         END DO
 
-        CALL map_arr_from_device(u, v, w, p, message="from:u|v|w|p%arr")
-
         ! All levels (coarse to fine)
         ! Propagation of the solution to neighbours and childs
         ! The order of the calls is crucial:
@@ -334,9 +329,9 @@ CONTAINS
         ! - Second to connect inside the level. Now also the correct information
         !   in the the ghost layers at PAR-boundaries is used in connect.
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w, p)
-            CALL bound_flow%bound(ilevel, u, v, w, p)
-            CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
+            CALL parent(ilevel, u, v, w, p, device=.TRUE.)
+            CALL apply_bound_flow(ilevel, u, v, w, p)
+            CALL conn(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         CALL pop_field(res)

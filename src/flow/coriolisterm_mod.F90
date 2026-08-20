@@ -68,6 +68,12 @@ CONTAINS
         CALL get_field(v_f, "V")
         CALL get_field(w_f, "W")
 
+        CALL map_arr_from_device(u_f, v_f, w_f, &
+            message="coriolisterm:from:u|v|w")
+        CALL map_arr_from_device(uo_f, vo_f, wo_f, &
+            message="coriolisterm:from:uo|vo|wo")
+        ! TODO: when scalar is also on device, map scafield from device as well
+
         ! iterating over all grids on processor (from grids_mod.F90)
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -89,6 +95,11 @@ CONTAINS
                 uo, vo, wo, u, v, w, &
                 nfro, nbac, nrgt, nlft, nbot, ntop)
         END DO
+
+        CALL map_arr_to_device(uo_f, vo_f, wo_f, &
+            message="coriolisterm:to:uo|vo|wo")
+        ! No need to map u, v, w back to device since they are not
+        ! modified in this subroutine
 
         CALL stop_timer(370)
 

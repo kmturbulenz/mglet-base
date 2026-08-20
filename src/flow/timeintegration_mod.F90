@@ -67,9 +67,6 @@ CONTAINS
         CALL push_field(uo, "UO")
         CALL push_field(vo, "VO")
         CALL push_field(wo, "WO")
-        CALL set_field_arr(uo, 0.0_realk)
-        CALL set_field_arr(vo, 0.0_realk)
-        CALL set_field_arr(wo, 0.0_realk)
 
         ! Transporting velocities for the convective terms
         ! Only CC use a different transporting velocity
@@ -99,11 +96,16 @@ CONTAINS
 
         ! Compute the GC fluxes
         IF (irk == 1 .AND. ib%type == "GHOSTCELL") THEN
+            ! u, v, w should exist on the host in an updated state from the
+            ! prev. time step, so no need to map /from/ device here
             CALL setibvalues(u, v, w)
+            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
         ! TSTLE4 zeroize uo, vo, wo before use internally
         CALL tstle4(uo, vo, wo, pwu, pwv, pww, ut, vt, wt, p, g)
+
+        ! Offloading support for these ignored atm.
         CALL boussinesqterm(uo, vo, wo)
         CALL coriolisterm(uo, vo, wo)
 
@@ -118,21 +120,30 @@ CONTAINS
             CALL maskbp(u, v, w, p)
 
             ! Equivalent to old boundmg with ityp 'R'
+            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL getibvalues(u, v, w)
+            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
         IF (uinf_is_time) THEN
+            ! This sets buffers on the host, then transfer them to the device.
+            ! We will probably never get exprtk to run on the device, so
+            ! the general recommendation will be to never use a
+            ! time-dependent uinf expression with offloading enabled, but it
+            ! is possible to do so if the user wants to pay the performance
+            ! penalty of transferring the buffers every time step.
             DO ilevel = minlevel, maxlevel
                 timerk = timeph + dt*dtrk
                 CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=timerk)
             END DO
+            CALL map_buffers_to_device(u, v, w)
         END IF
 
         ! For divergence computation
         DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, normal=.true., forward=1)
-            CALL parent(ilevel, u, v, w, p)
-            CALL bound_flow%bound(ilevel, u, v, w, p)
+            CALL conn(ilevel, 1, v1=u, v2=v, v3=w, normal=.true., forward=1)
+            CALL parent(ilevel, u, v, w, p, device=.TRUE.)
+            CALL apply_bound_flow(ilevel, u, v, w, p)
         END DO
 
         ! TODO: check dtrk
@@ -141,7 +152,9 @@ CONTAINS
 
         IF (ib%type == "GHOSTCELL") THEN
             lastrk = (irk == rkscheme%nrk)
+            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, lastrk)
+            CALL map_arr_to_device(pwu, pwv, pww, message="to:pwu|pwv|pww")
         END IF
 
         ! TODO: mgplevel
@@ -149,6 +162,20 @@ CONTAINS
         CALL pop_field(wo)
         CALL pop_field(vo)
         CALL pop_field(uo)
+
+        ! Synchronize fields to host for sampling (probes, statistics) - last
+        ! RK step only, since the other steps are intermediate and not used for
+        ! sampling.
+        IF (irk == rkscheme%nrk) THEN
+            IF (ib%type == "GHOSTCELL") THEN
+                ! u, v, w mapped from device already above, so only p and g
+                ! need to be mapped
+                CALL map_arr_from_device(p, g, message="from:p|g")
+            ELSE
+                CALL map_arr_from_device(u, v, w, p, g, &
+                    message="from:u|v|w|p|g")
+            END IF
+        END IF
 
         CALL stop_timer(300)
     END SUBROUTINE timeintegrate_flow
@@ -198,9 +225,6 @@ CONTAINS
         CALL get_field(rddy, "RDDY")
         CALL get_field(rddz, "RDDZ")
 
-        ! TODO(offload): Remove once surrounding subroutines are offloaded
-        CALL map_arr_to_device(u, v, w, g)
-
         CALL compcflmax(dt, u, v, w, bp, x, y, z, dx, dy, dz, ddx, ddy, ddz)
         CALL compdivmax(u, v, w, bp, x, y, z, rddx, rddy, rddz, sdiv)
         CALL compenergy(u, v, w, g, dx, dy, dz, ddx, ddy, ddz)
@@ -211,6 +235,9 @@ CONTAINS
 
         IF (compbodyforce .AND. ib%type == "GHOSTCELL") THEN
             CALL get_field(p, "P")
+            ! TODO: Remove as soon as sample_compbodyforce is offloaded to
+            ! device.
+            CALL map_arr_from_device(u, v, w, p, g, message="from:u|v|w")
             CALL sample_compbodyforce(u, v, w, p, g, ittot, timeph)
         END IF
 
@@ -710,25 +737,38 @@ CONTAINS
         ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: u, v, w, p
 
-        ! Local variables
-        INTEGER(intk) :: i, ip3, igrid
-        INTEGER(intk) :: kk, jj, ii
         TYPE(field_t), POINTER :: bp
 
         CALL get_field(bp, "BP")
 
+        CALL maskbp_impl(u%arr, v%arr, w%arr, p%arr, bp%arr)
+    END SUBROUTINE maskbp
+
+
+    SUBROUTINE maskbp_impl(u, v, w, p, bp)
+        REAL(realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
+        REAL(realk), INTENT(in) :: bp(*)
+
+        INTEGER(intk) :: i, ip3, igrid
+        INTEGER(intk) :: kk, jj, ii
+
+        !$omp target teams distribute private(i, ip3, igrid, kk, jj, ii)
         DO i = 1, nmygrids
             igrid = mygrids(i)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
 
-            CALL maskbp_grid(kk, jj, ii, u%arr(ip3), v%arr(ip3), w%arr(ip3), &
-                p%arr(ip3), bp%arr(ip3))
+            !$omp parallel
+            CALL maskbp_grid(kk, jj, ii, u(ip3), v(ip3), w(ip3), p(ip3), &
+                bp(ip3))
+            !$omp end parallel
         END DO
-    END SUBROUTINE maskbp
+        !$omp end target teams distribute
+    END SUBROUTINE maskbp_impl
 
 
     PURE SUBROUTINE maskbp_grid(kk, jj, ii, u, v, w, p, bp)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: u(kk, jj, ii), v(kk, jj, ii), &
@@ -738,21 +778,44 @@ CONTAINS
         ! Local variables
         INTEGER :: k, j, i
 
+        !$omp do collapse(3) private(i, j, k)
         DO i = 1, ii-1
             DO j = 1, jj-1
                 DO k = 1, kk-1
                     u(k, j, i) = u(k, j, i)*bp(k, j, i)*bp(k, j, i+1)
                 END DO
+            END DO
+        END DO
+        !$omp end do
+
+        !$omp do collapse(3) private(i, j, k)
+        DO i = 1, ii-1
+            DO j = 1, jj-1
                 DO k = 1, kk-1
                     v(k, j, i) = v(k, j, i)*bp(k, j, i)*bp(k, j+1, i)
                 END DO
+            END DO
+        END DO
+        !$omp end do
+
+        !$omp do collapse(3) private(i, j, k)
+        DO i = 1, ii-1
+            DO j = 1, jj-1
                 DO k = 1, kk-1
                     w(k, j, i) = w(k, j, i)*bp(k, j, i)*bp(k+1, j, i)
                 END DO
+            END DO
+        END DO
+        !$omp end do
+
+        !$omp do collapse(3) private(i, j, k)
+        DO i = 1, ii-1
+            DO j = 1, jj-1
                 DO k = 1, kk-1
                     p(k, j, i) = p(k, j, i)*bp(k, j, i)
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE maskbp_grid
 END MODULE timeintegration_mod
