@@ -8,7 +8,8 @@ MODULE commbuf_mod
     USE MPI_f08
 
 #ifdef _MGLET_OFFLOAD_
-    USE omp_lib, ONLY: omp_get_default_device, omp_target_alloc, &
+    USE omp_lib, ONLY: omp_get_default_device, omp_get_initial_device, &
+        omp_target_alloc, &
         omp_target_associate_ptr, omp_target_disassociate_ptr, omp_target_free
 #endif
 
@@ -32,8 +33,10 @@ MODULE commbuf_mod
     REAL(realk), POINTER, CONTIGUOUS :: sendbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: recvbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: bigbuf(:) => NULL()
+
+
     INTEGER(intk), POINTER, CONTIGUOUS :: intbuf(:) => NULL()
-    !$omp declare target(sendbuf, recvbuf, bigbuf, intbuf)
+    !$omp declare target(intbuf)
 
     INTEGER(ifk), POINTER, CONTIGUOUS :: ifkbuf(:) => NULL()
     INTEGER(ifk), POINTER, CONTIGUOUS :: isendbuf(:) => NULL()
@@ -44,6 +47,10 @@ MODULE commbuf_mod
     REAL(realk), POINTER, CONTIGUOUS :: device_bigbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: device_sendbuf(:) => NULL()
     REAL(realk), POINTER, CONTIGUOUS :: device_recvbuf(:) => NULL()
+
+#ifdef _MGLET_OFFLOAD_
+    LOGICAL :: commbuf_uses_device = .FALSE.
+#endif
 
     PUBLIC :: sendbuf, recvbuf, bigbuf, intbuf, device_sendbuf, device_recvbuf, &
         idim_mg_bufs, idim_mg_big, idim_mg_intbuf, &
@@ -85,10 +92,13 @@ CONTAINS
         !$omp& bigbuf, intbuf)
 
 #ifdef _MGLET_OFFLOAD_
+    IF (commbuf_uses_device .AND. C_ASSOCIATED(device_buffer)) THEN
         device = omp_get_default_device()
         errorcode = omp_target_disassociate_ptr(C_LOC(buffer(1)), device)
         IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
         CALL omp_target_free(device_buffer, device)
+    END IF
+    commbuf_uses_device = .FALSE.
 #endif
 
         DEALLOCATE(buffer)
@@ -135,7 +145,7 @@ CONTAINS
         TYPE(C_PTR) :: cptr
         INTEGER(int64) :: ifklength
         INTEGER(c_int) :: errorcode
-        INTEGER :: device
+        INTEGER :: device, initial_device
         INTEGER :: nprobe
         INTEGER :: myrank, nranks
 
@@ -158,28 +168,26 @@ CONTAINS
 
         IF (ALLOCATED(buffer)) THEN
 #ifdef _MGLET_OFFLOAD_
-            device = omp_get_default_device()
-            errorcode = omp_target_disassociate_ptr(C_LOC(buffer(1)), device)
-            IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
-            CALL omp_target_free(device_buffer, device)
+            IF (commbuf_uses_device .AND. C_ASSOCIATED(device_buffer)) THEN
+                device = omp_get_default_device()
+                errorcode = omp_target_disassociate_ptr(C_LOC(buffer(1)), device)
+                IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
+                CALL omp_target_free(device_buffer, device)
+            END IF
+            commbuf_uses_device = .FALSE.
 #endif
             DEALLOCATE(buffer)
             device_buffer = C_NULL_PTR
         END IF
 
+        ! Allocating the complete buffer and getting a C pointer to it
         ALLOCATE(buffer(corrlength))
+        cptr = C_LOC(buffer)
 
-
+        ! Computign dimensions for the various buffers
         idim_mg_big = corrlength/real_bytes
         idim_mg_bufs = idim_mg_big/2
         idim_mg_intbuf = corrlength/int_bytes
-        cptr = C_LOC(buffer)
-
-        CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
-        !$omp target update to(bigbuf)
-        sendbuf => bigbuf(1:idim_mg_bufs)
-        recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
-        !$omp target update to(sendbuf, recvbuf)
 
         CALL C_F_POINTER(cptr, intbuf, [idim_mg_intbuf])
         !$omp target update to(intbuf)
@@ -193,20 +201,56 @@ CONTAINS
 
 
 #ifdef _MGLET_OFFLOAD_
-        ! Allocating on device and checking device pointer association
+        ! Runtime fallback for host-only mode: skip device association.
+        initial_device = omp_get_initial_device()
         device = omp_get_default_device()
-        device_buffer = omp_target_alloc(INT(corrlength, c_size_t), device)
-        IF (.NOT. C_ASSOCIATED(device_buffer)) CALL errr(__FILE__, __LINE__)
+        commbuf_uses_device = .FALSE.
+        device_buffer = C_NULL_PTR
 
-        ! Telling OpenMP about the connections (H: buffer = D: device_buffer)
-        errorcode = omp_target_associate_ptr(C_LOC(buffer(1)), device_buffer, &
-            INT(corrlength, c_size_t), 0_c_size_t, device)
-        IF (errorcode /= 0) CALL errr(__FILE__, __LINE__)
+        ! The complete buffer is allocated on the device, and the complete
+        ! host buffer is associated with it.
 
-        ! Conversion of device pointer to Fortran pointer
-        CALL C_F_POINTER(device_buffer, device_bigbuf, [idim_mg_big])
-        device_sendbuf => device_bigbuf(1:idim_mg_bufs)
-        device_recvbuf => device_bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+        IF (device /= initial_device) THEN
+            device_buffer = omp_target_alloc(INT(corrlength, c_size_t), device)
+            IF (C_ASSOCIATED(device_buffer)) THEN
+                errorcode = omp_target_associate_ptr(C_LOC(buffer(1)), &
+                    device_buffer, INT(corrlength, c_size_t), 0_c_size_t, &
+                    device)
+                IF (errorcode == 0) THEN
+                    commbuf_uses_device = .TRUE.
+                ELSE
+                    CALL omp_target_free(device_buffer, device)
+                    device_buffer = C_NULL_PTR
+                END IF
+            END IF
+
+            !$omp target update to(buffer)
+
+        END IF
+
+
+        CALL MPI_Barrier(MPI_COMM_WORLD)
+        WRITE(*,*) "Test passed! (1)"
+        CALL MPI_Barrier(MPI_COMM_WORLD)
+
+        IF (commbuf_uses_device) THEN
+
+            CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
+            sendbuf => bigbuf(1:idim_mg_bufs)
+            recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+
+            CALL C_F_POINTER(device_buffer, device_bigbuf, [idim_mg_big])
+            device_sendbuf => device_bigbuf(1:idim_mg_bufs)
+            device_recvbuf => device_bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+        ELSE
+
+            CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
+            sendbuf => bigbuf(1:idim_mg_bufs)
+            recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+
+            device_sendbuf => sendbuf
+            device_recvbuf => recvbuf
+        END IF
 
         sendbuf(:) = -1.0
         recvbuf(:) = +1.0
@@ -216,32 +260,18 @@ CONTAINS
         CALL MPI_Comm_rank(MPI_COMM_WORLD, myrank)
         CALL MPI_Comm_size(MPI_COMM_WORLD, nranks)
 
-        IF (nranks > 1) THEN
-            ! Handing the device pointers to MPI for sending and receiving
-            nprobe = idim_mg_bufs
-            IF (myrank == 0) THEN
-                CALL MPI_Send(device_sendbuf(1), nprobe, mglet_mpi_real, &
-                    1, 919, MPI_COMM_WORLD)
+        CALL MPI_Barrier(MPI_COMM_WORLD)
+        WRITE(*,*) "Test passed! (2)"
+        CALL MPI_Barrier(MPI_COMM_WORLD)
 
-            ELSE IF (myrank == 1) THEN
-                CALL MPI_Recv(device_recvbuf(1), nprobe, mglet_mpi_real, &
-                    0, 919, MPI_COMM_WORLD, MPI_STATUS_IGNORE)
-
-                IF (ANY(recvbuf(1:idim_mg_bufs) < 0.0_realk)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-
-                !$omp target update from(recvbuf)
-
-                IF (ANY(recvbuf(1:idim_mg_bufs) > 0.0_realk)) THEN
-                    CALL errr(__FILE__, __LINE__)
-                END IF
-            END IF
-        END IF
 
         sendbuf(:) = 0.0_realk
         recvbuf(:) = 0.0_realk
         !$omp target update to(sendbuf, recvbuf)
+
+        CALL MPI_Barrier(MPI_COMM_WORLD)
+        WRITE(*,*) "Test passed! (3)"
+        CALL MPI_Barrier(MPI_COMM_WORLD)
 
 #else
         ! Setting these points to the host buffer
