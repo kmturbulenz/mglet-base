@@ -99,7 +99,6 @@ CONTAINS
             ! u, v, w should exist on the host in an updated state from the
             ! prev. time step, so no need to map /from/ device here
             CALL setibvalues(u, v, w)
-            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
         ! TSTLE4 zeroize uo, vo, wo before use internally
@@ -120,9 +119,7 @@ CONTAINS
             CALL maskbp(u, v, w, p)
 
             ! Equivalent to old boundmg with ityp 'R'
-            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL getibvalues(u, v, w)
-            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
         IF (uinf_is_time) THEN
@@ -152,9 +149,7 @@ CONTAINS
 
         IF (ib%type == "GHOSTCELL") THEN
             lastrk = (irk == rkscheme%nrk)
-            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, lastrk)
-            CALL map_arr_to_device(pwu, pwv, pww, message="to:pwu|pwv|pww")
         END IF
 
         ! TODO: mgplevel

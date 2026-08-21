@@ -34,6 +34,20 @@ target_link_libraries(flow
     PRIVATE ib
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_C>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_CXX>
+)
+
+target_compile_options(flow
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:CXX>>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:CXX>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
+)
+
+# GCC complains about unknown pragmas if we compile without -fopenmp
+set_source_files_properties(gc_flowstencils.cxx PROPERTIES COMPILE_FLAGS
+    $<$<STREQUAL:"${CMAKE_CXX_COMPILER_ID}","GNU">:-Wno-unknown-pragmas>
 )
 
 set_source_files_properties(pressuresolver_mod.F90 PROPERTIES COMPILE_FLAGS
