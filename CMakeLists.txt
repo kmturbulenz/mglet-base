@@ -135,11 +135,10 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
 )
 
 if (MGLET_OFFLOAD)
-    # Only add compile and link flags to Fortran, since we never want to
-    # interface to C/CXX in any MGLET library that is not specifically
-    # designed to be an offloading backend. If backends are added in the
-    # future, simply add compile and link options for C/CXX to the backend
-    # library itself.
+    # All libraries get Fortran offloading support. C/CXX offloading support
+    # is only added selectively to individual libraries that need it.
+    # Otherwise clang/clang++ complain about being given offload flags when
+    # no pragmas are actually used in any c/cxx files e.g. in core.
     add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
         "$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
     )

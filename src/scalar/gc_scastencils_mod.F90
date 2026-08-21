@@ -7,76 +7,152 @@ MODULE gc_scastencils_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: scaxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: scaxpolr(:), scaxpolrvel(:)
-    INTEGER(intk), ALLOCATABLE :: scanblg(:)
+    ! Up to 6 peripheral stencil points
+    INTEGER(intk), PARAMETER :: nperi = 6
 
-    INTEGER(intk), PARAMETER :: nperi = 6 ! = up to 6 peripheral stencil points
+    ! Stores both coeff and coeffp since MGLET does not decide which one is used
+    ! upon initialization. It is only seen once set_scastencils is called.
+    TYPE, BIND(C) :: scastencil_t
+        INTEGER(c_intk) :: icell
+        INTEGER(c_intk) :: body
+        INTEGER(c_intk) :: npts
+        INTEGER(c_intk) :: pts(nperi)
+        REAL(c_realk) :: areabyvol
+        REAL(c_realk) :: acoeff
+        REAL(c_realk) :: coeff(nperi)
+        REAL(c_realk) :: acoeffp
+        REAL(c_realk) :: coeffp(nperi)
+    END TYPE scastencil_t
+
+    TYPE(scastencil_t), ALLOCATABLE, TARGET :: scastencils(:)
+    !$omp declare target(scastencils)
+
+
+    ! Used only for creation of scalar stencils. Final result is stored in
+    ! scastencils_t objects.
+    ! Stencil structure (standard-sized stencil):
+
+    ! I1 = cell to be treated
+    ! I2 = body id of cell to be treated
+    ! I3 = number of peripheral stencil points (N)
+    ! I4 = 1D-index of peripheral stencil point 1
+    ! I5 = 1D-index of peripheral stencil point 2 (or -1 if N<2)
+    ! ...
+    ! I(N+3) = 1D-index of peripheral stencil point N
+    ! -> therefore: isize = 3 + nperi
+
+    ! R1 = surface area divided by cell volume
+    ! R2 = coefficient for peripheral stencil point 1 (or dummy if N<1)
+    ! R3 = coefficient for peripheral stencil point 2 (or dummy if N<2)
+    ! ...
+    ! R(N+1) = coefficient for peripheral stencil point N (or dummy)
+    ! R(N+2) = additive constant (e.g. for Dirichlet conditions)
+    ! -> therefore: rsize = 2 + nperi
     INTEGER(intk), PARAMETER :: isize = 3 + nperi
     INTEGER(intk), PARAMETER :: rsize = 2 + nperi
 
-    PUBLIC :: create_scastencils, finish_scastencils, set_scastencils
+    INTERFACE
+        SUBROUTINE set_scastencils_t_c(ctyp, nstencils, stencils, &
+                geometries, t) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_char
+            USE precision_mod, ONLY: c_realk, c_intk
+            USE scacore_mod, ONLY: scalar_bc_t
+            IMPORT :: scastencil_t
+            CHARACTER(c_char), VALUE, INTENT(in) :: ctyp
+            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
+            TYPE(scastencil_t), INTENT(in) :: stencils(*)
+            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
+            REAL(c_realk), INTENT(inout) :: t(*)
+        END SUBROUTINE set_scastencils_t_c
 
+        SUBROUTINE set_scastencils_qtt_c(nstencils, stencils, &
+                geometries, qtt) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_ptr
+            USE scacore_mod, ONLY: scalar_bc_t
+            USE precision_mod, ONLY: c_realk, c_intk
+            IMPORT :: scastencil_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
+            TYPE(scastencil_t), INTENT(in) :: stencils(*)
+            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
+            REAL(c_realk), INTENT(inout) :: qtt(*)
+        END SUBROUTINE set_scastencils_qtt_c
+    END INTERFACE
+
+    PUBLIC :: init_scastencils, finish_scastencils, set_scastencils
 CONTAINS
-    SUBROUTINE create_scastencils(gc)
-
+    SUBROUTINE init_scastencils(gc)
         ! Subroutine arguments
         TYPE(gc_t), INTENT(in) :: gc
 
         ! Local variables
-        INTEGER(intk) :: ilevel
+        INTEGER(intk) :: ilevel, nscastencils_estimate, nscastencils
         REAL(realk), POINTER, CONTIGUOUS :: bp(:)
 
         CALL get_fieldptr(bp, "BP")
 
-        ! Always allocate - createstencils should be called only once.
-        ALLOCATE(scaxpoli(nmygrids))
-        ALLOCATE(scaxpolr(nmygrids))
-        ALLOCATE(scaxpolrvel(nmygrids))
-        ALLOCATE(scanblg(nmygrids))
+        ! Overallocate scastencils to avoid two separate passes
+        CALL overestimate_nscastencils(nscastencils_estimate, gc%icells)
+        ALLOCATE(scastencils(nscastencils_estimate))
 
-        ! Stencil structure (standard-sized stencil):
-
-        ! I1 = cell to be treated
-        ! I2 = body id of cell to be treated
-        ! I3 = number of peripheral stencil points (N)
-        ! I4 = 1D-index of peripheral stencil point 1
-        ! I5 = 1D-index of peripheral stencil point 2 (or -1 if N<2)
-        ! ...
-        ! I(N+3) = 1D-index of peripheral stencil point N
-        ! -> therefore: isize = 3 + nperi
-
-        ! R1 = surface area divided by cell volume
-        ! R2 = coefficient for peripheral stencil point 1 (or dummy if N<1)
-        ! R3 = coefficient for peripheral stencil point 2 (or dummy if N<2)
-        ! ...
-        ! R(N+1) = coefficient for peripheral stencil point N (or dummy)
-        ! R(N+2) = additive constant (e.g. for Dirichlet conditions)
-        ! -> therefore: rsize = 2 + nperi
-
+        nscastencils = 0
         DO ilevel = minlevel, maxlevel
             CALL createstencils_level(ilevel, bp, gc%bzelltyp, gc%icells, &
-                gc%icellspointer, gc%nvecs, gc%arealist, gc%bodyid)
+                gc%icellspointer, gc%nvecs, gc%arealist, gc%bodyid, &
+                nscastencils)
         END DO
+        CALL trim_scastencils(nscastencils)
+        !$omp target enter data map(always, to: scastencils)
 
         ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
             CALL writestencils()
         END IF
-    END SUBROUTINE create_scastencils
+    END SUBROUTINE init_scastencils
+
+
+    SUBROUTINE overestimate_nscastencils(nscastencils, icells)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(out) :: nscastencils
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: icells(:)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, ncells, kk, jj, ii
+
+        nscastencils = 0
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            ncells = icells(igrid)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            nscastencils = nscastencils + &
+                NINT(ncells*1.1 + MAX(kk, jj, ii)**2)
+        END DO
+    END SUBROUTINE overestimate_nscastencils
+
+
+    SUBROUTINE trim_scastencils(nscastencils)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: nscastencils
+
+        ! Local variables
+        TYPE(scastencil_t), ALLOCATABLE :: scastencils_trimmed(:)
+
+        ALLOCATE(scastencils_trimmed(nscastencils))
+        IF (nscastencils > 0) THEN
+            scastencils_trimmed = scastencils(1:nscastencils)
+        END IF
+        CALL MOVE_ALLOC(scastencils_trimmed, scastencils)
+    END SUBROUTINE trim_scastencils
 
 
     SUBROUTINE finish_scastencils()
-        DEALLOCATE(scaxpoli)
-        DEALLOCATE(scaxpolr)
-        DEALLOCATE(scaxpolrvel)
-        DEALLOCATE(scanblg)
+        !$omp target exit data map(always, delete: scastencils)
+        DEALLOCATE(scastencils)
     END SUBROUTINE finish_scastencils
 
 
     SUBROUTINE createstencils_level(ilevel, bp, bzelltyp, icells, &
-            icellspointer, nvecs, arealist, bodyid)
-
+            icellspointer, nvecs, arealist, bodyid, nscastencils)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         REAL(realk), INTENT(in) :: bp(*)
@@ -86,6 +162,7 @@ CONTAINS
         REAL(realk), CONTIGUOUS, INTENT(in) :: nvecs(:, :)
         REAL(realk), CONTIGUOUS, INTENT(in) :: arealist(:)
         INTEGER(intk), CONTIGUOUS, INTENT(in) :: bodyid(:)
+        INTEGER(intk), INTENT(inout) :: nscastencils
 
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ipp, ncells
@@ -116,20 +193,22 @@ CONTAINS
 
             CALL get_mgbasb(bconds, igrid)
 
-            CALL tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
-                ddx, ddy, ddz, bp(ip3), bzelltyp(ip3), bconds, ncells, &
-                nvecs(:, ipp:ipp+ncells-1), arealist(ipp:ipp+ncells-1), &
-                bodyid(ipp:ipp+ncells-1))
+            CALL tscastencil(igrid, ip3, kk, jj, ii, x, y, z, xstag, ystag, &
+                zstag, ddx, ddy, ddz, bp(ip3), bzelltyp(ip3), bconds, &
+                ncells, nvecs(:, ipp:ipp+ncells-1), &
+                arealist(ipp:ipp+ncells-1), bodyid(ipp:ipp+ncells-1), &
+                nscastencils)
         END DO
     END SUBROUTINE createstencils_level
 
 
-    SUBROUTINE tscastencil(igrid, kk, jj, ii, x, y, z, xstag, ystag, zstag, &
-            ddx, ddy, ddz, bp, bzelltyp, bconds, icells, nvecs, arealist, &
-            bodyid)
+    SUBROUTINE tscastencil(igrid, ip3, kk, jj, ii, x, y, z, xstag, ystag, &
+            zstag, ddx, ddy, ddz, bp, bzelltyp, bconds, icells, nvecs, &
+            arealist, bodyid, nscastencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid
+        INTEGER(intk), INTENT(in) :: ip3
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: x(ii), y(jj), z(kk)
         REAL(realk), INTENT(in) :: xstag(ii), ystag(jj), zstag(kk)
@@ -141,6 +220,7 @@ CONTAINS
         REAL(realk), CONTIGUOUS, INTENT(in) :: nvecs(:, :)
         REAL(realk), CONTIGUOUS, INTENT(in) :: arealist(:)
         INTEGER(intk), CONTIGUOUS, INTENT(in) :: bodyid(:)
+        INTEGER(intk), INTENT(inout) :: nscastencils
 
         ! Local variables
         INTEGER(intk), PARAMETER :: lsize = 122
@@ -151,7 +231,7 @@ CONTAINS
         INTEGER(intk) :: pntxpoli, pntxpolr, counter
         INTEGER(intk) :: found, found2, found3, foundnr
         INTEGER(intk) :: foundx1, foundx2, foundy1, foundy2, foundz1, foundz2
-        INTEGER(intk) :: xpolisize, xpolrsize, imygrid
+        INTEGER(intk) :: xpolisize, xpolrsize
         INTEGER(intk) :: inlst(lsize), jnlst(lsize), knlst(lsize), nnlst
         INTEGER(intk) :: body
         REAL(realk) :: area, areabyvol
@@ -327,19 +407,12 @@ CONTAINS
                         CALL errr(__FILE__, __LINE__)
                     END IF
 
+                    CALL add_scastencil(ip3, initial_pntxpoli, &
+                        initial_pntxpolr, xpoli, xpolr, xpolrvel, &
+                        nscastencils)
                 END DO
             END DO
         END DO
-
-        CALL get_imygrid(imygrid, igrid)
-        ALLOCATE(scaxpoli(imygrid)%arr(pntxpoli))
-        ALLOCATE(scaxpolr(imygrid)%arr(pntxpolr))
-        ALLOCATE(scaxpolrvel(imygrid)%arr(pntxpolr))
-
-        scaxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-        scaxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-        scaxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
-        scanblg(imygrid) = counter
 
         ! Final size check
         IF (counter > 0) THEN
@@ -361,6 +434,64 @@ CONTAINS
         DEALLOCATE(xpolr)
         DEALLOCATE(xpolrvel)
     END SUBROUTINE tscastencil
+
+
+    SUBROUTINE add_scastencil(ip3, start_pntxpoli, start_pntxpolr, &
+            xpoli, xpolr, xpolrvel, nscastencils)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: ip3
+        INTEGER(intk), INTENT(in) :: start_pntxpoli, start_pntxpolr
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: xpoli(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolrvel(:)
+        INTEGER(intk), INTENT(inout) :: nscastencils
+
+        ! Local variables
+        INTEGER(intk) :: n, igridcell, body, npts, igridcellpnt
+        REAL(realk) :: areabyvol, acoeff, acoeffp, coeff, coeffp
+
+        IF (nscastencils >= SIZE(scastencils)) THEN
+            WRITE(*, *) "Exceeded scastencils estimate"
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        nscastencils = nscastencils + 1
+
+        ! For convenience shorten the variable name of the current stencil
+        ASSOCIATE(s => scastencils(nscastencils))
+
+        ! start_pntxpoli and start_pntxpolr are 0-based indices
+        igridcell = xpoli(start_pntxpoli + 1)
+        body = xpoli(start_pntxpoli + 2)
+        npts = xpoli(start_pntxpoli + 3)
+        areabyvol = xpolr(start_pntxpolr + 1)
+
+        ! Skip nperi coeffs in xpolr and xpolrvel
+        acoeff = xpolr(start_pntxpolr + 2 + nperi)
+        acoeffp = xpolrvel(start_pntxpolr + 2 + nperi)
+
+        s%icell = ip3 + igridcell - 1
+        s%body = body
+        s%npts = npts
+        s%pts = -1
+        s%areabyvol = areabyvol
+        s%acoeff = acoeff
+        s%acoeffp = acoeffp
+        s%coeff = -HUGE(0.0_realk)
+        s%coeffp = -HUGE(0.0_realk)
+
+        DO n = 1, s%npts
+            igridcellpnt = xpoli(start_pntxpoli + 3 + n)
+            coeff = xpolr(start_pntxpolr + 1 + n)
+            coeffp = xpolrvel(start_pntxpolr + 1 + n)
+
+            s%pts(n) = ip3 + igridcellpnt - 1
+            s%coeff(n) = coeff
+            s%coeffp(n) = coeffp
+        END DO
+
+        END ASSOCIATE
+    END SUBROUTINE add_scastencil
 
 
     SUBROUTINE tscastencilcoeffarea(k, j, i, kk, jj, ii, pntxpoli, xpoli, &
@@ -952,177 +1083,58 @@ CONTAINS
         TYPE(scalar_t), INTENT(in) :: sca
         TYPE(field_t), INTENT(inout), OPTIONAL :: t, qtt
 
-        ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        REAL(realk), POINTER, CONTIGUOUS :: t_p(:, :, :), qtt_p(:, :, :)
+        ! Calling this subroutine without any fields is not allowed
+        IF (.NOT. PRESENT(t) .AND. .NOT. PRESENT(qtt)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Only "C" and "P" flags are allowed
+        IF (ctyp /= "C" .AND. ctyp /= "P") THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Return if there are no stencils to set
+        IF (SIZE(scastencils) == 0) RETURN
 
         CALL start_timer(412)
 
-        NULLIFY(t_p)
-        NULLIFY(qtt_p)
+        IF (PRESENT(t)) THEN
+            CALL set_scastencils_t(ctyp, sca, t%arr)
+        END IF
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            ! Repeated lines of code, while more elegant solutions
-            ! are possible. Accepted as easier for the compiler...
-            IF (PRESENT(t)) THEN
-                CALL t%get_ptr(t_p, igrid)
-                SELECT CASE(ctyp)
-                CASE("C")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolr(i)%arr, t=t_p)
-                CASE("P")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, t=t_p)
-                CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
-                END SELECT
-            END IF
-
-            IF (PRESENT(qtt)) THEN
-                CALL qtt%get_ptr(qtt_p, igrid)
-                SELECT CASE(ctyp)
-                CASE("C")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolr(i)%arr, qtt=qtt_p)
-                CASE("P")
-                    CALL wmxpolsoltsca(kk, jj, ii, scanblg(i), sca, &
-                        scaxpoli(i)%arr, scaxpolrvel(i)%arr, qtt=qtt_p)
-                CASE DEFAULT
-                    CALL errr(__FILE__, __LINE__)
-                END SELECT
-            END IF
-
-        END DO
+        IF (PRESENT(qtt)) THEN
+            CALL set_scastencils_qtt(sca, qtt%arr)
+        END IF
 
         CALL stop_timer(412)
     END SUBROUTINE set_scastencils
 
 
-    SUBROUTINE wmxpolsoltsca(kk, jj, ii, ncells, sca, xpoli, xpolr, t, qtt)
+    SUBROUTINE set_scastencils_t(ctyp, sca, t)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii, ncells
-        TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(inout), OPTIONAL :: t(kk*jj*ii), qtt(kk*jj*ii)
+        CHARACTER(len=1), INTENT(in) :: ctyp
+        TYPE(scalar_t), TARGET, INTENT(in) :: sca
+        REAL(realk), INTENT(inout) :: t(*)
 
         ! Local variables
-        INTEGER(intk) :: cellcount, start_pntxpoli, start_pntxpolr
+        ! none...
 
-        IF (PRESENT(t)) THEN
-            DO cellcount = 1, ncells
-                start_pntxpoli = (cellcount-1)*isize
-                start_pntxpolr = (cellcount-1)*rsize
-                CALL wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, &
-                    start_pntxpolr, xpoli, xpolr, t)
-            END DO
-        END IF
-
-        IF (PRESENT(qtt)) THEN
-            DO cellcount = 1, ncells
-                start_pntxpoli = (cellcount-1)*isize
-                start_pntxpolr = (cellcount-1)*rsize
-                CALL wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, &
-                    start_pntxpolr, xpoli, xpolr, qtt)
-            END DO
-        END IF
-    END SUBROUTINE wmxpolsoltsca
+        CALL set_scastencils_t_c(ctyp, SIZE(scastencils), scastencils, &
+            sca%geometries, t)
+    END SUBROUTINE set_scastencils_t
 
 
-    SUBROUTINE wmxpoltsca_t(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
-        xpoli, xpolr, var)
-
+    SUBROUTINE set_scastencils_qtt(sca, qtt)
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in) :: start_pntxpoli
-        INTEGER(intk), INTENT(in) :: start_pntxpolr
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(inout) :: var(kk*jj*ii)
+        TYPE(scalar_t), TARGET, INTENT(in) :: sca
+        REAL(realk), INTENT(inout) :: qtt(*)
 
         ! Local variables
-        INTEGER(intk) :: intcell, body, bctype, stencils, n, stcell
-        REAL(realk) :: bcval, coeff, val
+        ! none...
 
-        ! 1st integer: identifier of the interface cell
-        intcell = xpoli(start_pntxpoli + 1)
-
-        ! 2nd integer: body ID
-        body = xpoli(start_pntxpoli + 2)
-
-        ! Look up boundary condition at bodyid
-        bctype = 1
-        bcval = 0.0
-        IF (body > 0) THEN
-            bctype = sca%geometries(body)%flag
-            bcval = sca%geometries(body)%value
-        END IF
-
-        ! 3rd integer: cells used for the stencil (may also be 0)
-        stencils = xpoli(start_pntxpoli + 3)
-
-        ! Computing the fixed value
-        val = 0.0
-        DO n = 1, stencils
-            stcell = xpoli(start_pntxpoli + 3 + n)
-            coeff = xpolr(start_pntxpolr + 1 + n)
-            val = val + var(stcell)*coeff
-        END DO
-
-        ! additive constant "acoeffvel"
-        coeff = xpolr(start_pntxpolr + (2 + nperi))
-
-        ! Set value at cell if BC is fixed value
-        IF (bctype == 0) THEN
-            val = val + coeff*bcval
-            var(intcell) = val
-        END IF
-    END SUBROUTINE wmxpoltsca_t
-
-
-    SUBROUTINE wmxpoltsca_qtt(kk, jj, ii, sca, start_pntxpoli, start_pntxpolr, &
-            xpoli, xpolr, var)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        TYPE(scalar_t), INTENT(in) :: sca
-        INTEGER(intk), INTENT(in) :: start_pntxpoli
-        INTEGER(intk), INTENT(in) :: start_pntxpolr
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(inout) :: var(kk*jj*ii)
-
-        ! Local variables
-        INTEGER(intk) :: intcell, body, bctype
-        REAL(realk) :: areabyvol, bcval
-
-        ! 1st integer: identifier of the interface cell
-        intcell = xpoli(start_pntxpoli + 1)
-
-        ! 2nd integer: body ID
-        body = xpoli(start_pntxpoli + 2)
-
-        ! Look up boundary condition at bodyid
-        bctype = 1
-        bcval = 0.0
-        IF (body > 0) THEN
-            bctype = sca%geometries(body)%flag
-            bcval = sca%geometries(body)%value
-        END IF
-
-        ! 1st real: areabyvol required for the flux
-        areabyvol = xpolr(start_pntxpolr + 1)
-
-        ! Add flux to list of fluxes
-        IF (bctype == 1) THEN
-            var(intcell) = var(intcell) + areabyvol*bcval
-        END IF
-    END SUBROUTINE wmxpoltsca_qtt
+        CALL set_scastencils_qtt_c(SIZE(scastencils), scastencils, &
+            sca%geometries, qtt)
+    END SUBROUTINE set_scastencils_qtt
 
 
     SUBROUTINE writestencils()
@@ -1158,19 +1170,9 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
 
         ! Local variables
-        INTEGER(intk) :: kk, jj, ii, imygrid, ncells
-        INTEGER(intk), POINTER, CONTIGUOUS :: xpoli(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:)
+        INTEGER(intk) :: kk, jj, ii, ip3
         REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-
-        CALL get_imygrid(imygrid, igrid)
-        xpoli => scaxpoli(imygrid)%arr
-        xpolr => scaxpolrvel(imygrid)%arr
-        ncells = scanblg(imygrid)
-
-        ! If no cells are present we return here...
-        IF (ncells == 0) RETURN
 
         CALL get_fieldptr(x, "X", igrid)
         CALL get_fieldptr(y, "Y", igrid)
@@ -1179,26 +1181,23 @@ CONTAINS
         CALL get_fieldptr(dy, "DY", igrid)
         CALL get_fieldptr(dz, "DZ", igrid)
         CALL get_mgdims(kk, jj, ii, igrid)
-        CALL writestencilsvtk(igrid, kk, jj, ii, ncells, xpoli, xpolr, &
-            x, y, z, dx, dy, dz)
+        CALL get_ip3(ip3, igrid)
+        CALL writestencilsvtk(igrid, ip3, kk, jj, ii, x, y, z, dx, dy, dz)
     END SUBROUTINE writestencils_grid
 
 
-    SUBROUTINE writestencilsvtk(igrid, kk, jj, ii, nblgcells, xpoli, &
-            xpolr, x, y, z, dx, dy, dz)
+    SUBROUTINE writestencilsvtk(igrid, ip3, kk, jj, ii, x, y, z, dx, dy, dz)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: igrid
+        INTEGER(intk), INTENT(in) :: ip3
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(in) :: nblgcells
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
         REAL(realk), INTENT(in), CONTIGUOUS :: x(:), y(:), z(:)
         REAL(realk), INTENT(in), CONTIGUOUS :: dx(:), dy(:), dz(:)
 
         ! Local variables
-        INTEGER(intk) :: cellcount, intcell, stencils, nstencils, n, stcell, &
-            icell, istag(3)
+        INTEGER(intk) :: nblgcells, nstencils, istencil, n, stencils
+        INTEGER(intk) :: intcell, stcell, point_offset, istag(3)
         INTEGER(intk) :: unit
         INTEGER(intk) :: k, j, i
         CHARACTER(len=mglet_filename_max) :: filename
@@ -1206,6 +1205,21 @@ CONTAINS
 
         istag = 0
         prefix = "stecil-sca"
+
+        ! Count cells and peripheral points belonging to this grid.
+        nblgcells = 0
+        nstencils = 0
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            nblgcells = nblgcells + 1
+            nstencils = nstencils + scastencils(istencil)%npts
+        END DO
+
+        IF (nblgcells == 0) RETURN
 
         WRITE(filename, '("STENCILS/", A, "-igrid-", I0, ".vtk")') &
                 TRIM(prefix), igrid
@@ -1234,27 +1248,25 @@ CONTAINS
         ! -> therefore: rsize = 2 + nperi
 
 
-        ! Count nstencils
-        nstencils = 0
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
-            nstencils = nstencils + stencils
-        END DO
-
         WRITE(unit, '("POINTS ", I0, " float")') nblgcells + nstencils
 
         ! Write points
-        DO cellcount = 0, nblgcells-1
-            intcell = xpoli(isize*cellcount+1)
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            intcell = scastencils(istencil)%icell - ip3 + 1
             CALL ind2sub(intcell, k, j, i, kk, jj, ii)
             WRITE(unit, '(G0, 1X, G0, 1X, G0)') &
                 x(i) + istag(1)*dx(i)/2.0, &
                 y(j) + istag(2)*dy(j)/2.0, &
                 z(k) + istag(3)*dz(k)/2.0
 
-            stencils = xpoli(isize*cellcount+3)
+            stencils = scastencils(istencil)%npts
             DO n = 1, stencils
-                stcell = xpoli(isize*cellcount+3+n)
+                stcell = scastencils(istencil)%pts(n) - ip3 + 1
                 CALL ind2sub(stcell, k, j, i, kk, jj, ii)
                 WRITE(unit, '(G0, 1X, G0, 1X, G0)') &
                     x(i) + istag(1)*dx(i)/2.0, &
@@ -1273,13 +1285,19 @@ CONTAINS
         END DO
 
         ! Lines
-        icell = 0
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
+        point_offset = 0
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            stencils = scastencils(istencil)%npts
             DO n = 1, stencils
-                WRITE(unit, '(I0, 1X, I0, 1X, I0)') 2, icell, icell+n
+                WRITE(unit, '(I0, 1X, I0, 1X, I0)') &
+                    2, point_offset, point_offset+n
             END DO
-            icell = icell + 1 + stencils
+            point_offset = point_offset + 1 + stencils
         END DO
 
         ! Cell types
@@ -1296,16 +1314,26 @@ CONTAINS
         WRITE(unit, '("SCALARS stencils int 1")')
         WRITE(unit, '("LOOKUP_TABLE default")')
 
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            stencils = scastencils(istencil)%npts
             WRITE(unit, '(I0)') stencils
             DO n = 1, stencils
                 WRITE(unit, '("-1")')
             END DO
         END DO
 
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            stencils = scastencils(istencil)%npts
             DO n = 1, stencils
                 WRITE(unit, '(I0)') stencils
             END DO
@@ -1316,22 +1344,45 @@ CONTAINS
         WRITE(unit, '("LOOKUP_TABLE default")')
 
 
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
-            WRITE(unit, '(G0)') xpolr(rsize*cellcount+2+nperi)
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            stencils = scastencils(istencil)%npts
+            WRITE(unit, '(G0)') scastencils(istencil)%acoeffp
             DO n = 1, stencils
-                WRITE(unit, '(G0)') xpolr(rsize*cellcount+1+n)
+                WRITE(unit, '(G0)') scastencils(istencil)%coeffp(n)
             END DO
         END DO
 
-        DO cellcount = 0, nblgcells-1
-            stencils = xpoli(isize*cellcount+3)
+        DO istencil = 1, SIZE(scastencils)
+            IF (.NOT. stencil_in_grid(scastencils(istencil), ip3, kk, jj, &
+                    ii)) THEN
+                CYCLE
+            END IF
+
+            stencils = scastencils(istencil)%npts
             DO n = 1, stencils
-                WRITE(unit, '(G0)') xpolr(rsize*cellcount+1+n)
+                WRITE(unit, '(G0)') scastencils(istencil)%coeffp(n)
             END DO
         END DO
 
         ! Phew...
         CLOSE(unit)
     END SUBROUTINE writestencilsvtk
+
+
+    PURE FUNCTION stencil_in_grid(stencil, ip3, kk, jj, ii) RESULT(in_grid)
+        ! Function arguments
+        TYPE(scastencil_t), INTENT(in) :: stencil
+        INTEGER(intk), INTENT(in) :: ip3, kk, jj, ii
+
+        ! Return value
+        LOGICAL :: in_grid
+
+        in_grid = stencil%icell >= ip3 .AND. &
+            stencil%icell < ip3 + kk*jj*ii
+    END FUNCTION stencil_in_grid
 END MODULE gc_scastencils_mod

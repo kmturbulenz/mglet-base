@@ -6,14 +6,14 @@ MODULE scacore_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    TYPE :: scalar_bc_t
+    TYPE, BIND(C) :: scalar_bc_t
         ! Integer flag corresponding to type of BC
         !   flag = 0: Fixed value (Diriclet) boundary condition ("value")
         !   flag = 1: Fixed flux (Neumann) boundary condition ("flux")
-        INTEGER(intk) :: flag
+        INTEGER(c_intk) :: flag
 
         ! Actual value or flux
-        REAL(realk) :: value
+        REAL(c_realk) :: value
     END TYPE scalar_bc_t
 
     TYPE :: scalar_source_t
@@ -46,7 +46,7 @@ MODULE scacore_mod
     TYPE(scalar_t), ALLOCATABLE, PROTECTED :: scalar(:)
 
     PUBLIC :: init_scacore, finish_scacore, scalar_t, scalar, nsca, prturb, &
-        has_scalar, solve_scalar, maskbt, scalar_source_t
+        has_scalar, solve_scalar, maskbt, scalar_source_t, scalar_bc_t
 
 CONTAINS
     SUBROUTINE init_scacore()
@@ -117,7 +117,13 @@ CONTAINS
             SELECT TYPE(ib)
             TYPE IS (gc_t)
                 nstl = SIZE(ib%stlnames)
-                ALLOCATE(scalar(l)%geometries(nstl))
+                ! 0th boundary condition is the default
+                ALLOCATE(scalar(l)%geometries(0:nstl))
+
+                ! Default boundary condition
+                scalar(l)%geometries(0)%flag = 1
+                scalar(l)%geometries(0)%value = 0.0
+
                 DO n = 1, nstl
                     ! Read BC type
                     jsonptr = "/geometries/" // TRIM(ib%stlnames(n)) // "/type"
@@ -138,6 +144,7 @@ CONTAINS
                     CALL sc%get_value(jsonptr, rvalue, 0.0)
                     scalar(l)%geometries(n)%value = rvalue
                 END DO
+                !$omp target enter data map(to: scalar(l)%geometries)
             END SELECT
 
             ! Read source terms

@@ -37,7 +37,7 @@ CONTAINS
         SELECT TYPE(ib)
         TYPE IS (gc_t)
             IF (solve_scalar) THEN
-                CALL create_scastencils(ib)
+                CALL init_scastencils(ib)
             END IF
         END SELECT
     END SUBROUTINE init_scalar
@@ -46,8 +46,17 @@ CONTAINS
     SUBROUTINE finish_scalar
         USE itinfo_scalar_mod, ONLY: finish_itinfo_scalar
         USE scastat_mod, ONLY: finish_scastat
+        USE ib_mod, ONLY: ib, gc_t
+        USE gc_scastencils_mod, ONLY: finish_scastencils
 
         IF (.NOT. has_scalar) RETURN
+
+        SELECT TYPE(ib)
+        TYPE IS (gc_t)
+            IF (solve_scalar) THEN
+                CALL finish_scastencils()
+            END IF
+        END SELECT
 
         CALL finish_scastat()
         CALL finish_itinfo_scalar()
