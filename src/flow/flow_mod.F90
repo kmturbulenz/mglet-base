@@ -157,15 +157,23 @@ CONTAINS
             CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=0.0_realk)
         END DO
 
-        ! Set initial condition
-        IF (.NOT. dread) THEN
-            IF (uinf_is_expr) THEN
-                CALL init_uvw_expr(u, v, w)
-            ELSE
-                CALL init_uvw_uinf(u, v, w)
-            END IF
-            p%arr = 0.0_realk
+        ! Do not overwrite flow fields read from a restart file.
+        IF (dread) THEN
+            DO ilevel = minlevel, maxlevel
+                CALL parent(ilevel, u, v, w, p)
+                CALL bound_flow%bound(ilevel, u, v, w, p)
+                CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
+            END DO
+            RETURN
         END IF
+
+        ! Set initial condition
+        IF (uinf_is_expr) THEN
+            CALL init_uvw_expr(u, v, w)
+        ELSE
+            CALL init_uvw_uinf(u, v, w)
+        END IF
+        p%arr = 0.0_realk
 
         CALL zero_ghostlayers(u)
         CALL zero_ghostlayers(v)
