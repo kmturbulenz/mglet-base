@@ -1,4 +1,5 @@
 MODULE gc_flowstencils_mod
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_size_t, c_int
     USE bound_flow_mod
     USE core_mod
     USE ib_mod, ONLY: gc_t, parent, ftoc, wmindexlistn, findinterface2, &
@@ -31,8 +32,28 @@ MODULE gc_flowstencils_mod
     TYPE(flowstencil_t), ALLOCATABLE, TARGET :: ustencils(:), &
         uvelstencils(:), vstencils(:), vvelstencils(:), wstencils(:), &
         wvelstencils(:)
-    INTEGER(intk), ALLOCATABLE :: stencil_start(:, :), stencil_end(:, :)
-    INTEGER(intk), ALLOCATABLE :: fcorr_start(:), fcorr_end(:)
+    INTEGER(c_size_t), ALLOCATABLE :: stencil_start(:, :), stencil_end(:, :)
+    INTEGER(c_size_t), ALLOCATABLE :: fcorr_start(:), fcorr_end(:)
+
+    !$omp declare target(fcorrstencils, ustencils, uvelstencils, vstencils, &
+    !$omp& vvelstencils, wstencils, wvelstencils)
+
+    INTERFACE
+        SUBROUTINE wmxpolquad_c(iop, first, count, stencils, var) BIND(C)
+            IMPORT :: c_int, c_size_t, flowstencil_t, c_realk
+            INTEGER(c_int), VALUE, INTENT(in) :: iop
+            INTEGER(c_size_t), VALUE, INTENT(in) :: first, count
+            TYPE(flowstencil_t), INTENT(inout) :: stencils(*)
+            REAL(c_realk), INTENT(inout) :: var(*)
+        END SUBROUTINE wmxpolquad_c
+
+        SUBROUTINE wmxpolquadfcorr_c(first, count, stencils, u, v, w) BIND(C)
+            IMPORT :: c_size_t, fcorrstencil_t, c_realk
+            INTEGER(c_size_t), VALUE, INTENT(in) :: first, count
+            TYPE(fcorrstencil_t), INTENT(in) :: stencils(*)
+            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*)
+        END SUBROUTINE wmxpolquadfcorr_c
+    END INTERFACE
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
         finish_flowstencils
@@ -105,6 +126,9 @@ CONTAINS
 
         CALL setsdivfield()
 
+        !$omp target enter data map(always, to: fcorrstencils, ustencils, &
+        !$omp& uvelstencils, vstencils, vvelstencils, wstencils, wvelstencils)
+
         ! mglet_dbg_envvar is in buildinfo_mod and initialized at startup
         IF (INDEX(mglet_dbg_envvar, "stencilvtk") > 0) THEN
             CALL writestencils()
@@ -113,6 +137,8 @@ CONTAINS
 
 
     SUBROUTINE finish_flowstencils()
+        !$omp target exit data map(always, delete: fcorrstencils, ustencils, &
+        !$omp& uvelstencils, vstencils, vvelstencils, wstencils, wvelstencils)
         DEALLOCATE(fcorrstencils)
         DEALLOCATE(ustencils, uvelstencils)
         DEALLOCATE(vstencils, vvelstencils)
@@ -212,9 +238,9 @@ CONTAINS
     END SUBROUTINE createstencils_level
 
 
-        SUBROUTINE fluxcorrection(igrid, ip3, kk, jj, ii, ddx, ddy, ddz, &
-            bp, bu, bv, bw, areau, areav, areaw, bzelltyp, icells, ucell, &
-            nfcorrstencils)
+    SUBROUTINE fluxcorrection(igrid, ip3, kk, jj, ii, ddx, ddy, ddz, &
+        bp, bu, bv, bw, areau, areav, areaw, bzelltyp, icells, ucell, &
+        nfcorrstencils)
         ! ---------------------------------------------------------------------
         ! SUBROUTINE FLUXCORRECTION
         !
@@ -573,9 +599,9 @@ CONTAINS
     END SUBROUTINE fluxcorrection
 
 
-        SUBROUTINE fluxstencil(ip3, kk, jj, ii, x, y, z, xstag, ystag, &
-            zstag, bp, bzelltyp, bconds, icells, nvecs, ucell, &
-            compon, nflowstencils)
+    SUBROUTINE fluxstencil(ip3, kk, jj, ii, x, y, z, xstag, ystag, &
+        zstag, bp, bzelltyp, bconds, icells, nvecs, ucell, &
+        compon, nflowstencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(IN) :: ip3
@@ -980,208 +1006,27 @@ CONTAINS
     END SUBROUTINE calcflux
 
 
-    PURE SUBROUTINE wmxpol(stencil, var, flux)
-
-        ! Subroutine arguments
-        TYPE(flowstencil_t), INTENT(in) :: stencil
-        REAL(realk), INTENT(in) :: var(*)
-        REAL(realk), INTENT(out) :: flux
-
-        ! Local variables
-        INTEGER(intk) :: n
-
-        flux = 0.0
-        DO n = 1, stencil%npts
-            flux = flux + var(stencil%pts(n))*stencil%coeff(n)
-        END DO
-        flux = flux + stencil%acoeff
-    END SUBROUTINE wmxpol
-
-
-    SUBROUTINE wmxpolsol(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i
-        REAL(realk) :: flux
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), u, flux)
-                u(stencils(i)%icell) = flux
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), v, flux)
-                v(stencils(i)%icell) = flux
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), w, flux)
-                w(stencils(i)%icell) = flux
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsol
-
-
-    SUBROUTINE wmxpolsolrlx(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, idx
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                u(idx) = stencils(i)%oldsol
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                v(idx) = stencils(i)%oldsol
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                w(idx) = stencils(i)%oldsol
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsolrlx
-
-
-    SUBROUTINE wmxpolsolsav(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(in) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(inout) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, idx
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = u(idx)
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = v(idx)
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = w(idx)
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsolsav
-
-
-    SUBROUTINE wmxpolsolcorr(u, v, w, stencils)
-
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(fcorrstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: cellcount
-        REAL(realk) :: div, acoeffstc, sarea
-        REAL(realk) :: ax1, ax2, ay1, ay2, az1, az2
-
-        DO cellcount = 1, SIZE(stencils)
-            ax1 = stencils(cellcount)%area(1)
-            ax2 = stencils(cellcount)%area(2)
-            ay1 = stencils(cellcount)%area(3)
-            ay2 = stencils(cellcount)%area(4)
-            az1 = stencils(cellcount)%area(5)
-            az2 = stencils(cellcount)%area(6)
-            acoeffstc = stencils(cellcount)%acoeff
-
-            div = stencils(cellcount)%darea(1) * &
-                (u(stencils(cellcount)%pts(1)) - &
-                u(stencils(cellcount)%pts(2))) &
-                + stencils(cellcount)%darea(2) * &
-                (v(stencils(cellcount)%pts(3)) - &
-                v(stencils(cellcount)%pts(4))) &
-                + stencils(cellcount)%darea(3) * &
-                (w(stencils(cellcount)%pts(5)) - &
-                w(stencils(cellcount)%pts(6))) &
-                + acoeffstc
-
-            sarea = ax1 + ax2 + ay1 + ay2 + az1 + az2
-            IF (sarea < TINY(1.0_realk)) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-            div = div/sarea
-
-            u(stencils(cellcount)%pts(1)) = &
-                u(stencils(cellcount)%pts(1)) &
-                - ax1*div/stencils(cellcount)%darea(1)
-            u(stencils(cellcount)%pts(2)) = &
-                u(stencils(cellcount)%pts(2)) &
-                + ax2*div/stencils(cellcount)%darea(1)
-            v(stencils(cellcount)%pts(3)) = &
-                v(stencils(cellcount)%pts(3)) &
-                - ay1*div/stencils(cellcount)%darea(2)
-            v(stencils(cellcount)%pts(4)) = &
-                v(stencils(cellcount)%pts(4)) &
-                + ay2*div/stencils(cellcount)%darea(2)
-            w(stencils(cellcount)%pts(5)) = &
-                w(stencils(cellcount)%pts(5)) &
-                - az1*div/stencils(cellcount)%darea(3)
-            w(stencils(cellcount)%pts(6)) = &
-                w(stencils(cellcount)%pts(6)) &
-                + az2*div/stencils(cellcount)%darea(3)
-        END DO
-    END SUBROUTINE wmxpolsolcorr
-
-
     SUBROUTINE wmxpolquadvel(cmp, ityp, u, v, w)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: cmp
         CHARACTER(len=1), INTENT(in) :: ityp
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
         ! Local variables
-        TYPE(flowstencil_t), POINTER, CONTIGUOUS :: stencils(:)
+        INTEGER :: iop
+        INTEGER(c_size_t) :: count
 
+        iop = IACHAR(ityp)
         SELECT CASE (cmp)
         CASE(1)
-            stencils => uvelstencils
+            count = SIZE(uvelstencils, kind=c_size_t)
+            CALL wmxpolquad_c(iop, 0_c_size_t, count, uvelstencils, u)
         CASE(2)
-            stencils => vvelstencils
+            count = SIZE(vvelstencils, kind=c_size_t)
+            CALL wmxpolquad_c(iop, 0_c_size_t, count, vvelstencils, v)
         CASE(3)
-            stencils => wvelstencils
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-
-        SELECT CASE (ityp)
-        CASE("X")
-            CALL wmxpolsol(cmp, u, v, w, stencils)
-        CASE("Y")
-            CALL wmxpolsolrlx(cmp, u, v, w, stencils)
-        CASE("Z")
-            CALL wmxpolsolsav(cmp, u, v, w, stencils)
+            count = SIZE(wvelstencils, kind=c_size_t)
+            CALL wmxpolquad_c(iop, 0_c_size_t, count, wvelstencils, w)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1189,36 +1034,26 @@ CONTAINS
 
 
     SUBROUTINE wmxpolquad(ilevel, cmp, ityp, u, v, w)
-
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel, cmp
         CHARACTER(len=1), INTENT(in) :: ityp
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
         ! Local variables
-        TYPE(flowstencil_t), POINTER, CONTIGUOUS :: stencils(:)
+        INTEGER :: iop
+        INTEGER(c_size_t) :: sstart, count
+
+        iop = IACHAR(ityp)
+        sstart = stencil_start(cmp, ilevel) - 1_c_size_t
+        count = stencil_end(cmp, ilevel) - sstart
 
         SELECT CASE (cmp)
         CASE(1)
-            stencils => ustencils(stencil_start(cmp, ilevel): &
-                stencil_end(cmp, ilevel))
+            CALL wmxpolquad_c(iop, sstart, count, ustencils, u)
         CASE(2)
-            stencils => vstencils(stencil_start(cmp, ilevel): &
-                stencil_end(cmp, ilevel))
+            CALL wmxpolquad_c(iop, sstart, count, vstencils, v)
         CASE(3)
-            stencils => wstencils(stencil_start(cmp, ilevel): &
-                stencil_end(cmp, ilevel))
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-
-        SELECT CASE (ityp)
-        CASE("F")
-            CALL wmxpolsol(cmp, u, v, w, stencils)
-        CASE("R")
-            CALL wmxpolsolrlx(cmp, u, v, w, stencils)
-        CASE("S")
-            CALL wmxpolsolsav(cmp, u, v, w, stencils)
+            CALL wmxpolquad_c(iop, sstart, count, wstencils, w)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1230,8 +1065,13 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
-        CALL wmxpolsolcorr(u, v, w, &
-            fcorrstencils(fcorr_start(ilevel):fcorr_end(ilevel)))
+        ! Local variables
+        INTEGER(c_size_t) :: sstart, count
+
+        sstart = fcorr_start(ilevel) - 1_c_size_t
+        count = fcorr_end(ilevel) - sstart
+
+        CALL wmxpolquadfcorr_c(sstart, count, fcorrstencils, u, v, w)
     END SUBROUTINE wmxpolquadfcorr
 
 
@@ -1248,14 +1088,12 @@ CONTAINS
 
         ! Copy the velocity field u, v, w into the point value
         ! velocity field pwu, pwv, pww
-        pwu%arr = u%arr
-        pwv%arr = v%arr
-        pww%arr = w%arr
-
-        ! Copy buffers from u, v, w to pwu, pwv, pww
-        pwu%buffers = u%buffers
-        pwv%buffers = v%buffers
-        pww%buffers = w%buffers
+        CALL copy_arr(pwu%arr, u%arr)
+        CALL copy_arr(pwv%arr, v%arr)
+        CALL copy_arr(pww%arr, w%arr)
+        CALL copy_arr(pwu%buffers, u%buffers)
+        CALL copy_arr(pwv%buffers, v%buffers)
+        CALL copy_arr(pww%buffers, w%buffers)
 
         ! Set the immersed boundary ghost cell values of the
         ! point value velocity field
@@ -1269,8 +1107,8 @@ CONTAINS
         END IF
 
         DO ilevel = minlevel, maxlevel
-            CALL connect(ilevel, 1, v1=pwu, v2=pwv, v3=pww, geom=.TRUE.)
-            CALL bound_flow%bound(ilevel, pwu, pwv, pww)
+            CALL conn(ilevel, 1, v1=pwu, v2=pwv, v3=pww)
+            CALL apply_bound_flow(ilevel, pwu, pwv, pww)
         END DO
 
         IF (comp_new) THEN
@@ -1303,37 +1141,35 @@ CONTAINS
         CALL start_timer(340)
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w)
-            CALL bound_flow%bound(ilevel, u, v, w)
-            CALL connect(ilevel, 2, v1=u, v2=v, v3=w)
+            CALL parent(ilevel, u, v, w, device=.TRUE.)
+            CALL apply_bound_flow(ilevel, u, v, w)
+            CALL conn(ilevel, 2, v1=u, v2=v, v3=w)
 
             CALL setibvalues_level(ilevel, 'F', u, v, w)
-            CALL bound_flow%bound(ilevel, u, v, w)
+            CALL apply_bound_flow(ilevel, u, v, w)
 
-            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
+            CALL conn(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
 
             CALL setibvalues_level(ilevel, 'C', u, v, w)
-            CALL bound_flow%bound(ilevel, u, v, w)
+            CALL apply_bound_flow(ilevel, u, v, w)
 
-            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
+            CALL conn(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u, v, w)
-            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
+            CALL ftoc(ilevel, u, v, w, device=.TRUE.)
             CALL par_ftoc_norm(ilevel, u, v, w, device=.TRUE.)
-            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
         END DO
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w)
-            CALL bound_flow%bound(ilevel, u, v, w)
+            CALL parent(ilevel, u, v, w, device=.TRUE.)
+            CALL apply_bound_flow(ilevel, u, v, w)
 
-            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
+            CALL conn(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
 
             CALL setibvalues_level(ilevel, 'C', u, v, w)
-            CALL bound_flow%bound(ilevel, u, v, w)
-            CALL connect(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
+            CALL apply_bound_flow(ilevel, u, v, w)
+            CALL conn(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
 
             ! The computed fluxes are saved
             CALL setibvalues_level(ilevel, 'S', u, v, w)
