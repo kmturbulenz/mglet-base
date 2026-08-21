@@ -34,6 +34,38 @@ MODULE gc_flowstencils_mod
     INTEGER(intk), ALLOCATABLE :: stencil_start(:, :), stencil_end(:, :)
     INTEGER(intk), ALLOCATABLE :: fcorr_start(:), fcorr_end(:)
 
+    INTERFACE
+        SUBROUTINE wmxpolquad_c(cmp, ityp, nstencils, stencils, &
+                u, v, w) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_char
+            USE precision_mod, ONLY: c_realk, c_intk
+            IMPORT :: flowstencil_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: cmp, nstencils
+            CHARACTER(c_char), VALUE, INTENT(in) :: ityp
+            TYPE(flowstencil_t), INTENT(inout) :: stencils(*)
+            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*)
+        END SUBROUTINE wmxpolquad_c
+
+        SUBROUTINE wmxpolquadvel_c(cmp, ityp, nstencils, stencils, &
+                u, v, w) BIND(C)
+            USE, INTRINSIC :: iso_c_binding, ONLY: c_char
+            USE precision_mod, ONLY: c_realk, c_intk
+            IMPORT :: flowstencil_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: cmp, nstencils
+            CHARACTER(c_char), VALUE, INTENT(in) :: ityp
+            TYPE(flowstencil_t), INTENT(inout) :: stencils(*)
+            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*)
+        END SUBROUTINE wmxpolquadvel_c
+
+        SUBROUTINE wmxpolquadfcorr_c(nstencils, stencils, u, v, w) BIND(C)
+            USE precision_mod, ONLY: c_realk, c_intk
+            IMPORT :: fcorrstencil_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
+            TYPE(fcorrstencil_t), INTENT(in) :: stencils(*)
+            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*)
+        END SUBROUTINE wmxpolquadfcorr_c
+    END INTERFACE
+
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
         finish_flowstencils
 
@@ -980,180 +1012,6 @@ CONTAINS
     END SUBROUTINE calcflux
 
 
-    PURE SUBROUTINE wmxpol(stencil, var, flux)
-
-        ! Subroutine arguments
-        TYPE(flowstencil_t), INTENT(in) :: stencil
-        REAL(realk), INTENT(in) :: var(*)
-        REAL(realk), INTENT(out) :: flux
-
-        ! Local variables
-        INTEGER(intk) :: n
-
-        flux = 0.0
-        DO n = 1, stencil%npts
-            flux = flux + var(stencil%pts(n))*stencil%coeff(n)
-        END DO
-        flux = flux + stencil%acoeff
-    END SUBROUTINE wmxpol
-
-
-    SUBROUTINE wmxpolsol(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i
-        REAL(realk) :: flux
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), u, flux)
-                u(stencils(i)%icell) = flux
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), v, flux)
-                v(stencils(i)%icell) = flux
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                CALL wmxpol(stencils(i), w, flux)
-                w(stencils(i)%icell) = flux
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsol
-
-
-    SUBROUTINE wmxpolsolrlx(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, idx
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                u(idx) = stencils(i)%oldsol
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                v(idx) = stencils(i)%oldsol
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                w(idx) = stencils(i)%oldsol
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsolrlx
-
-
-    SUBROUTINE wmxpolsolsav(cmp, u, v, w, stencils)
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: cmp
-        REAL(realk), INTENT(in) :: u(*), v(*), w(*)
-        TYPE(flowstencil_t), INTENT(inout) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: i, idx
-
-        SELECT CASE(cmp)
-        CASE (1)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = u(idx)
-            END DO
-        CASE (2)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = v(idx)
-            END DO
-        CASE (3)
-            DO i = 1, SIZE(stencils)
-                idx = stencils(i)%icell
-                stencils(i)%oldsol = w(idx)
-            END DO
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
-    END SUBROUTINE wmxpolsolsav
-
-
-    SUBROUTINE wmxpolsolcorr(u, v, w, stencils)
-
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
-        TYPE(fcorrstencil_t), INTENT(in) :: stencils(:)
-
-        ! Local variables
-        INTEGER(intk) :: cellcount
-        REAL(realk) :: div, acoeffstc, sarea
-        REAL(realk) :: ax1, ax2, ay1, ay2, az1, az2
-
-        DO cellcount = 1, SIZE(stencils)
-            ax1 = stencils(cellcount)%area(1)
-            ax2 = stencils(cellcount)%area(2)
-            ay1 = stencils(cellcount)%area(3)
-            ay2 = stencils(cellcount)%area(4)
-            az1 = stencils(cellcount)%area(5)
-            az2 = stencils(cellcount)%area(6)
-            acoeffstc = stencils(cellcount)%acoeff
-
-            div = stencils(cellcount)%darea(1) * &
-                (u(stencils(cellcount)%pts(1)) - &
-                u(stencils(cellcount)%pts(2))) &
-                + stencils(cellcount)%darea(2) * &
-                (v(stencils(cellcount)%pts(3)) - &
-                v(stencils(cellcount)%pts(4))) &
-                + stencils(cellcount)%darea(3) * &
-                (w(stencils(cellcount)%pts(5)) - &
-                w(stencils(cellcount)%pts(6))) &
-                + acoeffstc
-
-            sarea = ax1 + ax2 + ay1 + ay2 + az1 + az2
-            IF (sarea < TINY(1.0_realk)) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-            div = div/sarea
-
-            u(stencils(cellcount)%pts(1)) = &
-                u(stencils(cellcount)%pts(1)) &
-                - ax1*div/stencils(cellcount)%darea(1)
-            u(stencils(cellcount)%pts(2)) = &
-                u(stencils(cellcount)%pts(2)) &
-                + ax2*div/stencils(cellcount)%darea(1)
-            v(stencils(cellcount)%pts(3)) = &
-                v(stencils(cellcount)%pts(3)) &
-                - ay1*div/stencils(cellcount)%darea(2)
-            v(stencils(cellcount)%pts(4)) = &
-                v(stencils(cellcount)%pts(4)) &
-                + ay2*div/stencils(cellcount)%darea(2)
-            w(stencils(cellcount)%pts(5)) = &
-                w(stencils(cellcount)%pts(5)) &
-                - az1*div/stencils(cellcount)%darea(3)
-            w(stencils(cellcount)%pts(6)) = &
-                w(stencils(cellcount)%pts(6)) &
-                + az2*div/stencils(cellcount)%darea(3)
-        END DO
-    END SUBROUTINE wmxpolsolcorr
-
-
     SUBROUTINE wmxpolquadvel(cmp, ityp, u, v, w)
 
         ! Subroutine arguments
@@ -1175,16 +1033,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        SELECT CASE (ityp)
-        CASE("X")
-            CALL wmxpolsol(cmp, u, v, w, stencils)
-        CASE("Y")
-            CALL wmxpolsolrlx(cmp, u, v, w, stencils)
-        CASE("Z")
-            CALL wmxpolsolsav(cmp, u, v, w, stencils)
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
+        CALL wmxpolquadvel_c(cmp, ityp, SIZE(stencils), stencils, u, v, w)
     END SUBROUTINE wmxpolquadvel
 
 
@@ -1212,16 +1061,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        SELECT CASE (ityp)
-        CASE("F")
-            CALL wmxpolsol(cmp, u, v, w, stencils)
-        CASE("R")
-            CALL wmxpolsolrlx(cmp, u, v, w, stencils)
-        CASE("S")
-            CALL wmxpolsolsav(cmp, u, v, w, stencils)
-        CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-        END SELECT
+        CALL wmxpolquad_c(cmp, ityp, SIZE(stencils), stencils, u, v, w)
     END SUBROUTINE wmxpolquad
 
 
@@ -1230,8 +1070,8 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ilevel
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
-        CALL wmxpolsolcorr(u, v, w, &
-            fcorrstencils(fcorr_start(ilevel):fcorr_end(ilevel)))
+        CALL wmxpolquadfcorr_c(fcorr_end(ilevel)-fcorr_start(ilevel)+1, &
+            fcorrstencils(fcorr_start(ilevel)), u, v, w)
     END SUBROUTINE wmxpolquadfcorr
 
 

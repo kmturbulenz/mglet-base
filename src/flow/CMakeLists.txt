@@ -8,6 +8,7 @@ add_library(flow STATIC
     flowstat_mod.F90
     gc_compbodyforce_mod.F90
     gc_flowstencils_mod.F90
+    gc_flowstencils.cxx
     sip_classic_mod.F90
     sip_hyperplane_mod.F90
     laplacephi_mod.F90
@@ -23,6 +24,7 @@ add_library(flow STATIC
 )
 
 target_include_directories(flow
+    PRIVATE ${PROJECT_SOURCE_DIR}/src/core
     PRIVATE ${MPI_Fortran_INCLUDE_PATH}
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
