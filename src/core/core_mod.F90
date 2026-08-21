@@ -6,6 +6,7 @@ MODULE core_mod
     USE charfunc_mod
     USE checksum_mod
     USE commbuf_mod
+    USE commbuf_test_mod
     USE comms_mod
     USE config_mod
     USE conn_mod
@@ -117,6 +118,8 @@ CONTAINS
         CALL init_grids()
         CALL init_pointers()
         CALL init_commbuf()
+        CALL test_commbuf()
+
         CALL init_fields()
         CALL init_fieldpool()
         CALL init_corefields()
