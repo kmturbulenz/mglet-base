@@ -274,6 +274,11 @@ CONTAINS
         CALL MPI_Barrier(MPI_COMM_WORLD)
 
 #else
+
+        CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
+        sendbuf => bigbuf(1:idim_mg_bufs)
+        recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
+
         ! Setting these points to the host buffer
         device_sendbuf => sendbuf
         device_recvbuf => recvbuf
