@@ -8,27 +8,35 @@ MODULE gc_flowstencils_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: fxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: fxpolr(:)
-    INTEGER(intk), ALLOCATABLE :: fnblg(:)
+    INTEGER(intk), PARAMETER :: nvelpts = 6
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: uxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: uxpolr(:), uxpolrvel(:)
-    INTEGER(intk), ALLOCATABLE :: unblg(:)
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: upoldsol(:), upoldsolvel(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: uoldsol(:), uoldsolvel(:)
+    TYPE, BIND(C) :: flowstencil_t
+        INTEGER(c_intk) :: icell
+        INTEGER(c_intk) :: npts
+        INTEGER(c_intk) :: pts(nvelpts)
+        REAL(c_realk) :: coeff(nvelpts)
+        REAL(c_realk) :: acoeff
+        REAL(c_realk) :: oldsol
+    END TYPE flowstencil_t
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: vxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET ::vxpolr(:), vxpolrvel(:)
-    INTEGER(intk), ALLOCATABLE :: vnblg(:)
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: vpoldsol(:), vpoldsolvel(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: voldsol(:), voldsolvel(:)
+    TYPE, BIND(C) :: fcorrstencil_t
+        INTEGER(c_intk) :: icell
+        REAL(c_realk) :: area(6)
+        REAL(c_realk) :: acoeff
+    END TYPE fcorrstencil_t
 
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: wxpoli(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: wxpolr(:), wxpolrvel(:)
-    INTEGER(intk), ALLOCATABLE :: wnblg(:)
-    TYPE(int_stencils_t), ALLOCATABLE, TARGET :: wpoldsol(:), wpoldsolvel(:)
-    TYPE(real_stencils_t), ALLOCATABLE, TARGET :: woldsol(:), woldsolvel(:)
+    TYPE :: flowstencils_t
+        TYPE(flowstencil_t), ALLOCATABLE :: arr(:)
+    END TYPE flowstencils_t
+
+    TYPE :: fcorrstencils_t
+        TYPE(fcorrstencil_t), ALLOCATABLE :: arr(:)
+    END TYPE fcorrstencils_t
+
+    TYPE(fcorrstencils_t), ALLOCATABLE :: fcorrstencils(:)
+    TYPE(flowstencils_t), ALLOCATABLE, TARGET :: ustencils(:), &
+        uvelstencils(:), vstencils(:), vvelstencils(:), wstencils(:), &
+        wvelstencils(:)
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
         finish_flowstencils
@@ -54,36 +62,10 @@ CONTAINS
         CALL get_fieldptr(areaw, "AREAW")
 
         ! Always allocate - createstencils should be called only once.
-        ALLOCATE(fxpoli(nmygrids))
-        ALLOCATE(fxpolr(nmygrids))
-        ALLOCATE(fnblg(nmygrids))
-
-        ALLOCATE(uxpoli(nmygrids))
-        ALLOCATE(uxpolr(nmygrids))
-        ALLOCATE(uxpolrvel(nmygrids))
-        ALLOCATE(unblg(nmygrids))
-        ALLOCATE(upoldsol(nmygrids))
-        ALLOCATE(uoldsol(nmygrids))
-        ALLOCATE(upoldsolvel(nmygrids))
-        ALLOCATE(uoldsolvel(nmygrids))
-
-        ALLOCATE(vxpoli(nmygrids))
-        ALLOCATE(vxpolr(nmygrids))
-        ALLOCATE(vxpolrvel(nmygrids))
-        ALLOCATE(vnblg(nmygrids))
-        ALLOCATE(vpoldsol(nmygrids))
-        ALLOCATE(voldsol(nmygrids))
-        ALLOCATE(vpoldsolvel(nmygrids))
-        ALLOCATE(voldsolvel(nmygrids))
-
-        ALLOCATE(wxpoli(nmygrids))
-        ALLOCATE(wxpolr(nmygrids))
-        ALLOCATE(wxpolrvel(nmygrids))
-        ALLOCATE(wnblg(nmygrids))
-        ALLOCATE(wpoldsol(nmygrids))
-        ALLOCATE(woldsol(nmygrids))
-        ALLOCATE(wpoldsolvel(nmygrids))
-        ALLOCATE(woldsolvel(nmygrids))
+        ALLOCATE(fcorrstencils(nmygrids))
+        ALLOCATE(ustencils(nmygrids), uvelstencils(nmygrids))
+        ALLOCATE(vstencils(nmygrids), vvelstencils(nmygrids))
+        ALLOCATE(wstencils(nmygrids), wvelstencils(nmygrids))
 
         DO ilevel = minlevel, maxlevel
             CALL createstencils_level(ilevel, bp, bu, bv, bw, &
@@ -101,36 +83,10 @@ CONTAINS
 
 
     SUBROUTINE finish_flowstencils()
-        DEALLOCATE(fxpoli)
-        DEALLOCATE(fxpolr)
-        DEALLOCATE(fnblg)
-
-        DEALLOCATE(uxpoli)
-        DEALLOCATE(uxpolr)
-        DEALLOCATE(uxpolrvel)
-        DEALLOCATE(unblg)
-        DEALLOCATE(upoldsol)
-        DEALLOCATE(uoldsol)
-        DEALLOCATE(upoldsolvel)
-        DEALLOCATE(uoldsolvel)
-
-        DEALLOCATE(vxpoli)
-        DEALLOCATE(vxpolr)
-        DEALLOCATE(vxpolrvel)
-        DEALLOCATE(vnblg)
-        DEALLOCATE(vpoldsol)
-        DEALLOCATE(voldsol)
-        DEALLOCATE(vpoldsolvel)
-        DEALLOCATE(voldsolvel)
-
-        DEALLOCATE(wxpoli)
-        DEALLOCATE(wxpolr)
-        DEALLOCATE(wxpolrvel)
-        DEALLOCATE(wnblg)
-        DEALLOCATE(wpoldsol)
-        DEALLOCATE(woldsol)
-        DEALLOCATE(wpoldsolvel)
-        DEALLOCATE(woldsolvel)
+        DEALLOCATE(fcorrstencils)
+        DEALLOCATE(ustencils, uvelstencils)
+        DEALLOCATE(vstencils, vvelstencils)
+        DEALLOCATE(wstencils, wvelstencils)
     END SUBROUTINE finish_flowstencils
 
 
@@ -542,11 +498,8 @@ CONTAINS
         END DO
 
         CALL get_imygrid(imygrid, igrid)
-        ALLOCATE(fxpoli(imygrid)%arr(pntxpoli))
-        ALLOCATE(fxpolr(imygrid)%arr(pntxpolr))
-        fxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-        fxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-        fnblg(imygrid) = counter
+        ALLOCATE(fcorrstencils(imygrid)%arr(counter))
+        CALL fill_fcorrstencils(fcorrstencils(imygrid)%arr, xpoli, xpolr)
 
         DEALLOCATE(xpoli)
         DEALLOCATE(xpolr)
@@ -695,53 +648,20 @@ CONTAINS
         CALL get_imygrid(imygrid, igrid)
         SELECT CASE(compon)
         CASE(1)
-            ALLOCATE(uxpoli(imygrid)%arr(pntxpoli))
-            ALLOCATE(uxpolr(imygrid)%arr(pntxpolr))
-            ALLOCATE(uxpolrvel(imygrid)%arr(pntxpolr))
-            ALLOCATE(upoldsol(imygrid)%arr(counter))
-            ALLOCATE(uoldsol(imygrid)%arr(counter))
-            ALLOCATE(upoldsolvel(imygrid)%arr(counter))
-            ALLOCATE(uoldsolvel(imygrid)%arr(counter))
-            uxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-            uxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-            uxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
-            upoldsol(imygrid)%arr = 0
-            uoldsol(imygrid)%arr = 0.0
-            upoldsolvel(imygrid)%arr = 0
-            uoldsolvel(imygrid)%arr = 0.0
-            unblg(imygrid) = counter
+            ALLOCATE(ustencils(imygrid)%arr(counter))
+            ALLOCATE(uvelstencils(imygrid)%arr(counter))
+            CALL fill_flowstencils(ustencils(imygrid)%arr, xpoli, xpolr)
+            CALL fill_flowstencils(uvelstencils(imygrid)%arr, xpoli, xpolrvel)
         CASE(2)
-            ALLOCATE(vxpoli(imygrid)%arr(pntxpoli))
-            ALLOCATE(vxpolr(imygrid)%arr(pntxpolr))
-            ALLOCATE(vxpolrvel(imygrid)%arr(pntxpolr))
-            ALLOCATE(vpoldsol(imygrid)%arr(counter))
-            ALLOCATE(voldsol(imygrid)%arr(counter))
-            ALLOCATE(vpoldsolvel(imygrid)%arr(counter))
-            ALLOCATE(voldsolvel(imygrid)%arr(counter))
-            vxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-            vxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-            vxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
-            vpoldsol(imygrid)%arr = 0
-            voldsol(imygrid)%arr = 0.0
-            vpoldsolvel(imygrid)%arr = 0
-            voldsolvel(imygrid)%arr = 0.0
-            vnblg(imygrid) = counter
+            ALLOCATE(vstencils(imygrid)%arr(counter))
+            ALLOCATE(vvelstencils(imygrid)%arr(counter))
+            CALL fill_flowstencils(vstencils(imygrid)%arr, xpoli, xpolr)
+            CALL fill_flowstencils(vvelstencils(imygrid)%arr, xpoli, xpolrvel)
         CASE(3)
-            ALLOCATE(wxpoli(imygrid)%arr(pntxpoli))
-            ALLOCATE(wxpolr(imygrid)%arr(pntxpolr))
-            ALLOCATE(wxpolrvel(imygrid)%arr(pntxpolr))
-            ALLOCATE(wpoldsol(imygrid)%arr(counter))
-            ALLOCATE(woldsol(imygrid)%arr(counter))
-            ALLOCATE(wpoldsolvel(imygrid)%arr(counter))
-            ALLOCATE(woldsolvel(imygrid)%arr(counter))
-            wxpoli(imygrid)%arr = xpoli(1:pntxpoli)
-            wxpolr(imygrid)%arr = xpolr(1:pntxpolr)
-            wxpolrvel(imygrid)%arr = xpolrvel(1:pntxpolr)
-            wpoldsol(imygrid)%arr = 0
-            woldsol(imygrid)%arr = 0.0
-            wpoldsolvel(imygrid)%arr = 0
-            woldsolvel(imygrid)%arr = 0.0
-            wnblg(imygrid) = counter
+            ALLOCATE(wstencils(imygrid)%arr(counter))
+            ALLOCATE(wvelstencils(imygrid)%arr(counter))
+            CALL fill_flowstencils(wstencils(imygrid)%arr, xpoli, xpolr)
+            CALL fill_flowstencils(wvelstencils(imygrid)%arr, xpoli, xpolrvel)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -750,6 +670,57 @@ CONTAINS
         DEALLOCATE(xpoli)
         DEALLOCATE(xpolr)
     END SUBROUTINE fluxstencil
+
+
+    SUBROUTINE fill_flowstencils(stencils, xpoli, xpolr)
+        TYPE(flowstencil_t), INTENT(out) :: stencils(:)
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: xpoli(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:)
+
+        INTEGER(intk) :: istencil, n, pntxpoli, pntxpolr
+
+        pntxpoli = 1
+        pntxpolr = 1
+        DO istencil = 1, SIZE(stencils)
+            ASSOCIATE(s => stencils(istencil))
+                s%icell = xpoli(pntxpoli)
+                s%npts = xpoli(pntxpoli + 1)
+                s%pts = -1
+                s%coeff = -HUGE(0.0_realk)
+                s%oldsol = 0.0
+                pntxpoli = pntxpoli + 2
+                DO n = 1, s%npts
+                    s%pts(n) = xpoli(pntxpoli)
+                    s%coeff(n) = xpolr(pntxpolr)
+                    pntxpoli = pntxpoli + 1
+                    pntxpolr = pntxpolr + 1
+                END DO
+                s%acoeff = xpolr(pntxpolr)
+                pntxpolr = pntxpolr + 1
+            END ASSOCIATE
+        END DO
+    END SUBROUTINE fill_flowstencils
+
+
+    SUBROUTINE fill_fcorrstencils(stencils, xpoli, xpolr)
+        TYPE(fcorrstencil_t), INTENT(out) :: stencils(:)
+        INTEGER(intk), CONTIGUOUS, INTENT(in) :: xpoli(:)
+        REAL(realk), CONTIGUOUS, INTENT(in) :: xpolr(:)
+
+        INTEGER(intk) :: istencil, pntxpoli, pntxpolr
+
+        pntxpoli = 1
+        pntxpolr = 1
+        DO istencil = 1, SIZE(stencils)
+            ASSOCIATE(s => stencils(istencil))
+                s%icell = xpoli(pntxpoli + 1)
+                s%area = xpolr(pntxpolr:pntxpolr + 5)
+                s%acoeff = xpolr(pntxpolr + 6)
+            END ASSOCIATE
+            pntxpoli = pntxpoli + 2
+            pntxpolr = pntxpolr + 7
+        END DO
+    END SUBROUTINE fill_fcorrstencils
 
 
     SUBROUTINE wmdocoefflist(k, j, i, kk, jj, ii, acoeffstc, acoeffstcvel, &
@@ -919,48 +890,25 @@ CONTAINS
     END SUBROUTINE calcflux
 
 
-    PURE SUBROUTINE wmxpol(kk, jj, ii, pntxpoli, pntxpolr, xpoli, xpolr, &
-            var, intcell, flux)
+    PURE SUBROUTINE wmxpol(stencil, var, flux)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(inout) :: pntxpoli, pntxpolr
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        REAL(realk), INTENT(in) :: var(kk*jj*ii)
-        INTEGER(intk), INTENT(out) :: intcell
+        TYPE(flowstencil_t), INTENT(in) :: stencil
+        REAL(realk), INTENT(in) :: var(*)
         REAL(realk), INTENT(out) :: flux
 
         ! Local variables
-        INTEGER(intk) :: stencils, n, stcell
-        REAL(realk) :: coeff
-
-        intcell = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
-
-        stencils = xpoli(pntxpoli)
-        pntxpoli = pntxpoli + 1
+        INTEGER(intk) :: n
 
         flux = 0.0
-
-        DO n = 1, stencils
-            stcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            coeff = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-
-            flux = flux + var(stcell)*coeff
+        DO n = 1, stencil%npts
+            flux = flux + var(stencil%pts(n))*stencil%coeff(n)
         END DO
-
-        coeff = xpolr(pntxpolr)
-        pntxpolr = pntxpolr + 1
-
-        flux = flux + coeff
+        flux = flux + stencil%acoeff
     END SUBROUTINE wmxpol
 
 
-    SUBROUTINE wmxpolsol(cmp, kk, jj, ii, u, v, w, xpoli, xpolr, ncells)
+    SUBROUTINE wmxpolsol(cmp, kk, jj, ii, u, v, w, stencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: cmp
@@ -968,36 +916,27 @@ CONTAINS
         REAL(realk), INTENT(inout) :: u(kk*jj*ii)
         REAL(realk), INTENT(inout) :: v(kk*jj*ii)
         REAL(realk), INTENT(inout) :: w(kk*jj*ii)
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        INTEGER(intk), INTENT(in) :: ncells
+        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
 
         ! Local variables
-        INTEGER(intk) :: i, intcell
-        INTEGER(intk) :: pntxpoli, pntxpolr
+        INTEGER(intk) :: i
         REAL(realk) :: flux
-
-        pntxpoli = 1
-        pntxpolr = 1
 
         SELECT CASE(cmp)
         CASE (1)
-            DO i = 1, ncells
-                CALL wmxpol(kk, jj, ii, pntxpoli, pntxpolr, &
-                    xpoli, xpolr, u, intcell, flux)
-                u(intcell) = flux
+            DO i = 1, SIZE(stencils)
+                CALL wmxpol(stencils(i), u, flux)
+                u(stencils(i)%icell) = flux
             END DO
         CASE (2)
-            DO i = 1, ncells
-                CALL wmxpol(kk, jj, ii, pntxpoli, pntxpolr, &
-                    xpoli, xpolr, v, intcell, flux)
-                v(intcell) = flux
+            DO i = 1, SIZE(stencils)
+                CALL wmxpol(stencils(i), v, flux)
+                v(stencils(i)%icell) = flux
             END DO
         CASE (3)
-            DO i = 1, ncells
-                CALL wmxpol(kk, jj, ii, pntxpoli, pntxpolr, &
-                    xpoli, xpolr, w, intcell, flux)
-                w(intcell) = flux
+            DO i = 1, SIZE(stencils)
+                CALL wmxpol(stencils(i), w, flux)
+                w(stencils(i)%icell) = flux
             END DO
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
@@ -1005,8 +944,7 @@ CONTAINS
     END SUBROUTINE wmxpolsol
 
 
-    SUBROUTINE wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, ncells, &
-            oldsol, poldsol)
+    SUBROUTINE wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, stencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: cmp
@@ -1014,28 +952,26 @@ CONTAINS
         REAL(realk), INTENT(inout) :: u(kk*jj*ii)
         REAL(realk), INTENT(inout) :: v(kk*jj*ii)
         REAL(realk), INTENT(inout) :: w(kk*jj*ii)
-        INTEGER(intk), INTENT(in) :: ncells
-        REAL(realk), INTENT(in) :: oldsol(ncells)
-        INTEGER(intk), INTENT(in) :: poldsol(ncells)
+        TYPE(flowstencil_t), INTENT(in) :: stencils(:)
 
         ! Local variables
         INTEGER(intk) :: i, idx
 
         SELECT CASE(cmp)
         CASE (1)
-            DO i = 1, ncells
-                idx = poldsol(i)
-                u(idx) = oldsol(i)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                u(idx) = stencils(i)%oldsol
             END DO
         CASE (2)
-            DO i = 1, ncells
-                idx = poldsol(i)
-                v(idx) = oldsol(i)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                v(idx) = stencils(i)%oldsol
             END DO
         CASE (3)
-            DO i = 1, ncells
-                idx = poldsol(i)
-                w(idx) = oldsol(i)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                w(idx) = stencils(i)%oldsol
             END DO
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
@@ -1043,8 +979,7 @@ CONTAINS
     END SUBROUTINE wmxpolsolrlx
 
 
-    SUBROUTINE wmxpolsolsav(cmp, kk, jj, ii, u, v, w, xpoli, ncells, &
-            oldsol, poldsol)
+    SUBROUTINE wmxpolsolsav(cmp, kk, jj, ii, u, v, w, stencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: cmp
@@ -1052,57 +987,26 @@ CONTAINS
         REAL(realk), INTENT(in) :: u(kk*jj*ii)
         REAL(realk), INTENT(in) :: v(kk*jj*ii)
         REAL(realk), INTENT(in) :: w(kk*jj*ii)
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        INTEGER(intk), INTENT(in) :: ncells
-        REAL(realk), INTENT(inout) :: oldsol(ncells)
-        INTEGER(intk), INTENT(inout) :: poldsol(ncells)
+        TYPE(flowstencil_t), INTENT(inout) :: stencils(:)
 
         ! Local variables
         INTEGER(intk) :: i, idx
-        INTEGER(intk) :: pntxpoli
-        INTEGER(intk) :: stencils
-
-        pntxpoli = 1
 
         SELECT CASE(cmp)
         CASE (1)
-            DO i = 1, ncells
-                idx = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                stencils = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                pntxpoli = pntxpoli + stencils
-
-                poldsol(i) = idx
-                oldsol(i) = u(idx)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                stencils(i)%oldsol = u(idx)
             END DO
         CASE (2)
-            DO i = 1, ncells
-                idx = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                stencils = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                pntxpoli = pntxpoli + stencils
-
-                poldsol(i) = idx
-                oldsol(i) = v(idx)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                stencils(i)%oldsol = v(idx)
             END DO
         CASE (3)
-            DO i = 1, ncells
-                idx = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                stencils = xpoli(pntxpoli)
-                pntxpoli = pntxpoli + 1
-
-                pntxpoli = pntxpoli + stencils
-
-                poldsol(i) = idx
-                oldsol(i) = w(idx)
+            DO i = 1, SIZE(stencils)
+                idx = stencils(i)%icell
+                stencils(i)%oldsol = w(idx)
             END DO
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
@@ -1111,7 +1015,7 @@ CONTAINS
 
 
     SUBROUTINE wmxpolsolcorr(kk, jj, ii, u, v, w, ddx, ddy, ddz, &
-            xpoli, xpolr, ncells)
+            stencils)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -1119,15 +1023,12 @@ CONTAINS
         REAL(realk), INTENT(inout) :: v(kk*jj*ii)
         REAL(realk), INTENT(inout) :: w(kk*jj*ii)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        INTEGER(intk), INTENT(in), CONTIGUOUS :: xpoli(:)
-        REAL(realk), INTENT(in), CONTIGUOUS :: xpolr(:)
-        INTEGER(intk), INTENT(in) :: ncells
+        TYPE(fcorrstencil_t), INTENT(in) :: stencils(:)
 
         ! Local variables
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: cellcount, intcell
         INTEGER(intk) :: ishift, jshift, kshift
-        INTEGER(intk) :: pntxpoli, pntxpolr
         REAL(realk) :: div, acoeffstc, sarea
         REAL(realk) :: ax1, ax2, ay1, ay2, az1, az2
 
@@ -1135,30 +1036,15 @@ CONTAINS
         jshift = kk
         kshift = 1
 
-        pntxpoli = 1
-        pntxpolr = 1
-        DO cellcount = 1, ncells
-            ! foundnr = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            intcell = xpoli(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ax1 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-            ax2 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-            ay1 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-            ay2 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-            az1 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-            az2 = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
-
-            acoeffstc = xpolr(pntxpolr)
-            pntxpolr = pntxpolr + 1
+        DO cellcount = 1, SIZE(stencils)
+            intcell = stencils(cellcount)%icell
+            ax1 = stencils(cellcount)%area(1)
+            ax2 = stencils(cellcount)%area(2)
+            ay1 = stencils(cellcount)%area(3)
+            ay2 = stencils(cellcount)%area(4)
+            az1 = stencils(cellcount)%area(5)
+            az2 = stencils(cellcount)%area(6)
+            acoeffstc = stencils(cellcount)%acoeff
 
             CALL ind2sub(intcell, k, j, i, kk, jj, ii)
 
@@ -1194,43 +1080,27 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: imygrid
-        INTEGER(intk) :: ncells
-        INTEGER(intk), POINTER, CONTIGUOUS :: xpoli(:), poldsol(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:), oldsol(:)
+        TYPE(flowstencil_t), POINTER, CONTIGUOUS :: stencils(:)
 
         CALL get_imygrid(imygrid, igrid)
         SELECT CASE (cmp)
         CASE(1)
-            xpoli => uxpoli(imygrid)%arr
-            xpolr => uxpolrvel(imygrid)%arr
-            poldsol => upoldsolvel(imygrid)%arr
-            oldsol => uoldsolvel(imygrid)%arr
-            ncells = unblg(imygrid)
+            stencils => uvelstencils(imygrid)%arr
         CASE(2)
-            xpoli => vxpoli(imygrid)%arr
-            xpolr => vxpolrvel(imygrid)%arr
-            poldsol => vpoldsolvel(imygrid)%arr
-            oldsol => voldsolvel(imygrid)%arr
-            ncells = vnblg(imygrid)
+            stencils => vvelstencils(imygrid)%arr
         CASE(3)
-            xpoli => wxpoli(imygrid)%arr
-            xpolr => wxpolrvel(imygrid)%arr
-            poldsol => wpoldsolvel(imygrid)%arr
-            oldsol => woldsolvel(imygrid)%arr
-            ncells = wnblg(imygrid)
+            stencils => wvelstencils(imygrid)%arr
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
         SELECT CASE (ityp)
         CASE("X")
-            CALL wmxpolsol(cmp, kk, jj, ii, u, v, w, xpoli, xpolr, ncells)
+            CALL wmxpolsol(cmp, kk, jj, ii, u, v, w, stencils)
         CASE("Y")
-            CALL wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, ncells, &
-                oldsol, poldsol)
+            CALL wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, stencils)
         CASE("Z")
-            CALL wmxpolsolsav(cmp, kk, jj, ii, u, v, w, xpoli, &
-                ncells, oldsol, poldsol)
+            CALL wmxpolsolsav(cmp, kk, jj, ii, u, v, w, stencils)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1248,43 +1118,27 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: imygrid
-        INTEGER(intk) :: ncells
-        INTEGER(intk), POINTER, CONTIGUOUS :: xpoli(:), poldsol(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:), oldsol(:)
+        TYPE(flowstencil_t), POINTER, CONTIGUOUS :: stencils(:)
 
         CALL get_imygrid(imygrid, igrid)
         SELECT CASE (cmp)
         CASE(1)
-            xpoli => uxpoli(imygrid)%arr
-            xpolr => uxpolr(imygrid)%arr
-            poldsol => upoldsol(imygrid)%arr
-            oldsol => uoldsol(imygrid)%arr
-            ncells = unblg(imygrid)
+            stencils => ustencils(imygrid)%arr
         CASE(2)
-            xpoli => vxpoli(imygrid)%arr
-            xpolr => vxpolr(imygrid)%arr
-            poldsol => vpoldsol(imygrid)%arr
-            oldsol => voldsol(imygrid)%arr
-            ncells = vnblg(imygrid)
+            stencils => vstencils(imygrid)%arr
         CASE(3)
-            xpoli => wxpoli(imygrid)%arr
-            xpolr => wxpolr(imygrid)%arr
-            poldsol => wpoldsol(imygrid)%arr
-            oldsol => woldsol(imygrid)%arr
-            ncells = wnblg(imygrid)
+            stencils => wstencils(imygrid)%arr
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
         SELECT CASE (ityp)
         CASE("F")
-            CALL wmxpolsol(cmp, kk, jj, ii, u, v, w, xpoli, xpolr, ncells)
+            CALL wmxpolsol(cmp, kk, jj, ii, u, v, w, stencils)
         CASE("R")
-            CALL wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, ncells, &
-                oldsol, poldsol)
+            CALL wmxpolsolrlx(cmp, kk, jj, ii, u, v, w, stencils)
         CASE("S")
-            CALL wmxpolsolsav(cmp, kk, jj, ii, u, v, w, xpoli, &
-                ncells, oldsol, poldsol)
+            CALL wmxpolsolsav(cmp, kk, jj, ii, u, v, w, stencils)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
@@ -1301,22 +1155,16 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: imygrid
-        INTEGER(intk) :: ncells
-        INTEGER(intk), POINTER, CONTIGUOUS :: xpoli(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:)
         REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
 
         CALL get_imygrid(imygrid, igrid)
-        xpoli => fxpoli(imygrid)%arr
-        xpolr => fxpolr(imygrid)%arr
-        ncells = fnblg(imygrid)
 
         CALL get_fieldptr(ddx, "DDX", igrid)
         CALL get_fieldptr(ddy, "DDY", igrid)
         CALL get_fieldptr(ddz, "DDZ", igrid)
 
         CALL wmxpolsolcorr(kk, jj, ii, u, v, w, ddx, ddy, ddz, &
-            xpoli, xpolr, ncells)
+            fcorrstencils(imygrid)%arr)
     END SUBROUTINE wmxpolquadfcorr
 
 
@@ -1546,7 +1394,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddz(kk)
 
         ! Local variables
-        INTEGER(intk) :: pntxpoli, pntxpolr, cellcount, intcell
+        INTEGER(intk) :: cellcount, intcell
         INTEGER(intk) :: imygrid
         INTEGER(intk) :: k, j, i
         REAL(realk) :: acoeffstc
@@ -1554,19 +1402,10 @@ CONTAINS
         ! Initialize INTENT(out)
         sdiv = 0.0
 
-        pntxpoli = 1
-        pntxpolr = 1
         CALL get_imygrid(imygrid, igrid)
-        DO cellcount = 1, fnblg(imygrid)
-            pntxpoli = pntxpoli + 1
-
-            intcell = fxpoli(imygrid)%arr(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! skip ax1, ...
-            pntxpolr = pntxpolr + 6
-            acoeffstc = fxpolr(imygrid)%arr(pntxpolr)
-            pntxpolr = pntxpolr + 1
+        DO cellcount = 1, SIZE(fcorrstencils(imygrid)%arr)
+            intcell = fcorrstencils(imygrid)%arr(cellcount)%icell
+            acoeffstc = fcorrstencils(imygrid)%arr(cellcount)%acoeff
 
             CALL ind2sub(intcell, k, j, i, kk, jj, ii)
             sdiv(k, j, i) = acoeffstc/(ddx(i)*ddy(j)*ddz(k))
@@ -1583,25 +1422,17 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddz(kk)
 
         ! Local variables
-        INTEGER(intk) :: pntxpoli, pntxpolr, cellcount, intcell
+        INTEGER(intk) :: cellcount, intcell
         INTEGER(intk) :: imygrid
         INTEGER(intk) :: k, j, i
 
-        pntxpoli = 1
-        pntxpolr = 1
         CALL get_imygrid(imygrid, igrid)
-        DO cellcount = 1, fnblg(imygrid)
-            pntxpoli = pntxpoli + 1
-
-            intcell = fxpoli(imygrid)%arr(pntxpoli)
-            pntxpoli = pntxpoli + 1
-
-            ! skip ax1, ...
-            pntxpolr = pntxpolr + 6
+        DO cellcount = 1, SIZE(fcorrstencils(imygrid)%arr)
+            intcell = fcorrstencils(imygrid)%arr(cellcount)%icell
 
             CALL ind2sub(intcell, k, j, i, kk, jj, ii)
-            fxpolr(imygrid)%arr(pntxpolr) = sdiv(k, j, i)*ddx(i)*ddy(j)*ddz(k)
-            pntxpolr = pntxpolr + 1
+            fcorrstencils(imygrid)%arr(cellcount)%acoeff = &
+                sdiv(k, j, i)*ddx(i)*ddy(j)*ddz(k)
         END DO
     END SUBROUTINE getsdivfield_grid
 
@@ -1643,32 +1474,58 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: kk, jj, ii, imygrid, ncells
-        INTEGER(intk), POINTER, CONTIGUOUS :: xpoli(:)
-        REAL(realk), POINTER, CONTIGUOUS :: xpolr(:)
+        INTEGER(intk) :: istencil, n, pntxpoli, pntxpolr
+        INTEGER(intk), ALLOCATABLE :: xpoli(:)
+        REAL(realk), ALLOCATABLE :: xpolr(:)
         REAL(realk), POINTER, CONTIGUOUS :: x(:), y(:), z(:)
         REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
+        TYPE(flowstencil_t), POINTER, CONTIGUOUS :: stencils(:)
 
         CALL get_imygrid(imygrid, igrid)
         SELECT CASE (comp)
         CASE(1)
-            xpoli => uxpoli(imygrid)%arr
-            xpolr => uxpolrvel(imygrid)%arr
-            ncells = unblg(imygrid)
+            stencils => uvelstencils(imygrid)%arr
         CASE(2)
-            xpoli => vxpoli(imygrid)%arr
-            xpolr => vxpolrvel(imygrid)%arr
-            ncells = vnblg(imygrid)
+            stencils => vvelstencils(imygrid)%arr
         CASE(3)
-            xpoli => wxpoli(imygrid)%arr
-            xpolr => wxpolrvel(imygrid)%arr
-            ncells = wnblg(imygrid)
+            stencils => wvelstencils(imygrid)%arr
         CASE(4)
-            xpoli => fxpoli(imygrid)%arr
-            xpolr => fxpolr(imygrid)%arr
-            ncells = fnblg(imygrid)
+            ncells = SIZE(fcorrstencils(imygrid)%arr)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
+
+        IF (comp <= 3) THEN
+            ncells = SIZE(stencils)
+            ALLOCATE(xpoli(2*ncells + SUM(stencils%npts)))
+            ALLOCATE(xpolr(ncells + SUM(stencils%npts)))
+            pntxpoli = 1
+            pntxpolr = 1
+            DO istencil = 1, ncells
+                xpoli(pntxpoli) = stencils(istencil)%icell
+                xpoli(pntxpoli + 1) = stencils(istencil)%npts
+                pntxpoli = pntxpoli + 2
+                DO n = 1, stencils(istencil)%npts
+                    xpoli(pntxpoli) = stencils(istencil)%pts(n)
+                    xpolr(pntxpolr) = stencils(istencil)%coeff(n)
+                    pntxpoli = pntxpoli + 1
+                    pntxpolr = pntxpolr + 1
+                END DO
+                xpolr(pntxpolr) = stencils(istencil)%acoeff
+                pntxpolr = pntxpolr + 1
+            END DO
+        ELSE
+            ALLOCATE(xpoli(2*ncells), xpolr(7*ncells))
+            DO istencil = 1, ncells
+                xpoli(2*istencil - 1) = 0
+                xpoli(2*istencil) = &
+                    fcorrstencils(imygrid)%arr(istencil)%icell
+                xpolr(7*istencil - 6:7*istencil - 1) = &
+                    fcorrstencils(imygrid)%arr(istencil)%area
+                xpolr(7*istencil) = &
+                    fcorrstencils(imygrid)%arr(istencil)%acoeff
+            END DO
+        END IF
 
         ! If no cells are present we return here...
         IF (ncells == 0) RETURN
