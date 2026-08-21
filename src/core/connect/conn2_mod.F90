@@ -2,7 +2,7 @@ MODULE conn2_mod
 
     USE MPI_f08
     USE precision_mod
-    USE commbuf_mod, ONLY: sendbuf, recvbuf
+    USE commbuf_mod, ONLY: sendbuf, recvbuf, device_sendbuf, device_recvbuf
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
@@ -273,7 +273,6 @@ CONTAINS
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
-        !$omp target update to(recvbuf)
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
     END SUBROUTINE jit_conn
@@ -301,7 +300,6 @@ CONTAINS
         CALL process_selftasks(nselftasks, wptr%selftasks)
 
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
-        !$omp target update to(recvbuf)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
     END SUBROUTINE recorded_conn
@@ -352,7 +350,6 @@ CONTAINS
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
-        !$omp target update to(recvbuf)
         CALL process_recvtasks(nrecvtasks, recvtasks)
 
         ! Allocate the workpackage arrays in the exact sizes
@@ -1631,7 +1628,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+        CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
 
         recvcounter = recvcounter + messagelength
@@ -1654,8 +1651,6 @@ CONTAINS
         CALL profile_range_push("process_mpisend")
 #endif
 
-    !$omp target update from(sendbuf)
-
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpistasks
 
@@ -1663,7 +1658,7 @@ CONTAINS
             messagelength = INT(mpistasks(2, itask), int32)
             sendcounter   = INT(mpistasks(3, itask), int32)
 
-            CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
+            CALL MPI_Isend(device_sendbuf(sendcounter + 1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
                 sendreqs(itask))
         END DO
@@ -1706,7 +1701,7 @@ CONTAINS
             messagelength = INT(mpirtasks(2, itask), int32)
             recvcounter   = INT(mpirtasks(3, itask), int32)
 
-            CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
+            CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(itask))
         END DO
 
