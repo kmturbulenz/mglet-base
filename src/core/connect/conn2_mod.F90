@@ -2,7 +2,7 @@ MODULE conn2_mod
 
     USE MPI_f08
     USE precision_mod
-    USE commbuf_mod, ONLY: sendbuf, recvbuf, device_sendbuf, device_recvbuf
+    USE commbuf_mod, ONLY: sendbuf, recvbuf
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
@@ -273,6 +273,7 @@ CONTAINS
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        !$omp target update to(recvbuf)
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
     END SUBROUTINE jit_conn
@@ -298,7 +299,9 @@ CONTAINS
         CALL process_sendtasks(nsendtasks, wptr%sendtasks)
         CALL process_mpisend(nmpisendtasks, wptr%mpisendtasks)
         CALL process_selftasks(nselftasks, wptr%selftasks)
+
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
+        !$omp target update to(recvbuf)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
     END SUBROUTINE recorded_conn
@@ -349,6 +352,7 @@ CONTAINS
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        !$omp target update to(recvbuf)
         CALL process_recvtasks(nrecvtasks, recvtasks)
 
         ! Allocate the workpackage arrays in the exact sizes
@@ -1259,7 +1263,7 @@ CONTAINS
 #endif
 
         CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+            f3%arr, f4%arr, f5%arr, f6%arr, sendbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -1267,11 +1271,13 @@ CONTAINS
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6, &
+            sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1302,22 +1308,22 @@ CONTAINS
             SELECT CASE (fieldid)
             CASE (1)
                 CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE (2)
                 CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE (3)
                 CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE (4)
                 CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE (5)
                 CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE (6)
                 CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, sbuf)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1328,13 +1334,14 @@ CONTAINS
 
 
     SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
-        jstart, jstop, kstart, kstop, icount)
+        jstart, jstop, kstart, kstop, icount, sbuf)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
             kstop, icount
+        REAL(realk), INTENT(inout) :: sbuf(*)
         ! Local variables
         INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
 
@@ -1347,7 +1354,7 @@ CONTAINS
                 DO k = kstart, kstop
                     idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
                         (i-istart)*jjl*kkl + icount
-                    sendbuf(idx_b) = arr(k, j, i)
+                    sbuf(idx_b) = arr(k, j, i)
                 END DO
             END DO
         END DO
@@ -1374,7 +1381,7 @@ CONTAINS
 #endif
 
         CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+            f3%arr, f4%arr, f5%arr, f6%arr, recvbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -1382,11 +1389,13 @@ CONTAINS
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6, &
+            rbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: rbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1417,22 +1426,22 @@ CONTAINS
             SELECT CASE (fieldid)
             CASE (1)
                 CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE (2)
                 CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE (3)
                 CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE (4)
                 CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE (5)
                 CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, icount, rbuf)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1443,13 +1452,14 @@ CONTAINS
 
 
     SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
-        jstart, jstop, kstart, kstop, icount)
+        jstart, jstop, kstart, kstop, icount, rbuf)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: arr(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
             kstop, icount
+        REAL(realk), INTENT(in) :: rbuf(*)
         ! Local variables
         INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
 
@@ -1462,7 +1472,7 @@ CONTAINS
                 DO k = kstart, kstop
                     idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
                         (i-istart)*jjl*kkl + icount
-                    arr(k, j, i) = recvbuf(idx_b)
+                    arr(k, j, i) = rbuf(idx_b)
                 END DO
             END DO
         END DO
@@ -1621,7 +1631,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-        CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
+        CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
             mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(nrecv))
 
         recvcounter = recvcounter + messagelength
@@ -1644,6 +1654,8 @@ CONTAINS
         CALL profile_range_push("process_mpisend")
 #endif
 
+    !$omp target update from(sendbuf)
+
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpistasks
 
@@ -1651,7 +1663,7 @@ CONTAINS
             messagelength = INT(mpistasks(2, itask), int32)
             sendcounter   = INT(mpistasks(3, itask), int32)
 
-            CALL MPI_Isend(device_sendbuf(sendcounter + 1), messagelength, &
+            CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, &
                 sendreqs(itask))
         END DO
@@ -1694,7 +1706,7 @@ CONTAINS
             messagelength = INT(mpirtasks(2, itask), int32)
             recvcounter   = INT(mpirtasks(3, itask), int32)
 
-            CALL MPI_Irecv(device_recvbuf(recvcounter+1), messagelength, &
+            CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
                 mglet_mpi_real, iprocnbr, 1, MPI_COMM_WORLD, recvreqs(itask))
         END DO
 
