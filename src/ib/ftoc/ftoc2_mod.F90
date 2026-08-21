@@ -683,7 +683,8 @@ CONTAINS
 #endif
 
         CALL process_selftasks_noib_impl(netasks, etasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr, ddx%arr, ddy%arr, ddz%arr)
+            f3%arr, f4%arr, f5%arr, f6%arr, ddx%arr, ddy%arr, ddz%arr, &
+            sendbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -692,12 +693,13 @@ CONTAINS
 
 
     SUBROUTINE process_selftasks_noib_impl(netasks, etasks, a1, a2, a3, a4, &
-            a5, a6, ddx, ddy, ddz)
+            a5, a6, ddx, ddy, ddz, sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: netasks
         INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
         REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
@@ -742,54 +744,54 @@ CONTAINS
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a1(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a1(ip3c), sbuf(scratchidx), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (2)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a2(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a2(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (3)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a3(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a3(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (4)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a4(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a4(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a5(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a5(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
                 CALL restrict_noib_flag(flag, kkf, jjf, iif, &
                     a6(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
+                    kstart, kstop, sbuf)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a6(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
 #ifdef _MGLET_DEBUG_
@@ -1147,7 +1149,7 @@ CONTAINS
 
         CALL process_sendtasks_noib_impl(nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
-            ddz_f%arr)
+            ddz_f%arr, sendbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -1156,12 +1158,13 @@ CONTAINS
 
 
     SUBROUTINE process_sendtasks_noib_impl(nstasks, stasks, a1, a2, a3, a4, &
-            a5, a6, ddx, ddy, ddz)
+            a5, a6, ddx, ddy, ddz, sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
         REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
@@ -1197,27 +1200,27 @@ CONTAINS
             CASE (1)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a1(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
             CASE (2)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a2(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
             CASE (3)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a3(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
             CASE (4)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a4(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
             CASE (5)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a5(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
             CASE (6)
                 CALL restrict_noib_flag(flag, kk, jj, ii, a6(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    istart, istop, jstart, jstop, kstart, kstop, sbuf)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)

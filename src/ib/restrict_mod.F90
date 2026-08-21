@@ -68,14 +68,15 @@ CONTAINS
         CALL f_t%get_ptr(f, igrid)
 
         CALL restrict_noib_flag(ctyp, kk, jj, ii, f, ddx, ddy, ddz, offset, &
-            messagelength, istart, istop, jstart, jstop, kstart, kstop)
+            messagelength, istart, istop, jstart, jstop, kstart, kstop, &
+            sendbuf)
 
         offset = offset + messagelength
     END SUBROUTINE restrict_noib
 
 
     SUBROUTINE restrict_noib_flag(flag, kk, jj, ii, ff, ddx, ddy, ddz, offset, &
-            messagelength, istart, istop, jstart, jstop, kstart, kstop)
+            messagelength, istart, istop, jstart, jstop, kstart, kstop, sbuf)
         !$omp declare target
         ! Subroutine arguments
         CHARACTER(len=1), INTENT(in) :: flag
@@ -84,6 +85,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         INTEGER(int32), INTENT(in) :: offset, messagelength
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(int32) :: targetidx
@@ -93,19 +95,19 @@ CONTAINS
         SELECT CASE (flag)
         CASE ('U')
             CALL restrict_noib_u(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(offset:targetidx), &
+                messagelength, sbuf(offset:targetidx), &
                 istart, istop, jstart, jstop, kstart, kstop)
         CASE ('V')
             CALL restrict_noib_v(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(offset:targetidx), &
+                messagelength, sbuf(offset:targetidx), &
                 istart, istop, jstart, jstop, kstart, kstop)
         CASE ('W')
             CALL restrict_noib_w(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(offset:targetidx), &
+                messagelength, sbuf(offset:targetidx), &
                 istart, istop, jstart, jstop, kstart, kstop)
         CASE ('P', 'R', 'S', 'T')
             CALL restrict_noib_s(kk, jj, ii, ff, ddx, ddy, ddz, &
-                messagelength, sendbuf(offset:targetidx), &
+                messagelength, sbuf(offset:targetidx), &
                 istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
         CASE DEFAULT
