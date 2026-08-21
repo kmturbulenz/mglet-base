@@ -1268,8 +1268,8 @@ CONTAINS
     END SUBROUTINE process_sendtasks
 
 
-        SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6, &
-            sbuf)
+        SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, &
+            a5, a6, sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
@@ -1386,8 +1386,8 @@ CONTAINS
     END SUBROUTINE process_recvtasks
 
 
-        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6, &
-            rbuf)
+        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
+            a5, a6, rbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
