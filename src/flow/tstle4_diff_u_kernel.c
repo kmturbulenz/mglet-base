@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <math.h>
 
 #ifdef _MGLET_DOUBLE_PRECISION_
 typedef double realk_c;
@@ -26,6 +27,48 @@ static inline size_t idx1(const intk_c i)
 static inline realk_c max2(const realk_c a, const realk_c b)
 {
     return (a > b) ? a : b;
+}
+
+static inline realk_c abs_c(const realk_c x)
+{
+#ifdef _MGLET_DOUBLE_PRECISION_
+    return fabs(x);
+#else
+    return fabsf(x);
+#endif
+}
+
+static inline realk_c pow_c(const realk_c x, const realk_c p)
+{
+#ifdef _MGLET_DOUBLE_PRECISION_
+    return pow(x, p);
+#else
+    return powf(x, p);
+#endif
+}
+
+static inline realk_c swcle3d_one_c(const realk_c ddz, const realk_c u,
+        const realk_c gmol, const realk_c rho)
+{
+    const realk_c cwa = (realk_c)8.3;
+    const realk_c cwb = (realk_c)(1.0 / 7.0);
+    const realk_c cpo1 = (realk_c)1.0 - cwb;
+    const realk_c cpo2 = (realk_c)1.0 + cwb;
+    const realk_c nu = gmol / rho;
+    const realk_c cpo4 = cpo2 / cwa * pow_c(nu, cwb);
+    const realk_c cpo5 = (realk_c)0.5 * cpo1 * pow_c(cwa, cpo2 / cpo1) * pow_c(nu, cpo2);
+    const realk_c cpo6 = (realk_c)0.5 * nu * pow_c(cwa, (realk_c)2.0 / cpo1);
+    const realk_c cpo8 = (realk_c)2.0 / cpo2;
+
+    const realk_c vz = (u < (realk_c)0.0) ? (realk_c)-1.0 : (realk_c)1.0;
+    const realk_c uquern = abs_c(u);
+
+    if (uquern >= cpo6 / ddz) {
+        const realk_c ddsb = pow_c(ddz, -cwb);
+        return vz * pow_c(ddsb * (cpo4 * uquern + cpo5 / ddz), cpo8) / ddz;
+    }
+
+    return vz * (realk_c)2.0 * gmol * uquern / (rho * ddz * ddz);
 }
 
 #if defined(_OPENMP)
@@ -286,6 +329,114 @@ void tstle4_diff_w_c(const intk_c kk, const intk_c jj, const intk_c ii,
 
                 const realk_c fak = ((realk_c)1.0 / rho) * rddx[idx1(i)] * rddy[idx1(j)] * rdz[idx1(k)];
                 wo[idx3(kk, jj, k, j, i)] -= fak * (qe - qw + qn - qs + qt - qb - qc);
+            }
+        }
+    }
+}
+
+void tstle4_diff_swc_c(const intk_c kk, const intk_c jj, const intk_c ii,
+        realk_c *uo, realk_c *vo, realk_c *wo,
+        const realk_c *u, const realk_c *v, const realk_c *w,
+        const realk_c *ddx, const realk_c *ddy, const realk_c *ddz,
+        const intk_c nfro, const intk_c nbac, const intk_c nrgt,
+        const intk_c nlft, const intk_c nbot, const intk_c ntop,
+        const realk_c gmol, const realk_c rho)
+{
+    if (nfro == 5) {
+        const intk_c i = 3;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c j = 2; j <= jj - 1; ++j) {
+            for (intk_c k = 2; k <= kk - 1; ++k) {
+                const realk_c d = ddx[idx1(i)];
+                vo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, v[idx3(kk, jj, k, j, i)], gmol, rho);
+                wo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, w[idx3(kk, jj, k, j, i)], gmol, rho);
+            }
+        }
+#if defined(_OPENMP)
+        #pragma omp barrier
+#endif
+    }
+
+    if (nbac == 5) {
+        const intk_c i = ii - 2;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c j = 2; j <= jj - 1; ++j) {
+            for (intk_c k = 2; k <= kk - 1; ++k) {
+                const realk_c d = ddx[idx1(i)];
+                vo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, v[idx3(kk, jj, k, j, i)], gmol, rho);
+                wo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, w[idx3(kk, jj, k, j, i)], gmol, rho);
+            }
+        }
+#if defined(_OPENMP)
+        #pragma omp barrier
+#endif
+    }
+
+    if (nrgt == 5) {
+        const intk_c j = 3;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c i = 2; i <= ii - 1; ++i) {
+            for (intk_c k = 2; k <= kk - 1; ++k) {
+                const realk_c d = ddy[idx1(j)];
+                uo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, u[idx3(kk, jj, k, j, i)], gmol, rho);
+                wo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, w[idx3(kk, jj, k, j, i)], gmol, rho);
+            }
+        }
+#if defined(_OPENMP)
+        #pragma omp barrier
+#endif
+    }
+
+    if (nlft == 5) {
+        const intk_c j = jj - 2;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c i = 2; i <= ii - 1; ++i) {
+            for (intk_c k = 2; k <= kk - 1; ++k) {
+                const realk_c d = ddy[idx1(j)];
+                uo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, u[idx3(kk, jj, k, j, i)], gmol, rho);
+                wo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, w[idx3(kk, jj, k, j, i)], gmol, rho);
+            }
+        }
+#if defined(_OPENMP)
+        #pragma omp barrier
+#endif
+    }
+
+    if (nbot == 5) {
+        const intk_c k = 3;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c i = 2; i <= ii - 1; ++i) {
+            for (intk_c j = 2; j <= jj - 1; ++j) {
+                const realk_c d = ddz[idx1(k)];
+                uo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, u[idx3(kk, jj, k, j, i)], gmol, rho);
+                vo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, v[idx3(kk, jj, k, j, i)], gmol, rho);
+            }
+        }
+#if defined(_OPENMP)
+        #pragma omp barrier
+#endif
+    }
+
+    if (ntop == 5) {
+        const intk_c k = kk - 2;
+#if defined(_OPENMP)
+        #pragma omp for collapse(2)
+#endif
+        for (intk_c i = 2; i <= ii - 1; ++i) {
+            for (intk_c j = 2; j <= jj - 1; ++j) {
+                const realk_c d = ddz[idx1(k)];
+                uo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, u[idx3(kk, jj, k, j, i)], gmol, rho);
+                vo[idx3(kk, jj, k, j, i)] -= swcle3d_one_c(d, v[idx3(kk, jj, k, j, i)], gmol, rho);
             }
         }
     }

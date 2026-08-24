@@ -54,9 +54,23 @@ MODULE tstle4_mod
             INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop, ilesmodel_in
             REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
         END SUBROUTINE tstle4_diff_w_c
+
+        SUBROUTINE tstle4_diff_swc_c(kk, jj, ii, uo, vo, wo, u, v, w, ddx, &
+            ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop, gmol_in, rho_in) &
+            BIND(C, name="tstle4_diff_swc_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
+            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
+        END SUBROUTINE tstle4_diff_swc_c
     END INTERFACE
 
-    !$omp declare target(tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c)
+    !$omp declare target(tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
+    !$omp&   tstle4_diff_swc_c)
 
 CONTAINS
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
@@ -235,29 +249,6 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
-        ! Eddy-viscosity pre-processing
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            ! !$omp parallel
-            ! CALL tstle4_diff_swc(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), &
-            !     u(ip3), v(ip3), w(ip3), ddx(ipx), ddy(ipy), ddz(ipz), nfro, &
-            !     nbac, nrgt, nlft, nbot, ntop)
-            ! !$omp end parallel
-        END DO
-        !$omp end target teams distribute
-
-        ! U momentum diffusion contribution
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
         !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
@@ -272,6 +263,13 @@ CONTAINS
             CALL get_ip1z(ipz, igrid)
 
             !$omp parallel
+            CALL tstle4_diff_swc_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), u(ip3), v(ip3), &
+                w(ip3), ddx(ipx), ddy(ipy), ddz(ipz), INT(nfro, c_intk), &
+                INT(nbac, c_intk), INT(nrgt, c_intk), INT(nlft, c_intk), &
+                INT(nbot, c_intk), INT(ntop, c_intk), REAL(gmol, c_realk), &
+                REAL(rho, c_realk))
+
             CALL tstle4_diff_u_c(INT(kk, c_intk), INT(jj, c_intk), &
                 INT(ii, c_intk), uo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
                 dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
