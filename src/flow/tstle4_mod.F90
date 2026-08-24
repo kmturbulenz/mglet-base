@@ -10,6 +10,48 @@ MODULE tstle4_mod
     PUBLIC :: tstle4
 
     INTERFACE
+        SUBROUTINE tstle4_kon_u_c(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, &
+            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, &
+            nbac) BIND(C, name="tstle4_kon_u_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: uo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac
+        END SUBROUTINE tstle4_kon_u_c
+
+        SUBROUTINE tstle4_kon_v_c(kk, jj, ii, vo, u, v, w, ut, vt, wt, dx, &
+            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nrgt, &
+            nlft) BIND(C, name="tstle4_kon_v_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: vo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nrgt, nlft
+        END SUBROUTINE tstle4_kon_v_c
+
+        SUBROUTINE tstle4_kon_w_c(kk, jj, ii, wo, u, v, w, ut, vt, wt, dx, &
+            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nbot, &
+            ntop) BIND(C, name="tstle4_kon_w_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
+        END SUBROUTINE tstle4_kon_w_c
+
         SUBROUTINE tstle4_diff_u_c(kk, jj, ii, uo, u, v, w, g, dx, dy, dz, &
             ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, &
             ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_u_c")
@@ -69,7 +111,8 @@ MODULE tstle4_mod
         END SUBROUTINE tstle4_diff_swc_c
     END INTERFACE
 
-    !$omp declare target(tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
+    !$omp declare target(tstle4_kon_u_c, tstle4_kon_v_c, tstle4_kon_w_c, &
+    !$omp&   tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
     !$omp&   tstle4_diff_swc_c)
 
 CONTAINS
@@ -165,7 +208,6 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
-        ! U momentum contribution
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
         !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
@@ -180,61 +222,27 @@ CONTAINS
             CALL get_ip1z(ipz, igrid)
 
             !$omp parallel
-            CALL tstle4_kon_u(kk, jj, ii, uo(ip3), u(ip3), &
-                v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
-                dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
-                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, ntop)
+            CALL tstle4_kon_u_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), uo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
+                vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
+                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
+                rddy(ipy), rddz(ipz), INT(nfro, c_intk), INT(nbac, c_intk))
+
+            CALL tstle4_kon_v_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), vo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
+                vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
+                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
+                rddy(ipy), rddz(ipz), INT(nrgt, c_intk), INT(nlft, c_intk))
+
+            CALL tstle4_kon_w_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), wo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
+                vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
+                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
+                rddy(ipy), rddz(ipz), INT(nbot, c_intk), INT(ntop, c_intk))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
 
-        ! V momentum contribution
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            !$omp parallel
-            CALL tstle4_kon_v(kk, jj, ii, vo(ip3), u(ip3), v(ip3), w(ip3), &
-                ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
-                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
-                rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, &
-                nbot, ntop)
-            !$omp end parallel
-        END DO
-        !$omp end target teams distribute
-
-        ! W momentum contribution
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            !$omp parallel
-            CALL tstle4_kon_w(kk, jj, ii, wo(ip3), u(ip3), v(ip3), w(ip3), &
-                ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
-                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
-                rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, &
-                nbot, ntop)
-            !$omp end parallel
-        END DO
-        !$omp end target teams distribute
     END SUBROUTINE tstle4_kon_impl
 
 

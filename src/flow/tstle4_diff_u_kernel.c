@@ -72,8 +72,186 @@ static inline realk_c swcle3d_one_c(const realk_c ddz, const realk_c u,
 }
 
 #if defined(_OPENMP)
-#pragma omp declare target
+#pragma omp begin declare target
 #endif
+
+void tstle4_kon_u_c(const intk_c kk, const intk_c jj, const intk_c ii,
+        realk_c *uo,
+        const realk_c *u, const realk_c *v, const realk_c *w,
+        const realk_c *ut, const realk_c *vt, const realk_c *wt,
+        const realk_c *dx, const realk_c *dy, const realk_c *dz,
+        const realk_c *ddx, const realk_c *ddy, const realk_c *ddz,
+        const realk_c *rdx, const realk_c *rdy, const realk_c *rdz,
+        const realk_c *rddx, const realk_c *rddy, const realk_c *rddz,
+        const intk_c nfro, const intk_c nbac)
+{
+    intk_c nfu = 0;
+    intk_c nbu = 0;
+
+    (void)dy;
+    (void)dz;
+    (void)rdy;
+    (void)rdz;
+    (void)rddx;
+
+    if (nbac == 7) nbu = 1;
+    if (nfro == 3) nfu = 1;
+    if (nbac == 3) nbu = 1;
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3 - nfu; i <= ii - 3 + nbu; ++i) {
+        for (intk_c j = 3; j <= jj - 2; ++j) {
+            for (intk_c k = 3; k <= kk - 2; ++k) {
+                const realk_c ax = ddy[idx1(j)] * ddz[idx1(k)];
+                const realk_c ay = dx[idx1(i)] * ddz[idx1(k)];
+                const realk_c az = dx[idx1(i)] * ddy[idx1(j)];
+
+                const realk_c fe = ax * (ut[idx3(kk, jj, k, j, i)] +
+                    (ut[idx3(kk, jj, k, j, i + 1)] - ut[idx3(kk, jj, k, j, i)]) *
+                    (realk_c)0.5 * dx[idx1(i)] / ddx[idx1(i + 1)]);
+                const realk_c fw = ax * (ut[idx3(kk, jj, k, j, i - 1)] +
+                    (ut[idx3(kk, jj, k, j, i)] - ut[idx3(kk, jj, k, j, i - 1)]) *
+                    (realk_c)0.5 * dx[idx1(i - 1)] / ddx[idx1(i)]);
+                const realk_c fn = ay * (vt[idx3(kk, jj, k, j, i)] + vt[idx3(kk, jj, k, j, i + 1)]) * (realk_c)0.5;
+                const realk_c fs = ay * (vt[idx3(kk, jj, k, j - 1, i)] + vt[idx3(kk, jj, k, j - 1, i + 1)]) * (realk_c)0.5;
+                const realk_c ft = az * (wt[idx3(kk, jj, k, j, i)] + wt[idx3(kk, jj, k, j, i + 1)]) * (realk_c)0.5;
+                const realk_c fb = az * (wt[idx3(kk, jj, k - 1, j, i)] + wt[idx3(kk, jj, k - 1, j, i + 1)]) * (realk_c)0.5;
+
+                const realk_c qe = (realk_c)0.5 * fe * (u[idx3(kk, jj, k, j, i)] + u[idx3(kk, jj, k, j, i + 1)]);
+                const realk_c qw = (realk_c)0.5 * fw * (u[idx3(kk, jj, k, j, i - 1)] + u[idx3(kk, jj, k, j, i)]);
+                const realk_c qn = (realk_c)0.5 * fn * (u[idx3(kk, jj, k, j, i)] + u[idx3(kk, jj, k, j + 1, i)]);
+                const realk_c qs = (realk_c)0.5 * fs * (u[idx3(kk, jj, k, j - 1, i)] + u[idx3(kk, jj, k, j, i)]);
+                const realk_c qt = (realk_c)0.5 * ft * (u[idx3(kk, jj, k, j, i)] + u[idx3(kk, jj, k + 1, j, i)]);
+                const realk_c qb = (realk_c)0.5 * fb * (u[idx3(kk, jj, k - 1, j, i)] + u[idx3(kk, jj, k, j, i)]);
+
+                uo[idx3(kk, jj, k, j, i)] =
+                    -(qe - qw + qn - qs + qt - qb) *
+                    rdx[idx1(i)] * rddy[idx1(j)] * rddz[idx1(k)];
+            }
+        }
+    }
+}
+
+void tstle4_kon_v_c(const intk_c kk, const intk_c jj, const intk_c ii,
+        realk_c *vo,
+        const realk_c *u, const realk_c *v, const realk_c *w,
+        const realk_c *ut, const realk_c *vt, const realk_c *wt,
+        const realk_c *dx, const realk_c *dy, const realk_c *dz,
+        const realk_c *ddx, const realk_c *ddy, const realk_c *ddz,
+        const realk_c *rdx, const realk_c *rdy, const realk_c *rdz,
+        const realk_c *rddx, const realk_c *rddy, const realk_c *rddz,
+        const intk_c nrgt, const intk_c nlft)
+{
+    intk_c nrv = 0;
+    intk_c nlv = 0;
+
+    (void)dx;
+    (void)dz;
+    (void)rdx;
+    (void)rdz;
+    (void)rddy;
+
+    if (nlft == 7) nlv = 1;
+    if (nrgt == 3) nrv = 1;
+    if (nlft == 3) nlv = 1;
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3; i <= ii - 2; ++i) {
+        for (intk_c j = 3 - nrv; j <= jj - 3 + nlv; ++j) {
+            for (intk_c k = 3; k <= kk - 2; ++k) {
+                const realk_c ax = dy[idx1(j)] * ddz[idx1(k)];
+                const realk_c ay = ddx[idx1(i)] * ddz[idx1(k)];
+                const realk_c az = ddx[idx1(i)] * dy[idx1(j)];
+
+                const realk_c fe = ax * (ut[idx3(kk, jj, k, j, i)] + ut[idx3(kk, jj, k, j + 1, i)]) * (realk_c)0.5;
+                const realk_c fw = ax * (ut[idx3(kk, jj, k, j, i - 1)] + ut[idx3(kk, jj, k, j + 1, i - 1)]) * (realk_c)0.5;
+                const realk_c fn = ay * (vt[idx3(kk, jj, k, j, i)] +
+                    (vt[idx3(kk, jj, k, j + 1, i)] - vt[idx3(kk, jj, k, j, i)]) *
+                    (realk_c)0.5 * dy[idx1(j)] / ddy[idx1(j + 1)]);
+                const realk_c fs = ay * (vt[idx3(kk, jj, k, j - 1, i)] +
+                    (vt[idx3(kk, jj, k, j, i)] - vt[idx3(kk, jj, k, j - 1, i)]) *
+                    (realk_c)0.5 * dy[idx1(j - 1)] / ddy[idx1(j)]);
+                const realk_c ft = az * (wt[idx3(kk, jj, k, j, i)] + wt[idx3(kk, jj, k, j + 1, i)]) * (realk_c)0.5;
+                const realk_c fb = az * (wt[idx3(kk, jj, k - 1, j, i)] + wt[idx3(kk, jj, k - 1, j + 1, i)]) * (realk_c)0.5;
+
+                const realk_c qe = (realk_c)0.5 * fe * (v[idx3(kk, jj, k, j, i)] + v[idx3(kk, jj, k, j, i + 1)]);
+                const realk_c qw = (realk_c)0.5 * fw * (v[idx3(kk, jj, k, j, i - 1)] + v[idx3(kk, jj, k, j, i)]);
+                const realk_c qn = (realk_c)0.5 * fn * (v[idx3(kk, jj, k, j, i)] + v[idx3(kk, jj, k, j + 1, i)]);
+                const realk_c qs = (realk_c)0.5 * fs * (v[idx3(kk, jj, k, j - 1, i)] + v[idx3(kk, jj, k, j, i)]);
+                const realk_c qt = (realk_c)0.5 * ft * (v[idx3(kk, jj, k, j, i)] + v[idx3(kk, jj, k + 1, j, i)]);
+                const realk_c qb = (realk_c)0.5 * fb * (v[idx3(kk, jj, k - 1, j, i)] + v[idx3(kk, jj, k, j, i)]);
+
+                vo[idx3(kk, jj, k, j, i)] =
+                    -(qe - qw + qn - qs + qt - qb) *
+                    rddx[idx1(i)] * rdy[idx1(j)] * rddz[idx1(k)];
+            }
+        }
+    }
+}
+
+void tstle4_kon_w_c(const intk_c kk, const intk_c jj, const intk_c ii,
+        realk_c *wo,
+        const realk_c *u, const realk_c *v, const realk_c *w,
+        const realk_c *ut, const realk_c *vt, const realk_c *wt,
+        const realk_c *dx, const realk_c *dy, const realk_c *dz,
+        const realk_c *ddx, const realk_c *ddy, const realk_c *ddz,
+        const realk_c *rdx, const realk_c *rdy, const realk_c *rdz,
+        const realk_c *rddx, const realk_c *rddy, const realk_c *rddz,
+        const intk_c nbot, const intk_c ntop)
+{
+    intk_c nbw = 0;
+    intk_c ntw = 0;
+
+    (void)dx;
+    (void)dy;
+    (void)rdx;
+    (void)rdy;
+    (void)rddz;
+
+    if (ntop == 7) ntw = 1;
+    if (nbot == 3) nbw = 1;
+    if (ntop == 3) ntw = 1;
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3; i <= ii - 2; ++i) {
+        for (intk_c j = 3; j <= jj - 2; ++j) {
+            for (intk_c k = 3 - nbw; k <= kk - 3 + ntw; ++k) {
+                const realk_c ax = ddy[idx1(j)] * dz[idx1(k)];
+                const realk_c ay = ddx[idx1(i)] * dz[idx1(k)];
+                const realk_c az = ddx[idx1(i)] * ddy[idx1(j)];
+
+                const realk_c fe = ax * (ut[idx3(kk, jj, k, j, i)] + ut[idx3(kk, jj, k + 1, j, i)]) * (realk_c)0.5;
+                const realk_c fw = ax * (ut[idx3(kk, jj, k, j, i - 1)] + ut[idx3(kk, jj, k + 1, j, i - 1)]) * (realk_c)0.5;
+                const realk_c fn = ay * (vt[idx3(kk, jj, k, j, i)] + vt[idx3(kk, jj, k + 1, j, i)]) * (realk_c)0.5;
+                const realk_c fs = ay * (vt[idx3(kk, jj, k, j - 1, i)] + vt[idx3(kk, jj, k + 1, j - 1, i)]) * (realk_c)0.5;
+                const realk_c ft = az * (wt[idx3(kk, jj, k, j, i)] +
+                    (wt[idx3(kk, jj, k + 1, j, i)] - wt[idx3(kk, jj, k, j, i)]) *
+                    (realk_c)0.5 * dz[idx1(k)] / ddz[idx1(k + 1)]);
+                const realk_c fb = az * (wt[idx3(kk, jj, k - 1, j, i)] +
+                    (wt[idx3(kk, jj, k, j, i)] - wt[idx3(kk, jj, k - 1, j, i)]) *
+                    (realk_c)0.5 * dz[idx1(k - 1)] / ddz[idx1(k)]);
+
+                const realk_c qe = (realk_c)0.5 * fe * (w[idx3(kk, jj, k, j, i)] + w[idx3(kk, jj, k, j, i + 1)]);
+                const realk_c qw = (realk_c)0.5 * fw * (w[idx3(kk, jj, k, j, i - 1)] + w[idx3(kk, jj, k, j, i)]);
+                const realk_c qn = (realk_c)0.5 * fn * (w[idx3(kk, jj, k, j, i)] + w[idx3(kk, jj, k, j + 1, i)]);
+                const realk_c qs = (realk_c)0.5 * fs * (w[idx3(kk, jj, k, j - 1, i)] + w[idx3(kk, jj, k, j, i)]);
+                const realk_c qt = (realk_c)0.5 * ft * (w[idx3(kk, jj, k, j, i)] + w[idx3(kk, jj, k + 1, j, i)]);
+                const realk_c qb = (realk_c)0.5 * fb * (w[idx3(kk, jj, k - 1, j, i)] + w[idx3(kk, jj, k, j, i)]);
+
+                wo[idx3(kk, jj, k, j, i)] =
+                    -(qe - qw + qn - qs + qt - qb) *
+                    rddx[idx1(i)] * rddy[idx1(j)] * rdz[idx1(k)];
+            }
+        }
+    }
+}
+
 void tstle4_diff_u_c(const intk_c kk, const intk_c jj, const intk_c ii,
         realk_c *uo,
         const realk_c *u, const realk_c *v, const realk_c *w,
