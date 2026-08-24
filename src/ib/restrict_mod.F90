@@ -154,74 +154,67 @@ CONTAINS
 
         CALL f_t%get_ptr(f, igrid)
 
-        CALL restrict_gc_flag(ctyp, kk, jj, ii, f, ddx, ddy, ddz, bp, bt, &
-            offset, messagelength, istart, istop, jstart, jstop, kstart, kstop)
+        CALL restrict_gc_flag(messagelength, &
+            sendbuf(offset:offset+messagelength-1), ctyp, kk, jj, ii, f, ddx, &
+            ddy, ddz, bp, bt, istart, istop, jstart, jstop, kstart, kstop)
 
         offset = offset + messagelength
     END SUBROUTINE restrict_gc
 
 
-    SUBROUTINE restrict_gc_flag(flag, kk, jj, ii, ff, ddx, ddy, ddz, bp, bt, &
-            offset, messagelength, istart, istop, jstart, jstop, kstart, kstop)
+    SUBROUTINE restrict_gc_flag(messagelength, sbuf, flag, kk, jj, ii, ff, &
+            ddx, ddy, ddz, bp, bt, istart, istop, jstart, jstop, kstart, kstop)
         !$omp declare target
         ! Subroutine arguments
+        INTEGER(int32), INTENT(in) :: messagelength
+        REAL(realk), INTENT(inout) :: sbuf(messagelength)
         CHARACTER(len=1), INTENT(in) :: flag
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: ff(kk, jj, ii)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii), bt(kk, jj, ii)
-        INTEGER(int32), INTENT(in) :: offset, messagelength
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
-
-        ! Local variables
-        INTEGER(int32) :: targetidx
-
-        targetidx = offset + messagelength - 1
 
         SELECT CASE (flag)
             CASE ('U')
                 CALL restrict_noib_u(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('V')
                 CALL restrict_noib_v(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('W')
                 CALL restrict_noib_w(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('P')
                 CALL restrict_gc_p_t(kk, jj, ii, ff, ddx, ddy, ddz, bp, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('T')
                 CALL restrict_gc_p_t(kk, jj, ii, ff, ddx, ddy, ddz, bt, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('R')
                 CALL restrict_gc_r(kk, jj, ii, ff, ddx, ddy, ddz, bp, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('S')
                 CALL restrict_noib_s(kk, jj, ii, ff, ddx, ddy, ddz, &
-                    messagelength, sendbuf(offset:targetidx), &
-                    istart, istop, jstart, jstop, kstart, kstop)
+                    messagelength, sbuf, istart, istop, jstart, jstop, &
+                    kstart, kstop)
             CASE ('N')
-                CALL restrict_gc_n(kk, jj, ii, ff, messagelength, &
-                    sendbuf(offset:targetidx), &
+                CALL restrict_gc_n(kk, jj, ii, ff, messagelength, sbuf, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE ('E')
-                CALL restrict_gc_e(kk, jj, ii, ff, messagelength, &
-                    sendbuf(offset:targetidx), &
+                CALL restrict_gc_e(kk, jj, ii, ff, messagelength, sbuf, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE ('F')
-                CALL restrict_gc_f(kk, jj, ii, ff, messagelength, &
-                    sendbuf(offset:targetidx), &
+                CALL restrict_gc_f(kk, jj, ii, ff, messagelength, sbuf, &
                     istart, istop, jstart, jstop, kstart, kstop)
             CASE ('I')
-                CALL restrict_gc_i(kk, jj, ii, ff, messagelength, &
-                    sendbuf(offset:targetidx), &
+                CALL restrict_gc_i(kk, jj, ii, ff, messagelength, sbuf, &
                     istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT

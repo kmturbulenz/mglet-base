@@ -870,7 +870,7 @@ CONTAINS
 
         CALL process_selftasks_gc_impl(netasks, etasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
-            ddz_f%arr, bp_f%arr, bt_f%arr)
+            ddz_f%arr, bp_f%arr, bt_f%arr, sendbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -879,12 +879,13 @@ CONTAINS
 
 
     SUBROUTINE process_selftasks_gc_impl(netasks, etasks, a1, a2, a3, a4, &
-            a5, a6, ddx, ddy, ddz, bp, bt)
+            a5, a6, ddx, ddy, ddz, bp, bt, sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: netasks
         INTEGER(intk), INTENT(in) :: etasks(selftasksize, netasks+1)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
         REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, kkf, jjf, iif, kkc, jjc, iic
@@ -894,16 +895,88 @@ CONTAINS
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
-        !$omp target teams distribute private(itask, fieldid, flag, &
-        !$omp& tasksize, scratchidx, igridf, igridc, istart, istop, jstart, &
-        !$omp& jstop, kstart, kstop, ipos, jpos, kpos, kkf, jjf, iif, kkc, &
-        !$omp& jjc, iic, ip3f, ip3c, ipx, ipy, ipz)
+        ! Step 1: Restricting the fine grid data and packing the buffer
+        ! (here, the sendbuf is used as a temporary local storage buffer)
+
+        !$omp target teams distribute private(itask, fieldid, flag, tasksize, &
+        !$omp& scratchidx, igridf, istart, istop, jstart, jstop, kstart,
+        !$omp& kstop, ipos, jpos, kpos, kkf, jjf, iif, ip3f, ipx, ipy, ipz)
         DO itask = 1, netasks
             fieldid = etasks(1, itask)
             flag = ACHAR(etasks(2, itask))
             tasksize = INT(etasks(3, itask), kind=int32)
             scratchidx = INT(etasks(4, itask), kind=int32)
             igridf = etasks(5, itask)
+            istart = etasks(7, itask)
+            istop = etasks(8, itask)
+            jstart = etasks(9, itask)
+            jstop = etasks(10, itask)
+            kstart = etasks(11, itask)
+            kstop = etasks(12, itask)
+
+            ! Getting parameters for the fine grid
+            CALL get_mgdims(kkf, jjf, iif, igridf)
+            CALL get_ip3(ip3f, igridf)
+            CALL get_ip1x(ipx, igridf)
+            CALL get_ip1y(ipy, igridf)
+            CALL get_ip1z(ipz, igridf)
+
+            !$omp parallel
+            SELECT CASE(fieldid)
+            CASE (1)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a1(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE (2)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a2(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE (3)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a3(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE (4)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a4(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE (5)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a5(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE (6)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(scratchidx:scratchidx+tasksize-1), flag, &
+                    kkf, jjf, iif, a6(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
+                    bp(ip3f), bt(ip3f), istart, istop, jstart, jstop, &
+                    kstart, kstop)
+            CASE DEFAULT
+                CALL errr(__FILE__, __LINE__)
+            END SELECT
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+
+        ! Step 2: Unpacking the buffer and writing data into the coarse grid
+
+        !$omp target teams distribute private(itask, fieldid, flag, &
+        !$omp& tasksize, scratchidx, igridc, istart, istop, jstart, &
+        !$omp& jstop, kstart, kstop, ipos, jpos, kpos, kkc, jjc, iic, ip3c)
+        DO itask = 1, netasks
+            fieldid = etasks(1, itask)
+            flag = ACHAR(etasks(2, itask))
+            tasksize = INT(etasks(3, itask), kind=int32)
+            scratchidx = INT(etasks(4, itask), kind=int32)
             igridc = etasks(6, itask)
             istart = etasks(7, itask)
             istop = etasks(8, itask)
@@ -915,75 +988,39 @@ CONTAINS
             jpos = etasks(14, itask)
             kpos = etasks(15, itask)
 
-            CALL get_mgdims(kkf, jjf, iif, igridf)
             CALL get_mgdims(kkc, jjc, iic, igridc)
-            CALL get_ip3(ip3f, igridf)
             CALL get_ip3(ip3c, igridc)
-            CALL get_ip1x(ipx, igridf)
-            CALL get_ip1y(ipy, igridf)
-            CALL get_ip1z(ipz, igridf)
 
             !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a1(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
-                    !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a1(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-                    !$omp barrier
             CASE (2)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a2(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
-                    !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a2(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-                    !$omp barrier
             CASE (3)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a3(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
-                    !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a3(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-                    !$omp barrier
             CASE (4)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a4(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
-                    !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a4(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (5)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a5(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a5(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE (6)
-                CALL restrict_gc_flag(flag, kkf, jjf, iif, a6(ip3f), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
-                    scratchidx, tasksize, istart, istop, jstart, jstop, &
-                    kstart, kstop)
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
-                    a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
+                    a6(ip3c), sbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
             CASE DEFAULT
@@ -1310,7 +1347,7 @@ CONTAINS
 
         CALL process_sendtasks_gc_impl(nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
-            ddz_f%arr, bp_f%arr, bt_f%arr)
+            ddz_f%arr, bp_f%arr, bt_f%arr, sendbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -1319,12 +1356,13 @@ CONTAINS
 
 
     SUBROUTINE process_sendtasks_gc_impl(nstasks, stasks, a1, a2, a3, a4, &
-            a5, a6, ddx, ddy, ddz, bp, bt)
+            a5, a6, ddx, ddy, ddz, bp, bt, sbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
         REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*), bp(*), bt(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, kk, jj, ii, ip3, ipx, ipy, ipz
@@ -1358,29 +1396,35 @@ CONTAINS
             !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a1(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a1(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (2)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a2(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a2(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (3)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a3(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a3(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (4)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a4(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a4(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (5)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a5(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a5(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (6)
-                CALL restrict_gc_flag(flag, kk, jj, ii, a6(ip3), &
-                    ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
-                    tasksize, istart, istop, jstart, jstop, kstart, kstop)
+                CALL restrict_gc_flag(tasksize, &
+                    sbuf(icount:icount+tasksize-1), flag, kk, jj, ii, &
+                    a6(ip3), ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
