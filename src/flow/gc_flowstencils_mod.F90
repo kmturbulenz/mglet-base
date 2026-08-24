@@ -1417,7 +1417,9 @@ CONTAINS
 
         DO ilevel = maxlevel, minlevel+1, -1
             CALL ftoc(ilevel, u, v, w)
-            CALL par_ftoc_norm(ilevel, u, v, w)
+            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
+            CALL par_ftoc_norm(ilevel, u, v, w, device=.TRUE.)
+            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
         END DO
 
         DO ilevel = minlevel, maxlevel

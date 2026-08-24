@@ -48,7 +48,10 @@ add_library(ib STATIC
     parent/parent1_mod.F90
     parent/parent2_mod.F90
     parent/parent_core_mod.F90
-    par_ftoc_mod.F90
+    par_ftoc_norm/par_ftoc_core_mod.F90
+    par_ftoc_norm/par_ftoc_mod.F90
+    par_ftoc_norm/par_ftoc1_mod.F90
+    par_ftoc_norm/par_ftoc2_mod.F90
     punktekoordinaten_mod.F90
     restrict_mod.F90
     stencils_mod.F90
