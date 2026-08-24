@@ -83,8 +83,6 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        WRITE(*, *) "ftoc2_one on field", ff%name
-
         IF (TRIM(ff%name) /= TRIM(fc%name)) THEN
             WRITE(*, *) "ftoc2_one only supports equal ff and fc fields."
             WRITE(*, *) "Fine to coarse from a fine field to a different coarse"
@@ -101,8 +99,6 @@ CONTAINS
         nrecv = 0
         nsend = 0
 
-        WRITE(*, *) "ftoc2_one finished on field", ff%name
-
     END SUBROUTINE ftoc2_one
 
 
@@ -115,14 +111,6 @@ CONTAINS
         ! none...
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
-
-        WRITE(*, *) "ftoc2_multiple on fields"
-        IF (PRESENT(v1)) WRITE(*, *) "v1: ", TRIM(v1%name)
-        IF (PRESENT(v2)) WRITE(*, *) "v2: ", TRIM(v2%name)
-        IF (PRESENT(v3)) WRITE(*, *) "v3: ", TRIM(v3%name)
-        IF (PRESENT(s1)) WRITE(*, *) "s1: ", TRIM(s1%name)
-        IF (PRESENT(s2)) WRITE(*, *) "s2: ", TRIM(s2%name)
-        IF (PRESENT(s3)) WRITE(*, *) "s3: ", TRIM(s3%name)
 
         CALL ftoc2_impl(ilevel, v1, v2, v3, s1, s2, s3, flag='*')
 
@@ -365,37 +353,21 @@ CONTAINS
         ! It is necessary to execute one cycle with communication
         ! as otherwise many valuable checks are not possible
 
-        WRITE(*, *) "recording_pass on fields"
 
         CALL prepare_mpirecvtasks(mpirecvtasks, nmpirecvtasks, ilevel, flag, &
             v1, v2, v3, s1, s2, s3)
 
-        WRITE(*, *) "(1a)"
-
         CALL prepare_tasks_all(sendtasks, nsendtasks, selftasks, nselftasks, &
             mpisendtasks, nmpisendtasks, ilevel, flag, v1, v2, v3, s1, s2, s3)
-
-        WRITE(*, *) "(1b)"
-
-        WRITE(*, *) "(1 - ende)"
 
         !$omp target update to( &
         !$omp& sendtasks(1:sendtasksize, 1:nsendtasks+1), &
         !$omp& selftasks(1:selftasksize, 1:nselftasks+1))
 
         CALL process_mpirecv(nmpirecvtasks, mpirecvtasks)
-
-        WRITE(*, *) "(2)"
-
         CALL process_sendtasks(nsendtasks, sendtasks)
-
-        WRITE(*, *) "(3)"
-
         CALL process_mpisend(nmpisendtasks, mpisendtasks)
-
-        WRITE(*, *) "(4 - before selftasks)"
         CALL process_selftasks(nselftasks, selftasks)
-        WRITE(*, *) "(4 - after selftasks)"
 
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, flag, &
             v1, v2, v3, s1, s2, s3)
@@ -403,7 +375,6 @@ CONTAINS
         !$omp target update to(recvtasks(1:recvtasksize, 1:nrecvtasks+1))
         CALL process_recvtasks(nrecvtasks, recvtasks)
 
-        WRITE(*, *) "(ende)"
 
         ! Allocate the workpackage arrays in the exact sizes
         ALLOCATE(wptr%sendtasks(sendtasksize, nsendtasks+1))
@@ -684,8 +655,6 @@ CONTAINS
 
         SELECT CASE (ib%type)
         CASE ("NONE")
-            ! simulation without ghost cells
-            WRITE(*, *) "noib process_selftasks:", netasks, "tasks"
             CALL process_selftasks_noib(netasks, etasks, ddx, ddy, ddz)
 
         CASE ("GHOSTCELL")
@@ -695,7 +664,6 @@ CONTAINS
                 ! For non-scalar cases, point bt to bp. It is unused anyways.
                 bt => bp
             END IF
-            ! simulation with ghost cells
             CALL process_selftasks_gc(netasks, etasks, ddx, ddy, ddz, bp, bt)
 
         CASE DEFAULT
@@ -751,33 +719,28 @@ CONTAINS
         INTEGER(int32) :: tasksize, scratchidx
         CHARACTER(len=1) :: flag
 
-        WRITE(*, *) "About to enter case:", etasks(1, 1:netasks)
+        ! Step 1: Restricting the fine grid data and packing the buffer
+        ! (here, the sendbuf is used as a temporary local storage buffer)
 
-        !$omp target teams distribute private(itask, fieldid, flag, &
-        !$omp& tasksize, scratchidx, igridf, igridc, istart, istop, jstart, &
-        !$omp& jstop, kstart, kstop, ipos, jpos, kpos, kkf, jjf, iif, kkc, &
-        !$omp& jjc, iic, ip3f, ip3c, ipx, ipy, ipz)
+        !$omp target teams distribute private(itask, fieldid, flag, tasksize, &
+        !$omp& scratchidx, igridf, istart, istop, jstart, jstop, kstart,
+        !$omp& kstop, ipos, jpos, kpos, kkf, jjf, iif, ip3f, ipx, ipy, ipz)
         DO itask = 1, netasks
             fieldid = etasks(1, itask)
             flag = ACHAR(etasks(2, itask))
             tasksize = INT(etasks(3, itask), kind=int32)
             scratchidx = INT(etasks(4, itask), kind=int32)
             igridf = etasks(5, itask)
-            igridc = etasks(6, itask)
             istart = etasks(7, itask)
             istop = etasks(8, itask)
             jstart = etasks(9, itask)
             jstop = etasks(10, itask)
             kstart = etasks(11, itask)
             kstop = etasks(12, itask)
-            ipos = etasks(13, itask)
-            jpos = etasks(14, itask)
-            kpos = etasks(15, itask)
 
+            ! Getting parameters for the fine grid
             CALL get_mgdims(kkf, jjf, iif, igridf)
-            CALL get_mgdims(kkc, jjc, iic, igridc)
             CALL get_ip3(ip3f, igridf)
-            CALL get_ip3(ip3c, igridc)
             CALL get_ip1x(ipx, igridf)
             CALL get_ip1y(ipy, igridf)
             CALL get_ip1z(ipz, igridf)
@@ -823,21 +786,17 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-        WRITE(*, *) "Left case"
 
-
-        WRITE(*, *) "About to enter case:", etasks(1, 1:netasks)
+        ! Step 2: Unpacking the buffer and writing data into the coarse grid
 
         !$omp target teams distribute private(itask, fieldid, flag, &
-        !$omp& tasksize, scratchidx, igridf, igridc, istart, istop, jstart, &
-        !$omp& jstop, kstart, kstop, ipos, jpos, kpos, kkf, jjf, iif, kkc, &
-        !$omp& jjc, iic, ip3f, ip3c, ipx, ipy, ipz)
+        !$omp& tasksize, scratchidx, igridc, istart, istop, jstart, &
+        !$omp& jstop, kstart, kstop, ipos, jpos, kpos, kkc, jjc, iic, ip3c)
         DO itask = 1, netasks
             fieldid = etasks(1, itask)
             flag = ACHAR(etasks(2, itask))
             tasksize = INT(etasks(3, itask), kind=int32)
             scratchidx = INT(etasks(4, itask), kind=int32)
-            igridf = etasks(5, itask)
             igridc = etasks(6, itask)
             istart = etasks(7, itask)
             istop = etasks(8, itask)
@@ -849,13 +808,8 @@ CONTAINS
             jpos = etasks(14, itask)
             kpos = etasks(15, itask)
 
-            CALL get_mgdims(kkf, jjf, iif, igridf)
             CALL get_mgdims(kkc, jjc, iic, igridc)
-            CALL get_ip3(ip3f, igridf)
             CALL get_ip3(ip3c, igridc)
-            CALL get_ip1x(ipx, igridf)
-            CALL get_ip1y(ipy, igridf)
-            CALL get_ip1z(ipz, igridf)
 
             !$omp parallel
             SELECT CASE(fieldid)
