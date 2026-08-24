@@ -1,9 +1,8 @@
 MODULE rungekutta_mod
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_size_t
     USE charfunc_mod, ONLY: lower
     USE err_mod, ONLY: errr
-    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids
-    USE pointers_mod, ONLY: get_ip3
-    USE precision_mod, ONLY: intk, realk
+    USE precision_mod, ONLY: intk, realk, c_realk
     USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
 
 
@@ -48,6 +47,19 @@ MODULE rungekutta_mod
     END TYPE rk_2n_t
 
     PUBLIC :: rk_2n_t, rkstep
+
+    INTERFACE
+        SUBROUTINE rkstep_c(n, p, dp, rhsp, frhs, dtfu) BIND(C)
+            IMPORT :: c_size_t, c_realk
+            INTEGER(c_size_t), INTENT(in), VALUE :: n
+            REAL(c_realk), INTENT(inout) :: p(*)
+            REAL(c_realk), INTENT(inout) :: dp(*)
+            REAL(c_realk), INTENT(in) :: rhsp(*)
+            REAL(c_realk), INTENT(in), VALUE :: frhs
+            REAL(c_realk), INTENT(in), VALUE :: dtfu
+        END SUBROUTINE rkstep_c
+    END INTERFACE
+
 CONTAINS
 
     SUBROUTINE init_2n(this, ctyp)
@@ -318,15 +330,9 @@ CONTAINS
     ! U_j = U_(j-1) + B_j*dU_j
     SUBROUTINE rkstep(p, dp, rhsp, frhs, dtfu)
         ! Subroutine arguments
-#ifdef _MGLET_WORKAROUNDS_
-        REAL(realk), INTENT(inout) :: p(*)
-        REAL(realk), INTENT(inout) :: dp(*)
-        REAL(realk), INTENT(in) :: rhsp(*)
-#else
         REAL(realk), CONTIGUOUS, INTENT(inout) :: p(:)
         REAL(realk), CONTIGUOUS, INTENT(inout) :: dp(:)
         REAL(realk), CONTIGUOUS, INTENT(in) :: rhsp(:)
-#endif
         REAL(realk), INTENT(in) :: frhs
         REAL(realk), INTENT(in) :: dtfu
 
@@ -335,35 +341,7 @@ CONTAINS
 #endif
 
 #ifdef _MGLET_WORKAROUNDS_
-        BLOCK
-            ! Local variables
-            INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-            ! Perform the update in a manually crafted loop is faster than
-            ! using an implicit loop, because of cache effects (dp(i) is
-            ! already in cache when p(i) is updated)
-            ! This is a 4D loop only because there are random crashes with
-            ! 1D loops using the amd compiler
-            !$omp target teams distribute private(imygrid, igrid, kk, jj, &
-            !$omp& ii, ip3)
-            DO imygrid = 1, nmygrids
-                igrid = mygrids(imygrid)
-                CALL get_mgdims(kk, jj, ii, igrid)
-                CALL get_ip3(ip3, igrid)
-
-                !$omp parallel do collapse(3) private(i, j, k, idx)
-                DO i = 1, ii
-                    DO j = 1, jj
-                        DO k = 1, kk
-                            idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                            dp(idx) = frhs*dp(idx) + rhsp(idx)
-                            p(idx) = p(idx) + dtfu*dp(idx)
-                        END DO
-                    END DO
-                END DO
-                !$omp end parallel do
-            END DO
-        END BLOCK
+        CALL rkstep_c(SIZE(p, kind=c_size_t), p, dp, rhsp, frhs, dtfu)
 #else
         BLOCK
             ! Local variables
@@ -382,4 +360,5 @@ CONTAINS
         CALL profile_range_pop()
 #endif
     END SUBROUTINE rkstep
+
 END MODULE rungekutta_mod

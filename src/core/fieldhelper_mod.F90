@@ -1,10 +1,11 @@
 
 MODULE fieldhelper_mod
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_size_t
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: field_t, intfield_t
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level, get_imygrid
     USE pointers_mod, ONLY: get_ipbb, get_ip3
-    USE precision_mod, ONLY: realk, intk, ifk
+    USE precision_mod, ONLY: realk, intk, ifk, c_realk, c_ifk
     USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
 
     IMPLICIT NONE(type, external)
@@ -16,7 +17,29 @@ MODULE fieldhelper_mod
     END INTERFACE zero_field_arr
 
     PUBLIC :: zero_field_arr, map_arr_to_device, map_arr_from_device, &
-        map_buffers_to_device, map_buffers_from_device
+        map_buffers_to_device, map_buffers_from_device, copy_arr
+
+    INTERFACE
+        SUBROUTINE setzero_real_c(n, arr) BIND(C)
+            IMPORT :: c_size_t, c_realk
+            INTEGER(c_size_t), INTENT(in), VALUE :: n
+            REAL(c_realk), INTENT(inout) :: arr(*)
+        END SUBROUTINE setzero_real_c
+
+        SUBROUTINE setzero_ifk_c(n, arr) BIND(C)
+            IMPORT :: c_size_t, c_ifk
+            INTEGER(c_size_t), INTENT(in), VALUE :: n
+            INTEGER(c_ifk), INTENT(inout) :: arr(*)
+        END SUBROUTINE setzero_ifk_c
+
+        SUBROUTINE copyarr_real_c(n, dest, source) BIND(C)
+            IMPORT :: c_size_t, c_realk
+            INTEGER(c_size_t), INTENT(in), VALUE :: n
+            REAL(c_realk), INTENT(inout) :: dest(*)
+            REAL(c_realk), INTENT(in) :: source(*)
+        END SUBROUTINE copyarr_real_c
+    END INTERFACE
+
 CONTAINS
     SUBROUTINE zero_field_arr_realk(field, device)
         ! Subroutine arguments
@@ -38,7 +61,7 @@ CONTAINS
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
-            CALL zero_field_arr_realk_impl(field%arr)
+            CALL setzero_real_c(SIZE(field%arr, kind=c_size_t), field%arr)
 #else
             BLOCK
                 INTEGER(intk) :: i
@@ -61,37 +84,6 @@ CONTAINS
     END SUBROUTINE zero_field_arr_realk
 
 
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE zero_field_arr_realk_impl(arr)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: arr(*)
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = 0.0_realk
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE zero_field_arr_realk_impl
-#endif
-
-
     SUBROUTINE zero_field_arr_ifk(field, device)
         ! Subroutine arguments
         TYPE(intfield_t), INTENT(inout) :: field
@@ -112,7 +104,7 @@ CONTAINS
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
-            CALL zero_field_arr_ifk_impl(field%arr)
+            CALL setzero_ifk_c(SIZE(field%arr, kind=c_size_t), field%arr)
 #else
             BLOCK
                 INTEGER(intk) :: i
@@ -135,35 +127,24 @@ CONTAINS
     END SUBROUTINE zero_field_arr_ifk
 
 
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE zero_field_arr_ifk_impl(arr)
+    SUBROUTINE copy_arr(dest, source)
         ! Subroutine arguments
-        INTEGER(ifk), INTENT(inout) :: arr(*)
+        REAL(realk), INTENT(inout) :: dest(:)
+        REAL(realk), INTENT(in) :: source(:)
 
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        arr(idx) = 0_intk
-                    END DO
-                END DO
+#ifdef _MGLET_WORKAROUNDS_
+        CALL copyarr_real_c(SIZE(dest, kind=c_size_t), dest, source)
+#else
+        BLOCK
+            INTEGER(intk) :: i
+            !$omp target teams loop
+            DO i = 1, SIZE(dest)
+                dest(i) = source(i)
             END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE zero_field_arr_ifk_impl
+            !$omp end target teams loop
+        END BLOCK
 #endif
+    END SUBROUTINE copy_arr
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)

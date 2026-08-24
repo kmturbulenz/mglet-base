@@ -1,4 +1,5 @@
 MODULE pressuresolver_mod
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_size_t
     USE bound_flow_mod
     USE bound_pressure_mod
     USE core_mod
@@ -10,6 +11,7 @@ MODULE pressuresolver_mod
     USE sip_hyperplane_mod, sipiter1_hp => sipiter1, sipiter2_hp => sipiter2
     USE sip_classic_mod, sipiter1_cl => sipiter1, sipiter2_cl => sipiter2
     USE sor_mod
+    USE precision_mod, ONLY: c_realk
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -43,6 +45,15 @@ MODULE pressuresolver_mod
     INTEGER(intk), PROTECTED :: loglevel = 0
 
     PUBLIC :: init_pressuresolver, finish_pressuresolver, mgpoisl
+
+    INTERFACE
+        SUBROUTINE accumulate_pcorr_c(n, dp, hilf) BIND(C)
+            IMPORT :: c_size_t, c_realk
+            INTEGER(c_size_t), INTENT(in), VALUE :: n
+            REAL(c_realk), INTENT(inout) :: dp(*)
+            REAL(c_realk), INTENT(in) :: hilf(*)
+        END SUBROUTINE accumulate_pcorr_c
+    END INTERFACE
 CONTAINS
     SUBROUTINE init_pressuresolver()
         ! Subroutine arguments
@@ -914,11 +925,7 @@ CONTAINS
 #endif
 
 #ifdef _MGLET_WORKAROUNDS_
-        BLOCK
-            INTEGER(intk) :: n
-            n = SIZE(dp%arr)
-            CALL accumulate_pcorr_impl(dp%arr, hilf%arr, n)
-        END BLOCK
+        CALL accumulate_pcorr_c(SIZE(dp%arr, kind=c_size_t), dp%arr, hilf%arr)
 #else
         BLOCK
             INTEGER(intk) :: i
@@ -936,38 +943,5 @@ CONTAINS
         CALL profile_range_pop()
 #endif
     END SUBROUTINE accumulate_pcorr
-
-
-#ifdef _MGLET_WORKAROUNDS_
-    SUBROUTINE accumulate_pcorr_impl(dp, hilf, n)
-        ! Subroutine arguments
-        REAL(realk), INTENT(inout) :: dp(*)
-        REAL(realk), INTENT(in) :: hilf(*)
-        INTEGER(intk), INTENT(in) :: n
-
-        ! Local variables
-        INTEGER(intk) :: imygrid, igrid, kk, jj, ii, ip3, i, j, k, idx
-
-        ! This is a 4D loop only because there are random crashes with 1D loops
-        ! using the amd compiler
-        !$omp target teams distribute private(imygrid, igrid, kk, jj, ii, ip3)
-        DO imygrid = 1, nmygrids
-            igrid = mygrids(imygrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-
-            !$omp parallel do collapse(3) private(i, j, k, idx)
-            DO i = 1, ii
-                DO j = 1, jj
-                    DO k = 1, kk
-                        idx = ip3 + k + (j-1)*kk + (i-1)*kk*jj - 1
-                        dp(idx) = dp(idx) + hilf(idx)
-                    END DO
-                END DO
-            END DO
-            !$omp end parallel do
-        END DO
-    END SUBROUTINE accumulate_pcorr_impl
-#endif
 
 END MODULE pressuresolver_mod

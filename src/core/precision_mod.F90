@@ -33,9 +33,11 @@ MODULE precision_mod
 #ifdef _MGLET_IFK64_
     INTEGER(int32), PARAMETER :: ifk = int64
     INTEGER(int32), PARAMETER :: ifk_bytes = 8
+    INTEGER(int32), PARAMETER :: c_ifk = c_long_long
 #else
     INTEGER(int32), PARAMETER :: ifk = int32
     INTEGER(int32), PARAMETER :: ifk_bytes = 4
+    INTEGER(int32), PARAMETER :: c_ifk = c_int
 #endif
 
     ! MPI data types for REAL and INTEGER
@@ -69,7 +71,7 @@ MODULE precision_mod
         c_realk, mglet_hdf5_real, mglet_hdf5_int, pi, eps, int8, int16, &
         int32, int64, real32, real64, real_bytes, int_bytes, &
         mglet_filename_max, neps, ifk, ifk_bytes, mglet_mpi_ifk, &
-        mglet_hdf5_ifk
+        mglet_hdf5_ifk, c_ifk
 
     PUBLIC :: mglet_mpi_real, mglet_mpi_int, mglet_mpi_hsize_t
 
