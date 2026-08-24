@@ -10,6 +10,7 @@ add_library(flow STATIC
     gc_flowstencils_mod.F90
     sip_classic_mod.F90
     sip_hyperplane_mod.F90
+    tstle4_diff_u_kernel.c
     laplacephi_mod.F90
     sor_mod.F90
     itinfo_mod.F90
@@ -32,6 +33,16 @@ target_link_libraries(flow
     PRIVATE ib
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_C>
+)
+
+target_compile_options(flow
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
+    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
+)
+
+set_source_files_properties(tstle4_diff_u_kernel.c PROPERTIES COMPILE_FLAGS
+    $<$<STREQUAL:"${CMAKE_C_COMPILER_ID}","GNU">:-Wno-unknown-pragmas>
 )
 
 set_source_files_properties(pressuresolver_mod.F90 PROPERTIES COMPILE_FLAGS

@@ -9,6 +9,55 @@ MODULE tstle4_mod
 
     PUBLIC :: tstle4
 
+    INTERFACE
+        SUBROUTINE tstle4_diff_u_c(kk, jj, ii, uo, u, v, w, g, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, &
+            ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_u_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: uo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, ilesmodel_in
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
+        END SUBROUTINE tstle4_diff_u_c
+
+        SUBROUTINE tstle4_diff_v_c(kk, jj, ii, vo, u, v, w, g, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nrgt, nlft, &
+            ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_v_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: vo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nrgt, nlft, ilesmodel_in
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
+        END SUBROUTINE tstle4_diff_v_c
+
+        SUBROUTINE tstle4_diff_w_c(kk, jj, ii, wo, u, v, w, g, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nbot, ntop, &
+            ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_w_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop, ilesmodel_in
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
+        END SUBROUTINE tstle4_diff_w_c
+    END INTERFACE
+
+    !$omp declare target(tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c)
+
 CONTAINS
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
             p_f, g_f)
@@ -186,6 +235,29 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
+        ! Eddy-viscosity pre-processing
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            ! !$omp parallel
+            ! CALL tstle4_diff_swc(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), &
+            !     u(ip3), v(ip3), w(ip3), ddx(ipx), ddy(ipy), ddz(ipz), nfro, &
+            !     nbac, nrgt, nlft, nbot, ntop)
+            ! !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+        ! U momentum diffusion contribution
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
         !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
@@ -200,13 +272,31 @@ CONTAINS
             CALL get_ip1z(ipz, igrid)
 
             !$omp parallel
-            CALL tstle4_diff(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
-                v(ip3), w(ip3), g(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
-                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
-                rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, nbot, ntop)
+            CALL tstle4_diff_u_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), uo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
+                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                INT(nfro, c_intk), INT(nbac, c_intk), INT(ilesmodel, c_intk), &
+                REAL(gmol, c_realk), REAL(rho, c_realk))
+
+            CALL tstle4_diff_v_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), vo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
+                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                INT(nrgt, c_intk), INT(nlft, c_intk), INT(ilesmodel, c_intk), &
+                REAL(gmol, c_realk), REAL(rho, c_realk))
+
+            CALL tstle4_diff_w_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), wo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
+                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                INT(nbot, c_intk), INT(ntop, c_intk), INT(ilesmodel, c_intk), &
+                REAL(gmol, c_realk), REAL(rho, c_realk))
             !$omp end parallel
+
         END DO
         !$omp end target teams distribute
+
     END SUBROUTINE tstle4_diff_impl
 
 
@@ -494,14 +584,55 @@ CONTAINS
     END SUBROUTINE tstle4_kon_w
 
 
-    SUBROUTINE tstle4_diff(kk, jj, ii, uo, vo, wo, u, v, w, g, &
-            dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-            nfro, nbac, nrgt, nlft, nbot, ntop)
+    SUBROUTINE tstle4_diff_swc(kk, jj, ii, uo, vo, wo, u, v, w, ddx, ddy, &
+            ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
             wo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+        INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        CALL swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, &
+            ddx, ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
+
+    END SUBROUTINE tstle4_diff_swc
+
+
+    ! SUBROUTINE tstle4_diff_u(kk, jj, ii, uo, u, v, w, g, dx, dy, dz, ddx, &
+    !         ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, nrgt, &
+    !         nlft, nbot, ntop)
+    !     !$omp declare target
+
+    !     ! Subroutine arguments
+    !     INTEGER(intk), INTENT(in) :: kk, jj, ii
+    !     REAL(realk), INTENT(inout) :: uo(kk, jj, ii)
+    !     REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+    !     REAL(realk), INTENT(in) :: g(kk, jj, ii)
+    !     REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+    !     REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+    !     REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
+    !     REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+    !     INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+    !     CALL tstle4_diff_u_c(INT(kk, c_intk), INT(jj, c_intk), &
+    !         INT(ii, c_intk), uo, u, v, w, g, dx, dy, dz, ddx, ddy, ddz, &
+    !         rdx, rdy, rdz, rddx, rddy, rddz, INT(nfro, c_intk), &
+    !         INT(nbac, c_intk), INT(ilesmodel, c_intk), REAL(gmol, c_realk), &
+    !         REAL(rho, c_realk))
+
+    ! END SUBROUTINE tstle4_diff_u
+
+
+    SUBROUTINE tstle4_diff_v(kk, jj, ii, vo, u, v, w, g, dx, dy, dz, ddx, &
+            ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, nrgt, &
+            nlft, nbot, ntop)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: vo(kk, jj, ii)
         REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
         REAL(realk), INTENT(in) :: g(kk, jj, ii)
         REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
@@ -512,88 +643,25 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: k, j, i
-        INTEGER(intk) :: nbu, nfu, nrv, nbw, ntw, nlv
+        INTEGER(intk) :: nrv, nlv
         INTEGER(intk) :: iles
         REAL(realk) :: ax, ay, az
         REAL(realk) :: ge, gw, gn, gs, gt, gb
         REAL(realk) :: qw, qe, qt, qb, qn, qs
         REAL(realk) :: st, qc, fak
 
-        nfu = 0
-        nbu = 0
         nrv = 0
         nlv = 0
-        nbw = 0
-        ntw = 0
 
         ! CON = 7
-        IF (nbac == 7) nbu = 1
         IF (nlft == 7) nlv = 1
-        IF (ntop == 7) ntw = 1
 
         ! OP1 = 3
-        IF (nfro == 3) nfu = 1
-        IF (nbac == 3) nbu = 1
         IF (nrgt == 3) nrv = 1
         IF (nlft == 3) nlv = 1
-        IF (nbot == 3) nbw = 1
-        IF (ntop == 3) ntw = 1
 
         iles = 1
         IF (ilesmodel == 0) iles = 0
-
-        CALL swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, &
-            ddx, ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop)
-
-        !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
-        !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
-        DO i = 3-nfu, ii-3+nbu
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    ax = ddy(j)*ddz(k)
-                    ay = dx(i)*ddz(k)
-                    az = dx(i)*ddy(j)
-
-                    ge = g(k, j, i+1)
-                    gw = g(k, j, i)
-                    gn = g(k, j, i)*g(k, j+1, i) &
-                        /MAX(g(k, j, i) + g(k, j+1, i), gmol) &
-                        + g(k, j, i+1)*g(k, j+1, i+1) &
-                        /MAX(g(k, j, i+1) + g(k, j+1, i+1), gmol)
-                    gs = g(k, j-1, i)*g(k, j, i) &
-                        /MAX(g(k, j-1, i) + g(k, j, i), gmol) &
-                        + g(k, j-1, i+1)*g(k, j, i+1) &
-                        /MAX(g(k, j-1, i+1) + g(k, j, i+1), gmol)
-                    gt = g(k, j, i)*g(k+1, j, i) &
-                        /MAX(g(k, j, i) + g(k+1, j, i), gmol) &
-                        + g(k, j, i+1)*g(k+1, j, i+1) &
-                        /MAX(g(k, j, i+1) + g(k+1, j, i+1), gmol)
-                    gb = g(k-1, j, i)*g(k, j, i) &
-                        /MAX(g(k-1, j, i) + g(k, j, i), gmol) &
-                        + g(k-1, j, i+1)*g(k, j, i+1) &
-                        /MAX(g(k-1, j, i+1) + g(k, j, i+1), gmol)
-
-                    qe = -ge*ax*rddx(i+1)*(u(k, j, i+1) - u(k, j, i))
-                    qw = -gw*ax*rddx(i)*(u(k, j, i) - u(k, j, i-1))
-                    qn = -gn*ay*rdy(j)*(u(k, j+1, i) - u(k, j, i))
-                    qs = -gs*ay*rdy(j-1)*(u(k, j, i) - u(k, j-1, i))
-                    qt = -gt*az*rdz(k)*(u(k+1, j, i) - u(k, j, i))
-                    qb = -gb*az*rdz(k-1)*(u(k, j, i) - u(k-1, j, i))
-
-                    st = ((ge*(u(k, j, i+1) - u(k, j, i))*rddx(i+1)) &
-                        - (gw*(u(k, j, i) - u(k, j, i-1))*rddx(i)))*ax &
-                        + ((gn*(v(k, j, i+1) - v(k, j, i))) &
-                        - (gs*(v(k, j-1, i+1) - v(k, j-1, i))))*ddz(k) &
-                        + ((gt*(w(k, j, i+1) - w(k, j, i))) &
-                        - (gb*(w(k-1, j, i+1) - w(k-1, j, i))))*ddy(j)
-                    qc = st*iles
-
-                    fak = 1.0/rho*rddy(j)*rdx(i)*rddz(k)
-                    uo(k, j, i) = uo(k, j, i) - fak*(qe-qw+qn-qs+qt-qb-qc)
-                END DO
-            END DO
-        END DO
-        !$omp end do
 
         !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
         !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
@@ -644,6 +712,45 @@ CONTAINS
             END DO
         END DO
         !$omp end do
+    END SUBROUTINE tstle4_diff_v
+
+
+    SUBROUTINE tstle4_diff_w(kk, jj, ii, wo, u, v, w, g, dx, dy, dz, ddx, &
+            ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, nrgt, &
+            nlft, nbot, ntop)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: wo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: g(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+        REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: nbw, ntw
+        INTEGER(intk) :: iles
+        REAL(realk) :: ax, ay, az
+        REAL(realk) :: ge, gw, gn, gs, gt, gb
+        REAL(realk) :: qw, qe, qt, qb, qn, qs
+        REAL(realk) :: st, qc, fak
+
+        nbw = 0
+        ntw = 0
+
+        ! CON = 7
+        IF (ntop == 7) ntw = 1
+
+        ! OP1 = 3
+        IF (nbot == 3) nbw = 1
+        IF (ntop == 3) ntw = 1
+
+        iles = 1
+        IF (ilesmodel == 0) iles = 0
 
         !$omp do collapse(3) private(i, j, k, ax, ay, az, ge, gw, &
         !$omp& gn, gs, gt, gb, qe, qw, qn, qs, qt, qb, st, qc, fak)
@@ -694,9 +801,7 @@ CONTAINS
             END DO
         END DO
         !$omp end do
-    END SUBROUTINE tstle4_diff
-
-
+    END SUBROUTINE tstle4_diff_w
     SUBROUTINE tstle4_gradp(kk, jj, ii, uo, vo, wo, p, dx, dy, dz, &
             nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
         !$omp declare target
