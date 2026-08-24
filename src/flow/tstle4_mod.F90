@@ -102,6 +102,7 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
+        ! U momentum contribution
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
         !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
@@ -116,11 +117,58 @@ CONTAINS
             CALL get_ip1z(ipz, igrid)
 
             !$omp parallel
-            CALL tstle4_kon(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
+            CALL tstle4_kon_u(kk, jj, ii, uo(ip3), u(ip3), &
                 v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
                 dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
-                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, &
-                nlft, nbot, ntop)
+                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+        ! V momentum contribution
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_kon_v(kk, jj, ii, vo(ip3), u(ip3), v(ip3), w(ip3), &
+                ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
+                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
+                rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, &
+                nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+        ! W momentum contribution
+        !$omp target teams distribute &
+        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_kon_w(kk, jj, ii, wo(ip3), u(ip3), v(ip3), w(ip3), &
+                ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
+                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
+                rddx(ipx), rddy(ipy), rddz(ipz), nfro, nbac, nrgt, nlft, &
+                nbot, ntop)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -246,14 +294,12 @@ CONTAINS
     ! [2] Verstappen et al., SYMMETRY-PRESERVING DISCRETIZATIONS OF THE
     !     INCOMPRESSIBLE NAVIER-STOKES EQUATIONS, European Conference on
     !     Computational Fluid Dynamics, ECCOMAS CFD 2006
-    SUBROUTINE tstle4_kon(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
-            dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-            nfro, nbac, nrgt, nlft, nbot, ntop)
+    SUBROUTINE tstle4_kon_u(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, ntop)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
-            wo(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: uo(kk, jj, ii)
         REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
         REAL(realk), INTENT(in) :: ut(kk, jj, ii), vt(kk, jj, ii), &
             wt(kk, jj, ii)
@@ -261,34 +307,24 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
         REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
-        INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+        INTEGER, INTENT(in) :: nfro, nbac, ntop
 
         ! Local variables
         INTEGER(intk) :: k, j, i
-        INTEGER(intk) :: nbu, nfu, nrv, nbw, ntw, nlv
+        INTEGER(intk) :: nbu, nfu
         REAL(realk) :: ax, ay, az
         REAL(realk) :: fw, fe, ft, fb, fn, fs
         REAL(realk) :: qw, qe, qt, qb, qn, qs
 
         nfu = 0
         nbu = 0
-        nrv = 0
-        nlv = 0
-        nbw = 0
-        ntw = 0
 
         ! CON = 7
         IF (nbac == 7) nbu = 1
-        IF (nlft == 7) nlv = 1
-        IF (ntop == 7) ntw = 1
 
         ! OP1 = 3
         IF (nfro == 3) nfu = 1
         IF (nbac == 3) nbu = 1
-        IF (nrgt == 3) nrv = 1
-        IF (nlft == 3) nlv = 1
-        IF (nbot == 3) nbw = 1
-        IF (ntop == 3) ntw = 1
 
         !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
         !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
@@ -321,6 +357,42 @@ CONTAINS
         END DO
         !$omp end do
 
+    END SUBROUTINE tstle4_kon_u
+
+
+    SUBROUTINE tstle4_kon_v(kk, jj, ii, vo, u, v, w, ut, vt, wt, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, nrgt, &
+            nlft, nbot, ntop)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: vo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ut(kk, jj, ii), vt(kk, jj, ii), &
+            wt(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+        REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: nrv, nlv
+        REAL(realk) :: ax, ay, az
+        REAL(realk) :: fw, fe, ft, fb, fn, fs
+        REAL(realk) :: qw, qe, qt, qb, qn, qs
+
+        nrv = 0
+        nlv = 0
+
+        ! CON = 7
+        IF (nlft == 7) nlv = 1
+
+        ! OP1 = 3
+        IF (nrgt == 3) nrv = 1
+        IF (nlft == 3) nlv = 1
+
         !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
         !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
         DO i = 3, ii-2
@@ -352,6 +424,42 @@ CONTAINS
         END DO
         !$omp end do
 
+    END SUBROUTINE tstle4_kon_v
+
+
+    SUBROUTINE tstle4_kon_w(kk, jj, ii, wo, u, v, w, ut, vt, wt, dx, dy, dz, &
+            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, nrgt, &
+            nlft, nbot, ntop)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: wo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ut(kk, jj, ii), vt(kk, jj, ii), &
+            wt(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+        REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        INTEGER(intk) :: nbw, ntw
+        REAL(realk) :: ax, ay, az
+        REAL(realk) :: fw, fe, ft, fb, fn, fs
+        REAL(realk) :: qw, qe, qt, qb, qn, qs
+
+        nbw = 0
+        ntw = 0
+
+        ! CON = 7
+        IF (ntop == 7) ntw = 1
+
+        ! OP1 = 3
+        IF (nbot == 3) nbw = 1
+        IF (ntop == 3) ntw = 1
+
         !$omp do collapse(3) private(i, j, k, ax, ay, az, fe, fw, &
         !$omp& fn, fs, ft, fb, qe, qw, qn, qs, qt, qb)
         DO i = 3, ii-2
@@ -382,7 +490,8 @@ CONTAINS
             END DO
         END DO
         !$omp end do
-    END SUBROUTINE tstle4_kon
+
+    END SUBROUTINE tstle4_kon_w
 
 
     SUBROUTINE tstle4_diff(kk, jj, ii, uo, vo, wo, u, v, w, g, &
