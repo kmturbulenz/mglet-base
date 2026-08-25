@@ -164,6 +164,20 @@ MODULE tstle4_mod
             TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
         END SUBROUTINE tstle4_kon_impl_c
 
+        SUBROUTINE tstle4_diff_impl_c(uo, vo, wo, u, v, w, g, dx, dy, dz, &
+            ddx, ddy, ddz, ilesmodel_in, gmol_in, rho_in, nmygrids_in, grids) &
+            BIND(C, name="tstle4_diff_impl_c")
+            IMPORT :: c_intk, c_realk, tstle4_grid_t
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: ilesmodel_in
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
+            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
+        END SUBROUTINE tstle4_diff_impl_c
+
 
         SUBROUTINE tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, rho_in, &
             nmygrids_in, grids) &
@@ -212,7 +226,6 @@ CONTAINS
         is_initialized = .TRUE.
 
     END SUBROUTINE initialize_tstle4
-
 
     SUBROUTINE finalize_tstle4
 
@@ -278,12 +291,14 @@ CONTAINS
             INT(nmygrids, c_intk), tstle4_grids)
         CALL stop_timer(311)
 
-        ! CALL start_timer(312)
-        ! CALL tstle4_diff_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
-        !     v_f%arr, w_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
-        !     ddx_f%arr, ddy_f%arr, ddz_f%arr, rdx_f%arr, rdy_f%arr, &
-        !     rdz_f%arr, rddx_f%arr, rddy_f%arr, rddz_f%arr)
-        ! CALL stop_timer(312)
+        ! Diffusion terms
+        CALL start_timer(312)
+        CALL tstle4_diff_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+            ddx_f%arr, ddy_f%arr, ddz_f%arr, INT(ilesmodel, c_intk), &
+            REAL(gmol, c_realk), REAL(rho, c_realk), &
+            INT(nmygrids, c_intk), tstle4_grids)
+        CALL stop_timer(312)
 
         CALL start_timer(313)
         CALL tstle4_gradp_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, p_f%arr, &
