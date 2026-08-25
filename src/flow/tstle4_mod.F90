@@ -9,6 +9,7 @@ MODULE tstle4_mod
     PUBLIC :: tstle4
 
     INTERFACE
+
         SUBROUTINE tstle4_kon_u_c(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, &
             dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, &
             nbac) BIND(C, name="tstle4_kon_u_c")
@@ -138,13 +139,32 @@ MODULE tstle4_mod
             REAL(c_realk), VALUE, INTENT(in) :: gpx_in, gpy_in, gpz_in
             REAL(c_realk), VALUE, INTENT(in) :: rho_in
         END SUBROUTINE tstle4_gradp_c
+
+        SUBROUTINE tstle4_gradp_impl_c(nmygrids_in, uo, vo, wo, p, dx, dy, &
+            dz, kk_all, jj_all, ii_all, ip3_all, ipx_all, ipy_all, ipz_all, &
+            nfro_all, nbac_all, nrgt_all, nlft_all, nbot_all, ntop_all, &
+            gpx_all, gpy_all, gpz_all, rho_in) &
+            BIND(C, name="tstle4_gradp_impl_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
+            INTEGER(c_intk), INTENT(in) :: kk_all(*), jj_all(*), ii_all(*)
+            INTEGER(c_intk), INTENT(in) :: ip3_all(*), ipx_all(*), ipy_all(*)
+            INTEGER(c_intk), INTENT(in) :: ipz_all(*)
+            INTEGER(c_intk), INTENT(in) :: nfro_all(*), nbac_all(*)
+            INTEGER(c_intk), INTENT(in) :: nrgt_all(*), nlft_all(*)
+            INTEGER(c_intk), INTENT(in) :: nbot_all(*), ntop_all(*)
+            REAL(c_realk), INTENT(in) :: gpx_all(*), gpy_all(*), gpz_all(*)
+            REAL(c_realk), VALUE, INTENT(in) :: rho_in
+        END SUBROUTINE tstle4_gradp_impl_c
     END INTERFACE
 
     !$omp declare target(
     !$omp&   tstle4_kon_u_c, tstle4_kon_v_c, tstle4_kon_w_c, &
     !$omp&   tstle4_par_c, tstle4_diff_swc_c, &
     !$omp&   tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
-    !$omp&   tstle4_gradp_c)
+    !$omp&   tstle4_gradp_c, tstle4_gradp_impl_c)
 
 CONTAINS
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
@@ -192,33 +212,33 @@ CONTAINS
         CALL push_field(wcv_f, "TSTLE4_WCV")
         CALL push_field(wcw_f, "TSTLE4_WCW")
 
-        CALL start_timer(311)
-        CALL tstle4_kon_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
-            v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
-            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
-            rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
-            rddz_f%arr)
-        CALL stop_timer(311)
+        ! CALL start_timer(311)
+        ! CALL tstle4_kon_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+        !     v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
+        !     dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+        !     rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
+        !     rddz_f%arr)
+        ! CALL stop_timer(311)
 
-        CALL start_timer(312)
-        CALL tstle4_diff_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
-            v_f%arr, w_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
-            ddx_f%arr, ddy_f%arr, ddz_f%arr, rdx_f%arr, rdy_f%arr, &
-            rdz_f%arr, rddx_f%arr, rddy_f%arr, rddz_f%arr)
-        CALL stop_timer(312)
+        ! CALL start_timer(312)
+        ! CALL tstle4_diff_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+        !     v_f%arr, w_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
+        !     ddx_f%arr, ddy_f%arr, ddz_f%arr, rdx_f%arr, rdy_f%arr, &
+        !     rdz_f%arr, rddx_f%arr, rddy_f%arr, rddz_f%arr)
+        ! CALL stop_timer(312)
 
         CALL start_timer(313)
         CALL tstle4_gradp_impl(uo_f%arr, vo_f%arr, wo_f%arr, p_f%arr, &
             dx_f%arr, dy_f%arr, dz_f%arr)
         CALL stop_timer(313)
 
-        CALL start_timer(314)
-        CALL tstle4_par_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
-            v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
-            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
-            rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
-            rddz_f%arr, wcu_f%arr, wcv_f%arr, wcw_f%arr)
-        CALL stop_timer(314)
+        ! CALL start_timer(314)
+        ! CALL tstle4_par_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+        !     v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
+        !     dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+        !     rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
+        !     rddz_f%arr, wcu_f%arr, wcv_f%arr, wcw_f%arr)
+        ! CALL stop_timer(314)
 
         CALL pop_field(wcw_f)
         CALL pop_field(wcv_f)
@@ -361,11 +381,15 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
         INTEGER(intk) :: gradpflag
-        REAL(c_realk) :: gpx, gpy, gpz
 
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        INTEGER(c_intk) :: kk_all(nmygrids), jj_all(nmygrids), ii_all(nmygrids)
+        INTEGER(c_intk) :: ip3_all(nmygrids), ipx_all(nmygrids)
+        INTEGER(c_intk) :: ipy_all(nmygrids), ipz_all(nmygrids)
+        INTEGER(c_intk) :: nfro_all(nmygrids), nbac_all(nmygrids)
+        INTEGER(c_intk) :: nrgt_all(nmygrids), nlft_all(nmygrids)
+        INTEGER(c_intk) :: nbot_all(nmygrids), ntop_all(nmygrids)
+        REAL(c_realk) :: gpx_all(nmygrids), gpy_all(nmygrids), gpz_all(nmygrids)
+
         DO i = 1, nmygrids
             igrid = mygrids(i)
 
@@ -375,21 +399,31 @@ CONTAINS
             CALL get_ip1x(ipx, igrid)
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
-
             CALL get_gradpxflag(gradpflag, igrid)
-            gpx = REAL(gradp(1)*gradpflag, c_realk)
-            gpy = REAL(gradp(2)*gradpflag, c_realk)
-            gpz = REAL(gradp(3)*gradpflag, c_realk)
 
-            !$omp parallel
-            CALL tstle4_gradp_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), p(ip3), dx(ipx), &
-                dy(ipy), dz(ipz), INT(nfro, c_intk), INT(nbac, c_intk), &
-                INT(nrgt, c_intk), INT(nlft, c_intk), INT(nbot, c_intk), &
-                INT(ntop, c_intk), gpx, gpy, gpz, REAL(rho, c_realk))
-            !$omp end parallel
+            kk_all(i) = INT(kk, c_intk)
+            jj_all(i) = INT(jj, c_intk)
+            ii_all(i) = INT(ii, c_intk)
+            ip3_all(i) = INT(ip3, c_intk)
+            ipx_all(i) = INT(ipx, c_intk)
+            ipy_all(i) = INT(ipy, c_intk)
+            ipz_all(i) = INT(ipz, c_intk)
+            nfro_all(i) = INT(nfro, c_intk)
+            nbac_all(i) = INT(nbac, c_intk)
+            nrgt_all(i) = INT(nrgt, c_intk)
+            nlft_all(i) = INT(nlft, c_intk)
+            nbot_all(i) = INT(nbot, c_intk)
+            ntop_all(i) = INT(ntop, c_intk)
+            gpx_all(i) = REAL(gradp(1)*gradpflag, c_realk)
+            gpy_all(i) = REAL(gradp(2)*gradpflag, c_realk)
+            gpz_all(i) = REAL(gradp(3)*gradpflag, c_realk)
         END DO
-        !$omp end target teams distribute
+
+        CALL tstle4_gradp_impl_c(INT(nmygrids, c_intk), uo, vo, wo, p, dx, &
+            dy, dz, kk_all, jj_all, ii_all, ip3_all, ipx_all, ipy_all, ipz_all, &
+            nfro_all, nbac_all, nrgt_all, nlft_all, nbot_all, ntop_all, &
+            gpx_all, gpy_all, gpz_all, REAL(rho, c_realk))
+
     END SUBROUTINE tstle4_gradp_impl
 
 
