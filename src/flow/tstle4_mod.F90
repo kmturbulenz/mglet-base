@@ -52,6 +52,23 @@ MODULE tstle4_mod
             INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
         END SUBROUTINE tstle4_kon_w_c
 
+        SUBROUTINE tstle4_par_c(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
+            dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
+            wcu, wcv, wcw, nfro, nbac, nrgt, nlft, nbot, ntop) &
+            BIND(C, name="tstle4_par_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+            REAL(c_realk), INTENT(inout) :: wcu(*), wcv(*), wcw(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
+            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
+        END SUBROUTINE tstle4_par_c
+
         SUBROUTINE tstle4_diff_u_c(kk, jj, ii, uo, u, v, w, g, dx, dy, dz, &
             ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, &
             ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_u_c")
@@ -112,6 +129,7 @@ MODULE tstle4_mod
     END INTERFACE
 
     !$omp declare target(tstle4_kon_u_c, tstle4_kon_v_c, tstle4_kon_w_c, &
+    !$omp&   tstle4_par_c, &
     !$omp&   tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
     !$omp&   tstle4_diff_swc_c)
 
@@ -362,16 +380,41 @@ CONTAINS
             CALL get_ip1z(ipz, igrid)
 
             !$omp parallel
-            CALL tstle4_par(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
-                v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
-                dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
-                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
-                wcu(ip3), wcv(ip3), wcw(ip3), &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
+            CALL tstle4_par_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), u(ip3), v(ip3), &
+                w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
+                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
+                rddx(ipx), rddy(ipy), rddz(ipz), wcu(ip3), wcv(ip3), wcw(ip3), &
+                INT(nfro, c_intk), INT(nbac, c_intk), INT(nrgt, c_intk), &
+                INT(nlft, c_intk), INT(nbot, c_intk), INT(ntop, c_intk))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
     END SUBROUTINE tstle4_par_impl
+
+
+    SUBROUTINE tstle4_par_bridge_c(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, &
+            wt, dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
+            wcu, wcv, wcw, nfro, nbac, nrgt, nlft, nbot, ntop) &
+            BIND(C, name="tstle4_par_bridge_c")
+        !$omp declare target
+        INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+        REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+        REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
+        REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+        REAL(c_realk), INTENT(inout) :: wcu(*), wcv(*), wcw(*)
+        INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
+        INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
+
+        CALL tstle4_par(INT(kk, intk), INT(jj, intk), INT(ii, intk), uo, vo, &
+            wo, u, v, w, ut, vt, wt, dx, dy, dz, ddx, ddy, ddz, rdx, rdy, &
+            rdz, rddx, rddy, rddz, wcu, wcv, wcw, INT(nfro, intk), &
+            INT(nbac, intk), INT(nrgt, intk), INT(nlft, intk), &
+            INT(nbot, intk), INT(ntop, intk))
+    END SUBROUTINE tstle4_par_bridge_c
 
 
     ! The convective terms are computed in two steps:
