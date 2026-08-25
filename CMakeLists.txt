@@ -57,10 +57,16 @@ else()
 endif()
 
 option(MGLET_OFFLOAD "Enable OpenMP offloading (experimental)" OFF)
+option(MGLET_WORKAROUNDS "Enable OpenMP offloading workarounds" OFF)
 if(MGLET_OFFLOAD)
     message(STATUS "Enabling OpenMP offloading")
     find_package(OpenMP REQUIRED)
     add_compile_definitions(_MGLET_OFFLOAD_=1)
+endif()
+
+if (MGLET_WORKAROUNDS)
+    message(STATUS "Enabling OpenMP offloading workarounds")
+    add_compile_definitions(_MGLET_WORKAROUNDS_=1)
 endif()
 
 set(MGLET_PROFILE_ANNOTATIONS "off" CACHE STRING "MGLET profile annotations: off, roctx, nvtx")

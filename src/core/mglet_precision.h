@@ -17,6 +17,12 @@ typedef float mgletreal;
 #define CFI_type_mgletreal CFI_type_float
 #endif
 
+#ifdef _MGLET_IFK64_
+typedef long long mgletifk;
+#else
+typedef int mgletifk;
+#endif
+
 #ifdef _MGLET_INT64_
 typedef long long mgletint;
 
