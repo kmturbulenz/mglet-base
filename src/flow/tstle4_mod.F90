@@ -6,6 +6,8 @@ MODULE tstle4_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
+    ! Bundling grid information for C processing
+
     TYPE, BIND(C) :: tstle4_grid_t
         ! Grid dimensions
         INTEGER(c_intk) :: ii
@@ -156,65 +158,50 @@ MODULE tstle4_mod
             REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
         END SUBROUTINE tstle4_diff_swc_c
 
-        SUBROUTINE tstle4_gradp_c(kk, jj, ii, uo, vo, wo, p, dx, dy, dz, &
-            nfro, nbac, nrgt, nlft, nbot, ntop, gpx_in, gpy_in, gpz_in, &
-            rho_in) BIND(C, name="tstle4_gradp_c")
-            IMPORT :: c_intk, c_realk
-            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-            REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
-            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
-            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
-            REAL(c_realk), VALUE, INTENT(in) :: gpx_in, gpy_in, gpz_in
-            REAL(c_realk), VALUE, INTENT(in) :: rho_in
-        END SUBROUTINE tstle4_gradp_c
 
-        SUBROUTINE tstle4_gradp_impl_c(nmygrids_in, uo, vo, wo, p, dx, dy, &
-            dz, kk_all, jj_all, ii_all, ip3_all, ipx_all, ipy_all, ipz_all, &
-            nfro_all, nbac_all, nrgt_all, nlft_all, nbot_all, ntop_all, &
-            gpx_all, gpy_all, gpz_all, rho_in) &
+        SUBROUTINE tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, rho_in, &
+            nmygrids_in, grids) &
             BIND(C, name="tstle4_gradp_impl_c")
-            IMPORT :: c_intk, c_realk
-            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            IMPORT :: c_intk, c_realk, tstle4_grid_t
             REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
             REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
-            INTEGER(c_intk), INTENT(in) :: kk_all(*), jj_all(*), ii_all(*)
-            INTEGER(c_intk), INTENT(in) :: ip3_all(*), ipx_all(*), ipy_all(*)
-            INTEGER(c_intk), INTENT(in) :: ipz_all(*)
-            INTEGER(c_intk), INTENT(in) :: nfro_all(*), nbac_all(*)
-            INTEGER(c_intk), INTENT(in) :: nrgt_all(*), nlft_all(*)
-            INTEGER(c_intk), INTENT(in) :: nbot_all(*), ntop_all(*)
-            REAL(c_realk), INTENT(in) :: gpx_all(*), gpy_all(*), gpz_all(*)
             REAL(c_realk), VALUE, INTENT(in) :: rho_in
+            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
         END SUBROUTINE tstle4_gradp_impl_c
     END INTERFACE
-
-    !$omp declare target(
-    !$omp&   tstle4_kon_u_c, tstle4_kon_v_c, tstle4_kon_w_c, &
-    !$omp&   tstle4_par_c, tstle4_diff_swc_c, &
-    !$omp&   tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
-    !$omp&   tstle4_gradp_c, tstle4_gradp_impl_c)
 
 CONTAINS
 
     SUBROUTINE initialize_tstle4()
 
         ! Local variables
-        INTEGER(intk) :: i
+        INTEGER(intk) :: i, gradpflag
+        REAL(c_realk) :: rflag
 
         ! Initialize the TSTLE4 module and create array for C processing
         ALLOCATE(tstle4_grids(nmygrids))
 
         DO i = 1, nmygrids
+            ! Feeding dimensions
             CALL get_mgdims(tstle4_grids(i)%kk, tstle4_grids(i)%jj, &
                 tstle4_grids(i)%ii, mygrids(i))
+            ! Feeding boundary information
             CALL get_mgbasb(tstle4_grids(i)%nfro, tstle4_grids(i)%nbac, &
                 tstle4_grids(i)%nrgt, tstle4_grids(i)%nlft, &
                 tstle4_grids(i)%nbot, tstle4_grids(i)%ntop, mygrids(i))
+            ! Feeding array indices
             CALL get_ip3(tstle4_grids(i)%ip3, mygrids(i))
             CALL get_ip1x(tstle4_grids(i)%ipx, mygrids(i))
             CALL get_ip1y(tstle4_grids(i)%ipy, mygrids(i))
             CALL get_ip1z(tstle4_grids(i)%ipz, mygrids(i))
+            ! Feeding pressure gradient
+            CALL get_gradpxflag(gradpflag, mygrids(i))
+            rflag = REAL(gradpflag, c_realk)
+            tstle4_grids(i)%gpx = REAL(gradp(1)*rflag, c_realk)
+            tstle4_grids(i)%gpy = REAL(gradp(2)*rflag, c_realk)
+            tstle4_grids(i)%gpz = REAL(gradp(3)*rflag, c_realk)
+
         END DO
 
         !$omp target enter data map(to: tstle4_grids)
@@ -257,6 +244,10 @@ CONTAINS
         TYPE(field_t), POINTER :: wcu_f, wcv_f, wcw_f
         CALL start_timer(310)
 
+        IF (.NOT. is_initialized) THEN
+            CALL initialize_tstle4()
+        END IF
+
         CALL set_field_arr(uo_f, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(vo_f, 0.0_realk, device=.TRUE.)
         CALL set_field_arr(wo_f, 0.0_realk, device=.TRUE.)
@@ -297,8 +288,9 @@ CONTAINS
         ! CALL stop_timer(312)
 
         CALL start_timer(313)
-        CALL tstle4_gradp_impl(uo_f%arr, vo_f%arr, wo_f%arr, p_f%arr, &
-            dx_f%arr, dy_f%arr, dz_f%arr)
+        CALL tstle4_gradp_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, p_f%arr, &
+            dx_f%arr, dy_f%arr, dz_f%arr, REAL(rho, c_realk), &
+            INT(nmygrids, c_intk), tstle4_grids)
         CALL stop_timer(313)
 
         ! CALL start_timer(314)
@@ -443,57 +435,24 @@ CONTAINS
     END SUBROUTINE tstle4_diff_impl
 
 
-    SUBROUTINE tstle4_gradp_impl(uo, vo, wo, p, dx, dy, dz)
-        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-        REAL(realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
+    ! SUBROUTINE tstle4_gradp_impl(uo, vo, wo, p, dx, dy, dz)
+    !     REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+    !     REAL(realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
 
-        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
-        INTEGER(intk) :: gradpflag
+    !     INTEGER(intk) :: i
+    !     INTEGER(intk) :: gradpflag
 
-        INTEGER(c_intk) :: kk_all(nmygrids), jj_all(nmygrids), ii_all(nmygrids)
-        INTEGER(c_intk) :: ip3_all(nmygrids), ipx_all(nmygrids)
-        INTEGER(c_intk) :: ipy_all(nmygrids), ipz_all(nmygrids)
-        INTEGER(c_intk) :: nfro_all(nmygrids), nbac_all(nmygrids)
-        INTEGER(c_intk) :: nrgt_all(nmygrids), nlft_all(nmygrids)
-        INTEGER(c_intk) :: nbot_all(nmygrids), ntop_all(nmygrids)
-        REAL(c_realk) :: gpx_all(nmygrids), gpy_all(nmygrids), gpz_all(nmygrids)
+    !     DO i = 1, nmygrids
+    !         CALL get_gradpxflag(gradpflag, mygrids(i))
+    !         tstle4_grids(i)%gpx = REAL(gradp(1)*gradpflag, c_realk)
+    !         tstle4_grids(i)%gpy = REAL(gradp(2)*gradpflag, c_realk)
+    !         tstle4_grids(i)%gpz = REAL(gradp(3)*gradpflag, c_realk)
+    !     END DO
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
+    !     CALL tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, &
+    !         REAL(rho, c_realk), INT(nmygrids, c_intk), tstle4_grids)
 
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-            CALL get_gradpxflag(gradpflag, igrid)
-
-            kk_all(i) = INT(kk, c_intk)
-            jj_all(i) = INT(jj, c_intk)
-            ii_all(i) = INT(ii, c_intk)
-            ip3_all(i) = INT(ip3, c_intk)
-            ipx_all(i) = INT(ipx, c_intk)
-            ipy_all(i) = INT(ipy, c_intk)
-            ipz_all(i) = INT(ipz, c_intk)
-            nfro_all(i) = INT(nfro, c_intk)
-            nbac_all(i) = INT(nbac, c_intk)
-            nrgt_all(i) = INT(nrgt, c_intk)
-            nlft_all(i) = INT(nlft, c_intk)
-            nbot_all(i) = INT(nbot, c_intk)
-            ntop_all(i) = INT(ntop, c_intk)
-            gpx_all(i) = REAL(gradp(1)*gradpflag, c_realk)
-            gpy_all(i) = REAL(gradp(2)*gradpflag, c_realk)
-            gpz_all(i) = REAL(gradp(3)*gradpflag, c_realk)
-        END DO
-
-        CALL tstle4_gradp_impl_c(INT(nmygrids, c_intk), uo, vo, wo, p, dx, &
-            dy, dz, kk_all, jj_all, ii_all, ip3_all, ipx_all, ipy_all, ipz_all, &
-            nfro_all, nbac_all, nrgt_all, nlft_all, nbot_all, ntop_all, &
-            gpx_all, gpy_all, gpz_all, REAL(rho, c_realk))
-
-    END SUBROUTINE tstle4_gradp_impl
+    ! END SUBROUTINE tstle4_gradp_impl
 
 
     SUBROUTINE tstle4_par_impl(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, dz, &
