@@ -42,7 +42,7 @@ MODULE tstle4_mod
     INTERFACE
 
         SUBROUTINE tstle4_kon_u_c(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, &
-            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, &
+            dy, dz, ddx, ddy, ddz, nfro, &
             nbac) BIND(C, name="tstle4_kon_u_c")
             IMPORT :: c_intk, c_realk
             INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
@@ -50,13 +50,11 @@ MODULE tstle4_mod
             REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
             REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
             REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
             INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac
         END SUBROUTINE tstle4_kon_u_c
 
         SUBROUTINE tstle4_kon_v_c(kk, jj, ii, vo, u, v, w, ut, vt, wt, dx, &
-            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nrgt, &
+            dy, dz, ddx, ddy, ddz, nrgt, &
             nlft) BIND(C, name="tstle4_kon_v_c")
             IMPORT :: c_intk, c_realk
             INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
@@ -64,13 +62,11 @@ MODULE tstle4_mod
             REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
             REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
             REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
             INTEGER(c_intk), VALUE, INTENT(in) :: nrgt, nlft
         END SUBROUTINE tstle4_kon_v_c
 
         SUBROUTINE tstle4_kon_w_c(kk, jj, ii, wo, u, v, w, ut, vt, wt, dx, &
-            dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nbot, &
+            dy, dz, ddx, ddy, ddz, nbot, &
             ntop) BIND(C, name="tstle4_kon_w_c")
             IMPORT :: c_intk, c_realk
             INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
@@ -78,8 +74,6 @@ MODULE tstle4_mod
             REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
             REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
             REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-            REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-            REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
             INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
         END SUBROUTINE tstle4_kon_w_c
 
@@ -157,6 +151,18 @@ MODULE tstle4_mod
             INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
             REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
         END SUBROUTINE tstle4_diff_swc_c
+
+        SUBROUTINE tstle4_kon_impl_c(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, &
+            dz, ddx, ddy, ddz, nmygrids_in, &
+            grids) BIND(C, name="tstle4_kon_impl_c")
+            IMPORT :: c_intk, c_realk, tstle4_grid_t
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
+            REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
+            REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
+        END SUBROUTINE tstle4_kon_impl_c
 
 
         SUBROUTINE tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, rho_in, &
@@ -240,7 +246,6 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: dx_f, dy_f, dz_f, ddx_f, ddy_f, ddz_f
-        TYPE(field_t), POINTER :: rdx_f, rdy_f, rdz_f, rddx_f, rddy_f, rddz_f
         TYPE(field_t), POINTER :: wcu_f, wcv_f, wcw_f
         CALL start_timer(310)
 
@@ -260,18 +265,21 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
+        ! SW: The kernels do not use the reciprocal grid spacing rdx, rdy, &
+        ! rdz, rddx, rddy, rddz. As we are mainly memory bound, we can afford
+        ! divisions within the kernel at the benefit of reduced memory traffic.
 
         CALL push_field(wcu_f, "TSTLE4_WCU")
         CALL push_field(wcv_f, "TSTLE4_WCV")
         CALL push_field(wcw_f, "TSTLE4_WCW")
 
         ! Convective terms
-        ! CALL start_timer(311)
-        ! CALL tstle4_kon_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
-        !     v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
-        !     dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
-        !     INT(nmygrids, c_intk), tstle4_grids)
-        ! CALL stop_timer(311)
+        CALL start_timer(311)
+        CALL tstle4_kon_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
+            dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+            INT(nmygrids, c_intk), tstle4_grids)
+        CALL stop_timer(311)
 
         ! CALL start_timer(312)
         ! CALL tstle4_diff_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
@@ -347,20 +355,17 @@ CONTAINS
             CALL tstle4_kon_u_c(INT(kk, c_intk), INT(jj, c_intk), &
                 INT(ii, c_intk), uo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
                 vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
-                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
-                rddy(ipy), rddz(ipz), INT(nfro, c_intk), INT(nbac, c_intk))
+                ddy(ipy), ddz(ipz), INT(nfro, c_intk), INT(nbac, c_intk))
 
             CALL tstle4_kon_v_c(INT(kk, c_intk), INT(jj, c_intk), &
                 INT(ii, c_intk), vo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
                 vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
-                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
-                rddy(ipy), rddz(ipz), INT(nrgt, c_intk), INT(nlft, c_intk))
+                ddy(ipy), ddz(ipz), INT(nrgt, c_intk), INT(nlft, c_intk))
 
             CALL tstle4_kon_w_c(INT(kk, c_intk), INT(jj, c_intk), &
                 INT(ii, c_intk), wo(ip3), u(ip3), v(ip3), w(ip3), ut(ip3), &
                 vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
-                ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), &
-                rddy(ipy), rddz(ipz), INT(nbot, c_intk), INT(ntop, c_intk))
+                ddy(ipy), ddz(ipz), INT(nbot, c_intk), INT(ntop, c_intk))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
