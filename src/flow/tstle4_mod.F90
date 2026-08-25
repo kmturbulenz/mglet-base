@@ -126,12 +126,25 @@ MODULE tstle4_mod
             INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
             REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
         END SUBROUTINE tstle4_diff_swc_c
+
+        SUBROUTINE tstle4_gradp_c(kk, jj, ii, uo, vo, wo, p, dx, dy, dz, &
+            nfro, nbac, nrgt, nlft, nbot, ntop, gpx_in, gpy_in, gpz_in, &
+            rho_in) BIND(C, name="tstle4_gradp_c")
+            IMPORT :: c_intk, c_realk
+            INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
+            INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
+            INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
+            REAL(c_realk), VALUE, INTENT(in) :: gpx_in, gpy_in, gpz_in
+            REAL(c_realk), VALUE, INTENT(in) :: rho_in
+        END SUBROUTINE tstle4_gradp_c
     END INTERFACE
 
     !$omp declare target(tstle4_kon_u_c, tstle4_kon_v_c, tstle4_kon_w_c, &
     !$omp&   tstle4_par_c, &
     !$omp&   tstle4_diff_u_c, tstle4_diff_v_c, tstle4_diff_w_c, &
-    !$omp&   tstle4_diff_swc_c)
+    !$omp&   tstle4_diff_swc_c, tstle4_gradp_c)
 
 CONTAINS
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
@@ -225,6 +238,23 @@ CONTAINS
 
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+
+        ! The convective terms are computed in two steps:
+        ! First, the mass fluxes (transporting velocities) are interpolated to
+        ! the faces of the momentum cell. This interpolation is performed in a
+        ! way which ensures mass conservation at the momentum cell if the
+        ! velocity field is divergence-free on the adjacent pressure cells.
+        ! Second, the transported velocities are interpolated in a symmetry-
+        ! preserving manner (the convective term has to be skew-symmetric in
+        ! order to conserve energy).
+        !
+        ! Details can be found in:
+        ! [1] Heinz Werner, Grobstruktursimulation der turbulenten Strömung
+        !     über eine querliegende Rippe in einem Plattenkanal bei hoher
+        !     Reynolds-Zahl, PhD Thesis, Technical University of Munich, 1991
+        ! [2] Verstappen et al., SYMMETRY-PRESERVING DISCRETIZATIONS OF THE
+        !     INCOMPRESSIBLE NAVIER-STOKES EQUATIONS, European Conference on
+        !     Computational Fluid Dynamics, ECCOMAS CFD 2006
 
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
@@ -330,6 +360,8 @@ CONTAINS
 
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
+        INTEGER(intk) :: gradpflag
+        REAL(c_realk) :: gpx, gpy, gpz
 
         !$omp target teams distribute &
         !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
@@ -344,10 +376,17 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            CALL get_gradpxflag(gradpflag, igrid)
+            gpx = REAL(gradp(1)*gradpflag, c_realk)
+            gpy = REAL(gradp(2)*gradpflag, c_realk)
+            gpz = REAL(gradp(3)*gradpflag, c_realk)
+
             !$omp parallel
-            CALL tstle4_gradp(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), p(ip3), &
-                dx(ipx), dy(ipy), dz(ipz), &
-                nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL tstle4_gradp_c(INT(kk, c_intk), INT(jj, c_intk), &
+                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), p(ip3), dx(ipx), &
+                dy(ipy), dz(ipz), INT(nfro, c_intk), INT(nbac, c_intk), &
+                INT(nrgt, c_intk), INT(nlft, c_intk), INT(nbot, c_intk), &
+                INT(ntop, c_intk), gpx, gpy, gpz, REAL(rho, c_realk))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -417,22 +456,7 @@ CONTAINS
     END SUBROUTINE tstle4_par_bridge_c
 
 
-    ! The convective terms are computed in two steps:
-    ! First, the mass fluxes (transporting velocities) are interpolated to
-    ! the faces of the momentum cell. This interpolation is performed in a
-    ! way which ensures mass conservation at the momentum cell if the
-    ! velocity field is divergence-free on the adjacent pressure cells.
-    ! Second, the transported velocities are interpolated in a symmetry-
-    ! preserving manner (the convective term has to be skew-symmetric in
-    ! order to conserve energy).
-    !
-    ! Details can be found in:
-    ! [1] Heinz Werner, Grobstruktursimulation der turbulenten Strömung
-    !     über eine querliegende Rippe in einem Plattenkanal bei hoher
-    !     Reynolds-Zahl, PhD Thesis, Technical University of Munich, 1991
-    ! [2] Verstappen et al., SYMMETRY-PRESERVING DISCRETIZATIONS OF THE
-    !     INCOMPRESSIBLE NAVIER-STOKES EQUATIONS, European Conference on
-    !     Computational Fluid Dynamics, ECCOMAS CFD 2006
+
     SUBROUTINE tstle4_kon_u(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, dy, dz, &
             ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, ntop)
         !$omp declare target

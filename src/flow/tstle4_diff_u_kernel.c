@@ -133,6 +133,81 @@ void tstle4_kon_u_c(const intk_c kk, const intk_c jj, const intk_c ii,
         }
     }
 }
+
+void tstle4_gradp_c(const intk_c kk, const intk_c jj, const intk_c ii,
+        realk_c *uo, realk_c *vo, realk_c *wo,
+        const realk_c *p,
+        const realk_c *dx, const realk_c *dy, const realk_c *dz,
+        const intk_c nfro, const intk_c nbac, const intk_c nrgt,
+        const intk_c nlft, const intk_c nbot, const intk_c ntop,
+        const realk_c gpx_in, const realk_c gpy_in, const realk_c gpz_in,
+        const realk_c rho_in)
+{
+    intk_c nfu = 0;
+    intk_c nbu = 0;
+    intk_c nrv = 0;
+    intk_c nlv = 0;
+    intk_c nbw = 0;
+    intk_c ntw = 0;
+    const realk_c inv_rho = (realk_c)1.0 / rho_in;
+
+    if (nbac == 7) nbu = 1;
+    if (nlft == 7) nlv = 1;
+    if (ntop == 7) ntw = 1;
+
+    if (nfro == 3) nfu = 1;
+    if (nbac == 3) nbu = 1;
+    if (nrgt == 3) nrv = 1;
+    if (nlft == 3) nlv = 1;
+    if (nbot == 3) nbw = 1;
+    if (ntop == 3) ntw = 1;
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3 - nfu; i <= ii - 3 + nbu; ++i) {
+        for (intk_c j = 3; j <= jj - 2; ++j) {
+            for (intk_c k = 3; k <= kk - 2; ++k) {
+                const realk_c dxi = dx[idx1(i)];
+                uo[idx3(kk, jj, k, j, i)] =
+                    uo[idx3(kk, jj, k, j, i)] -
+                    inv_rho / dxi *
+                    (p[idx3(kk, jj, k, j, i + 1)] - p[idx3(kk, jj, k, j, i)] + gpx_in * dxi);
+            }
+        }
+    }
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3; i <= ii - 2; ++i) {
+        for (intk_c j = 3 - nrv; j <= jj - 3 + nlv; ++j) {
+            for (intk_c k = 3; k <= kk - 2; ++k) {
+                const realk_c dyj = dy[idx1(j)];
+                vo[idx3(kk, jj, k, j, i)] =
+                    vo[idx3(kk, jj, k, j, i)] -
+                    inv_rho / dyj *
+                    (p[idx3(kk, jj, k, j + 1, i)] - p[idx3(kk, jj, k, j, i)] + gpy_in * dyj);
+            }
+        }
+    }
+
+#if defined(_OPENMP)
+#pragma omp for collapse(3)
+#endif
+    for (intk_c i = 3; i <= ii - 2; ++i) {
+        for (intk_c j = 3; j <= jj - 2; ++j) {
+            for (intk_c k = 3 - nbw; k <= kk - 3 + ntw; ++k) {
+                const realk_c dzk = dz[idx1(k)];
+                wo[idx3(kk, jj, k, j, i)] =
+                    wo[idx3(kk, jj, k, j, i)] -
+                    inv_rho / dzk *
+                    (p[idx3(kk, jj, k + 1, j, i)] - p[idx3(kk, jj, k, j, i)] + gpz_in * dzk);
+            }
+        }
+    }
+}
+
 void tstle4_par_c(const intk_c kk, const intk_c jj, const intk_c ii,
     realk_c *uo, realk_c *vo, realk_c *wo,
     const realk_c *u, const realk_c *v, const realk_c *w,
