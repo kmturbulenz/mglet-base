@@ -6,7 +6,36 @@ MODULE tstle4_mod
     IMPLICIT NONE(type, external)
     PRIVATE
 
-    PUBLIC :: tstle4
+    TYPE, BIND(C) :: tstle4_grid_t
+        ! Grid dimensions
+        INTEGER(c_intk) :: ii
+        INTEGER(c_intk) :: jj
+        INTEGER(c_intk) :: kk
+        ! Array indices for the 3D / 1D arrays
+        INTEGER(c_intk) :: ip3
+        INTEGER(c_intk) :: ipx
+        INTEGER(c_intk) :: ipy
+        INTEGER(c_intk) :: ipz
+        ! Boundary information for the grid
+        INTEGER(c_intk) :: nfro
+        INTEGER(c_intk) :: nbac
+        INTEGER(c_intk) :: nrgt
+        INTEGER(c_intk) :: nlft
+        INTEGER(c_intk) :: nbot
+        INTEGER(c_intk) :: ntop
+        ! Information on pressure gradient
+        REAL(c_realk) :: gpx
+        REAL(c_realk) :: gpy
+        REAL(c_realk) :: gpz
+    END TYPE tstle4_grid_t
+
+    TYPE(tstle4_grid_t), ALLOCATABLE :: tstle4_grids(:)
+    !$omp declare target(tstle4_grids)
+
+    LOGICAL, PROTECTED :: is_initialized = .FALSE.
+
+
+    PUBLIC :: tstle4, initialize_tstle4, finalize_tstle4
 
     INTERFACE
 
@@ -167,6 +196,46 @@ MODULE tstle4_mod
     !$omp&   tstle4_gradp_c, tstle4_gradp_impl_c)
 
 CONTAINS
+
+    SUBROUTINE initialize_tstle4()
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        ! Initialize the TSTLE4 module and create array for C processing
+        ALLOCATE(tstle4_grids(nmygrids))
+
+        DO i = 1, nmygrids
+            CALL get_mgdims(tstle4_grids(i)%kk, tstle4_grids(i)%jj, &
+                tstle4_grids(i)%ii, mygrids(i))
+            CALL get_mgbasb(tstle4_grids(i)%nfro, tstle4_grids(i)%nbac, &
+                tstle4_grids(i)%nrgt, tstle4_grids(i)%nlft, &
+                tstle4_grids(i)%nbot, tstle4_grids(i)%ntop, mygrids(i))
+            CALL get_ip3(tstle4_grids(i)%ip3, mygrids(i))
+            CALL get_ip1x(tstle4_grids(i)%ipx, mygrids(i))
+            CALL get_ip1y(tstle4_grids(i)%ipy, mygrids(i))
+            CALL get_ip1z(tstle4_grids(i)%ipz, mygrids(i))
+        END DO
+
+        !$omp target enter data map(to: tstle4_grids)
+
+        is_initialized = .TRUE.
+
+    END SUBROUTINE initialize_tstle4
+
+
+    SUBROUTINE finalize_tstle4
+
+        !$omp target exit data map(delete: tstle4_grids)
+        DEALLOCATE(tstle4_grids)
+
+        is_initialized = .FALSE.
+
+    END SUBROUTINE finalize_tstle4
+
+
+
+
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
             p_f, g_f)
         ! Subroutine arguments

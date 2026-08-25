@@ -14,6 +14,18 @@ typedef long long intk_c;
 typedef int intk_c;
 #endif
 
+// Data structure to hold grid metadata for TSTLE4 computations.
+typedef struct {
+    // Grid dimensions
+    intk_c ii; intk_c jj; intk_c kk;
+    // Grid offsets in the global arrays
+    intk_c ip3; intk_c ipx; intk_c ipy; intk_c ipz;
+    // Grid boundary conditions
+    intk_c nfro; intk_c nbac; intk_c nrgt; intk_c nlft; intk_c nbot; intk_c ntop;
+    // Grid pressure gradient source terms
+    realk_c gpx; realk_c gpy; realk_c gpz;
+} tstle4_grid_t;
+
 // Convert Fortran-style 1-based (k,j,i) coordinates to a flat C index.
 static inline size_t idx3(const intk_c kk, const intk_c jj, const intk_c k,
     const intk_c j, const intk_c i) {
