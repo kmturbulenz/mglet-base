@@ -64,20 +64,11 @@ target_include_directories(core
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 
-target_compile_options(core
-    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
-    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
-    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:CXX>>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
-    PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:CXX>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
-)
-
 target_link_libraries(core
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
-    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
-    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_C>
-    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_CXX>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:mglet_openmp>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},roctx>:rocprofiler-sdk-roctx::rocprofiler-sdk-roctx>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},nvtx>:CUDA::nvtx3>
 )
@@ -91,10 +82,6 @@ set_source_files_properties(jsoncpp_wrapper.cxx PROPERTIES INCLUDE_DIRECTORIES
 )
 
 set_property(TARGET core PROPERTY CXX_STANDARD 17)
-
-set_source_files_properties(device_workarounds.cxx PROPERTIES COMPILE_FLAGS
-    $<$<STREQUAL:"${CMAKE_CXX_COMPILER_ID}","GNU">:-Wno-unknown-pragmas>
-)
 
 # Other neccesary compile flags
 set_source_files_properties(exprtk_wrapper.cxx PROPERTIES COMPILE_FLAGS
