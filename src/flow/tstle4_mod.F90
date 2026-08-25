@@ -260,24 +260,17 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        CALL get_field(rdx_f, "RDX")
-        CALL get_field(rdy_f, "RDY")
-        CALL get_field(rdz_f, "RDZ")
-
-        CALL get_field(rddx_f, "RDDX")
-        CALL get_field(rddy_f, "RDDY")
-        CALL get_field(rddz_f, "RDDZ")
 
         CALL push_field(wcu_f, "TSTLE4_WCU")
         CALL push_field(wcv_f, "TSTLE4_WCV")
         CALL push_field(wcw_f, "TSTLE4_WCW")
 
+        ! Convective terms
         ! CALL start_timer(311)
-        ! CALL tstle4_kon_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+        ! CALL tstle4_kon_impl_c(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
         !     v_f%arr, w_f%arr, ut_f%arr, vt_f%arr, wt_f%arr, dx_f%arr, &
         !     dy_f%arr, dz_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
-        !     rdx_f%arr, rdy_f%arr, rdz_f%arr, rddx_f%arr, rddy_f%arr, &
-        !     rddz_f%arr)
+        !     INT(nmygrids, c_intk), tstle4_grids)
         ! CALL stop_timer(311)
 
         ! CALL start_timer(312)
