@@ -207,11 +207,8 @@ CONTAINS
             tstle4_grids(i)%gpx = REAL(gradp(1)*rflag, c_realk)
             tstle4_grids(i)%gpy = REAL(gradp(2)*rflag, c_realk)
             tstle4_grids(i)%gpz = REAL(gradp(3)*rflag, c_realk)
-
         END DO
-
         !$omp target enter data map(to: tstle4_grids)
-
         is_initialized = .TRUE.
 
     END SUBROUTINE initialize_tstle4
@@ -373,66 +370,6 @@ CONTAINS
     END SUBROUTINE tstle4_kon_impl
 
 
-    SUBROUTINE tstle4_diff_impl(uo, vo, wo, u, v, w, g, dx, dy, dz, ddx, &
-            ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz)
-        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-        REAL(realk), INTENT(in) :: u(*), v(*), w(*), g(*)
-        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
-        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-
-        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
-
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            !$omp parallel
-            CALL tstle4_diff_swc_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), u(ip3), v(ip3), &
-                w(ip3), ddx(ipx), ddy(ipy), ddz(ipz), INT(nfro, c_intk), &
-                INT(nbac, c_intk), INT(nrgt, c_intk), INT(nlft, c_intk), &
-                INT(nbot, c_intk), INT(ntop, c_intk), REAL(gmol, c_realk), &
-                REAL(rho, c_realk))
-
-            CALL tstle4_diff_u_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), uo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
-                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
-                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
-                INT(nfro, c_intk), INT(nbac, c_intk), INT(ilesmodel, c_intk), &
-                REAL(gmol, c_realk), REAL(rho, c_realk))
-
-            CALL tstle4_diff_v_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), vo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
-                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
-                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
-                INT(nrgt, c_intk), INT(nlft, c_intk), INT(ilesmodel, c_intk), &
-                REAL(gmol, c_realk), REAL(rho, c_realk))
-
-            CALL tstle4_diff_w_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), wo(ip3), u(ip3), v(ip3), w(ip3), g(ip3), &
-                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
-                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
-                INT(nbot, c_intk), INT(ntop, c_intk), INT(ilesmodel, c_intk), &
-                REAL(gmol, c_realk), REAL(rho, c_realk))
-            !$omp end parallel
-
-        END DO
-        !$omp end target teams distribute
-
-    END SUBROUTINE tstle4_diff_impl
-
-
     ! SUBROUTINE tstle4_gradp_impl(uo, vo, wo, p, dx, dy, dz)
     !     REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
     !     REAL(realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
@@ -453,41 +390,4 @@ CONTAINS
     ! END SUBROUTINE tstle4_gradp_impl
 
 
-    SUBROUTINE tstle4_par_impl(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, dz, &
-            ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, wcu, wcv, wcw)
-        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-        REAL(realk), INTENT(inout) :: wcu(*), wcv(*), wcw(*)
-        REAL(realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
-        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
-        REAL(realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-
-        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
-
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
-        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            !$omp parallel
-            CALL tstle4_par_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), uo(ip3), vo(ip3), wo(ip3), u(ip3), v(ip3), &
-                w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), dz(ipz), &
-                ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), rdz(ipz), &
-                rddx(ipx), rddy(ipy), rddz(ipz), wcu(ip3), wcv(ip3), wcw(ip3), &
-                INT(nfro, c_intk), INT(nbac, c_intk), INT(nrgt, c_intk), &
-                INT(nlft, c_intk), INT(nbot, c_intk), INT(ntop, c_intk))
-            !$omp end parallel
-        END DO
-        !$omp end target teams distribute
-    END SUBROUTINE tstle4_par_impl
 END MODULE tstle4_mod
