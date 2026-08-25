@@ -25,6 +25,9 @@ CONTAINS
         LOGICAL :: device2
 #endif
 
+        ! The coarsest level cannot receive values from a parent grid
+        IF (ilevel == minlevel) RETURN
+
         IF (.NOT. is_parent_core_init) CALL errr(__FILE__, __LINE__)
 
         CALL start_timer(210)
