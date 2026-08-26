@@ -19,11 +19,14 @@ add_library(flow STATIC
     pressuresolver_mod.F90
     setboundarybuffers_mod.F90
     timeintegration_mod.F90
-    tstle4/tstle4_convection_kernels.c
-    tstle4/tstle4_diffusion_kernels.c
+    tstle4/tstle1_mod.F90
+    tstle4/tstle2_mod.F90
+    tstle4/tstle2_convection_kernels.c
+    tstle4/tstle2_diffusion_kernels.c
+    tstle4/tstle2_parent_kernels.c
+    tstle4/tstle2_pressure_gradient_kernels.c
     tstle4/tstle4_mod.F90
-    tstle4/tstle4_parent_kernels.c
-    tstle4/tstle4_pressure_gradient_kernels.c
+
     wernerwengle_mod.F90
 )
 
@@ -45,7 +48,7 @@ target_compile_options(flow
     PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
 )
 
-set_source_files_properties(bound_flow_kernels.c tstle4/tstle4_convection_kernels.c tstle4/tstle4_diffusion_kernels.c tstle4/tstle4_parent_kernels.c tstle4/tstle4_pressure_gradient_kernels.c PROPERTIES COMPILE_FLAGS
+set_source_files_properties(bound_flow_kernels.c tstle4/tstle2_convection_kernels.c tstle4/tstle2_diffusion_kernels.c tstle4/tstle2_parent_kernels.c tstle4/tstle2_pressure_gradient_kernels.c PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_C_COMPILER_ID}","GNU">:-Wno-unknown-pragmas>
 )
 
