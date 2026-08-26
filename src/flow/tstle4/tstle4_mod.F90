@@ -24,15 +24,26 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: uo_f, vo_f, wo_f
         TYPE(field_t), INTENT(in) :: u_f, v_f, w_f
         TYPE(field_t), INTENT(in) :: ut_f, vt_f, wt_f, p_f, g_f
-#ifdef __llvm__
-        ! Uses the C-based execution kernels
-        CALL tstle2(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
-            p_f, g_f)
-#else
-        ! Uses the Fortran-based execution kernels (initialization not needed)
+
+#ifndef _MGLET_OFFLOAD_
+
+        ! Uses the Fortran-based implementation on CPU
         CALL tstle1(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
             p_f, g_f)
+#else
+
+#if defined(__flang__) &&defined(__amdflang__)
+        ! Uses the Fortran-based device execution kernels with AMD compiler
+        CALL tstle1(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
+            p_f, g_f)
+#else
+        ! Uses the C-based execution kernels e.g. for upstream LLVM compiler
+        CALL tstle2(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
+            p_f, g_f)
 #endif
+
+#endif
+
     END SUBROUTINE tstle4
 
 
