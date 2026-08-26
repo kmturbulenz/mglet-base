@@ -228,6 +228,7 @@ CONTAINS
         CALL set_field("BT", dwrite=.TRUE.)
         CALL get_field(bt, "BT")
         CALL blockbt(bt)
+        CALL map_arr_to_device(bt, message="to:bt%arr")
     END SUBROUTINE init_scacore
 
 
@@ -274,26 +275,34 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: t_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
         TYPE(field_t), POINTER :: bt_f
-        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :), bt(:, :, :)
 
         CALL get_field(bt_f, "BT")
-
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL bt_f%get_ptr(bt, igrid)
-            CALL t_f%get_ptr(t, igrid)
-
-            CALL maskbt_grid(kk, jj, ii, t, bt)
-        END DO
+        CALL maskbt_impl(t_f%arr, bt_f%arr)
     END SUBROUTINE maskbt
 
 
-    PURE SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+    SUBROUTINE maskbt_impl(t, bt)
+        REAL(realk), INTENT(inout) :: t(*)
+        REAL(realk), INTENT(in) :: bt(*)
+
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            !$omp parallel
+            CALL maskbt_grid(kk, jj, ii, t(ip3), bt(ip3))
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE maskbt_impl
+
+
+    SUBROUTINE maskbt_grid(kk, jj, ii, t, bt)
+        !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: t(kk, jj, ii)
@@ -303,6 +312,7 @@ CONTAINS
         INTEGER :: k, j, i
 
         ! TODO: Indices?
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -310,6 +320,7 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE maskbt_grid
 
 
