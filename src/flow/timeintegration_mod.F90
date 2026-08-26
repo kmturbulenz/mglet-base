@@ -97,7 +97,6 @@ CONTAINS
             ! u, v, w should exist on the host in an updated state from the
             ! prev. time step, so no need to map /from/ device here
             CALL setibvalues(u, v, w)
-            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
         ! TSTLE4 zeroize uo, vo, wo before use internally
@@ -131,9 +130,7 @@ CONTAINS
             CALL maskbp(u, v, w, p)
 
             ! Equivalent to old boundmg with ityp 'R'
-            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL getibvalues(u, v, w)
-            CALL map_arr_to_device(u, v, w, message="to:u|v|w")
         END IF
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -175,9 +172,7 @@ CONTAINS
 
         IF (ib%type == "GHOSTCELL") THEN
             lastrk = (irk == rkscheme%nrk)
-            CALL map_arr_from_device(u, v, w, message="from:u|v|w")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, lastrk)
-            CALL map_arr_to_device(pwu, pwv, pww, message="to:pwu|pwv|pww")
         END IF
 
         ! TODO: mgplevel
@@ -190,14 +185,9 @@ CONTAINS
         ! RK step only, since the other steps are intermediate and not used for
         ! sampling.
         IF (irk == rkscheme%nrk) THEN
-            IF (ib%type == "GHOSTCELL") THEN
-                ! u, v, w mapped from device already above, so only p and g
-                ! need to be mapped
-                CALL map_arr_from_device(p, g, message="from:p|g")
-            ELSE
-                CALL map_arr_from_device(u, v, w, p, g, &
-                    message="from:u|v|w|p|g")
-            END IF
+            ! TODO: Can this be made asynchronous?
+            CALL map_arr_from_device(u, v, w, p, g, &
+                message="from:u|v|w|p|g")
         END IF
 
         CALL stop_timer(300)

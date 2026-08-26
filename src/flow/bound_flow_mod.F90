@@ -133,7 +133,8 @@ CONTAINS
 
     SUBROUTINE apply_bound_flow(ilevel, u_f, v_f, w_f, p_f)
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: p_f
 
         TYPE(field_t), POINTER :: bp_f, ddx_f, ddy_f, ddz_f
         INTEGER(intk) :: ilevel_index, ntasks
