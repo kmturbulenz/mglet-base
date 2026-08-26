@@ -22,6 +22,7 @@ add_library(flow STATIC
     tstle4_convection_kernels.c
     tstle4_diffusion_kernels.c
     tstle4_mod.F90
+    tstle4_parent_kernels.c
     tstle4_pressure_gradient_kernels.c
     wernerwengle_mod.F90
 )
@@ -44,7 +45,7 @@ target_compile_options(flow
     PRIVATE "$<$<AND:$<BOOL:${MGLET_OFFLOAD}>,$<COMPILE_LANGUAGE:C>>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
 )
 
-set_source_files_properties(bound_flow_kernels.c tstle4_convection_kernels.c tstle4_diffusion_kernels.c tstle4_pressure_gradient_kernels.c PROPERTIES COMPILE_FLAGS
+set_source_files_properties(bound_flow_kernels.c tstle4_convection_kernels.c tstle4_diffusion_kernels.c tstle4_parent_kernels.c tstle4_pressure_gradient_kernels.c PROPERTIES COMPILE_FLAGS
     $<$<STREQUAL:"${CMAKE_C_COMPILER_ID}","GNU">:-Wno-unknown-pragmas>
 )
 
