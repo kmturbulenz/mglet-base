@@ -17,11 +17,24 @@ MODULE bound_flow_mod
     END TYPE bound_flow_t
     TYPE(bound_flow_t) :: bound_flow
 
-    INTEGER(intk), PARAMETER :: boundtasksize = 3
-    INTEGER(intk), ALLOCATABLE :: boundtasks(:, :, :)
+    TYPE, BIND(C) :: bound_flow_task_t
+        INTEGER(c_intk) :: kk
+        INTEGER(c_intk) :: jj
+        INTEGER(c_intk) :: ii
+        INTEGER(c_intk) :: iface
+        INTEGER(c_intk) :: ityp
+        INTEGER(c_intk) :: ip3
+        INTEGER(c_intk) :: ipx
+        INTEGER(c_intk) :: ipy
+        INTEGER(c_intk) :: ipz
+        INTEGER(c_intk) :: ipbb
+        REAL(c_realk) :: pinf
+    END TYPE bound_flow_task_t
+
     INTEGER(intk), ALLOCATABLE :: nboundtaskslvl(:)
-    REAL(realk), ALLOCATABLE :: boundtaskpinf(:, :)
-    !$omp declare target(boundtasks, boundtaskpinf)
+
+    TYPE(bound_flow_task_t), ALLOCATABLE :: bound_flow_tasks(:, :)
+    !$omp declare target(bound_flow_tasks)
 
     PUBLIC :: bound_flow, init_bound_flow, apply_bound_flow, finish_bound_flow
 
@@ -37,6 +50,18 @@ MODULE bound_flow_mod
             REAL(c_realk), INTENT(inout) :: ubuf(*), vbuf(*), wbuf(*)
             REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
         END SUBROUTINE bound_flow_device_c
+
+        SUBROUTINE apply_bound_flow_impl_c(ntasks, u, v, w, p, ubuffer, &
+            vbuffer, wbuffer, bp, ddx, ddy, ddz, tasks, rho_in) BIND(C, &
+            name="apply_bound_flow_impl_c")
+            IMPORT :: c_intk, c_realk, bound_flow_task_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: ntasks
+            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
+            REAL(c_realk), INTENT(inout) :: ubuffer(*), vbuffer(*), wbuffer(*)
+            REAL(c_realk), INTENT(in) :: bp(*), ddx(*), ddy(*), ddz(*)
+            TYPE(bound_flow_task_t), INTENT(in) :: tasks(*)
+            REAL(c_realk), VALUE, INTENT(in) :: rho_in
+        END SUBROUTINE apply_bound_flow_impl_c
     END INTERFACE
 
     !$omp declare target(bound_flow_device_c)
@@ -45,6 +70,7 @@ CONTAINS
     SUBROUTINE init_bound_flow()
         INTEGER(intk) :: nlevels, ilevel, ilevel_index
         INTEGER(intk) :: imygrid, igrid, iface, ibocd, nbocd, itask, ityp
+        INTEGER(intk) :: kk, jj, ii, ip3, ipx, ipy, ipz, ipbb, maxntasks
         INTEGER(intk) :: nop1
         REAL(realk) :: pinf(1)
         CHARACTER(len=8) :: ctyp
@@ -69,10 +95,8 @@ CONTAINS
             END DO
         END DO
 
-        ALLOCATE(boundtasks(boundtasksize, MAXVAL(nboundtaskslvl), nlevels), &
-            source=-1_intk)
-        ALLOCATE(boundtaskpinf(MAXVAL(nboundtaskslvl), nlevels), &
-            source=0.0_realk)
+        maxntasks = MAXVAL(nboundtaskslvl)
+        ALLOCATE(bound_flow_tasks(maxntasks, nlevels))
 
         DO ilevel = minlevel, maxlevel
             ilevel_index = ilevel - minlevel + 1
@@ -86,8 +110,15 @@ CONTAINS
                         ityp = bound_type(ctyp)
                         IF (ityp == 0) CYCLE
                         itask = itask + 1
-                        boundtasks(:, itask, ilevel_index) = &
-                            [igrid, iface, ityp]
+
+                        CALL get_mgdims(kk, jj, ii, igrid)
+                        CALL get_ip3(ip3, igrid)
+                        CALL get_ip1x(ipx, igrid)
+                        CALL get_ip1y(ipy, igrid)
+                        CALL get_ip1z(ipz, igrid)
+                        CALL get_ipbb(ipbb, iface, igrid)
+
+                        pinf(1) = 0.0_realk
                         IF (ityp == 2) THEN
                             CALL get_nbcprms(igrid, iface, ibocd, nreal=nop1)
                             IF (nop1 == 0) THEN
@@ -97,14 +128,36 @@ CONTAINS
                             ELSE
                                 CALL errr(__FILE__, __LINE__)
                             END IF
-                            boundtaskpinf(itask, ilevel_index) = pinf(1)
                         END IF
+
+                        bound_flow_tasks(itask, ilevel_index)%kk = &
+                            INT(kk, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%jj = &
+                            INT(jj, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ii = &
+                            INT(ii, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%iface = &
+                            INT(iface, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ityp = &
+                            INT(ityp, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ip3 = &
+                            INT(ip3, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ipx = &
+                            INT(ipx, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ipy = &
+                            INT(ipy, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ipz = &
+                            INT(ipz, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%ipbb = &
+                            INT(ipbb, c_intk)
+                        bound_flow_tasks(itask, ilevel_index)%pinf = &
+                            REAL(pinf(1), c_realk)
                     END DO
                 END DO
             END DO
         END DO
 
-        !$omp target enter data map(always, to: boundtasks, boundtaskpinf)
+        !$omp target enter data map(always, to: bound_flow_tasks)
         CALL get_field(u_f, "U")
         CALL get_field(v_f, "V")
         CALL get_field(w_f, "W")
@@ -160,46 +213,18 @@ CONTAINS
         REAL(realk), INTENT(inout) :: ubuffer(*), vbuffer(*), wbuffer(*)
         REAL(realk), INTENT(in) :: bp(*), ddx(*), ddy(*), ddz(*)
 
-        INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii
-        INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
-        REAL(realk) :: pinf
-
         IF (ntasks == 0) RETURN
 
-        !$omp target teams distribute private(itask, igrid, iface, ityp, &
-        !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb, pinf)
-        DO itask = 1, ntasks
-
-            !$omp parallel
-            igrid = boundtasks(1, itask, ilevel_index)
-            iface = boundtasks(2, itask, ilevel_index)
-            ityp = boundtasks(3, itask, ilevel_index)
-            pinf = boundtaskpinf(itask, ilevel_index)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-            CALL get_ipbb(ipbb, iface, igrid)
-
-            CALL bound_flow_device_c(INT(kk, c_intk), INT(jj, c_intk), &
-                INT(ii, c_intk), INT(iface, c_intk), INT(ityp, c_intk), &
-                REAL(pinf, c_realk), u(ip3), v(ip3), w(ip3), p(ip3), &
-                bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
-                ddx(ipx), ddy(ipy), ddz(ipz), REAL(rho, c_realk))
-            !$omp end parallel
-
-        END DO
-        !$omp end target teams distribute
+        CALL apply_bound_flow_impl_c(INT(ntasks, c_intk), u, v, w, p, &
+            ubuffer, vbuffer, wbuffer, bp, ddx, ddy, ddz, &
+            bound_flow_tasks(1, ilevel_index), REAL(rho, c_realk))
 
     END SUBROUTINE apply_bound_flow_impl
 
 
     SUBROUTINE finish_bound_flow()
-        !$omp target exit data map(always, delete: boundtasks, boundtaskpinf)
-        DEALLOCATE(boundtaskpinf)
-        DEALLOCATE(boundtasks)
+        !$omp target exit data map(always, delete: bound_flow_tasks)
+        DEALLOCATE(bound_flow_tasks)
         DEALLOCATE(nboundtaskslvl)
     END SUBROUTINE finish_bound_flow
 

@@ -13,6 +13,20 @@ typedef long long intk_c;
 typedef int intk_c;
 #endif
 
+typedef struct {
+    intk_c kk;
+    intk_c jj;
+    intk_c ii;
+    intk_c iface;
+    intk_c ityp;
+    intk_c ip3;
+    intk_c ipx;
+    intk_c ipy;
+    intk_c ipz;
+    intk_c ipbb;
+    realk_c pinf;
+} bound_flow_task_t;
+
 /* Flatten (k,j,i) Fortran indexing into contiguous C storage. */
 static inline size_t idx3(const intk_c kk, const intk_c jj, const intk_c k,
                           const intk_c j, const intk_c i) {
@@ -951,3 +965,37 @@ void bound_flow_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
 #if defined(_OPENMP)
 #pragma omp end declare target
 #endif
+
+void apply_bound_flow_impl_c(const intk_c ntasks, realk_c *u, realk_c *v,
+                             realk_c *w, realk_c *p, realk_c *ubuffer,
+                             realk_c *vbuffer, realk_c *wbuffer,
+                             const realk_c *bp, const realk_c *ddx,
+                             const realk_c *ddy, const realk_c *ddz,
+                             const bound_flow_task_t *tasks,
+                             const realk_c rho_in) {
+#pragma omp target teams distribute
+    for (intk_c itask = 0; itask < ntasks; ++itask) {
+        const bound_flow_task_t *const t = &tasks[itask];
+
+        realk_c *const u_g = &u[(size_t)(t->ip3 - 1)];
+        realk_c *const v_g = &v[(size_t)(t->ip3 - 1)];
+        realk_c *const w_g = &w[(size_t)(t->ip3 - 1)];
+        realk_c *const p_g = &p[(size_t)(t->ip3 - 1)];
+        const realk_c *const bp_g = &bp[(size_t)(t->ip3 - 1)];
+
+        realk_c *const ubuf_g = &ubuffer[(size_t)(t->ipbb - 1)];
+        realk_c *const vbuf_g = &vbuffer[(size_t)(t->ipbb - 1)];
+        realk_c *const wbuf_g = &wbuffer[(size_t)(t->ipbb - 1)];
+
+        const realk_c *const ddx_g = &ddx[(size_t)(t->ipx - 1)];
+        const realk_c *const ddy_g = &ddy[(size_t)(t->ipy - 1)];
+        const realk_c *const ddz_g = &ddz[(size_t)(t->ipz - 1)];
+
+#pragma omp parallel
+        {
+            bound_flow_device_c(t->kk, t->jj, t->ii, t->iface, t->ityp,
+                                t->pinf, u_g, v_g, w_g, p_g, bp_g, ubuf_g,
+                                vbuf_g, wbuf_g, ddx_g, ddy_g, ddz_g, rho_in);
+        }
+    }
+}
