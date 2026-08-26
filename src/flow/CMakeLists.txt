@@ -8,7 +8,8 @@ add_library(flow STATIC
     flowstat_mod.F90
     gc_compbodyforce_mod.F90
     gc_flowstencils_mod.F90
-    gc_flowstencils.cxx
+    gc_flowstencils_wmxpolquad.cxx
+    gc_flowstencils_wmxpolquadfcorr.cxx
     sip_classic_mod.F90
     sip_hyperplane_mod.F90
     bound_flow_kernels.c
