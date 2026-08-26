@@ -16,6 +16,7 @@ add_library(flow STATIC
     laplacephi_mod.F90
     sor_mod.F90
     itinfo_mod.F90
+    lesmodel_boundg_kernels.c
     lesmodel_kernels.c
     lesmodel_mod.F90
     plog_mod.F90

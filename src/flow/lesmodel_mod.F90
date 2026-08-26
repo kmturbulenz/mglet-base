@@ -38,6 +38,16 @@ MODULE lesmodel_mod
         INTEGER(c_intk) :: ntop
     END TYPE lesmodel_grid_t
 
+    TYPE, BIND(C) :: boundg_task_t
+        INTEGER(c_intk) :: kk
+        INTEGER(c_intk) :: jj
+        INTEGER(c_intk) :: ii
+        INTEGER(c_intk) :: iface
+        INTEGER(c_intk) :: ityp
+        INTEGER(c_intk) :: ip3
+        INTEGER(c_intk) :: ipbb
+    END TYPE boundg_task_t
+
     ! LES model constant
     REAL(realk) :: Cm
     !$omp declare target(Cm)
@@ -45,11 +55,10 @@ MODULE lesmodel_mod
     ! Bound operation
     TYPE(boundg_t) :: bound
 
-    INTEGER(intk), PARAMETER :: boundgtasksize = 3
-    INTEGER(intk), ALLOCATABLE :: boundgtasks(:, :, :)
     INTEGER(intk), ALLOCATABLE :: nboundgtaskslvl(:)
+    TYPE(boundg_task_t), ALLOCATABLE :: boundg_tasks(:, :)
     TYPE(lesmodel_grid_t), ALLOCATABLE :: lesmodel_grids(:)
-    !$omp declare target(boundgtasks, lesmodel_grids)
+    !$omp declare target(boundg_tasks, lesmodel_grids)
 
     INTERFACE
         SUBROUTINE lesmodel_gc_impl_c(g, u, v, w, bp, dx, dy, dz, ddx, ddy, &
@@ -66,6 +75,16 @@ MODULE lesmodel_mod
             INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
             TYPE(lesmodel_grid_t), INTENT(in) :: grids(*)
         END SUBROUTINE lesmodel_gc_impl_c
+
+        SUBROUTINE apply_boundg_impl_c(ntasks, g, gbuffer, bp, tasks, gmol_in) &
+            BIND(C, name="apply_boundg_impl_c")
+            IMPORT :: c_intk, c_realk, boundg_task_t
+            INTEGER(c_intk), VALUE, INTENT(in) :: ntasks
+            REAL(c_realk), INTENT(inout) :: g(*), gbuffer(*)
+            REAL(c_realk), INTENT(in) :: bp(*)
+            TYPE(boundg_task_t), INTENT(in) :: tasks(*)
+            REAL(c_realk), VALUE, INTENT(in) :: gmol_in
+        END SUBROUTINE apply_boundg_impl_c
     END INTERFACE
 
     !$omp declare target(lesmodel_gc_impl_c)
@@ -140,8 +159,8 @@ CONTAINS
 
     SUBROUTINE finish_lesmodel()
         CALL finish_lesmodel_gc()
-        !$omp target exit data map(always, delete: boundgtasks)
-        DEALLOCATE(boundgtasks)
+        !$omp target exit data map(always, delete: boundg_tasks)
+        DEALLOCATE(boundg_tasks)
         DEALLOCATE(nboundgtaskslvl)
     END SUBROUTINE finish_lesmodel
 
@@ -199,7 +218,7 @@ CONTAINS
 
         DO ilevel = minlevel, maxlevel
             CALL parent(ilevel, s1=g_f, device=.TRUE.)
-            ! CALL apply_boundg(ilevel, g_f, bp_f)   !! <<< Fucking SHiat
+            CALL apply_boundg(ilevel, g_f, bp_f)
             CALL conn(ilevel, 1, s1=g_f)
         END DO
 
@@ -267,6 +286,8 @@ CONTAINS
     SUBROUTINE init_boundg()
         INTEGER(intk) :: nlevels, ilevel, ilevel_index
         INTEGER(intk) :: i, igrid, iface, ibocd, nbocd, itask
+        INTEGER(intk) :: kk, jj, ii, ip3, ipbb, ityp
+        INTEGER(intk) :: maxntasks
         CHARACTER(len=8) :: ctyp
 
         nlevels = maxlevel - minlevel + 1
@@ -288,8 +309,8 @@ CONTAINS
             END DO
         END DO
 
-        ALLOCATE(boundgtasks(boundgtasksize, MAXVAL(nboundgtaskslvl), &
-            nlevels), source=-1_intk)
+        maxntasks = MAXVAL(nboundgtaskslvl)
+        ALLOCATE(boundg_tasks(maxntasks, nlevels))
 
         DO ilevel = minlevel, maxlevel
             ilevel_index = ilevel - minlevel + 1
@@ -300,16 +321,33 @@ CONTAINS
                     nbocd = nboconds(iface, igrid)
                     DO ibocd = 1, nbocd
                         CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
-                        IF (boundg_ctyp(ctyp) == 0) CYCLE
+                        ityp = boundg_ctyp(ctyp)
+                        IF (ityp == 0) CYCLE
                         itask = itask + 1
-                        boundgtasks(:, itask, ilevel_index) = &
-                            [igrid, iface, boundg_ctyp(ctyp)]
+                        CALL get_mgdims(kk, jj, ii, igrid)
+                        CALL get_ip3(ip3, igrid)
+                        IF (ityp == 3) THEN
+                            CALL get_ipbb(ipbb, iface, igrid)
+                        ELSE
+                            ipbb = 0
+                        END IF
+
+                        boundg_tasks(itask, ilevel_index)%kk = INT(kk, c_intk)
+                        boundg_tasks(itask, ilevel_index)%jj = INT(jj, c_intk)
+                        boundg_tasks(itask, ilevel_index)%ii = INT(ii, c_intk)
+                        boundg_tasks(itask, ilevel_index)%iface = &
+                            INT(iface, c_intk)
+                        boundg_tasks(itask, ilevel_index)%ityp = &
+                            INT(ityp, c_intk)
+                        boundg_tasks(itask, ilevel_index)%ip3 = INT(ip3, c_intk)
+                        boundg_tasks(itask, ilevel_index)%ipbb = &
+                            INT(ipbb, c_intk)
                     END DO
                 END DO
             END DO
         END DO
 
-        !$omp target enter data map(always, to: boundgtasks)
+        !$omp target enter data map(always, to: boundg_tasks)
     END SUBROUTINE init_boundg
 
 
@@ -349,49 +387,10 @@ CONTAINS
         REAL(realk), INTENT(inout) :: g(*), gbuffer(*)
         REAL(realk), INTENT(in) :: bp(*)
 
-        INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii, ip3, ipbb
+        IF (ntasks <= 0) RETURN
 
-        !$omp target teams distribute private(itask, igrid, iface, ityp, &
-        !$omp& kk, jj, ii, ip3, ipbb)
-        DO itask = 1, ntasks
-            igrid = boundgtasks(1, itask, ilevel_index)
-            iface = boundgtasks(2, itask, ilevel_index)
-            ityp = boundgtasks(3, itask, ilevel_index)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_ip3(ip3, igrid)
-            IF (ityp /= 3) THEN
-                !$omp parallel
-                CALL boundg_nobuffer_device(kk, jj, ii, iface, ityp, g(ip3))
-                !$omp end parallel
-                CYCLE
-            END IF
-            CALL get_ipbb(ipbb, iface, igrid)
-
-            !$omp parallel
-            SELECT CASE (iface)
-            CASE (1)
-                CALL bfront_device(kk, jj, ii, 2, 3, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            CASE (2)
-                CALL bfront_device(kk, jj, ii, ii-1, ii-2, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            CASE (3)
-                CALL bright_device(kk, jj, ii, 2, 3, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            CASE (4)
-                CALL bright_device(kk, jj, ii, jj-1, jj-2, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            CASE (5)
-                CALL bbottom_device(kk, jj, ii, 2, 3, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            CASE (6)
-                CALL bbottom_device(kk, jj, ii, kk-1, kk-2, ityp, &
-                    gbuffer(ipbb), g(ip3), bp(ip3))
-            END SELECT
-            !$omp end parallel
-        END DO
-        !$omp end target teams distribute
+        CALL apply_boundg_impl_c(INT(ntasks, c_intk), g, gbuffer, bp, &
+            boundg_tasks(1, ilevel_index), REAL(gmol, c_realk))
     END SUBROUTINE apply_boundg_impl
 
 
