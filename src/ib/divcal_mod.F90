@@ -70,7 +70,7 @@ CONTAINS
         ! This explains the allocatable array active_levels, which is a copy of
         ! the active_level array of u_f.
 
-        !$omp target teams distribute private(kk, jj, ii, ip3, ip1x, ip1y, &
+        !$omp target teams distribute private(i, kk, jj, ii, ip3, ip1x, ip1y, &
         !$omp& ip1z, igrid, ilevel) &
         !$omp& map(to: active_levels(1:maxlevel-minlevel+1)) &
         !$omp& if(device2)

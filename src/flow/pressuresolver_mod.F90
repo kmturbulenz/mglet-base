@@ -865,7 +865,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: k, j, i
 
-        !$omp do collapse(3)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 2, ii-1
             DO j = 2, jj-1
                 DO k = 2, kk-1
@@ -875,7 +875,7 @@ CONTAINS
         END DO
         !$omp end do
 
-        !$omp do collapse(3)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 2, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
@@ -887,7 +887,7 @@ CONTAINS
         END DO
         !$omp end do
 
-        !$omp do collapse(3)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 2, jj - 2
                 DO k = 3, kk-2
@@ -899,7 +899,7 @@ CONTAINS
         END DO
         !$omp end do
 
-        !$omp do collapse(3)
+        !$omp do collapse(3) private(i, j, k)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 2, kk-2
