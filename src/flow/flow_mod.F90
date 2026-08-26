@@ -72,6 +72,8 @@ CONTAINS
         CALL get_field(u, "U")
         CALL get_field(v, "V")
         CALL get_field(w, "W")
+        CALL map_arr_to_device(u, v, w, message="to:init_flow")
+        CALL map_buffers_to_device(u, v, w, message="to:init_flow")
 
         ! Need to call this here - cannot be in flowcore because that
         ! create a circular dependency
@@ -88,13 +90,8 @@ CONTAINS
             CALL get_field(pwv, "PWV")
             CALL get_field(pww, "PWW")
             CALL setpointvalues(pwu, pwv, pww, u, v, w, .TRUE.)
-            CALL map_arr_to_device(pwu, pwv, pww, &
-                message="to:init_pointvalues")
             CALL setibvalues(u, v, w)
         END SELECT
-
-        CALL map_arr_to_device(u, v, w, message="to:init_flow")
-        CALL map_buffers_to_device(u, v, w, message="to:init_flow")
     END SUBROUTINE init_flow
 
 
