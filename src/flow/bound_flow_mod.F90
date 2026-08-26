@@ -117,7 +117,8 @@ CONTAINS
 
     SUBROUTINE apply_bound_flow(ilevel, u_f, v_f, w_f, p_f)
         INTEGER(intk), INTENT(in) :: ilevel
-        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f
+        TYPE(field_t), OPTIONAL, INTENT(inout) :: p_f
 
         TYPE(field_t), POINTER :: bp_f, ddx_f, ddy_f, ddz_f
         INTEGER(intk) :: ilevel_index, ntasks
@@ -129,9 +130,15 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        CALL apply_bound_flow_impl(ilevel_index, ntasks, u_f%arr, v_f%arr, &
-            w_f%arr, p_f%arr, u_f%buffers, v_f%buffers, w_f%buffers, &
-            bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        IF (PRESENT(p_f)) THEN
+            CALL apply_bound_flow_impl(ilevel_index, ntasks, u_f%arr, &
+                v_f%arr, w_f%arr, p_f%arr, u_f%buffers, v_f%buffers, &
+                w_f%buffers, bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        ELSE
+            CALL apply_bound_flow_velocity_impl(ilevel_index, ntasks, &
+                u_f%arr, v_f%arr, w_f%arr, u_f%buffers, v_f%buffers, &
+                w_f%buffers, bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        END IF
     END SUBROUTINE apply_bound_flow
 
 
@@ -170,40 +177,121 @@ CONTAINS
             !$omp parallel
             SELECT CASE (iface)
             CASE (1)
-                CALL bfront_device(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, &
-                    pinf, u(ip3), v(ip3), w(ip3), p(ip3), bp(ip3), &
+                CALL bfront_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
+                    ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddy(ipy), ddz(ipz))
+                CALL bfront_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
+                    ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            CASE (2)
+                CALL bfront_velocity_device(kk, jj, ii, ii-1, ii-2, &
+                    ii-3, ii-1, ii-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
+                    bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddy(ipy), ddz(ipz))
+                CALL bfront_pressure_device(kk, jj, ii, ii-1, ii-2, &
+                    ii-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            CASE (3)
+                CALL bright_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
+                    ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddx(ipx), ddz(ipz))
+                CALL bright_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
+                    ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            CASE (4)
+                CALL bright_velocity_device(kk, jj, ii, jj-1, jj-2, &
+                    jj-3, jj-1, jj-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
+                    bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddx(ipx), ddz(ipz))
+                CALL bright_pressure_device(kk, jj, ii, jj-1, jj-2, &
+                    jj-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            CASE (5)
+                CALL bbottom_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
+                    ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddx(ipx), ddy(ipy))
+                CALL bbottom_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
+                    ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            CASE (6)
+                CALL bbottom_velocity_device(kk, jj, ii, kk-1, kk-2, &
+                    kk-3, kk-1, kk-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
+                    bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
+                    ddx(ipx), ddy(ipy))
+                CALL bbottom_pressure_device(kk, jj, ii, kk-1, kk-2, &
+                    kk-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
+            END SELECT
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE apply_bound_flow_impl
+
+
+    SUBROUTINE apply_bound_flow_velocity_impl(ilevel_index, ntasks, u, v, w, &
+            ubuffer, vbuffer, wbuffer, bp, ddx, ddy, ddz)
+        INTEGER(intk), INTENT(in) :: ilevel_index, ntasks
+        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
+        REAL(realk), INTENT(inout) :: ubuffer(*), vbuffer(*), wbuffer(*)
+        REAL(realk), INTENT(in) :: bp(*), ddx(*), ddy(*), ddz(*)
+
+        INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii
+        INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
+
+        !$omp target teams distribute private(itask, igrid, iface, ityp, &
+        !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb)
+        DO itask = 1, ntasks
+            igrid = boundtasks(1, itask, ilevel_index)
+            iface = boundtasks(2, itask, ilevel_index)
+            ityp = boundtasks(3, itask, ilevel_index)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            IF (ityp == 3 .OR. ityp == 4) THEN
+                !$omp parallel
+                CALL bound_nobuffer_velocity_device(kk, jj, ii, iface, &
+                    ityp, u(ip3), v(ip3), w(ip3))
+                !$omp end parallel
+                CYCLE
+            END IF
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+            CALL get_ipbb(ipbb, iface, igrid)
+
+            !$omp parallel
+            SELECT CASE (iface)
+            CASE (1)
+                CALL bfront_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddy(ipy), ddz(ipz))
             CASE (2)
-                CALL bfront_device(kk, jj, ii, ii-1, ii-2, ii-3, ii-1, &
-                    ii-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3), &
+                CALL bfront_velocity_device(kk, jj, ii, ii-1, ii-2, &
+                    ii-3, ii-1, ii-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddy(ipy), ddz(ipz))
             CASE (3)
-                CALL bright_device(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, &
-                    pinf, u(ip3), v(ip3), w(ip3), p(ip3), bp(ip3), &
+                CALL bright_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddz(ipz))
             CASE (4)
-                CALL bright_device(kk, jj, ii, jj-1, jj-2, jj-3, jj-1, &
-                    jj-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3), &
+                CALL bright_velocity_device(kk, jj, ii, jj-1, jj-2, &
+                    jj-3, jj-1, jj-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddz(ipz))
             CASE (5)
-                CALL bbottom_device(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, &
-                    pinf, u(ip3), v(ip3), w(ip3), p(ip3), bp(ip3), &
+                CALL bbottom_velocity_device(kk, jj, ii, 2, 3, 4, 1, 2, &
+                    -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddy(ipy))
             CASE (6)
-                CALL bbottom_device(kk, jj, ii, kk-1, kk-2, kk-3, kk-1, &
-                    kk-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3), &
+                CALL bbottom_velocity_device(kk, jj, ii, kk-1, kk-2, &
+                    kk-3, kk-1, kk-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddy(ipy))
             END SELECT
             !$omp end parallel
         END DO
         !$omp end target teams distribute
-    END SUBROUTINE apply_bound_flow_impl
+    END SUBROUTINE apply_bound_flow_velocity_impl
 
 
     SUBROUTINE finish_bound_flow()
@@ -302,14 +390,99 @@ CONTAINS
     END SUBROUTINE bound_nobuffer_device
 
 
-    SUBROUTINE bfront_device(kk, jj, ii, i2, i3, i4, istag1, istag2, &
-        dir, ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddy, ddz)
+    SUBROUTINE bound_nobuffer_velocity_device(kk, jj, ii, iface, ityp, &
+            u, v, w)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, iface, ityp
+        REAL(realk), INTENT(inout) :: u(kk, jj, ii), v(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: w(kk, jj, ii)
+
+        INTEGER(intk) :: k, j, i, i2, i3, j2, j3, k2, k3, istag2
+
+        SELECT CASE (iface)
+        CASE (1, 2)
+            IF (iface == 1) THEN
+                i2 = 2
+                i3 = 3
+                istag2 = 2
+            ELSE
+                i2 = ii - 1
+                i3 = ii - 2
+                istag2 = ii - 2
+            END IF
+            !$omp do collapse(2) private(j, k)
+            DO j = 1, jj
+                DO k = 1, kk
+                    u(k, j, istag2) = 0.0
+                    IF (ityp == 3) THEN
+                        v(k, j, i2) = 0.0
+                        w(k, j, i2) = 0.0
+                    ELSE
+                        v(k, j, i2) = v(k, j, i3)
+                        w(k, j, i2) = w(k, j, i3)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        CASE (3, 4)
+            IF (iface == 3) THEN
+                j2 = 2
+                j3 = 3
+                istag2 = 2
+            ELSE
+                j2 = jj - 1
+                j3 = jj - 2
+                istag2 = jj - 2
+            END IF
+            !$omp do collapse(2) private(i, k)
+            DO i = 1, ii
+                DO k = 1, kk
+                    v(k, istag2, i) = 0.0
+                    IF (ityp == 3) THEN
+                        u(k, j2, i) = 0.0
+                        w(k, j2, i) = 0.0
+                    ELSE
+                        u(k, j2, i) = u(k, j3, i)
+                        w(k, j2, i) = w(k, j3, i)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        CASE (5, 6)
+            IF (iface == 5) THEN
+                k2 = 2
+                k3 = 3
+                istag2 = 2
+            ELSE
+                k2 = kk - 1
+                k3 = kk - 2
+                istag2 = kk - 2
+            END IF
+            !$omp do collapse(2) private(i, j)
+            DO i = 1, ii
+                DO j = 1, jj
+                    w(istag2, j, i) = 0.0
+                    IF (ityp == 3) THEN
+                        u(k2, j, i) = 0.0
+                        v(k2, j, i) = 0.0
+                    ELSE
+                        u(k2, j, i) = u(k3, j, i)
+                        v(k2, j, i) = v(k3, j, i)
+                    END IF
+                END DO
+            END DO
+            !$omp end do
+        END SELECT
+    END SUBROUTINE bound_nobuffer_velocity_device
+
+
+    SUBROUTINE bfront_velocity_device(kk, jj, ii, i2, i3, i4, istag1, &
+        istag2, dir, ityp, u, v, w, bp, ubuf, vbuf, wbuf, ddy, ddz)
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii, i2, i3, i4
         INTEGER(intk), INTENT(in) :: istag1, istag2, dir, ityp
-        REAL(realk), INTENT(in) :: pinf
         REAL(realk), INTENT(inout) :: u(kk, jj, ii), v(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: w(kk, jj, ii), p(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: w(kk, jj, ii)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(in) :: ubuf(kk, jj), vbuf(kk, jj)
         REAL(realk), INTENT(in) :: wbuf(kk, jj), ddy(jj), ddz(kk)
@@ -317,7 +490,6 @@ CONTAINS
         INTEGER(intk) :: k, j
         REAL(realk) :: flag, sbu, sbv, sbw
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, ubfine
-        REAL(realk) :: vi, wi, umagsqr
 
         SELECT CASE (ityp)
         CASE (1)
@@ -439,7 +611,23 @@ CONTAINS
             !$omp end do
         END SELECT
 
+    END SUBROUTINE bfront_velocity_device
+
+
+    SUBROUTINE bfront_pressure_device(kk, jj, ii, i2, i3, istag2, dir, &
+            ityp, pinf, u, v, w, p)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, i2, i3, istag2, dir, ityp
+        REAL(realk), INTENT(in) :: pinf
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii)
+        REAL(realk), INTENT(in) :: w(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: p(kk, jj, ii)
+
+        INTEGER(intk) :: k, j
+        REAL(realk) :: vi, wi, umagsqr
+
         IF (ityp == 2) THEN
+            !$omp barrier
             !$omp do collapse(2) private(j, k, vi, wi, umagsqr)
             DO j = 2, jj
                 DO k = 2, kk
@@ -462,7 +650,7 @@ CONTAINS
             END DO
             !$omp end do
         END IF
-    END SUBROUTINE bfront_device
+    END SUBROUTINE bfront_pressure_device
 
 
     SUBROUTINE bfront(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
@@ -701,14 +889,13 @@ CONTAINS
     END SUBROUTINE bfront
 
 
-    SUBROUTINE bright_device(kk, jj, ii, j2, j3, j4, jstag1, jstag2, &
-        dir, ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddx, ddz)
+    SUBROUTINE bright_velocity_device(kk, jj, ii, j2, j3, j4, jstag1, &
+        jstag2, dir, ityp, u, v, w, bp, ubuf, vbuf, wbuf, ddx, ddz)
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii, j2, j3, j4
         INTEGER(intk), INTENT(in) :: jstag1, jstag2, dir, ityp
-        REAL(realk), INTENT(in) :: pinf
         REAL(realk), INTENT(inout) :: u(kk, jj, ii), v(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: w(kk, jj, ii), p(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: w(kk, jj, ii)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(in) :: ubuf(kk, ii), vbuf(kk, ii)
         REAL(realk), INTENT(in) :: wbuf(kk, ii), ddx(ii), ddz(kk)
@@ -716,7 +903,6 @@ CONTAINS
         INTEGER(intk) :: k, i
         REAL(realk) :: flag, sbu, sbv, sbw
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, vbfine
-        REAL(realk) :: ui, wi, umagsqr
 
         SELECT CASE (ityp)
         CASE (1)
@@ -839,7 +1025,23 @@ CONTAINS
             !$omp end do
         END SELECT
 
+    END SUBROUTINE bright_velocity_device
+
+
+    SUBROUTINE bright_pressure_device(kk, jj, ii, j2, j3, jstag2, dir, &
+            ityp, pinf, u, v, w, p)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, j2, j3, jstag2, dir, ityp
+        REAL(realk), INTENT(in) :: pinf
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii)
+        REAL(realk), INTENT(in) :: w(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: p(kk, jj, ii)
+
+        INTEGER(intk) :: k, i
+        REAL(realk) :: ui, wi, umagsqr
+
         IF (ityp == 2) THEN
+            !$omp barrier
             !$omp do collapse(2) private(i, k, ui, wi, umagsqr)
             DO i = 2, ii
                 DO k = 2, kk
@@ -862,7 +1064,7 @@ CONTAINS
             END DO
             !$omp end do
         END IF
-    END SUBROUTINE bright_device
+    END SUBROUTINE bright_pressure_device
 
 
     SUBROUTINE bright(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
@@ -1103,14 +1305,13 @@ CONTAINS
     END SUBROUTINE bright
 
 
-    SUBROUTINE bbottom_device(kk, jj, ii, k2, k3, k4, kstag1, kstag2, &
-        dir, ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddx, ddy)
+    SUBROUTINE bbottom_velocity_device(kk, jj, ii, k2, k3, k4, kstag1, &
+        kstag2, dir, ityp, u, v, w, bp, ubuf, vbuf, wbuf, ddx, ddy)
         !$omp declare target
         INTEGER(intk), INTENT(in) :: kk, jj, ii, k2, k3, k4
         INTEGER(intk), INTENT(in) :: kstag1, kstag2, dir, ityp
-        REAL(realk), INTENT(in) :: pinf
         REAL(realk), INTENT(inout) :: u(kk, jj, ii), v(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: w(kk, jj, ii), p(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: w(kk, jj, ii)
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
         REAL(realk), INTENT(in) :: ubuf(jj, ii), vbuf(jj, ii)
         REAL(realk), INTENT(in) :: wbuf(jj, ii), ddx(ii), ddy(jj)
@@ -1118,7 +1319,6 @@ CONTAINS
         INTEGER(intk) :: j, i
         REAL(realk) :: flag, sbu, sbv, sbw
         REAL(realk) :: sb11, sb12, sb13, sb14, fak, wbfine
-        REAL(realk) :: ui, vi, umagsqr
 
         SELECT CASE (ityp)
         CASE (1)
@@ -1241,7 +1441,23 @@ CONTAINS
             !$omp end do
         END SELECT
 
+    END SUBROUTINE bbottom_velocity_device
+
+
+    SUBROUTINE bbottom_pressure_device(kk, jj, ii, k2, k3, kstag2, dir, &
+            ityp, pinf, u, v, w, p)
+        !$omp declare target
+        INTEGER(intk), INTENT(in) :: kk, jj, ii, k2, k3, kstag2, dir, ityp
+        REAL(realk), INTENT(in) :: pinf
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii)
+        REAL(realk), INTENT(in) :: w(kk, jj, ii)
+        REAL(realk), INTENT(inout) :: p(kk, jj, ii)
+
+        INTEGER(intk) :: j, i
+        REAL(realk) :: ui, vi, umagsqr
+
         IF (ityp == 2) THEN
+            !$omp barrier
             !$omp do collapse(2) private(i, j, ui, vi, umagsqr)
             DO i = 2, ii
                 DO j = 2, jj
@@ -1264,7 +1480,7 @@ CONTAINS
             END DO
             !$omp end do
         END IF
-    END SUBROUTINE bbottom_device
+    END SUBROUTINE bbottom_pressure_device
 
 
     SUBROUTINE bbottom(igrid, iface, ibocd, ctyp, f1, f2, f3, f4, timeph)
