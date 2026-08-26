@@ -1,4 +1,5 @@
 MODULE tstle4_mod
+
     USE core_mod
     USE flowcore_mod
     USE lesmodel_mod, ONLY: ilesmodel
@@ -41,117 +42,6 @@ MODULE tstle4_mod
 
     INTERFACE
 
-        ! SUBROUTINE tstle4_kon_u_c(kk, jj, ii, uo, u, v, w, ut, vt, wt, dx, &
-        !     dy, dz, ddx, ddy, ddz, nfro, &
-        !     nbac) BIND(C, name="tstle4_kon_u_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: uo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac
-        ! END SUBROUTINE tstle4_kon_u_c
-
-        ! SUBROUTINE tstle4_kon_v_c(kk, jj, ii, vo, u, v, w, ut, vt, wt, dx, &
-        !     dy, dz, ddx, ddy, ddz, nrgt, &
-        !     nlft) BIND(C, name="tstle4_kon_v_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: vo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nrgt, nlft
-        ! END SUBROUTINE tstle4_kon_v_c
-
-        ! SUBROUTINE tstle4_kon_w_c(kk, jj, ii, wo, u, v, w, ut, vt, wt, dx, &
-        !     dy, dz, ddx, ddy, ddz, nbot, &
-        !     ntop) BIND(C, name="tstle4_kon_w_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: wo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
-        ! END SUBROUTINE tstle4_kon_w_c
-
-        ! SUBROUTINE tstle4_par_c(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
-        !     dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-        !     wcu, wcv, wcw, nfro, nbac, nrgt, nlft, nbot, ntop) &
-        !     BIND(C, name="tstle4_par_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), ut(*), vt(*), wt(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        !     REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-        !     REAL(c_realk), INTENT(inout) :: wcu(*), wcv(*), wcw(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
-        ! END SUBROUTINE tstle4_par_c
-
-        ! SUBROUTINE tstle4_diff_u_c(kk, jj, ii, uo, u, v, w, g, dx, dy, dz, &
-        !     ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nfro, nbac, &
-        !     ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_u_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: uo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        !     REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, ilesmodel_in
-        !     REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
-        ! END SUBROUTINE tstle4_diff_u_c
-
-        ! SUBROUTINE tstle4_diff_v_c(kk, jj, ii, vo, u, v, w, g, dx, dy, dz, &
-        !     ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nrgt, nlft, &
-        !     ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_v_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: vo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        !     REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nrgt, nlft, ilesmodel_in
-        !     REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
-        ! END SUBROUTINE tstle4_diff_v_c
-
-        ! SUBROUTINE tstle4_diff_w_c(kk, jj, ii, wo, u, v, w, g, dx, dy, dz, &
-        !     ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, nbot, ntop, &
-        !     ilesmodel_in, gmol_in, rho_in) BIND(C, name="tstle4_diff_w_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: wo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*), g(*)
-        !     REAL(c_realk), INTENT(in) :: dx(*), dy(*), dz(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     REAL(c_realk), INTENT(in) :: rdx(*), rdy(*), rdz(*)
-        !     REAL(c_realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop, ilesmodel_in
-        !     REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
-        ! END SUBROUTINE tstle4_diff_w_c
-
-        ! SUBROUTINE tstle4_diff_swc_c(kk, jj, ii, uo, vo, wo, u, v, w, ddx, &
-        !     ddy, ddz, nfro, nbac, nrgt, nlft, nbot, ntop, gmol_in, rho_in) &
-        !     BIND(C, name="tstle4_diff_swc_c")
-        !     IMPORT :: c_intk, c_realk
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: kk, jj, ii
-        !     REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-        !     REAL(c_realk), INTENT(in) :: u(*), v(*), w(*)
-        !     REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nfro, nbac, nrgt, nlft
-        !     INTEGER(c_intk), VALUE, INTENT(in) :: nbot, ntop
-        !     REAL(c_realk), VALUE, INTENT(in) :: gmol_in, rho_in
-        ! END SUBROUTINE tstle4_diff_swc_c
-
         SUBROUTINE tstle4_kon_impl_c(uo, vo, wo, u, v, w, ut, vt, wt, dx, dy, &
             dz, ddx, ddy, ddz, nmygrids_in, &
             grids) BIND(C, name="tstle4_kon_impl_c")
@@ -178,6 +68,17 @@ MODULE tstle4_mod
             TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
         END SUBROUTINE tstle4_diff_impl_c
 
+        SUBROUTINE tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, rho_in, &
+            nmygrids_in, grids) &
+            BIND(C, name="tstle4_gradp_impl_c")
+            IMPORT :: c_intk, c_realk, tstle4_grid_t
+            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+            REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
+            REAL(c_realk), VALUE, INTENT(in) :: rho_in
+            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
+            TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
+        END SUBROUTINE tstle4_gradp_impl_c
+
         SUBROUTINE tstle4_par_impl_c(uo, vo, wo, u, v, w, ut, vt, wt, &
             dx, dy, dz, ddx, ddy, ddz, wcu, wcv, wcw, nmygrids_in, grids) &
             BIND(C, name="tstle4_par_impl_c")
@@ -192,80 +93,26 @@ MODULE tstle4_mod
             TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
         END SUBROUTINE tstle4_par_impl_c
 
-        SUBROUTINE tstle4_gradp_impl_c(uo, vo, wo, p, dx, dy, dz, rho_in, &
-            nmygrids_in, grids) &
-            BIND(C, name="tstle4_gradp_impl_c")
-            IMPORT :: c_intk, c_realk, tstle4_grid_t
-            REAL(c_realk), INTENT(inout) :: uo(*), vo(*), wo(*)
-            REAL(c_realk), INTENT(in) :: p(*), dx(*), dy(*), dz(*)
-            REAL(c_realk), VALUE, INTENT(in) :: rho_in
-            INTEGER(c_intk), VALUE, INTENT(in) :: nmygrids_in
-            TYPE(tstle4_grid_t), INTENT(in) :: grids(*)
-        END SUBROUTINE tstle4_gradp_impl_c
     END INTERFACE
 
 CONTAINS
 
-    SUBROUTINE initialize_tstle4()
-
-        ! Local variables
-        INTEGER(intk) :: i, gradpflag
-        REAL(c_realk) :: rflag
-
-        ! Initialize the TSTLE4 module and create array for C processing
-        ALLOCATE(tstle4_grids(nmygrids))
-        DO i = 1, nmygrids
-            ! Feeding dimensions
-            CALL get_mgdims(tstle4_grids(i)%kk, tstle4_grids(i)%jj, &
-                tstle4_grids(i)%ii, mygrids(i))
-            ! Feeding boundary information
-            CALL get_mgbasb(tstle4_grids(i)%nfro, tstle4_grids(i)%nbac, &
-                tstle4_grids(i)%nrgt, tstle4_grids(i)%nlft, &
-                tstle4_grids(i)%nbot, tstle4_grids(i)%ntop, mygrids(i))
-            ! Feeding array indices
-            CALL get_ip3(tstle4_grids(i)%ip3, mygrids(i))
-            CALL get_ip1x(tstle4_grids(i)%ipx, mygrids(i))
-            CALL get_ip1y(tstle4_grids(i)%ipy, mygrids(i))
-            CALL get_ip1z(tstle4_grids(i)%ipz, mygrids(i))
-            ! Feeding pressure gradient
-            CALL get_gradpxflag(gradpflag, mygrids(i))
-            rflag = REAL(gradpflag, c_realk)
-            tstle4_grids(i)%gpx = REAL(gradp(1)*rflag, c_realk)
-            tstle4_grids(i)%gpy = REAL(gradp(2)*rflag, c_realk)
-            tstle4_grids(i)%gpz = REAL(gradp(3)*rflag, c_realk)
-        END DO
-
-        !$omp target enter data map(to: tstle4_grids)
-        is_initialized = .TRUE.
-
-    END SUBROUTINE initialize_tstle4
-
-
-
-    SUBROUTINE finalize_tstle4
-
-        !$omp target exit data map(delete: tstle4_grids)
-        DEALLOCATE(tstle4_grids)
-        is_initialized = .FALSE.
-
-    END SUBROUTINE finalize_tstle4
-
-        ! The convective terms are computed in two steps:
-        ! First, the mass fluxes (transporting velocities) are interpolated to
-        ! the faces of the momentum cell. This interpolation is performed in a
-        ! way which ensures mass conservation at the momentum cell if the
-        ! velocity field is divergence-free on the adjacent pressure cells.
-        ! Second, the transported velocities are interpolated in a symmetry-
-        ! preserving manner (the convective term has to be skew-symmetric in
-        ! order to conserve energy).
-        !
-        ! Details can be found in:
-        ! [1] Heinz Werner, Grobstruktursimulation der turbulenten Strömung
-        !     über eine querliegende Rippe in einem Plattenkanal bei hoher
-        !     Reynolds-Zahl, PhD Thesis, Technical University of Munich, 1991
-        ! [2] Verstappen et al., SYMMETRY-PRESERVING DISCRETIZATIONS OF THE
-        !     INCOMPRESSIBLE NAVIER-STOKES EQUATIONS, European Conference on
-        !     Computational Fluid Dynamics, ECCOMAS CFD 2006
+    ! The convective terms are computed in two steps:
+    ! First, the mass fluxes (transporting velocities) are interpolated to
+    ! the faces of the momentum cell. This interpolation is performed in a
+    ! way which ensures mass conservation at the momentum cell if the
+    ! velocity field is divergence-free on the adjacent pressure cells.
+    ! Second, the transported velocities are interpolated in a symmetry-
+    ! preserving manner (the convective term has to be skew-symmetric in
+    ! order to conserve energy).
+    !
+    ! Details can be found in:
+    ! [1] Heinz Werner, Grobstruktursimulation der turbulenten Strömung
+    !     über eine querliegende Rippe in einem Plattenkanal bei hoher
+    !     Reynolds-Zahl, PhD Thesis, Technical University of Munich, 1991
+    ! [2] Verstappen et al., SYMMETRY-PRESERVING DISCRETIZATIONS OF THE
+    !     INCOMPRESSIBLE NAVIER-STOKES EQUATIONS, European Conference on
+    !     Computational Fluid Dynamics, ECCOMAS CFD 2006
 
 
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
@@ -348,6 +195,51 @@ CONTAINS
         CALL stop_timer(310)
     END SUBROUTINE tstle4
 
+
+
+    SUBROUTINE initialize_tstle4()
+
+        ! Local variables
+        INTEGER(intk) :: i, gradpflag
+        REAL(c_realk) :: rflag
+
+        ! Initialize the TSTLE4 module and create array for C processing
+        ALLOCATE(tstle4_grids(nmygrids))
+        DO i = 1, nmygrids
+            ! Feeding dimensions
+            CALL get_mgdims(tstle4_grids(i)%kk, tstle4_grids(i)%jj, &
+                tstle4_grids(i)%ii, mygrids(i))
+            ! Feeding boundary information
+            CALL get_mgbasb(tstle4_grids(i)%nfro, tstle4_grids(i)%nbac, &
+                tstle4_grids(i)%nrgt, tstle4_grids(i)%nlft, &
+                tstle4_grids(i)%nbot, tstle4_grids(i)%ntop, mygrids(i))
+            ! Feeding array indices
+            CALL get_ip3(tstle4_grids(i)%ip3, mygrids(i))
+            CALL get_ip1x(tstle4_grids(i)%ipx, mygrids(i))
+            CALL get_ip1y(tstle4_grids(i)%ipy, mygrids(i))
+            CALL get_ip1z(tstle4_grids(i)%ipz, mygrids(i))
+            ! Feeding pressure gradient
+            CALL get_gradpxflag(gradpflag, mygrids(i))
+            rflag = REAL(gradpflag, c_realk)
+            tstle4_grids(i)%gpx = REAL(gradp(1)*rflag, c_realk)
+            tstle4_grids(i)%gpy = REAL(gradp(2)*rflag, c_realk)
+            tstle4_grids(i)%gpz = REAL(gradp(3)*rflag, c_realk)
+        END DO
+
+        !$omp target enter data map(to: tstle4_grids)
+        is_initialized = .TRUE.
+
+    END SUBROUTINE initialize_tstle4
+
+
+
+    SUBROUTINE finalize_tstle4
+
+        !$omp target exit data map(delete: tstle4_grids)
+        DEALLOCATE(tstle4_grids)
+        is_initialized = .FALSE.
+
+    END SUBROUTINE finalize_tstle4
 
 
 END MODULE tstle4_mod
