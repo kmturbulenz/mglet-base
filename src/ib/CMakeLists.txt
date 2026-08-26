@@ -48,7 +48,10 @@ add_library(ib STATIC
     parent/parent1_mod.F90
     parent/parent2_mod.F90
     parent/parent_core_mod.F90
-    par_ftoc_mod.F90
+    par_ftoc_norm/par_ftoc_core_mod.F90
+    par_ftoc_norm/par_ftoc_mod.F90
+    par_ftoc_norm/par_ftoc1_mod.F90
+    par_ftoc_norm/par_ftoc2_mod.F90
     punktekoordinaten_mod.F90
     restrict_mod.F90
     stencils_mod.F90
@@ -63,7 +66,7 @@ target_include_directories(ib
 target_link_libraries(ib
     PRIVATE core
     PRIVATE ${MPI_Fortran_LIBRARIES}
-    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:mglet_openmp>
 )
 
 set_source_files_properties(checkzelle_mod.F90 PROPERTIES COMPILE_FLAGS

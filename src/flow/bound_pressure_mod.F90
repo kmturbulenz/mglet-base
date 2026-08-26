@@ -557,7 +557,7 @@ CONTAINS
     END SUBROUTINE bbottom_bp
 
 
-    PURE SUBROUTINE pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, ddy, &
+    SUBROUTINE pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, ddy, &
             ddz, pc, bpc)
         !$omp declare target
         ! Subroutine arguments
@@ -588,7 +588,7 @@ CONTAINS
     END SUBROUTINE pressureftocone_A
 
 
-    PURE SUBROUTINE pressureftocone_B(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
+    SUBROUTINE pressureftocone_B(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
             ddz, pc, bpc)
         !$omp declare target
         ! Subroutine arguments

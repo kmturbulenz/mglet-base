@@ -57,10 +57,16 @@ else()
 endif()
 
 option(MGLET_OFFLOAD "Enable OpenMP offloading (experimental)" OFF)
+option(MGLET_WORKAROUNDS "Enable OpenMP offloading workarounds" OFF)
 if(MGLET_OFFLOAD)
     message(STATUS "Enabling OpenMP offloading")
-    find_package(OpenMP REQUIRED)
+    find_package(OpenMP REQUIRED COMPONENTS C CXX Fortran)
     add_compile_definitions(_MGLET_OFFLOAD_=1)
+endif()
+
+if (MGLET_WORKAROUNDS)
+    message(STATUS "Enabling OpenMP offloading workarounds")
+    add_compile_definitions(_MGLET_WORKAROUNDS_=1)
 endif()
 
 set(MGLET_PROFILE_ANNOTATIONS "off" CACHE STRING "MGLET profile annotations: off, roctx, nvtx")
@@ -109,6 +115,23 @@ set(MGLET_Fortran_FLAGS_DEBUG "" CACHE STRING "MGLET Fortran flags (debug)")
 if(MGLET_OFFLOAD)
     set(MGLET_OFFLOAD_COMPILE_FLAGS "" CACHE STRING "MGLET Offload compile flags")
     set(MGLET_OFFLOAD_ARCH_FLAGS "" CACHE STRING "MGLET Offload architecture flags")
+
+    add_library(mglet_openmp INTERFACE)
+    target_link_libraries(mglet_openmp INTERFACE
+        OpenMP::OpenMP_C
+        OpenMP::OpenMP_CXX
+        OpenMP::OpenMP_Fortran
+    )
+    target_compile_options(mglet_openmp INTERFACE
+        ${MGLET_OFFLOAD_COMPILE_FLAGS}
+        ${MGLET_OFFLOAD_ARCH_FLAGS}
+    )
+    target_link_options(mglet_openmp INTERFACE
+        "$<$<LINK_LANGUAGE:C>:SHELL:${OpenMP_C_FLAGS}>"
+        "$<$<LINK_LANGUAGE:CXX>:SHELL:${OpenMP_CXX_FLAGS}>"
+        "$<$<LINK_LANGUAGE:Fortran>:SHELL:${OpenMP_Fortran_FLAGS}>"
+        ${MGLET_OFFLOAD_ARCH_FLAGS}
+    )
 endif()
 
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
@@ -132,20 +155,11 @@ add_compile_options("$<$<COMPILE_LANGUAGE:C>:${MGLET_C_FLAGS}>"
     # as soon as a Fortran 2023 compiler is available.
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},GNU>>:-ffree-line-length-none>"
     "$<$<AND:$<COMPILE_LANGUAGE:Fortran>,$<STREQUAL:${CMAKE_Fortran_COMPILER_ID},IntelLLVM>>:-diag-disable 5268>"
-)
 
-if (MGLET_OFFLOAD)
-    # All libraries get Fortran offloading support. C/CXX offloading support
-    # is only added selectively to individual libraries that need it.
-    # Otherwise clang/clang++ complain about being given offload flags when
-    # no pragmas are actually used in any c/cxx files e.g. in core.
-    add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_COMPILE_FLAGS}>"
-        "$<$<COMPILE_LANGUAGE:Fortran>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
-    )
-    add_link_options("$<$<LINK_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>"
-        "$<$<LINK_LANGUAGE:Fortran>:${MGLET_OFFLOAD_ARCH_FLAGS}>"
-    )
-endif()
+    # GCC warns about ignored OpenMP pragmas when OpenMP is disabled.
+    "$<$<COMPILE_LANG_AND_ID:C,GNU>:-Wno-unknown-pragmas>"
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-unknown-pragmas>"
+)
 
 # nlohman JSON parser library
 include(FetchContent)

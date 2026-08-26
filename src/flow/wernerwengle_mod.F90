@@ -38,7 +38,7 @@ CONTAINS
     END SUBROUTINE finish_wernerwengle
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION gradp2(uquer, dds)
+    REAL(realk) FUNCTION gradp2(uquer, dds)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(gradp2)
@@ -66,7 +66,7 @@ CONTAINS
     END FUNCTION gradp2
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION tauwin(uquer, dds)
+    REAL(realk) FUNCTION tauwin(uquer, dds)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(tauwin)
@@ -95,7 +95,7 @@ CONTAINS
 
     ! Experimental and untested. Should be tested and verified before actual
     ! usage!
-    PURE ELEMENTAL REAL(realk) FUNCTION qwallfix(tbound, tfluid, uquer, dds, &
+    REAL(realk) FUNCTION qwallfix(tbound, tfluid, uquer, dds, &
             prmol)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_

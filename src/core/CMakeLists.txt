@@ -15,6 +15,7 @@ add_library(core STATIC
     corefields_mod.F90
     core_mod.F90
     create_directory.c
+    device_workarounds.cxx
     envvars_mod.F90
     err_mod.F90
     expression_mod.F90
@@ -68,7 +69,7 @@ target_link_libraries(core
     PRIVATE ${MPI_Fortran_LIBRARIES}
     PRIVATE ${HDF5_Fortran_LIBRARIES}
     PRIVATE ZLIB::ZLIB
-    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:OpenMP::OpenMP_Fortran>
+    PRIVATE $<$<BOOL:${MGLET_OFFLOAD}>:mglet_openmp>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},roctx>:rocprofiler-sdk-roctx::rocprofiler-sdk-roctx>
     PRIVATE $<$<STREQUAL:${MGLET_PROFILE_ANNOTATIONS},nvtx>:CUDA::nvtx3>
 )

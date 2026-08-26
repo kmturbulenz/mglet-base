@@ -140,9 +140,9 @@ CONTAINS
             CALL tstle2_init()
         END IF
 
-        CALL set_field_arr(uo_f, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(vo_f, 0.0_realk, device=.TRUE.)
-        CALL set_field_arr(wo_f, 0.0_realk, device=.TRUE.)
+        CALL zero_field_arr(uo_f, device=.TRUE.)
+        CALL zero_field_arr(vo_f, device=.TRUE.)
+        CALL zero_field_arr(wo_f, device=.TRUE.)
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")

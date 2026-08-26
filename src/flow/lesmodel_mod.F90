@@ -496,7 +496,7 @@ CONTAINS
     END SUBROUTINE efvisc_gc
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
+    REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
     dvdy, dvdz, dwdx, dwdy, dwdz)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_
@@ -519,7 +519,7 @@ CONTAINS
     END FUNCTION smagorinsky
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION wale(dudx, dudy, dudz, dvdx, &
+    REAL(realk) FUNCTION wale(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
         !$omp declare target
 
@@ -622,7 +622,7 @@ CONTAINS
     END FUNCTION wale
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION sigma(dudx, dudy, dudz, &
+    REAL(realk) FUNCTION sigma(dudx, dudy, dudz, &
             dvdx, dvdy, dvdz, dwdx, dwdy, dwdz)
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
@@ -653,7 +653,7 @@ CONTAINS
     END FUNCTION sigma
 
 
-    PURE ELEMENTAL REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
+    REAL(realk) FUNCTION sabs(dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_

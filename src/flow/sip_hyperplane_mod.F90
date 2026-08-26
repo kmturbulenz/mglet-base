@@ -29,8 +29,8 @@ CONTAINS
         ! Setting up the hyperplane traversal infrastructure
         CALL mip_hp_f%init("SIP_MIP_HP")
         CALL idx_hp_f%init("SIP_IDX_HP")
-        CALL set_field_arr(mip_hp_f, 0_ifk, device=.FALSE.)
-        CALL set_field_arr(idx_hp_f, -1_ifk, device=.FALSE.)
+        CALL zero_field_arr(mip_hp_f)
+        CALL zero_field_arr(idx_hp_f)
 
         ASSOCIATE (mip => mip_hp_f%arr, idx => idx_hp_f%arr)
 
@@ -466,7 +466,6 @@ CONTAINS
         ! Subroutine body
         n3dmin = 3 + 3 + 3
         n3dmax = (ii-2) + (jj-2) + (kk-2)
-        iacc = -1
 
         ! Iterating over the hyperplanes H(k, j, i) = m
         DO m = n3dmin, n3dmax
@@ -475,7 +474,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp do
+            !$omp do private(ip, idx, idx_km, idx_jm, idx_im, iacc)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
@@ -529,7 +528,6 @@ CONTAINS
         ! Subroutine body
         n3dmin = 3 + 3 + 3
         n3dmax = (ii-2) + (jj-2) + (kk-2)
-        iacc = -1
 
         ! Iterating (REVERSE) over the hyperplanes H(k, j, i) = m
         DO m = n3dmax, n3dmin, -1
@@ -538,7 +536,7 @@ CONTAINS
             lp = INT(mip(m+1), intk) - lm
 
             ! > Parallel operations on the hyperplane (k, j, i) = m
-            !$omp do
+            !$omp do private(ip, idx, idx_kp, idx_jp, idx_ip, iacc)
             DO ip = 1, lp
 
                 ! Computing the contiguous access index
