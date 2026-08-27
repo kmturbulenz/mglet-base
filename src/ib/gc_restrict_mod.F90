@@ -30,27 +30,27 @@ CONTAINS
         ! (not to be confused with kk - these are not the same!!!)
         nk = (kstop-kstart)/2+1
 
-        !$omp do collapse(3) private(i, j, k, vol1, vol2, vol3, vol4, &
-        !$omp& vol5, vol6, vol7, vol8, sum_pv, sum_v, idx)
+        !$omp do collapse(3) private(i, j, k, sum_pv, sum_v, idx)
         DO i = istart, istop, 2
             DO j = jstart, jstop, 2
                 DO k = kstart, kstop, 2
-                    vol1 = b(k, j, i)*ddz(k)*ddy(j)*ddx(i)
-                    vol2 = b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1)
-                    vol3 = b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i)
-                    vol4 = b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1)
-                    vol5 = b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i)
-                    vol6 = b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1)
-                    vol7 = b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i)
-                    vol8 = b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
+                    sum_pv = ff(k, j, i)*b(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
+                        + ff(k, j, i+1)*b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
+                        + ff(k, j+1, i)*b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
+                        + ff(k, j+1, i+1)*b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
+                        + ff(k+1, j, i)*b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
+                        + ff(k+1, j, i+1)*b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
+                        + ff(k+1, j+1, i)*b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
+                        + ff(k+1, j+1, i+1)*b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
 
-                    sum_pv = ff(k, j, i)*vol1 + ff(k, j, i+1)*vol2 &
-                        + ff(k, j+1, i)*vol3 + ff(k, j+1, i+1)*vol4 &
-                        + ff(k+1, j, i)*vol5 + ff(k+1, j, i+1)*vol6 &
-                        + ff(k+1, j+1, i)*vol7 + ff(k+1, j+1, i+1)*vol8
-
-                    sum_v = vol1 + vol2 + vol3 + vol4 &
-                        + vol5 + vol6 + vol7 + vol8
+                    sum_v = b(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
+                        + b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
+                        + b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
+                        + b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
+                        + b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
+                        + b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
+                        + b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
+                        + b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
 
                     idx = ((i-istart)/2*nj+(j-jstart)/2)*nk &
                         +(k-kstart)/2+1
@@ -60,30 +60,6 @@ CONTAINS
                         sbuf(idx) = 0.0
                     END IF
                 END DO
-
-                ! Legacy code - keep for reference
-                ! DO k = kstart, kstop, 2
-                !     sum_pv = ff(k, j, i)*b(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
-                !         + ff(k, j, i+1)*b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
-                !         + ff(k, j+1, i)*b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
-                !         + ff(k, j+1, i+1)*b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
-                !         + ff(k+1, j, i)*b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
-                !         + ff(k+1, j, i+1)*b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
-                !         + ff(k+1, j+1, i)*b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
-                !         + ff(k+1, j+1, i+1)*b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
-
-                !     sum_v = b(k, j, i)*ddz(k)*ddy(j)*ddx(i) &
-                !         + b(k, j, i+1)*ddz(k)*ddy(j)*ddx(i+1) &
-                !         + b(k, j+1, i)*ddz(k)*ddy(j+1)*ddx(i) &
-                !         + b(k, j+1, i+1)*ddz(k)*ddy(j+1)*ddx(i+1) &
-                !         + b(k+1, j, i)*ddz(k+1)*ddy(j)*ddx(i) &
-                !         + b(k+1, j, i+1)*ddz(k+1)*ddy(j)*ddx(i+1) &
-                !         + b(k+1, j+1, i)*ddz(k+1)*ddy(j+1)*ddx(i) &
-                !         + b(k+1, j+1, i+1)*ddz(k+1)*ddy(j+1)*ddx(i+1)
-
-                !     icount = icount + 1
-                !     sendbuf(icount) = divide0(sum_pv, sum_v)
-                ! END DO
             END DO
         END DO
         !$omp end do
