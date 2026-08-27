@@ -154,9 +154,9 @@ CONTAINS
 
         CALL f_t%get_ptr(f, igrid)
 
-        CALL restrict_gc_flag(messagelength, &
-            sendbuf(offset:offset+messagelength-1), ctyp, kk, jj, ii, f, ddx, &
-            ddy, ddz, bp, bt, istart, istop, jstart, jstop, kstart, kstop)
+        CALL restrict_gc_flag(messagelength, sendbuf(offset), ctyp, &
+            kk, jj, ii, f, ddx, ddy, ddz, bp, bt, istart, istop, &
+            jstart, jstop, kstart, kstop)
 
         offset = offset + messagelength
     END SUBROUTINE restrict_gc
