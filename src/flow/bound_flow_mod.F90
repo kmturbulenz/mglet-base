@@ -51,11 +51,12 @@ MODULE bound_flow_mod
             REAL(c_realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
         END SUBROUTINE bound_flow_device_c
 
-        SUBROUTINE apply_bound_flow_impl_c(ntasks, u, v, w, p, ubuffer, &
-            vbuffer, wbuffer, bp, ddx, ddy, ddz, tasks, rho_in) BIND(C, &
-            name="apply_bound_flow_impl_c")
+        SUBROUTINE apply_bound_flow_impl_c(ntasks, update_pressure_in, u, v, &
+            w, p, ubuffer, vbuffer, wbuffer, bp, ddx, ddy, ddz, tasks, &
+            rho_in) BIND(C, name="apply_bound_flow_impl_c")
             IMPORT :: c_intk, c_realk, bound_flow_task_t
             INTEGER(c_intk), VALUE, INTENT(in) :: ntasks
+            INTEGER(c_intk), VALUE, INTENT(in) :: update_pressure_in
             REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
             REAL(c_realk), INTENT(inout) :: ubuffer(*), vbuffer(*), wbuffer(*)
             REAL(c_realk), INTENT(in) :: bp(*), ddx(*), ddy(*), ddz(*)
@@ -189,7 +190,7 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f
         TYPE(field_t), OPTIONAL, INTENT(inout) :: p_f
 
-        TYPE(field_t), POINTER :: bp_f, ddx_f, ddy_f, ddz_f
+        TYPE(field_t), POINTER :: bp_f, ddx_f, ddy_f, ddz_f, p_tmp
         INTEGER(intk) :: ilevel_index, ntasks
 
         ilevel_index = ilevel - minlevel + 1
@@ -199,24 +200,33 @@ CONTAINS
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        CALL apply_bound_flow_impl(ilevel_index, ntasks, u_f%arr, v_f%arr, &
-            w_f%arr, p_f%arr, u_f%buffers, v_f%buffers, w_f%buffers, &
-            bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        IF (PRESENT(p_f)) THEN
+            CALL apply_bound_flow_impl(ilevel_index, ntasks, 1_intk, u_f%arr, &
+                v_f%arr, w_f%arr, p_f%arr, u_f%buffers, v_f%buffers, &
+                w_f%buffers, bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        ELSE
+            CALL get_field(p_tmp, "P")
+            CALL apply_bound_flow_impl(ilevel_index, ntasks, 0_intk, u_f%arr, &
+                v_f%arr, w_f%arr, p_tmp%arr, u_f%buffers, v_f%buffers, &
+                w_f%buffers, bp_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr)
+        END IF
 
     END SUBROUTINE apply_bound_flow
 
 
-    SUBROUTINE apply_bound_flow_impl(ilevel_index, ntasks, u, v, w, p, &
+    SUBROUTINE apply_bound_flow_impl(ilevel_index, ntasks, update_pressure, &
+            u, v, w, p, &
             ubuffer, vbuffer, wbuffer, bp, ddx, ddy, ddz)
-        INTEGER(intk), INTENT(in) :: ilevel_index, ntasks
+        INTEGER(intk), INTENT(in) :: ilevel_index, ntasks, update_pressure
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*), p(*)
         REAL(realk), INTENT(inout) :: ubuffer(*), vbuffer(*), wbuffer(*)
         REAL(realk), INTENT(in) :: bp(*), ddx(*), ddy(*), ddz(*)
 
         IF (ntasks == 0) RETURN
 
-        CALL apply_bound_flow_impl_c(INT(ntasks, c_intk), u, v, w, p, &
-            ubuffer, vbuffer, wbuffer, bp, ddx, ddy, ddz, &
+        CALL apply_bound_flow_impl_c(INT(ntasks, c_intk), &
+            INT(update_pressure, c_intk), u, v, w, p, ubuffer, vbuffer, &
+            wbuffer, bp, ddx, ddy, ddz, &
             bound_flow_tasks(1, ilevel_index), REAL(rho, c_realk))
 
     END SUBROUTINE apply_bound_flow_impl

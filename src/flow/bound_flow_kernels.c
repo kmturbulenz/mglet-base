@@ -61,7 +61,8 @@ static inline realk_c sign_c(const realk_c a, const realk_c b) {
 /* No-buffer boundary path used for slip/no-slip variants. */
 void bound_nobuffer_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                              const intk_c iface, const intk_c ityp, realk_c *u,
-                             realk_c *v, realk_c *w, realk_c *p) {
+                             realk_c *v, realk_c *w, realk_c *p,
+                             const intk_c update_pressure_in) {
     intk_c i2, i3, j2, j3, k2, k3, istag2;
 
     switch (iface) {
@@ -89,7 +90,9 @@ void bound_nobuffer_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                     v[idx3(kk, jj, k, j, i2)] = v[idx3(kk, jj, k, j, i3)];
                     w[idx3(kk, jj, k, j, i2)] = w[idx3(kk, jj, k, j, i3)];
                 }
-                p[idx3(kk, jj, k, j, i2)] = p[idx3(kk, jj, k, j, i3)];
+                if (update_pressure_in != 0) {
+                    p[idx3(kk, jj, k, j, i2)] = p[idx3(kk, jj, k, j, i3)];
+                }
             }
         }
         break;
@@ -118,7 +121,9 @@ void bound_nobuffer_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                     u[idx3(kk, jj, k, j2, i)] = u[idx3(kk, jj, k, j3, i)];
                     w[idx3(kk, jj, k, j2, i)] = w[idx3(kk, jj, k, j3, i)];
                 }
-                p[idx3(kk, jj, k, j2, i)] = p[idx3(kk, jj, k, j3, i)];
+                if (update_pressure_in != 0) {
+                    p[idx3(kk, jj, k, j2, i)] = p[idx3(kk, jj, k, j3, i)];
+                }
             }
         }
         break;
@@ -147,7 +152,9 @@ void bound_nobuffer_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                     u[idx3(kk, jj, k2, j, i)] = u[idx3(kk, jj, k3, j, i)];
                     v[idx3(kk, jj, k2, j, i)] = v[idx3(kk, jj, k3, j, i)];
                 }
-                p[idx3(kk, jj, k2, j, i)] = p[idx3(kk, jj, k3, j, i)];
+                if (update_pressure_in != 0) {
+                    p[idx3(kk, jj, k2, j, i)] = p[idx3(kk, jj, k3, j, i)];
+                }
             }
         }
         break;
@@ -165,7 +172,8 @@ void bfront_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                      realk_c *v, realk_c *w, realk_c *p, const realk_c *bp,
                      const realk_c *ubuf, const realk_c *vbuf,
                      const realk_c *wbuf, const realk_c *ddy,
-                     const realk_c *ddz, const realk_c rho) {
+                     const realk_c *ddz, const realk_c rho,
+                     const intk_c update_pressure_in) {
     switch (ityp) {
     case 1:
 #if defined(_OPENMP)
@@ -369,7 +377,7 @@ void bfront_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
         break;
     }
 
-    if (ityp == 2) {
+    if ((update_pressure_in != 0) && ityp == 2) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -394,7 +402,8 @@ void bfront_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                                                u[idx3(kk, jj, k, j, istag2)]));
             }
         }
-    } else if (ityp == 1 || ityp == 3 || ityp == 4) {
+    } else if ((update_pressure_in != 0) &&
+               (ityp == 1 || ityp == 3 || ityp == 4)) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -414,7 +423,8 @@ void bright_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                      realk_c *v, realk_c *w, realk_c *p, const realk_c *bp,
                      const realk_c *ubuf, const realk_c *vbuf,
                      const realk_c *wbuf, const realk_c *ddx,
-                     const realk_c *ddz, const realk_c rho) {
+                     const realk_c *ddz, const realk_c rho,
+                     const intk_c update_pressure_in) {
     switch (ityp) {
     case 1:
 #if defined(_OPENMP)
@@ -619,7 +629,7 @@ void bright_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
         break;
     }
 
-    if (ityp == 2) {
+    if ((update_pressure_in != 0) && ityp == 2) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -645,7 +655,8 @@ void bright_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                                                v[idx3(kk, jj, k, jstag2, i)]));
             }
         }
-    } else if (ityp == 1 || ityp == 3 || ityp == 4) {
+    } else if ((update_pressure_in != 0) &&
+               (ityp == 1 || ityp == 3 || ityp == 4)) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -666,7 +677,7 @@ void bbottom_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                       const realk_c *bp, const realk_c *ubuf,
                       const realk_c *vbuf, const realk_c *wbuf,
                       const realk_c *ddx, const realk_c *ddy,
-                      const realk_c rho) {
+                      const realk_c rho, const intk_c update_pressure_in) {
     switch (ityp) {
     case 1:
 #if defined(_OPENMP)
@@ -871,7 +882,7 @@ void bbottom_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
         break;
     }
 
-    if (ityp == 2) {
+    if ((update_pressure_in != 0) && ityp == 2) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -896,7 +907,8 @@ void bbottom_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                                                w[idx3(kk, jj, kstag2, j, i)]));
             }
         }
-    } else if (ityp == 1 || ityp == 3 || ityp == 4) {
+    } else if ((update_pressure_in != 0) &&
+               (ityp == 1 || ityp == 3 || ityp == 4)) {
 #if defined(_OPENMP)
 #pragma omp for collapse(2)
 #endif
@@ -915,46 +927,51 @@ void bound_flow_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
                          realk_c *w, realk_c *p, const realk_c *bp,
                          realk_c *ubuf, realk_c *vbuf, realk_c *wbuf,
                          const realk_c *ddx, const realk_c *ddy,
-                         const realk_c *ddz, const realk_c rho) {
+                         const realk_c *ddz, const realk_c rho,
+                         const intk_c update_pressure_in) {
 
     /* NOS/SLI do not rely on boundary buffers, keep the no-buffer path. */
     if (ityp == 3 || ityp == 4) {
-        bound_nobuffer_device_c(kk, jj, ii, iface, ityp, u, v, w, p);
+        bound_nobuffer_device_c(
+            kk, jj, ii, iface, ityp, u, v, w, p, update_pressure_in);
         return;
     }
 
     switch (iface) {
     case 1:
         bfront_device_c(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, pinf, u, v, w, p,
-                        bp, ubuf, vbuf, wbuf, ddy, ddz, rho);
+                        bp, ubuf, vbuf, wbuf, ddy, ddz, rho,
+                        update_pressure_in);
         break;
 
     case 2:
         bfront_device_c(kk, jj, ii, ii - 1, ii - 2, ii - 3, ii - 1, ii - 2, 1,
                         ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddy, ddz,
-                        rho);
+                        rho, update_pressure_in);
         break;
 
     case 3:
         bright_device_c(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, pinf, u, v, w, p,
-                        bp, ubuf, vbuf, wbuf, ddx, ddz, rho);
+                        bp, ubuf, vbuf, wbuf, ddx, ddz, rho,
+                        update_pressure_in);
         break;
 
     case 4:
         bright_device_c(kk, jj, ii, jj - 1, jj - 2, jj - 3, jj - 1, jj - 2, 1,
                         ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddx, ddz,
-                        rho);
+                        rho, update_pressure_in);
         break;
 
     case 5:
         bbottom_device_c(kk, jj, ii, 2, 3, 4, 1, 2, -1, ityp, pinf, u, v, w, p,
-                         bp, ubuf, vbuf, wbuf, ddx, ddy, rho);
+                         bp, ubuf, vbuf, wbuf, ddx, ddy, rho,
+                         update_pressure_in);
         break;
 
     case 6:
         bbottom_device_c(kk, jj, ii, kk - 1, kk - 2, kk - 3, kk - 1, kk - 2,
                          1, ityp, pinf, u, v, w, p, bp, ubuf, vbuf, wbuf, ddx,
-                         ddy, rho);
+                         ddy, rho, update_pressure_in);
         break;
 
     default:
@@ -966,8 +983,10 @@ void bound_flow_device_c(const intk_c kk, const intk_c jj, const intk_c ii,
 #pragma omp end declare target
 #endif
 
-void apply_bound_flow_impl_c(const intk_c ntasks, realk_c *u, realk_c *v,
-                             realk_c *w, realk_c *p, realk_c *ubuffer,
+void apply_bound_flow_impl_c(const intk_c ntasks,
+                             const intk_c update_pressure_in, realk_c *u,
+                             realk_c *v, realk_c *w, realk_c *p,
+                             realk_c *ubuffer,
                              realk_c *vbuffer, realk_c *wbuffer,
                              const realk_c *bp, const realk_c *ddx,
                              const realk_c *ddy, const realk_c *ddz,
@@ -993,9 +1012,10 @@ void apply_bound_flow_impl_c(const intk_c ntasks, realk_c *u, realk_c *v,
 
 #pragma omp parallel
         {
-            bound_flow_device_c(t->kk, t->jj, t->ii, t->iface, t->ityp,
-                                t->pinf, u_g, v_g, w_g, p_g, bp_g, ubuf_g,
-                                vbuf_g, wbuf_g, ddx_g, ddy_g, ddz_g, rho_in);
+            bound_flow_device_c(
+                t->kk, t->jj, t->ii, t->iface, t->ityp, t->pinf, u_g, v_g,
+                w_g, p_g, bp_g, ubuf_g, vbuf_g, wbuf_g, ddx_g, ddy_g, ddz_g,
+                rho_in, update_pressure_in);
         }
     }
 }
