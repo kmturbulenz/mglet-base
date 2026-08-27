@@ -8,6 +8,7 @@ MODULE conn2_mod
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
+    USE conn1_mod, ONLY: conn1, init_conn1, finish_conn1
     USE connect_core_mod
     USE fieldhelper_mod
     USE fieldpool_mod
@@ -482,6 +483,10 @@ CONTAINS
         CALL udummy%init("DUMMY", istag=1)
         CALL vdummy%init("DUMMY", jstag=1)
         CALL wdummy%init("DUMMY", kstag=1)
+        CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
+
+        ! conn1 is used as host reference during parity recording.
+        CALL init_conn1()
 
         !$omp target enter data map(to: &
         !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr)
@@ -493,9 +498,21 @@ CONTAINS
             CALL conn2(ilevel, layers=1, s1=pdummy)
             CALL conn2(ilevel, layers=1, s1=pdummy, forward=-1)
         END DO
-
         ! Outer pressuresolver iterations
         CALL conn2(layers=1, s1=pdummy)
+
+        ! Repeating the same calls with conn1 on the CPU
+
+        DO ilevel = minlevel, maxlevel
+            CALL conn1(ilevel, layers=1, s1=pdummy)
+            CALL conn1(ilevel, layers=1, s1=pdummy, forward=-1)
+        END DO
+        CALL conn1(layers=1, s1=pdummy)
+
+        CALL assert_same_field(pdummy, "record-sequence")
+        CALL assert_same_field(udummy, "record-sequence")
+        CALL assert_same_field(vdummy, "record-sequence")
+        CALL assert_same_field(wdummy, "record-sequence")
 
         ! END -- This section defines the recored variants of conn2 ---
 
@@ -507,8 +524,77 @@ CONTAINS
         CALL vdummy%finish()
         CALL wdummy%finish()
 
+        CALL finish_conn1()
+
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE init_dummy_fields_cpu(u_f, v_f, w_f, p_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, SIZE(u_f%arr)
+            u_f%arr(i) = REAL(MOD(17_intk*i + 11_intk, 997_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(v_f%arr)
+            v_f%arr(i) = REAL(MOD(23_intk*i + 7_intk, 991_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(w_f%arr)
+            w_f%arr(i) = REAL(MOD(31_intk*i + 5_intk, 983_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(p_f%arr)
+            p_f%arr(i) = REAL(MOD(47_intk*i + 3_intk, 977_intk), realk) * &
+                1.0e-3_realk
+        END DO
+    END SUBROUTINE init_dummy_fields_cpu
+
+
+    SUBROUTINE assert_same_field(field_f, label)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: field_f
+        CHARACTER(len=*), INTENT(in), OPTIONAL :: label
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: arr(:)
+        REAL(realk) :: diff_local, diff_global
+        INTEGER(intk) :: ierr
+
+        ALLOCATE(arr(SIZE(field_f%arr)))
+        arr = field_f%arr
+
+        !$omp target update from(field_f%arr)
+
+        diff_local = MAXVAL(ABS(arr - field_f%arr))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 3.0_realk*eps) THEN
+            IF (myid == 0) THEN
+                IF (PRESENT(label)) THEN
+                    WRITE(*, *) "parity case: ", TRIM(label), &
+                        "  field name: ", TRIM(field_f%name), &
+                        "  with maxdiff = ", diff_global
+                ELSE
+                    WRITE(*, *) "field name: ", TRIM(field_f%name), &
+                        "  with maxdiff = ", diff_global
+                END IF
+            END IF
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        DEALLOCATE(arr)
+    END SUBROUTINE assert_same_field
 
 
     SUBROUTINE finish_conn2()
