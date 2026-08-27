@@ -1,6 +1,7 @@
 MODULE parent2_mod
     USE MPI_f08
     USE core_mod
+    USE parent1_mod, ONLY: parent1
     USE parent_core_mod
 
     IMPLICIT NONE (type, external)
@@ -406,7 +407,7 @@ CONTAINS
         CALL profile_range_push("process_sendtasks")
 #endif
 
-        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+        CALL process_sendtasks_impl(sendbuf, nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -415,11 +416,14 @@ CONTAINS
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_sendtasks_impl(sbuf, nstasks, stasks, a1, a2, a3, a4, &
+        a5, a6)
         ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: sbuf(*)
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -444,23 +448,23 @@ CONTAINS
             !$omp parallel
             SELECT CASE(fieldid)
             CASE (1)
-                CALL arr_to_sendbuf(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a1(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (2)
-                CALL arr_to_sendbuf(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a2(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (3)
-                CALL arr_to_sendbuf(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a3(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (4)
-                CALL arr_to_sendbuf(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a4(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (5)
-                CALL arr_to_sendbuf(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a5(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (6)
-                CALL arr_to_sendbuf(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_sendbuf(sbuf(icount), kk, jj, ii, a6(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
@@ -472,14 +476,14 @@ CONTAINS
     END SUBROUTINE process_sendtasks_impl
 
 
-    SUBROUTINE arr_to_sendbuf(kk, jj, ii, arr, istart, istop, jstart, jstop, &
-            kstart, kstop, icount)
+    SUBROUTINE arr_to_sendbuf(sbuf, kk, jj, ii, arr, istart, istop, &
+            jstart, jstop, kstart, kstop)
         !$omp declare target
         ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: sbuf(*)
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
-        INTEGER(intk), INTENT(in) :: icount
 
         ! Local variables
         INTEGER(intk) :: i, j, k, idx, kkl, jjl
@@ -491,8 +495,8 @@ CONTAINS
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
-                    idx = (k-kstart)+(j-jstart)*kkl+(i-istart)*jjl*kkl+icount
-                    sendbuf(idx) = arr(k, j, i)
+                    idx = (k-kstart)+(j-jstart)*kkl+(i-istart)*jjl*kkl+1
+                    sbuf(idx) = arr(k, j, i)
                 END DO
             END DO
         END DO
@@ -515,7 +519,8 @@ CONTAINS
 #endif
 
         CALL process_recvtasks_impl(nrtasks, rtasks, f1%buffers, &
-            f2%buffers, f3%buffers, f4%buffers, f5%buffers, f6%buffers)
+            f2%buffers, f3%buffers, f4%buffers, f5%buffers, f6%buffers, &
+            recvbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -524,11 +529,12 @@ CONTAINS
 
 
     SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
-            a5, a6)
+            a5, a6, rbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: rbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid
@@ -550,23 +556,23 @@ CONTAINS
             !$omp parallel
             SELECT CASE (fieldid)
             CASE (1)
-                CALL recvbuf_to_buffers(a1, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a1(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
             CASE (2)
-                CALL recvbuf_to_buffers(a2, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a2(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
             CASE (3)
-                CALL recvbuf_to_buffers(a3, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a3(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
             CASE (4)
-                CALL recvbuf_to_buffers(a4, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a4(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
             CASE (5)
-                CALL recvbuf_to_buffers(a5, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a5(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
             CASE (6)
-                CALL recvbuf_to_buffers(a6, icount, ibb, jjc2d, jj2d, ii2d, &
-                    stag1, stag2)
+                CALL recvbuf_to_buffers(a6(ibb), rbuf(icount), jjc2d, jj2d, &
+                    ii2d, stag1, stag2)
 #ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
@@ -578,12 +584,13 @@ CONTAINS
     END SUBROUTINE process_recvtasks_impl
 
 
-    SUBROUTINE recvbuf_to_buffers(buffers, icount, ibb, jjc2d, jj2d, ii2d, &
+    SUBROUTINE recvbuf_to_buffers(buffers, rbuf, jjc2d, jj2d, ii2d, &
             stag1, stag2)
         !$omp declare target
+
         REAL(realk), INTENT(inout) :: buffers(*)
-        INTEGER(int32), INTENT(in) :: icount
-        INTEGER(intk), INTENT(in) :: ibb, jjc2d, jj2d, ii2d
+        REAL(realk), INTENT(in) :: rbuf(*)
+        INTEGER(intk), INTENT(in) :: jjc2d, jj2d, ii2d
         INTEGER(intk), INTENT(in) :: stag1, stag2
 
         INTEGER(intk) :: j, i, jc, ic, idst
@@ -600,21 +607,20 @@ CONTAINS
                 jc = 2 + (j-1)/2
                 ic = 2 + (i-1)/2
 
-                val_c = recvbuf(icount + (jc-1) + (ic-1)*jjc2d + 1)
+                val_c = rbuf(1 + (jc-1) + (ic-1)*jjc2d + 1)
                 val_jm1 = val_c
                 IF (stag1 == 1 .AND. odd_j) THEN
-                    val_jm1 = recvbuf(icount + (jc-2) + (ic-1)*jjc2d + 1)
+                    val_jm1 = rbuf(1 + (jc-2) + (ic-1)*jjc2d + 1)
                 END IF
                 CALL prolong_face_first_direction(val_i, val_c, val_jm1, &
                     stag1, odd_j)
 
                 val_im1 = val_i
                 IF (stag2 == 1 .AND. odd_i) THEN
-                    val_c = recvbuf(icount + (jc-1) + (ic-2)*jjc2d + 1)
+                    val_c = rbuf(1 + (jc-1) + (ic-2)*jjc2d + 1)
                     val_jm1 = val_c
                     IF (stag1 == 1 .AND. odd_j) THEN
-                        val_jm1 = recvbuf(icount + (jc-2) + &
-                            (ic-2)*jjc2d + 1)
+                        val_jm1 = rbuf(1 + (jc-2) + (ic-2)*jjc2d + 1)
                     END IF
                     CALL prolong_face_first_direction(val_im1, val_c, val_jm1, &
                         stag1, odd_j)
@@ -623,7 +629,7 @@ CONTAINS
                 CALL prolong_face_second_direction(val_out, val_i, val_im1, &
                     stag2, odd_i)
 
-                idst = ibb + (j-1) + (i-1)*jj2d
+                idst = 1 + (j-1) + (i-1)*jj2d
                 buffers(idst) = val_out
             END DO
         END DO
@@ -1581,13 +1587,34 @@ CONTAINS
 
         ! START -- This section defines the record variants of parent2 ---
 
+        WRITE(*, *) minlevel, maxlevel
         DO ilevel = minlevel, maxlevel
             ! Inner pressuresolver iterations
+
+            CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
+            !$omp target update to(udummy%arr, vdummy%arr, wdummy%arr, &
+            !$omp& pdummy%arr, udummy%buffers, vdummy%buffers, &
+            !$omp& wdummy%buffers, pdummy%buffers)
+
             CALL parent2(ilevel, s1=pdummy)
+            CALL parent1(ilevel, s1=pdummy)
+
+            CALL assert_same_field(pdummy, ilevel)
         END DO
 
         ! Outer pressuresolver iterations
+        CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
+        !$omp target update to(udummy%arr, vdummy%arr, wdummy%arr, &
+        !$omp& pdummy%arr, udummy%buffers, vdummy%buffers, &
+        !$omp& wdummy%buffers, pdummy%buffers)
+
         CALL parent2(minlevel, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy)
+        CALL parent1(minlevel, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy)
+
+        CALL assert_same_field(udummy)
+        CALL assert_same_field(vdummy)
+        CALL assert_same_field(wdummy)
+        CALL assert_same_field(pdummy)
 
         ! END -- This section defines the record variants of parent2 ---
 
@@ -1602,6 +1629,113 @@ CONTAINS
 
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE init_dummy_fields_cpu(u_f, v_f, w_f, p_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, SIZE(u_f%arr)
+            u_f%arr(i) = REAL(MOD(17_intk*i + 11_intk, 997_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(v_f%arr)
+            v_f%arr(i) = REAL(MOD(23_intk*i + 7_intk, 991_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(w_f%arr)
+            w_f%arr(i) = REAL(MOD(31_intk*i + 5_intk, 983_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(p_f%arr)
+            p_f%arr(i) = REAL(MOD(47_intk*i + 3_intk, 977_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(u_f%buffers)
+            u_f%buffers(i) = REAL(MOD(13_intk*i + 19_intk, 941_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(v_f%buffers)
+            v_f%buffers(i) = REAL(MOD(29_intk*i + 17_intk, 937_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(w_f%buffers)
+            w_f%buffers(i) = REAL(MOD(37_intk*i + 13_intk, 929_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(p_f%buffers)
+            p_f%buffers(i) = REAL(MOD(43_intk*i + 9_intk, 919_intk), realk) * &
+                1.0e-3_realk
+        END DO
+    END SUBROUTINE init_dummy_fields_cpu
+
+
+    SUBROUTINE assert_same_field(field_f, ilevel)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: field_f
+        INTEGER(intk), INTENT(in), OPTIONAL :: ilevel
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: arr(:)
+        REAL(realk), ALLOCATABLE :: buffers(:)
+        REAL(realk) :: diff_local, diff_global
+        INTEGER(intk) :: ierr
+        LOGICAL :: do_buffers
+
+
+        ALLOCATE(arr(SIZE(field_f%arr)))
+        arr = field_f%arr
+
+        IF (.NOT. ALLOCATED(field_f%buffers)) CALL errr(__FILE__, __LINE__)
+        ALLOCATE(buffers(SIZE(field_f%buffers)))
+        buffers = field_f%buffers
+
+        !$omp target update from(field_f%arr)
+        !$omp target update from(field_f%buffers)
+
+
+        ! Looking at the buffers
+        diff_local = MAXVAL(ABS(buffers - field_f%buffers))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 3.0_realk*eps) THEN
+            IF (myid == 0) THEN
+                WRITE(*, *) "Buffers are not the same!"
+                WRITE(*, *) "Max difference:", diff_global
+                IF (PRESENT(ilevel)) THEN
+                    WRITE(*, *) "Parent called from level:", ilevel
+                END IF
+            END IF
+            ! CALL errr(__FILE__, __LINE__)
+        END IF
+
+        ! Looking at the arrays
+        diff_local = MAXVAL(ABS(arr - field_f%arr))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 3.0_realk*eps) THEN
+            IF (myid == 0) THEN
+                WRITE(*, *) "Arrays are not the same!"
+                WRITE(*, *) "Max difference:", diff_global
+                IF (PRESENT(ilevel)) THEN
+                    WRITE(*, *) "Parent called from level:", ilevel
+                END IF
+            END IF
+            ! CALL errr(__FILE__, __LINE__)
+        END IF
+
+        DEALLOCATE(buffers)
+        DEALLOCATE(arr)
+
+    END SUBROUTINE assert_same_field
 
 
     SUBROUTINE count_selftasks(nselfsend, nselfrecv)
