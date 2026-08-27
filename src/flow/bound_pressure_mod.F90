@@ -354,37 +354,34 @@ CONTAINS
         REAL(realk), INTENT(in) :: dx(ii)
 
         ! Local variables
-        INTEGER(intk) :: k, j, i, m, n
-        REAL(realk) :: pcnew, bpc, sb11, sb12, sb13, sb14, fak
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: pcnew, bpc, fak
 
         i = MIN(i3, i4)
 
-        !$omp do collapse(2) private(j, k, pcnew, bpc, sb11, sb12, &
-        !$omp& sb13, sb14, fak, m, n)
+        !$omp do collapse(2) private(j, k, pcnew, bpc, fak)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
                     ddz, pcnew, bpc)
                 IF (bpc < 0.5) pcnew = pbuffer(k, j)
 
-                sb11 = bp(k, j, i2)*bp(k, j, i3)
-                sb12 = bp(k, j+1, i2)*bp(k, j+1, i3)
-                sb13 = bp(k+1, j, i2)*bp(k+1, j, i3)
-                sb14 = bp(k+1, j+1, i2)*bp(k+1, j+1, i3)
-
-                fak = (sb11*ddy(j)*ddz(k) + sb12*ddy(j+1)*ddz(k) &
-                    + sb13*ddy(j)*ddz(k+1) + sb14*ddy(j+1)*ddz(k+1)) &
+                fak = (bp(k, j, i2)*bp(k, j, i3)*ddy(j)*ddz(k) &
+                    + bp(k, j+1, i2)*bp(k, j+1, i3)*ddy(j+1)*ddz(k) &
+                    + bp(k+1, j, i2)*bp(k+1, j, i3)*ddy(j)*ddz(k+1) &
+                    + bp(k+1, j+1, i2)*bp(k+1, j+1, i3)*ddy(j+1)*ddz(k+1)) &
                     /((ddy(j)+ddy(j+1))*(ddz(k)+ddz(k+1)))
                 IF (fak < 0.1) fak = 1.0
                 fak = 1.0/fak
 
-                DO m = 0, 1
-                    DO n = 0, 1
-                        p(k+n, j+m, i2) = p(k+n, j+m, i3) &
-                            + fak*dx(istag2)/(ddx(i3)+ddx(i2)) &
-                            *(pbuffer(k, j) - pcnew)
-                    END DO
-                END DO
+                p(k  , j  , i2) = p(k  , j  , i3) &
+                    + fak*dx(istag2)/(ddx(i3)+ddx(i2))*(pbuffer(k, j) - pcnew)
+                p(k+1, j  , i2) = p(k+1, j  , i3) &
+                    + fak*dx(istag2)/(ddx(i3)+ddx(i2))*(pbuffer(k, j) - pcnew)
+                p(k  , j+1, i2) = p(k  , j+1, i3) &
+                    + fak*dx(istag2)/(ddx(i3)+ddx(i2))*(pbuffer(k, j) - pcnew)
+                p(k+1, j+1, i2) = p(k+1, j+1, i3) &
+                    + fak*dx(istag2)/(ddx(i3)+ddx(i2))*(pbuffer(k, j) - pcnew)
             END DO
         END DO
         !$omp end do
@@ -437,37 +434,34 @@ CONTAINS
         REAL(realk), INTENT(in) :: dy(jj)
 
         ! Local variables
-        INTEGER(intk) :: k, j, i, l, n
-        REAL(realk) :: pcnew, bpc, sb11, sb12, sb13, sb14, fak
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: pcnew, bpc, fak
 
         j = MIN(j3, j4)
 
-        !$omp do collapse(2) private(i, k, pcnew, bpc, sb11, sb12, &
-        !$omp& sb13, sb14, fak, l, n)
+        !$omp do collapse(2) private(i, k, pcnew, bpc, fak)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
                     ddx, ddy, ddz, pcnew, bpc)
-                IF (bpc < 0.5) pcnew = pbuffer(k, i)
+                IF (bpc < 0.5) pcnew = pbuffer(j, i)
 
-                sb11 = bp(k, j2, i)*bp(k, j3, i)
-                sb12 = bp(k, j2, i+1)*bp(k, j3, i+1)
-                sb13 = bp(k+1, j2, i)*bp(k+1, j3, i)
-                sb14 = bp(k+1, j2, i+1)*bp(k+1, j3, i+1)
-
-                fak = (sb11*ddx(i)*ddz(k) + sb12*ddx(i+1)*ddz(k) &
-                    + sb13*ddx(i)*ddz(k+1) + sb14*ddx(i+1)*ddz(k+1)) &
-                    /((ddx(i)+ddx(i+1))*(ddz(k)+ddz(k+1)))
+                fak = (bp(k, j2, i)*bp(k, j3, i)*ddx(i)*ddy(j) &
+                    + bp(k, j2, i+1)*bp(k, j3, i+1)*ddx(i+1)*ddy(j) &
+                    + bp(k, j+1, i)*bp(k, j+1, i)*ddx(i)*ddy(j+1) &
+                    + bp(k, j+1, i+1)*bp(k, j+1, i+1)*ddx(i+1)*ddy(j+1)) &
+                    /((ddx(i)+ddx(i+1))*(ddy(j)+ddy(j+1)))
                 IF (fak < 0.1) fak = 1.0
                 fak = 1.0/fak
 
-                DO l = 0, 1
-                    DO n = 0, 1
-                        p(k+n, j2, i+l) = p(k+n, j3, i+l) &
-                            + fak*dy(jstag2)/(ddy(j3)+ddy(j2)) &
-                            *(pbuffer(k, i) - pcnew)
-                    END DO
-                END DO
+                p(k  , j2, i  ) = p(k  , j3, i  ) &
+                    + fak*dy(jstag2)/(ddy(j3)+ddy(j2))*(pbuffer(k, i) - pcnew)
+                p(k+1, j2, i  ) = p(k+1, j3, i  ) &
+                    + fak*dy(jstag2)/(ddy(j3)+ddy(j2))*(pbuffer(k, i) - pcnew)
+                p(k  , j2, i+1) = p(k  , j3, i+1) &
+                    + fak*dy(jstag2)/(ddy(j3)+ddy(j2))*(pbuffer(k, i) - pcnew)
+                p(k+1, j2, i+1) = p(k+1, j3, i+1) &
+                    + fak*dy(jstag2)/(ddy(j3)+ddy(j2))*(pbuffer(k, i) - pcnew)
             END DO
         END DO
         !$omp end do
@@ -520,37 +514,34 @@ CONTAINS
         REAL(realk), INTENT(in) :: dz(kk)
 
         ! Local variables
-        INTEGER(intk) :: k, j, i, l, m
-        REAL(realk) :: pcnew, bpc, sb11, sb12, sb13, sb14, fak
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: pcnew, bpc, fak
 
         k = MIN(k3, k4)
 
-        !$omp do collapse(2) private(j, i, pcnew, bpc, sb11, sb12, &
-        !$omp& sb13, sb14, fak, l, m)
+        !$omp do collapse(2) private(j, i, pcnew, bpc, fak)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
                 CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
                     ddx, ddy, ddz, pcnew, bpc)
                 IF (bpc < 0.5) pcnew = pbuffer(j, i)
 
-                sb11 = bp(k2, j, i)*bp(k3, j, i)
-                sb12 = bp(k2, j, i+1)*bp(k3, j, i+1)
-                sb13 = bp(k2, j+1, i)*bp(k3, j+1, i)
-                sb14 = bp(k2, j+1, i+1)*bp(k3, j+1, i+1)
-
-                fak = (sb11*ddx(i)*ddy(j) + sb12*ddx(i+1)*ddy(j) &
-                    + sb13*ddx(i)*ddy(j+1) + sb14*ddx(i+1)*ddy(j+1)) &
-                    /((ddx(i)+ddx(i+1))*(ddy(j)+ddy(j+1)))
+                fak = (bp(k2, j, i)*bp(k3, j, i)*ddx(i)*ddz(k) &
+                    + bp(k2, j, i+1)*bp(k3, j, i+1)*ddx(i+1)*ddz(k) &
+                    + bp(k2, j+1, i)*bp(k3, j+1, i)*ddx(i)*ddz(k+1) &
+                    + bp(k2, j+1, i+1)*bp(k3, j+1, i+1)*ddx(i+1)*ddz(k+1)) &
+                    /((ddx(i)+ddx(i+1))*(ddz(k)+ddz(k+1)))
                 IF (fak < 0.1) fak = 1.0
                 fak = 1.0/fak
 
-                DO l = 0, 1
-                    DO m = 0, 1
-                        p(k2, j+m, i+l) = p(k3, j+m, i+l) &
-                            + fak*dz(kstag2)/(ddz(k3)+ddz(k2)) &
-                            *(pbuffer(j, i) - pcnew)
-                    END DO
-                END DO
+                p(k2, j  , i  ) = p(k3, j  , i  ) &
+                    + fak*dz(kstag2)/(ddz(k3)+ddz(k2))*(pbuffer(j, i) - pcnew)
+                p(k2, j+1, i  ) = p(k3, j+1, i  ) &
+                    + fak*dz(kstag2)/(ddz(k3)+ddz(k2))*(pbuffer(j, i) - pcnew)
+                p(k2, j  , i+1) = p(k3, j  , i+1) &
+                    + fak*dz(kstag2)/(ddz(k3)+ddz(k2))*(pbuffer(j, i) - pcnew)
+                p(k2, j+1, i+1) = p(k3, j+1, i+1) &
+                    + fak*dz(kstag2)/(ddz(k3)+ddz(k2))*(pbuffer(j, i) - pcnew)
             END DO
         END DO
         !$omp end do
