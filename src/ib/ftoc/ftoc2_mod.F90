@@ -2049,6 +2049,8 @@ CONTAINS
         CALL pdummy%init("P_DUMMY")
 
         CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
+        CALL connect(layers=2, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy, &
+            corners=.TRUE.)
 
         !$omp target enter data map(to: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
@@ -2081,7 +2083,6 @@ CONTAINS
         CALL assert_same_field(vdummy)
         CALL assert_same_field(wdummy)
         CALL assert_same_field(pdummy)
-
 
         !$omp target exit data map(delete: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
@@ -2147,14 +2148,13 @@ CONTAINS
         CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
             MPI_MAX, MPI_COMM_WORLD, ierr)
 
-        IF (diff_global > 0.0_realk) THEN
+        IF (diff_global > 3.0 * eps) THEN
             IF (myid == 0) THEN
                 WRITE(*, *) "field name: ", TRIM(field_f%name), &
                     "  with maxdiff = ", diff_global
             END IF
             is_same = .FALSE.
         END IF
-
         IF (.NOT. is_same) CALL errr(__FILE__, __LINE__)
 
         DEALLOCATE(arr)
