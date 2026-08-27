@@ -1,6 +1,7 @@
 MODULE ftoc2_mod
     USE MPI_f08
     USE core_mod
+    USE ftoc1_mod, ONLY: ftoc1
     USE ftoc_core_mod
     USE ibcore_mod, ONLY: ib
     USE gc_restrict_mod
@@ -1984,7 +1985,9 @@ CONTAINS
         is_init = .TRUE.
 
         ! Record relevant calls for later efficient reuse on device
+        ! (includes a parity check with the CPU version)
         CALL run_recording_pass()
+
     END SUBROUTINE init_ftoc2
 
 
@@ -2045,6 +2048,8 @@ CONTAINS
         CALL wdummy%init("W_DUMMY", kstag=1)
         CALL pdummy%init("P_DUMMY")
 
+        CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
+
         !$omp target enter data map(to: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
 
@@ -2059,7 +2064,24 @@ CONTAINS
             CALL ftoc2(ilevel, udummy, vdummy, wdummy, pdummy)
         END DO
 
+        ! Repeating the same calls with the CPU function
+
+        DO ilevel = maxlevel, minlevel, -1
+            ! Outer pressuresolver iterations
+            CALL ftoc1(ilevel, pdummy, pdummy, flag='P')
+            ! Pre pressuresolver iterations in mgpoisl
+            CALL ftoc1(ilevel, pdummy, pdummy, flag='R')
+            ! Post pressuresolver iterations in mgpoisl
+            CALL ftoc1(ilevel, udummy, vdummy, wdummy, pdummy)
+        END DO
+
         ! END -- This section defines the record variants of ftoc2 ---
+
+        CALL assert_same_field(udummy)
+        CALL assert_same_field(vdummy)
+        CALL assert_same_field(wdummy)
+        CALL assert_same_field(pdummy)
+
 
         !$omp target exit data map(delete: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
@@ -2071,6 +2093,73 @@ CONTAINS
 
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE init_dummy_fields_cpu(u_f, v_f, w_f, p_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, SIZE(u_f%arr)
+            u_f%arr(i) = REAL(MOD(17_intk*i + 11_intk, 997_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(v_f%arr)
+            v_f%arr(i) = REAL(MOD(23_intk*i + 7_intk, 991_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(w_f%arr)
+            w_f%arr(i) = REAL(MOD(31_intk*i + 5_intk, 983_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(p_f%arr)
+            p_f%arr(i) = REAL(MOD(47_intk*i + 3_intk, 977_intk), realk) * &
+                1.0e-3_realk
+        END DO
+    END SUBROUTINE init_dummy_fields_cpu
+
+
+    SUBROUTINE assert_same_field(field_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: field_f
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: arr(:)
+        REAL(realk) :: diff_local, diff_global
+        INTEGER(intk) :: ierr
+        LOGICAL :: is_same = .TRUE.
+
+        ! Store the field on the host into antoher array
+        ALLOCATE(arr(SIZE(field_f%arr)))
+        arr = field_f%arr
+
+        ! Update the field from the device to the host
+        !$omp target update from(field_f%arr)
+
+        ! Compute the maximum absolute difference between the array
+        diff_local = MAXVAL(ABS(arr - field_f%arr))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 0.0_realk) THEN
+            IF (myid == 0) THEN
+                WRITE(*, *) "field name: ", TRIM(field_f%name), &
+                    "  with maxdiff = ", diff_global
+            END IF
+            is_same = .FALSE.
+        END IF
+
+        IF (.NOT. is_same) CALL errr(__FILE__, __LINE__)
+
+        DEALLOCATE(arr)
+
+    END SUBROUTINE assert_same_field
 
 
     SUBROUTINE count_selftasks(nselfsend, nselfrecv)
