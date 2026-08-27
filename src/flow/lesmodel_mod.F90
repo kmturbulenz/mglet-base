@@ -173,7 +173,7 @@ CONTAINS
         ! none...
 
         ! In case of no LESMODEL
-        ! IF (ilesmodel == 0) RETURN
+        IF (ilesmodel == 0) RETURN
         CALL start_timer(330)
         CALL lesmodel_gc(g)
         CALL stop_timer(330)
