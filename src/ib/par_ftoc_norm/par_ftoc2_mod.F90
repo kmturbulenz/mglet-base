@@ -2,6 +2,7 @@ MODULE par_ftoc2_mod
     USE MPI_f08
     USE core_mod
     USE par_ftoc_core_mod
+    USE par_ftoc1_mod, ONLY: par_ftoc1, init_par_ftoc1, finish_par_ftoc1
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -46,7 +47,9 @@ MODULE par_ftoc2_mod
     LOGICAL :: is_init = .FALSE.
 
     PUBLIC :: par_ftoc2, init_par_ftoc2, finish_par_ftoc2
+
 CONTAINS
+
     SUBROUTINE par_ftoc2(ilevel, v1, v2, v3, sum)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -1566,18 +1569,89 @@ CONTAINS
         CALL u%init("PAR_FTOC2_U", istag=1)
         CALL v%init("PAR_FTOC2_V", jstag=1)
         CALL w%init("PAR_FTOC2_W", kstag=1)
+        CALL init_dummy_fields_cpu(u, v, w)
+
         !$omp target enter data map(to: u%arr, v%arr, w%arr)
+
         is_recording = .TRUE.
+
         DO ilevel = minlevel, maxlevel
             CALL par_ftoc2(ilevel, u, v, w, .FALSE.)
             CALL par_ftoc2(ilevel, u, v, w, .TRUE.)
         END DO
+
+        DO ilevel = minlevel, maxlevel
+            CALL par_ftoc1(ilevel, u, v, w, .FALSE.)
+            CALL par_ftoc1(ilevel, u, v, w, .TRUE.)
+        END DO
+
+        CALL assert_same_field(u)
+        CALL assert_same_field(v)
+        CALL assert_same_field(w)
+
         is_recording = .FALSE.
+
         !$omp target exit data map(delete: u%arr, v%arr, w%arr)
+
         CALL u%finish()
         CALL v%finish()
         CALL w%finish()
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE init_dummy_fields_cpu(u_f, v_f, w_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        DO i = 1, SIZE(u_f%arr)
+            u_f%arr(i) = REAL(MOD(17_intk*i + 11_intk, 997_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(v_f%arr)
+            v_f%arr(i) = REAL(MOD(23_intk*i + 7_intk, 991_intk), realk) * &
+                1.0e-3_realk
+        END DO
+
+        DO i = 1, SIZE(w_f%arr)
+            w_f%arr(i) = REAL(MOD(31_intk*i + 5_intk, 983_intk), realk) * &
+                1.0e-3_realk
+        END DO
+    END SUBROUTINE init_dummy_fields_cpu
+
+
+    SUBROUTINE assert_same_field(field_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: field_f
+
+        ! Local variables
+        REAL(realk), ALLOCATABLE :: arr(:)
+        REAL(realk) :: diff_local, diff_global
+        INTEGER(intk) :: ierr
+
+        ALLOCATE(arr(SIZE(field_f%arr)))
+        arr = field_f%arr
+
+        !$omp target update from(field_f%arr)
+
+        diff_local = MAXVAL(ABS(arr - field_f%arr))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 3.0_realk*eps) THEN
+            IF (myid == 0) THEN
+                WRITE(*, *) "field name: ", TRIM(field_f%name), &
+                    "  with maxdiff = ", diff_global
+            END IF
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        DEALLOCATE(arr)
+    END SUBROUTINE assert_same_field
 
 
     SUBROUTINE finish_par_ftoc2()
