@@ -614,7 +614,7 @@ CONTAINS
         CALL profile_range_push("process_sendtasks")
 #endif
 
-        CALL process_sendtasks_impl(fc%arr, nstasks, stasks)
+        CALL process_sendtasks_impl(sendbuf, fc%arr, nstasks, stasks)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -622,15 +622,16 @@ CONTAINS
         END SUBROUTINE process_sendtasks
 
 
-        SUBROUTINE process_sendtasks_impl(coarse, nstasks, stasks)
+        SUBROUTINE process_sendtasks_impl(sbuf, coarse, nstasks, stasks)
         ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: sbuf(*)
         REAL(realk), INTENT(in) :: coarse(*)
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(sendtasksize, nstasks+1)
 
         ! Local variables
         INTEGER(intk) :: igridc, itask, ii, jj, kk, ip3
-        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1, idx2
+        INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
         !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
@@ -645,14 +646,13 @@ CONTAINS
             ksto = stasks(6, itask)
             igridc = stasks(7, itask)
             idx1 = stasks(8, itask)
-            idx2 = stasks(9, itask)
 
             ! Getting the parameters of the coarse grid
             CALL get_ip3(ip3, igridc)
             CALL get_mgdims(kk, jj, ii, igridc)
 
             !$omp parallel
-            CALL write_buffer(kk, jj, ii, sendbuf(idx1:idx2), &
+            CALL write_buffer(sbuf(idx1), kk, jj, ii, &
                 coarse(ip3), ista, jsta, ksta, isto, jsto, ksto)
             !$omp end parallel
         END DO
@@ -660,13 +660,13 @@ CONTAINS
     END SUBROUTINE process_sendtasks_impl
 
 
-    SUBROUTINE write_buffer(kk, jj, ii, buf, fc, ista, jsta, ksta, &
+    SUBROUTINE write_buffer(sbuf, kk, jj, ii, fc, ista, jsta, ksta, &
             isto, jsto, ksto)
         !$omp declare target
 
         ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: sbuf(*)
         INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(inout) :: buf(*)
         REAL(realk), INTENT(in) :: fc(kk, jj, ii)
         INTEGER(intk), INTENT(in) :: ista, jsta, ksta
         INTEGER(intk), INTENT(in) :: isto, jsto, ksto
@@ -685,7 +685,7 @@ CONTAINS
             DO j = jsta, jsto
                 DO k = ksta, ksto
                     idx = 1 + (k - ksta) + (j - jsta)*kkc + (i - ista)*kkc*jjc
-                    buf(idx) = fc(k, j, i)
+                    sbuf(idx) = fc(k, j, i)
                 END DO
             END DO
         END DO
@@ -824,7 +824,7 @@ CONTAINS
         CALL profile_range_push("process_recvtasks")
 #endif
 
-        CALL process_recvtasks_impl(ff%arr, nrtasks, rtasks)
+        CALL process_recvtasks_impl(ff%arr, nrtasks, rtasks, recvbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -832,11 +832,12 @@ CONTAINS
         END SUBROUTINE process_recvtasks
 
 
-        SUBROUTINE process_recvtasks_impl(fine, nrtasks, rtasks)
+        SUBROUTINE process_recvtasks_impl(fine, nrtasks, rtasks, rbuf)
         ! Subroutine arguments
         REAL(realk), INTENT(inout) :: fine(*)
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(recvtasksize, nrtasks+1)
+        REAL(realk), INTENT(in) :: rbuf(*)
 
         ! Local variables
         INTEGER(intk) :: igridf, idx, len, itask, ii, jj, kk, ip3
@@ -857,22 +858,20 @@ CONTAINS
 
             !$omp parallel
             ! Copying from buffer to the fine grid
-            CALL write_fine(kk, jj, ii, fine(ip3), len, &
-                recvbuf(idx:idx+len-1))
+            CALL write_fine(kk, jj, ii, fine(ip3), rbuf(idx))
             !$omp end parallel
         END DO
         !$omp end target teams distribute
     END SUBROUTINE process_recvtasks_impl
 
 
-    SUBROUTINE write_fine(kk, jj, ii, fff, len, fc)
+    SUBROUTINE write_fine(kk, jj, ii, fff, rbuf)
         !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: fff(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: len
-        REAL(realk), INTENT(in) :: fc(len)
+        REAL(realk), INTENT(in) :: rbuf(*)
 
         ! Local variables
         INTEGER(intk) :: k, j, i, kc, jc, ic, idx
@@ -893,7 +892,7 @@ CONTAINS
                     kc = (k-1)/2 + 1
                     ! Conversion into buffer index
                     idx = 1 + (kc-1) + (jc-1)*kkc + (ic-1)*kkc*jjc
-                    fff(k, j, i) = fc(idx)
+                    fff(k, j, i) = rbuf(idx)
                 END DO
             END DO
         END DO
