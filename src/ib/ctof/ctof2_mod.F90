@@ -634,7 +634,7 @@ CONTAINS
         INTEGER(intk) :: ista, jsta, ksta, isto, jsto, ksto, idx1
 
         !$omp target teams distribute private(itask, ii, jj, kk, ip3, &
-        !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, idx2, igridc)
+        !$omp&  ista, jsta, ksta, isto, jsto, ksto, idx1, igridc)
         DO itask = 1, nstasks
 
             ! Unpacking the task
