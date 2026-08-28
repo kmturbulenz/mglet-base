@@ -1258,7 +1258,7 @@ CONTAINS
         CALL profile_range_push("process_sendtasks")
 #endif
 
-        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
+        CALL process_sendtasks_impl(sendbuf, nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
@@ -1267,11 +1267,13 @@ CONTAINS
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+        SUBROUTINE process_sendtasks_impl(sbuf, nstasks, stasks, a1, a2, a3, &
+            a4, a5, a6)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(inout) :: sbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1301,23 +1303,23 @@ CONTAINS
             ! Assign the correct field pointer based on ifield
             SELECT CASE (fieldid)
             CASE (1)
-                CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a1(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (2)
-                CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a2(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (3)
-                CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a3(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (4)
-                CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a4(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (5)
-                CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a5(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE (6)
-                CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                CALL arr_to_buf(sbuf(icount+1), kk, jj, ii, a6(ip3), &
+                    istart, istop, jstart, jstop, kstart, kstop)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1327,14 +1329,14 @@ CONTAINS
     END SUBROUTINE process_sendtasks_impl
 
 
-    SUBROUTINE arr_to_buf(kk, jj, ii, arr, istart, istop, &
-        jstart, jstop, kstart, kstop, icount)
+    SUBROUTINE arr_to_buf(sbuf, kk, jj, ii, arr, istart, istop, &
+        jstart, jstop, kstart, kstop)
         !$omp declare target
         ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: sbuf(*)
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
-            kstop, icount
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
         ! Local variables
         INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
 
@@ -1345,9 +1347,8 @@ CONTAINS
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
-                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
-                        (i-istart)*jjl*kkl + icount
-                    sendbuf(idx_b) = arr(k, j, i)
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + (i-istart)*jjl*kkl
+                    sbuf(idx_b) = arr(k, j, i)
                 END DO
             END DO
         END DO
@@ -1374,7 +1375,7 @@ CONTAINS
 #endif
 
         CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+            f3%arr, f4%arr, f5%arr, f6%arr, recvbuf)
 
 #ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
@@ -1382,11 +1383,13 @@ CONTAINS
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+        SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, &
+            a5, a6, rbuf)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        REAL(realk), INTENT(in) :: rbuf(*)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1417,22 +1420,22 @@ CONTAINS
             SELECT CASE (fieldid)
             CASE (1)
                 CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE (2)
                 CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE (3)
                 CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE (4)
                 CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE (5)
                 CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
+                    jstart, jstop, kstart, kstop, rbuf(icount+1))
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1443,13 +1446,13 @@ CONTAINS
 
 
     SUBROUTINE buf_to_arr(kk, jj, ii, arr, istart, istop, &
-        jstart, jstop, kstart, kstop, icount)
+        jstart, jstop, kstart, kstop, rbuf)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: arr(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, &
-            kstop, icount
+        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
+        REAL(realk), INTENT(in) :: rbuf(*)
         ! Local variables
         INTEGER(intk) :: i, j, k, idx_b, kkl, jjl
 
@@ -1460,9 +1463,8 @@ CONTAINS
         DO i = istart, istop
             DO j = jstart, jstop
                 DO k = kstart, kstop
-                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + &
-                        (i-istart)*jjl*kkl + icount
-                    arr(k, j, i) = recvbuf(idx_b)
+                    idx_b = 1 + (k-kstart) + (j-jstart)*kkl + (i-istart)*jjl*kkl
+                    arr(k, j, i) = rbuf(idx_b)
                 END DO
             END DO
         END DO
