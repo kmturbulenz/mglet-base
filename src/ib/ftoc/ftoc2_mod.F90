@@ -882,55 +882,67 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (2)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a2(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (3)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a3(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (4)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a4(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (5)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a5(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (6)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a6(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
