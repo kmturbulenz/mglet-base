@@ -233,8 +233,8 @@ CONTAINS
 
     SUBROUTINE map_arr_from_device(f1, f2, f3, f4, f5, f6, f7, message)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(in) :: f1
-        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3, f4, f5, f6, f7
+        TYPE(field_t), INTENT(inout) :: f1
+        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3, f4, f5, f6, f7
         CHARACTER(*), INTENT(in), OPTIONAL :: message
 
         ! Local variables
@@ -281,8 +281,8 @@ CONTAINS
 
     SUBROUTINE map_buffers_from_device(f1, f2, f3, message)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(in) :: f1
-        TYPE(field_t), INTENT(in), OPTIONAL :: f2, f3
+        TYPE(field_t), INTENT(inout) :: f1
+        TYPE(field_t), INTENT(inout), OPTIONAL :: f2, f3
         CHARACTER(*), INTENT(in), OPTIONAL :: message
 
         ! Local variables
