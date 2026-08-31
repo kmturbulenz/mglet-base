@@ -57,53 +57,56 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: uo_f, vo_f, wo_f
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
-        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
         TYPE(field_t), POINTER :: scafield
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: uo, vo, wo, t
 
         IF (.NOT. has_buoyancy) RETURN
         CALL start_timer(360)
-
-        CALL map_arr_from_device(uo_f, vo_f, wo_f, &
-            message="boussinesqterm:from:uo|vo|wo")
-        ! TODO: when scalar is also on device, map scafield from device as well
 
         ! Use "old" value for scalar field since scalar field already have
         ! been timestepped to next time level!
         CALL get_field(scafield, TRIM(scaname)//"_OLD")
 
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-
-            CALL uo_f%get_ptr(uo, igrid)
-            CALL vo_f%get_ptr(vo, igrid)
-            CALL wo_f%get_ptr(wo, igrid)
-            CALL scafield%get_ptr(t, igrid)
-
-            CALL boussinesqterm_grid(kk, jj, ii, uo, vo, wo, t, nfro, nbac, &
-                nrgt, nlft, nbot, ntop)
-        END DO
-
-        CALL map_arr_to_device(uo_f, vo_f, wo_f, &
-            message="boussinesqterm:to:uo|vo|wo")
+        CALL boussinesqterm_impl(uo_f%arr, vo_f%arr, wo_f%arr, &
+            scafield%arr, gravity, expansioncoefficient)
 
         CALL stop_timer(360)
     END SUBROUTINE boussinesqterm
 
 
-    SUBROUTINE boussinesqterm_grid(kk, jj, ii, uo, vo, wo, t, nfro, nbac, &
-            nrgt, nlft, nbot, ntop)
+    SUBROUTINE boussinesqterm_impl(uo, vo, wo, t, gravity2, expansion)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(in) :: t(*), gravity2(3), expansion
+
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, &
+        !$omp& nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            !$omp parallel
+            CALL boussinesqterm_grid(kk, jj, ii, uo(ip3), vo(ip3), &
+                wo(ip3), t(ip3), gravity2, expansion, nfro, nbac, nrgt, &
+                nlft, nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE boussinesqterm_impl
+
+
+        SUBROUTINE boussinesqterm_grid(kk, jj, ii, uo, vo, wo, t, gravity2, &
+            expansion, nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii), &
             wo(kk, jj, ii)
         REAL(realk), INTENT(in) :: t(kk, jj, ii)
+        REAL(realk), INTENT(in) :: gravity2(3), expansion
         INTEGER(intk), INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! Local variables
@@ -135,7 +138,8 @@ CONTAINS
         IF (ntop == 3) ntw = 1
 
         ! U-velocioty
-        IF (ABS(gravity(1)) > 0.0) THEN
+        IF (ABS(gravity2(1)) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, tboundary, term)
             DO i = 3-nfu, ii-3+nbu
                 DO j = 3, jj-2
                     DO k = 3, kk-2
@@ -143,16 +147,18 @@ CONTAINS
                         tboundary = 0.5*(t(k, j, i) + t(k, j, i+1))
 
                         ! Computation of the additional force
-                        term = -gravity(1)*expansioncoefficient*tboundary
+                        term = -gravity2(1)*expansion*tboundary
 
                         uo(k, j, i) = uo(k, j, i) + term
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
 
         ! V-velocioty
-        IF (ABS(gravity(2)) > 0.0) THEN
+        IF (ABS(gravity2(2)) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, tboundary, term)
             DO i = 3, ii-2
                 DO j = 3-nrv, jj-3+nlv
                     DO k = 3, kk-2
@@ -160,17 +166,19 @@ CONTAINS
                         tboundary = 0.5*(t(k, j, i) + t(k, j+1, i))
 
                         ! Computation of the additional force
-                        term = -gravity(2)*expansioncoefficient*tboundary
+                        term = -gravity2(2)*expansion*tboundary
 
                         vo(k, j, i) = vo(k, j, i) + term
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
 
 
         ! W-velocioty
-        IF (ABS(gravity(3)) > 0.0) THEN
+        IF (ABS(gravity2(3)) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, tboundary, term)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     DO k = 3-nbw, kk-3+ntw
@@ -178,12 +186,13 @@ CONTAINS
                         tboundary = 0.5*(t(k, j, i) + t(k+1, j, i))
 
                         ! Computation of the additional force
-                        term = -gravity(3)*expansioncoefficient*tboundary
+                        term = -gravity2(3)*expansion*tboundary
 
                         wo(k, j, i) = wo(k, j, i) + term
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
     END SUBROUTINE boussinesqterm_grid
 END MODULE boussinesqterm_mod

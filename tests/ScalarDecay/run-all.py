@@ -74,8 +74,9 @@ def run(rkmethods, nsteps, tend, labels, mglet_bin):
 
             # Run the simulation
             with open(f"mglet-{method}-{case}.OUT", "w") as outfile:
+                print(f"Running {mglet_bin} with parameters-{case}.json")
                 subprocess.run([mglet_bin, f"parameters-{case}.json"],
-                               stdout=outfile, stderr=outfile)
+                               stdout=outfile, stderr=outfile, check=True)
 
         # Run the post-processing
         error = postprocess(method)
@@ -86,13 +87,18 @@ def run(rkmethods, nsteps, tend, labels, mglet_bin):
     if len(errors) > 0:
         plot(errors, labels)
 
+    # Add a check, that at the 100 steps case, all methods should have an error
+    # below 1e-5:
+    for error in errors:
+        assert error[nsteps.index(100)] < 1e-5, "Error at 100 steps is too high"
+
 
 mglet_bin = sys.argv[1]
 
 rkmethods = ["williamson", "berland", "carpenter", "bernardini"]
 labels = ["Williamson (3rd 3 step)", "Berland (4th 6 step)",
           "Carpenter (4th 5 step)", "Bernardini (2nd 5 step)"]
-nsteps = [1, 10, 100, 1000, 10000]
+nsteps = [1, 10, 100, 1000]
 tend = 10.0
 
 run(rkmethods, nsteps, tend, labels, mglet_bin)

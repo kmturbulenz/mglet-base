@@ -11,6 +11,7 @@ MODULE scalar_mod
 CONTAINS
     SUBROUTINE init_scalar()
         USE core_mod, ONLY: dcont, set_timer
+        USE bound_scalar_mod, ONLY: init_bound_scalar
         USE itinfo_scalar_mod, ONLY: init_itinfo_scalar
         USE scastat_mod, ONLY: init_scastat
         USE gc_scastencils_mod
@@ -30,6 +31,7 @@ CONTAINS
 
         CALL init_itinfo_scalar(dcont)
         CALL init_tfield()
+        CALL init_bound_scalar()
         CALL init_scastat()
 
         ! Need to call this here - cannot be in scacore because that
@@ -44,6 +46,7 @@ CONTAINS
 
 
     SUBROUTINE finish_scalar
+        USE bound_scalar_mod, ONLY: finish_bound_scalar
         USE itinfo_scalar_mod, ONLY: finish_itinfo_scalar
         USE scastat_mod, ONLY: finish_scastat
         USE ib_mod, ONLY: ib, gc_t
@@ -60,17 +63,19 @@ CONTAINS
 
         CALL finish_scastat()
         CALL finish_itinfo_scalar()
+        CALL finish_bound_scalar()
         CALL finish_scacore()
     END SUBROUTINE finish_scalar
 
 
     SUBROUTINE init_tfield()
-        USE core_mod, ONLY: connect, get_field, field_t, &
-            minlevel, maxlevel, zero_ghostlayers
+        USE core_mod, ONLY: conn, copy_arr, get_field, field_t, &
+            map_arr_to_device, map_buffers_to_device, minlevel, maxlevel, &
+            zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_scalar_mod, ONLY: setboundarybuffers_scalar
 
-        TYPE(field_t), POINTER :: t
+        TYPE(field_t), POINTER :: t, t_old
         INTEGER(intk) :: l, ilevel
 
         DO l = 1, nsca
@@ -84,14 +89,19 @@ CONTAINS
             ! TODO: set initial condition when not dread
 
             CALL zero_ghostlayers(t)
+            CALL map_arr_to_device(t, message="to:init_scalar")
+            CALL map_buffers_to_device(t, message="to:init_scalar_buffers")
 
             DO ilevel = minlevel, maxlevel
-                CALL connect(ilevel, 2, s1=t, corners=.TRUE.)
+                CALL conn(ilevel, 2, s1=t, corners=.TRUE.)
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, t, t, 'T')
+                CALL ftoc(ilevel, t, t, 'T', device=.TRUE.)
             END DO
+
+            CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
+            CALL copy_arr(t_old%arr, t%arr)
         END DO
     END SUBROUTINE init_tfield
 END MODULE scalar_mod
