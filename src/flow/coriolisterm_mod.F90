@@ -52,11 +52,7 @@ CONTAINS
         TYPE(field_t), INTENT(inout) :: uo_f, vo_f, wo_f
 
         ! local variables
-        INTEGER(intk) :: i, igrid, kk, jj, ii
-        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
         TYPE(field_t), POINTER :: u_f, v_f, w_f
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: uo, vo, wo
-        REAL(realk), POINTER, CONTIGUOUS, DIMENSION(:, :, :) :: u, v, w
 
         ! checking activity
         IF (.NOT. has_coriolis) RETURN
@@ -68,49 +64,41 @@ CONTAINS
         CALL get_field(v_f, "V")
         CALL get_field(w_f, "W")
 
-        CALL map_arr_from_device(u_f, v_f, w_f, &
-            message="coriolisterm:from:u|v|w")
-        CALL map_arr_from_device(uo_f, vo_f, wo_f, &
-            message="coriolisterm:from:uo|vo|wo")
-        ! TODO: when scalar is also on device, map scafield from device as well
-
-        ! iterating over all grids on processor (from grids_mod.F90)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            ! getting grid parameters (dimensions and boundary conditions)
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-
-            CALL uo_f%get_ptr(uo, igrid)
-            CALL vo_f%get_ptr(vo, igrid)
-            CALL wo_f%get_ptr(wo, igrid)
-
-            CALL u_f%get_ptr(u, igrid)
-            CALL v_f%get_ptr(v, igrid)
-            CALL w_f%get_ptr(w, igrid)
-
-            ! calling the function kernel for each grid
-            CALL coriolis_grid(kk, jj, ii, &
-                uo, vo, wo, u, v, w, &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
-        END DO
-
-        CALL map_arr_to_device(uo_f, vo_f, wo_f, &
-            message="coriolisterm:to:uo|vo|wo")
-        ! No need to map u, v, w back to device since they are not
-        ! modified in this subroutine
+        CALL coriolisterm_impl(uo_f%arr, vo_f%arr, wo_f%arr, u_f%arr, &
+            v_f%arr, w_f%arr, omega(1), omega(2), omega(3))
 
         CALL stop_timer(370)
-
-        RETURN
-
     END SUBROUTINE coriolisterm
 
 
-    SUBROUTINE coriolis_grid(kk, jj, ii, &
-        uo, vo, wo, u, v, w, &
-        nfro, nbac, nrgt, nlft, nbot, ntop)
+    SUBROUTINE coriolisterm_impl(uo, vo, wo, u, v, w, omega1, omega2, omega3)
+        REAL(realk), INTENT(inout) :: uo(*), vo(*), wo(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*)
+        REAL(realk), INTENT(in) :: omega1, omega2, omega3
+
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: nfro, nbac, nrgt, nlft, nbot, ntop
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, &
+        !$omp& nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            !$omp parallel
+            CALL coriolis_grid(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), &
+                u(ip3), v(ip3), w(ip3), omega1, omega2, omega3, nfro, &
+                nbac, nrgt, nlft, nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE coriolisterm_impl
+
+
+    SUBROUTINE coriolis_grid(kk, jj, ii, uo, vo, wo, u, v, w, omega1, omega2, &
+            omega3, nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
 
         ! subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -118,12 +106,13 @@ CONTAINS
             vo(kk, jj, ii), wo(kk, jj, ii)
         REAL(realk), INTENT(in) :: u(kk, jj, ii), &
             v(kk, jj, ii), w(kk, jj, ii)
+        REAL(realk), INTENT(in) :: omega1, omega2, omega3
         INTEGER(intk), INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! local variables
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: nbu, nfu, nrv, nbw, ntw, nlv
-        REAL(realk) :: vlocal(3), cterm
+        REAL(realk) :: vlocal1, vlocal2, vlocal3, cterm
 
         nfu = 0; nbu = 0; nrv = 0
         nlv = 0; nbw = 0; ntw = 0
@@ -144,64 +133,64 @@ CONTAINS
         ! comment: Not yet implemented with a linear
         ! interploation to the exact position
 
-        IF (ABS(omega(2)) + ABS(omega(3)) > 0.0) THEN
+        IF (ABS(omega2) + ABS(omega3) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, vlocal2, vlocal3, cterm)
             DO i = 3-nfu, ii-3+nbu
                 DO j = 3, jj-2
                     DO k = 3, kk-2
                         ! averaging to U-velocity point (stag=1,0,0)
-                        vlocal(1) = u(k, j, i)
-                        vlocal(2) = 0.25 * (v(k, j-1, i) + &
+                        vlocal2 = 0.25 * (v(k, j-1, i) + &
                             v(k, j-1, i+1) + v(k, j, i) + v(k, j, i+1))
-                        vlocal(3) = 0.25 * (w(k-1, j, i) + &
+                        vlocal3 = 0.25 * (w(k-1, j, i) + &
                             w(k-1, j, i+1) + w(k, j, i) + w(k, j, i+1))
                         ! computing the cross product
-                        cterm = -2.0 * (omega(2) * vlocal(3) - &
-                            omega(3) * vlocal(2))
+                        cterm = -2.0 * (omega2*vlocal3 - omega3*vlocal2)
                         ! adding to the momentum balance
                         uo(k, j, i) = uo(k, j, i) + cterm
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
 
-        IF (ABS(omega(1)) + ABS(omega(3)) > 0.0) THEN
+        IF (ABS(omega1) + ABS(omega3) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, vlocal1, vlocal3, cterm)
             DO i = 3, ii-2
                 DO j = 3-nrv, jj-3+nlv
                     DO k = 3, kk-2
                         ! averaging to V-velocity point (stag=0,1,0)
-                        vlocal(1) = 0.25 * (u(k, j, i-1) + &
+                        vlocal1 = 0.25 * (u(k, j, i-1) + &
                             u(k, j+1, i-1) + u(k, j, i) + u(k, j+1, i))
-                        vlocal(2) = v(k, j, i)
-                        vlocal(3) = 0.25 * (w(k-1, j, i) + &
+                        vlocal3 = 0.25 * (w(k-1, j, i) + &
                             w(k-1, j+1, i) + w(k, j, i) + w(k, j+1, i))
                         ! computing the cross product
-                        cterm = -2.0 * (omega(3) * vlocal(1) - &
-                            omega(1) * vlocal(3))
+                        cterm = -2.0 * (omega3*vlocal1 - omega1*vlocal3)
                         ! adding to the momentum balance
                         vo(k, j, i) = vo(k, j, i) + cterm
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
 
-        IF (ABS(omega(1)) + ABS(omega(2)) > 0.0) THEN
+        IF (ABS(omega1) + ABS(omega2) > 0.0) THEN
+            !$omp do collapse(3) private(i, j, k, vlocal1, vlocal2, cterm)
             DO i = 3, ii-2
                 DO j = 3, jj-2
                     DO k = 3-nbw, kk-3+ntw
                         ! averaging to W-velocity point (stag=0,0,1)
-                        vlocal(1) = 0.25 * (u(k, j, i-1) + &
+                        vlocal1 = 0.25 * (u(k, j, i-1) + &
                             u(k+1, j, i-1) + u(k, j, i) + u(k+1, j, i))
-                        vlocal(2) = 0.25 * (v(k, j-1, i) + &
+                        vlocal2 = 0.25 * (v(k, j-1, i) + &
                             v(k+1, j-1, i) + v(k, j, i) + v(k+1, j, i))
-                        vlocal(3) = w(k, j, i)
                         ! computing the cross product
-                        cterm = -2.0 * (omega(1) * vlocal(2) - &
-                            omega(2) * vlocal(1))
+                        cterm = -2.0 * (omega1*vlocal2 - omega2*vlocal1)
                         ! adding to the momentum balance
                         wo(k, j, i) = wo(k, j, i) + cterm
                     END DO
                 END DO
             END DO
+            !$omp end do
         END IF
 
     END SUBROUTINE coriolis_grid
