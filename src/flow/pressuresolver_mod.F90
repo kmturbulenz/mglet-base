@@ -127,8 +127,8 @@ CONTAINS
         CALL set_field("SIPLPR")
 
 #ifdef _MGLET_OFFLOAD_
-        IF (ityp /= 0) THEN
-            WRITE(*, *) "MGLET_OFFLOAD only supports hyperplane sip."
+        IF (ityp == 2) THEN
+            WRITE(*, *) "MGLET_OFFLOAD does not support classic SIP."
             CALL errr(__FILE__, __LINE__)
         END IF
 #endif
