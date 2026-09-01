@@ -131,28 +131,18 @@ CONTAINS
         REAL(realk), INTENT(in) :: relaxation
 
         ! Local variables
-        INTEGER(intk) :: i, j, k, rb
-        INTEGER(intk) :: kstart, kstop
+        INTEGER(intk) :: i, j, k, q, rb
         REAL(realk) :: res
         REAL(realk) :: aw, ae, as, an, ab, at, rap
 
         IF (has_bp) THEN
             DO rb = 0, 1
-                !$omp do collapse(2) private(i, j, k, kstart, kstop, &
+                !$omp do collapse(3) private(i, j, k, q, &
                 !$omp& aw, ae, as, an, ab, at, rap, res)
                 DO i = 3, ii-2
                     DO j = 3, jj-2
-                        IF (MOD(i + j, 2) == rb) THEN
-                            kstart = 4
-                            kstop = kk - 2
-                        ELSE IF (MOD(i + j, 2) /= rb) THEN
-                            kstart = 3
-                            kstop = kk - 3
-                        END IF
-#ifndef _MGLET_OFFLOAD_
-                        !$omp simd private(aw, ae, as, an, ab, at, rap, res)
-#endif
-                        DO k = kstart, kstop, 2
+                        DO q = 0, (kk - 6)/2
+                            k = 3 + 2*q + IAND(i + j + rb + 1, 1)
                             ! Variations in numerical formulation, please
                             ! keep for future reference. Should be the same
                             ! numerics, but performance vary.
@@ -197,20 +187,11 @@ CONTAINS
             END DO
         ELSE
             DO rb = 0, 1
-                !$omp do collapse(2) private(i, j, k, kstart, kstop, res)
+                !$omp do collapse(3) private(i, j, k, q, res)
                 DO i = 3, ii-2
                     DO j = 3, jj-2
-                        IF (MOD(i + j, 2) == rb) THEN
-                            kstart = 4
-                            kstop = kk - 2
-                        ELSE IF (MOD(i + j, 2) /= rb) THEN
-                            kstart = 3
-                            kstop = kk - 3
-                        END IF
-#ifndef _MGLET_OFFLOAD_
-                        !$omp simd private(res)
-#endif
-                        DO k = kstart, kstop, 2
+                        DO q = 0, (kk - 6)/2
+                            k = 3 + 2*q + IAND(i + j + rb + 1, 1)
                             res = (gsaw(i) * dp(k, j, i-1) &
                                   + gsae(i) * dp(k, j, i+1) &
                                   + gsas(j) * dp(k, j-1, i) &
