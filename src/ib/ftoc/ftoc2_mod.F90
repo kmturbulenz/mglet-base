@@ -1945,71 +1945,79 @@ CONTAINS
         ! none...
 
         ! Local variables
-        TYPE(field_t) :: udummy, vdummy, wdummy, pdummy
+        TYPE(field_t) :: udummy1, vdummy1, wdummy1, pdummy1
+        TYPE(field_t) :: udummy2, vdummy2, wdummy2, pdummy2
         INTEGER(intk) :: ilevel
-        REAL(realk), ALLOCATABLE :: uref(:), vref(:), wref(:), pref(:)
 
         is_recording = .TRUE.
 
-        CALL udummy%init("U_DUMMY", istag=1)
-        CALL vdummy%init("V_DUMMY", jstag=1)
-        CALL wdummy%init("W_DUMMY", kstag=1)
-        CALL pdummy%init("P_DUMMY")
+        CALL udummy2%init("U_DUMMY", istag=1)
+        CALL vdummy2%init("V_DUMMY", jstag=1)
+        CALL wdummy2%init("W_DUMMY", kstag=1)
+        CALL pdummy2%init("P_DUMMY")
 
-        CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
-        CALL connect(layers=2, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy, &
+        CALL init_dummy_fields_cpu(udummy2, vdummy2, wdummy2, pdummy2)
+        CALL connect(layers=2, v1=udummy2, v2=vdummy2, v3=wdummy2, s1=pdummy2, &
             corners=.TRUE.)
 
-        !$omp target enter data map(to: udummy%arr, vdummy%arr, wdummy%arr, &
-        !$omp& pdummy%arr)
+        !$omp target enter data map(to: udummy2%arr, vdummy2%arr, wdummy2%arr, &
+        !$omp& pdummy2%arr)
 
         ! START -- This section defines the record variants of ftoc2 ---
 
         DO ilevel = maxlevel, minlevel, -1
             ! Outer pressuresolver iterations
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='P')
+            CALL ftoc2(ilevel, pdummy2, pdummy2, flag='P')
             ! Pre pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='R')
+            CALL ftoc2(ilevel, pdummy2, pdummy2, flag='R')
             ! Post pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, udummy, vdummy, wdummy, pdummy)
+            CALL ftoc2(ilevel, udummy2, vdummy2, wdummy2, pdummy2)
         END DO
 
-        !$omp target exit data map(from: udummy%arr, vdummy%arr, wdummy%arr, &
-        !$omp& pdummy%arr)
+        !$omp target exit data map(from: udummy2%arr, vdummy2%arr, wdummy2%arr, &
+        !$omp& pdummy2%arr)
 
-        ! Storing the reference values for later comparison with the CPU version
-        ALLOCATE(uref, source=udummy%arr)
-        ALLOCATE(vref, source=vdummy%arr)
-        ALLOCATE(wref, source=wdummy%arr)
-        ALLOCATE(pref, source=pdummy%arr)
+
+        CALL udummy1%init("U_DUMMY", istag=1)
+        CALL vdummy1%init("V_DUMMY", jstag=1)
+        CALL wdummy1%init("W_DUMMY", kstag=1)
+        CALL pdummy1%init("P_DUMMY")
+
+        CALL init_dummy_fields_cpu(udummy1, vdummy1, wdummy1, pdummy1)
+        CALL connect(layers=2, v1=udummy1, v2=vdummy1, v3=wdummy1, s1=pdummy1, &
+            corners=.TRUE.)
 
         ! Repeating the same calls with the CPU function
         ! ("ftoc1" is already initialized at this point)
 
-        CALL init_dummy_fields_cpu(udummy, vdummy, wdummy, pdummy)
-        CALL connect(layers=2, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy, &
-            corners=.TRUE.)
-
         DO ilevel = maxlevel, minlevel, -1
             ! Outer pressuresolver iterations
-            CALL ftoc1(ilevel, pdummy, pdummy, flag='P')
+            CALL ftoc1(ilevel, pdummy1, pdummy1, flag='P')
             ! Pre pressuresolver iterations in mgpoisl
-            CALL ftoc1(ilevel, pdummy, pdummy, flag='R')
+            CALL ftoc1(ilevel, pdummy1, pdummy1, flag='R')
             ! Post pressuresolver iterations in mgpoisl
-            CALL ftoc1(ilevel, udummy, vdummy, wdummy, pdummy)
+            CALL ftoc1(ilevel, udummy1, vdummy1, wdummy1, pdummy1)
         END DO
 
         ! END -- This section defines the record variants of ftoc2 ---
 
-        CALL assert_same_field(uref, udummy)
-        CALL assert_same_field(vref, vdummy)
-        CALL assert_same_field(wref, wdummy)
-        CALL assert_same_field(pref, pdummy)
+        CALL assert_same_field(udummy1, udummy2)
+        CALL assert_same_field(vdummy1, vdummy2)
+        CALL assert_same_field(wdummy1, wdummy2)
+        CALL assert_same_field(pdummy1, pdummy2)
 
-        CALL udummy%finish()
-        CALL vdummy%finish()
-        CALL wdummy%finish()
-        CALL pdummy%finish()
+        CALL writevtk(field1=pdummy1, prefix="CPU")
+        CALL writevtk(field1=pdummy2, prefix="GPU")
+
+        CALL udummy1%finish()
+        CALL vdummy1%finish()
+        CALL wdummy1%finish()
+        CALL pdummy1%finish()
+
+        CALL udummy2%finish()
+        CALL vdummy2%finish()
+        CALL wdummy2%finish()
+        CALL pdummy2%finish()
 
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
@@ -2039,24 +2047,42 @@ CONTAINS
     END SUBROUTINE init_dummy_fields_cpu
 
 
-    SUBROUTINE assert_same_field(ref, field_f)
+    SUBROUTINE assert_same_field(field1_f, field2_f)
         ! Subroutine arguments
-        REAL(realk), INTENT(in) :: ref(:)
-        TYPE(field_t), INTENT(in) :: field_f
+        TYPE(field_t), INTENT(in) :: field1_f, field2_f
         ! Local variables
         REAL(realk) :: diff_local, diff_global
-        INTEGER(intk) :: ierr
+        INTEGER(intk) :: ierr, i, igrid
+        REAL(realk), POINTER, CONTIGUOUS :: arr1(:, :, :), arr2(:, :, :)
         LOGICAL :: is_same = .TRUE.
 
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL field1_f%get_ptr(arr1, igrid)
+            CALL field2_f%get_ptr(arr2, igrid)
+
+            ! Compute the maximum absolute difference between the array
+            diff_local = MAXVAL(ABS(arr1 - arr2))
+            IF (diff_local > 3.0 * eps) THEN
+                IF (myid == 0) THEN
+                    WRITE(*, *) "field name: ", TRIM(field1_f%name), &
+                        "  with maxdiff = ", diff_local, " on grid ", igrid
+                END IF
+                is_same = .FALSE.
+            END IF
+        END DO
+
+
         ! Compute the maximum absolute difference between the array
-        diff_local = MAXVAL(ABS(ref - field_f%arr))
+        diff_local = MAXVAL(ABS(field1_f%arr - field2_f%arr))
 
         CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
             MPI_MAX, MPI_COMM_WORLD, ierr)
 
         IF (diff_global > 3.0 * eps) THEN
             IF (myid == 0) THEN
-                WRITE(*, *) "field name: ", TRIM(field_f%name), &
+                WRITE(*, *) "field name: ", TRIM(field1_f%name), &
                     "  with maxdiff = ", diff_global
             END IF
             is_same = .FALSE.
