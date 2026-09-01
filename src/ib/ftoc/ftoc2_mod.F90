@@ -1,6 +1,7 @@
 MODULE ftoc2_mod
     USE MPI_f08
     USE core_mod
+    USE ftoc1_mod, ONLY: ftoc1
     USE ftoc_core_mod
     USE ibcore_mod, ONLY: ib
     USE gc_restrict_mod
@@ -881,55 +882,67 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (2)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a2(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (3)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a3(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (4)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a4(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (5)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a5(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE (6)
                 CALL restrict_gc_flag(flag, kkf, jjf, iif, a6(ip3f), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+                !$omp barrier
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
             END SELECT
@@ -1879,7 +1892,9 @@ CONTAINS
         is_init = .TRUE.
 
         ! Record relevant calls for later efficient reuse on device
+        ! (includes a parity check with the CPU version)
         CALL run_recording_pass()
+
     END SUBROUTINE init_ftoc2
 
 
@@ -1930,42 +1945,151 @@ CONTAINS
         ! none...
 
         ! Local variables
-        TYPE(field_t) :: udummy, vdummy, wdummy, pdummy
+        TYPE(field_t) :: udummy1, vdummy1, wdummy1, pdummy1
+        TYPE(field_t) :: udummy2, vdummy2, wdummy2, pdummy2
         INTEGER(intk) :: ilevel
 
         is_recording = .TRUE.
 
-        CALL udummy%init("U_DUMMY", istag=1)
-        CALL vdummy%init("V_DUMMY", jstag=1)
-        CALL wdummy%init("W_DUMMY", kstag=1)
-        CALL pdummy%init("P_DUMMY")
+        CALL udummy2%init("U_DUMMY", istag=1)
+        CALL vdummy2%init("V_DUMMY", jstag=1)
+        CALL wdummy2%init("W_DUMMY", kstag=1)
+        CALL pdummy2%init("P_DUMMY")
 
-        !$omp target enter data map(to: udummy%arr, vdummy%arr, wdummy%arr, &
-        !$omp& pdummy%arr)
+        CALL init_dummy_fields_cpu(udummy2, vdummy2, wdummy2, pdummy2)
+        CALL connect(layers=2, v1=udummy2, v2=vdummy2, v3=wdummy2, s1=pdummy2, &
+            corners=.TRUE.)
+
+        !$omp target enter data map(to: udummy2%arr, vdummy2%arr, wdummy2%arr, &
+        !$omp& pdummy2%arr)
 
         ! START -- This section defines the record variants of ftoc2 ---
 
         DO ilevel = maxlevel, minlevel, -1
             ! Outer pressuresolver iterations
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='P')
+            CALL ftoc2(ilevel, pdummy2, pdummy2, flag='P')
             ! Pre pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='R')
+            CALL ftoc2(ilevel, pdummy2, pdummy2, flag='R')
             ! Post pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, udummy, vdummy, wdummy, pdummy)
+            CALL ftoc2(ilevel, udummy2, vdummy2, wdummy2, pdummy2)
+        END DO
+
+        !$omp target exit data map(from: udummy2%arr, vdummy2%arr, wdummy2%arr, &
+        !$omp& pdummy2%arr)
+
+
+        CALL udummy1%init("U_DUMMY", istag=1)
+        CALL vdummy1%init("V_DUMMY", jstag=1)
+        CALL wdummy1%init("W_DUMMY", kstag=1)
+        CALL pdummy1%init("P_DUMMY")
+
+        CALL init_dummy_fields_cpu(udummy1, vdummy1, wdummy1, pdummy1)
+        CALL connect(layers=2, v1=udummy1, v2=vdummy1, v3=wdummy1, s1=pdummy1, &
+            corners=.TRUE.)
+
+        ! Repeating the same calls with the CPU function
+        ! ("ftoc1" is already initialized at this point)
+
+        DO ilevel = maxlevel, minlevel, -1
+            ! Outer pressuresolver iterations
+            CALL ftoc1(ilevel, pdummy1, pdummy1, flag='P')
+            ! Pre pressuresolver iterations in mgpoisl
+            CALL ftoc1(ilevel, pdummy1, pdummy1, flag='R')
+            ! Post pressuresolver iterations in mgpoisl
+            CALL ftoc1(ilevel, udummy1, vdummy1, wdummy1, pdummy1)
         END DO
 
         ! END -- This section defines the record variants of ftoc2 ---
 
-        !$omp target exit data map(delete: udummy%arr, vdummy%arr, wdummy%arr, &
-        !$omp& pdummy%arr)
+        CALL assert_same_field(udummy1, udummy2)
+        CALL assert_same_field(vdummy1, vdummy2)
+        CALL assert_same_field(wdummy1, wdummy2)
+        CALL assert_same_field(pdummy1, pdummy2)
 
-        CALL udummy%finish()
-        CALL vdummy%finish()
-        CALL wdummy%finish()
-        CALL pdummy%finish()
+        CALL writevtk(field1=pdummy1, prefix="CPU")
+        CALL writevtk(field1=pdummy2, prefix="GPU")
+
+        CALL udummy1%finish()
+        CALL vdummy1%finish()
+        CALL wdummy1%finish()
+        CALL pdummy1%finish()
+
+        CALL udummy2%finish()
+        CALL vdummy2%finish()
+        CALL wdummy2%finish()
+        CALL pdummy2%finish()
 
         is_recording = .FALSE.
     END SUBROUTINE run_recording_pass
+
+
+    SUBROUTINE init_dummy_fields_cpu(u_f, v_f, w_f, p_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(inout) :: u_f, v_f, w_f, p_f
+        ! Local variables
+        INTEGER(intk) :: i
+        DO i = 1, SIZE(u_f%arr)
+            u_f%arr(i) = REAL(MOD(17_intk*i + 11_intk, 997_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(v_f%arr)
+            v_f%arr(i) = REAL(MOD(23_intk*i + 7_intk, 991_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(w_f%arr)
+            w_f%arr(i) = REAL(MOD(31_intk*i + 5_intk, 983_intk), realk) * &
+                1.0e-3_realk
+        END DO
+        DO i = 1, SIZE(p_f%arr)
+            p_f%arr(i) = REAL(MOD(47_intk*i + 3_intk, 977_intk), realk) * &
+                1.0e-3_realk
+        END DO
+    END SUBROUTINE init_dummy_fields_cpu
+
+
+    SUBROUTINE assert_same_field(field1_f, field2_f)
+        ! Subroutine arguments
+        TYPE(field_t), INTENT(in) :: field1_f, field2_f
+        ! Local variables
+        REAL(realk) :: diff_local, diff_global
+        INTEGER(intk) :: ierr, i, igrid
+        REAL(realk), POINTER, CONTIGUOUS :: arr1(:, :, :), arr2(:, :, :)
+        LOGICAL :: is_same = .TRUE.
+
+
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            CALL field1_f%get_ptr(arr1, igrid)
+            CALL field2_f%get_ptr(arr2, igrid)
+
+            ! Compute the maximum absolute difference between the array
+            diff_local = MAXVAL(ABS(arr1 - arr2))
+            IF (diff_local > 3.0 * eps) THEN
+                IF (myid == 0) THEN
+                    WRITE(*, *) "field name: ", TRIM(field1_f%name), &
+                        "  with maxdiff = ", diff_local, " on grid ", igrid
+                END IF
+                is_same = .FALSE.
+            END IF
+        END DO
+
+
+        ! Compute the maximum absolute difference between the array
+        diff_local = MAXVAL(ABS(field1_f%arr - field2_f%arr))
+
+        CALL MPI_Allreduce(diff_local, diff_global, 1, mglet_mpi_real, &
+            MPI_MAX, MPI_COMM_WORLD, ierr)
+
+        IF (diff_global > 3.0 * eps) THEN
+            IF (myid == 0) THEN
+                WRITE(*, *) "field name: ", TRIM(field1_f%name), &
+                    "  with maxdiff = ", diff_global
+            END IF
+            is_same = .FALSE.
+        END IF
+        ! IF (.NOT. is_same) CALL errr(__FILE__, __LINE__)
+
+    END SUBROUTINE assert_same_field
 
 
     SUBROUTINE count_selftasks(nselfsend, nselfrecv)
