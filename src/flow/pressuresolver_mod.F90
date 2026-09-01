@@ -401,12 +401,16 @@ CONTAINS
             IF (ityp == 1 .AND. ilevel > minlevel) THEN
                 ! The SOR relaxation is usually not efficient at the
                 ! coarsest level, hence only apply at the finer levels
+                CALL start_timer(324)
                 CALL sor(ilevel, dp, rhs, gsaw, gsae, gsas, gsan, gsab, gsat, &
                     gsrap, bp)
+                CALL stop_timer(324)
             ELSE
                 ! Use the SIP solver
+                CALL start_timer(323)
                 CALL sip(ilevel, iloop, dp, res, rhs, siplw, sipls, siplb, &
                     sipue, sipun, siput, siplpr, bp)
+                CALL stop_timer(323)
             END IF
 
             CALL conn(ilevel, 1, s1=dp)
