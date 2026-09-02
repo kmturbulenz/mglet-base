@@ -10,7 +10,6 @@ MODULE lesmodel_mod
     INTEGER(intk), PARAMETER :: nchar = 16
     CHARACTER(len=nchar) :: clesmodel
     INTEGER(intk), PROTECTED :: ilesmodel
-    !$omp declare target(ilesmodel)
 
     TYPE, EXTENDS(bound_t) :: boundg_t
     CONTAINS
@@ -24,7 +23,6 @@ MODULE lesmodel_mod
 
     ! LES model constant
     REAL(realk) :: Cm
-    !$omp declare target(Cm)
 
     ! Bound operation
     TYPE(boundg_t) :: bound
@@ -61,10 +59,6 @@ CONTAINS
             ilesmodel = 2
             Cm = 0.5
         CASE("sigma")
-#ifdef _MGLET_OFFLOAD_
-            WRITE(*, *) "LES model 'sigma' is not supported with offloading"
-            CALL errr(__FILE__, __LINE__)
-#endif
             ilesmodel = 5
             Cm = 1.35
         CASE DEFAULT
@@ -74,7 +68,6 @@ CONTAINS
 
         ! Override default model parameter
         CALL lesconf%get_value("/Cm", Cm, Cm)
-        !$omp target update to(ilesmodel, Cm)
 
         CALL init_boundg()
 
@@ -178,31 +171,45 @@ CONTAINS
         REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*), ddx(*), ddy(*), ddz(*)
         REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
 
-        INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
-        INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
-
-        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, &
-        !$omp& ipz, kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-
-            CALL get_ip3(ip3, igrid)
-            CALL get_ip1x(ipx, igrid)
-            CALL get_ip1y(ipy, igrid)
-            CALL get_ip1z(ipz, igrid)
-
-            !$omp parallel
-            CALL efvisc_gc(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
-                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
-                rddx(ipx), rddy(ipy), rddz(ipz), u(ip3), v(ip3), w(ip3), &
-                gmol, rho, bp(ip3), g(ip3))
-            !$omp end parallel
-        END DO
-        !$omp end target teams distribute
+        SELECT CASE (ilesmodel)
+        CASE (1)
+            CALL lesmodel_gc_smagorinsky_impl(g, u, v, w, bp, dx, dy, dz, &
+                ddx, ddy, ddz, rddx, rddy, rddz, Cm)
+        CASE (2)
+            CALL lesmodel_gc_wale_impl(g, u, v, w, bp, dx, dy, dz, ddx, &
+                ddy, ddz, rddx, rddy, rddz, Cm)
+        CASE (5)
+            CALL lesmodel_gc_sigma_impl(g, u, v, w, bp, dx, dy, dz, ddx, &
+                ddy, ddz, rddx, rddy, rddz, Cm)
+        CASE DEFAULT
+            CALL errr(__FILE__, __LINE__)
+        END SELECT
     END SUBROUTINE lesmodel_gc_impl
+
+
+#define LESMODEL_IMPL lesmodel_gc_smagorinsky_impl
+#define LESMODEL_GRID efvisc_gc_smagorinsky
+#define LESMODEL_EVALUATE smagorinsky
+#include "lesmodel_kernel.inc"
+#undef LESMODEL_EVALUATE
+#undef LESMODEL_GRID
+#undef LESMODEL_IMPL
+
+#define LESMODEL_IMPL lesmodel_gc_wale_impl
+#define LESMODEL_GRID efvisc_gc_wale
+#define LESMODEL_EVALUATE wale
+#include "lesmodel_kernel.inc"
+#undef LESMODEL_EVALUATE
+#undef LESMODEL_GRID
+#undef LESMODEL_IMPL
+
+#define LESMODEL_IMPL lesmodel_gc_sigma_impl
+#define LESMODEL_GRID efvisc_gc_sigma
+#define LESMODEL_EVALUATE sigma
+#include "lesmodel_kernel.inc"
+#undef LESMODEL_EVALUATE
+#undef LESMODEL_GRID
+#undef LESMODEL_IMPL
 
 
     SUBROUTINE setginbody_impl(g, bp)
@@ -355,149 +362,8 @@ CONTAINS
     END SUBROUTINE apply_boundg_impl
 
 
-    SUBROUTINE efvisc_gc(kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop, &
-            dx, dy, dz, ddx, ddy, ddz, rddx, rddy, rddz, u, v, w, gmol, rho, &
-            bp, g)
-        !$omp declare target
-
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        INTEGER(intk), INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
-        REAL(realk), INTENT(in) :: dx(ii), dy(jj), dz(kk)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
-        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), w(kk, jj, ii)
-        REAL(realk), INTENT(in) :: gmol, rho
-        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
-        REAL(realk), INTENT(inout) :: g(kk, jj, ii)
-
-        ! Local variables
-        INTEGER(intk) :: k, j, i
-        REAL(realk) :: dudx, dudy, dudz, dvdx, dvdy, dvdz
-        REAL(realk) :: dwdx, dwdy, dwdz
-        REAL(realk) :: dxf, dyf, dzf
-        REAL(realk) :: dxf2, dyf2, dzf2
-        REAL(realk) :: delta, dm
-
-        !$omp do collapse(3) private(i, j, k, dudx, dudy, dudz, &
-        !$omp& dvdx, dvdy, dvdz, dwdx, dwdy, dwdz, dxf, dyf, dzf, dxf2, &
-        !$omp& dyf2, dzf2, delta, dm)
-        DO i = 3, ii-2
-            DO j = 3, jj-2
-                DO k = 3, kk-2
-                    dxf = 0.25*dx(i-1)*rddx(i)
-                    ! dU/dX
-                    dudx = (u(k, j, i) - u(k, j, i-1))*rddx(i)
-                    ! dU/dY
-                    dudy = ((u(k, j+1, i) - u(k, j-1, i))*dxf &
-                        + (u(k, j+1, i-1) - u(k, j-1, i-1))*(0.5-dxf))*rddy(j)
-                    ! dU/dZ
-                    dudz = ((u(k+1, j, i) - u(k-1, j, i))*dxf &
-                        + (u(k+1, j, i-1) - u(k-1, j, i-1))*(0.5-dxf))*rddz(k)
-
-                    dyf = 0.25*dy(j-1)*rddy(j)
-                    ! dV/dX
-                    dvdx = ((v(k, j, i+1) - v(k, j, i-1))*dyf &
-                        + (v(k, j-1, i+1) - v(k, j-1, i-1))*(0.5-dyf))*rddx(i)
-                    ! dV/dY
-                    dvdy = (v(k, j, i) - v(k, j-1, i))*rddy(j)
-                    ! dV/dZ
-                    dvdz = ((v(k+1, j, i) - v(k-1, j, i))*dyf &
-                        + (v(k+1, j-1, i) - v(k-1, j-1, i))*(0.5-dyf))*rddz(k)
-
-                    dzf = 0.25*dz(k-1)*rddz(k)
-                    ! dW/dX
-                    dwdx = ((w(k, j, i+1) - w(k, j, i-1))*dzf &
-                        + (w(k-1, j, i+1) - w(k-1, j, i-1))*(0.5-dzf))*rddx(i)
-                    ! dW/dY
-                    dwdy = ((w(k, j+1, i) - w(k, j-1, i))*dzf &
-                        + (w(k-1, j+1, i) - w(k-1, j-1, i))*(0.5-dzf))*rddy(j)
-                    ! dW/dZ
-                    dwdz = (w(k, j, i) - w(k-1, j, i))*rddz(k)
-
-                    delta = cube_root(ddx(i)*ddy(j)*ddz(k))*bp(k, j, i)
-
-                    ! NOS corrections to gradients
-                    ! GRADP2 uses the WW wall model to compute the gradient
-                    ! half a cell away from the wall.
-                    IF (nfro == 5 .AND. i == 3) THEN
-                        dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdx = gradp2(dyf2*v(k, j, i) &
-                            + (1.0-dyf2)*v(k, j-1, i), ddx(i))
-
-                        dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdx = gradp2(dzf2*w(k, j, i) &
-                            + (1.0-dzf2)*w(k-1, j, i), ddx(i))
-                    END IF
-                    IF (nbac == 5 .AND. i == ii-2) THEN
-                        dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdx = -gradp2(dyf2*v(k, j, i) &
-                            + (1.0-dyf2)*v(k, j-1, i), ddx(i))
-
-                        dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdx = -gradp2(dzf2*w(k, j, i) &
-                            + (1.0-dzf2)*w(k-1, j, i), ddx(i))
-                    END IF
-                    IF (nrgt == 5 .AND. j == 3) THEN
-                        dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudy = gradp2(dxf2*u(k, j, i) &
-                            + (1.0-dxf2)*u(k, j, i-1), ddy(j))
-
-                        dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdy = gradp2(dzf2*w(k, j, i) &
-                            + (1.0-dzf2)*w(k-1, j, i), ddy(j))
-                    END IF
-                    IF (nlft == 5 .AND. j == jj-2) THEN
-                        dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudy = -gradp2(dxf2*u(k, j, i) &
-                            + (1.0-dxf2)*u(k, j, i-1), ddy(j))
-
-                        dzf2 = 0.5*dz(k-1)*rddz(k)
-                        dwdy = -gradp2(dzf2*w(k, j, i) &
-                            + (1.0-dzf2)*w(k-1, j, i), ddy(j))
-                    END IF
-                    IF (nbot == 5 .AND. k == 3) THEN
-                        dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudz = gradp2(dxf2*u(k, j, i) &
-                            + (1.0-dxf2)*u(k, j, i-1), ddz(k))
-
-                        dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdz = gradp2(dyf2*v(k, j, i) &
-                            + (1.0-dyf2)*v(k, j-1, i), ddz(k))
-                    END IF
-                    IF (ntop == 5 .AND. k == kk-2) THEN
-                        dxf2 = 0.5*dx(i-1)*rddx(i)
-                        dudz = -gradp2(dxf2*u(k, j, i) &
-                            + (1.0-dxf2)*u(k, j, i-1), ddz(k))
-
-                        dyf2 = 0.5*dy(j-1)*rddy(j)
-                        dvdz = -gradp2(dyf2*v(k, j, i) &
-                            + (1.0-dyf2)*v(k, j-1, i), ddz(k))
-                    END IF
-
-                    SELECT CASE (ilesmodel)
-                    CASE (1)
-                        dm = smagorinsky(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
-                            dwdx, dwdy, dwdz)
-                    CASE (2)
-                        dm = wale(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
-                            dwdx, dwdy, dwdz)
-#ifndef _MGLET_OFFLOAD_
-                    CASE (5)
-                        dm = sigma(dudx, dudy, dudz, dvdx, dvdy, dvdz, &
-                            dwdx, dwdy, dwdz)
-#endif
-                    END SELECT
-                    g(k, j, i) = rho*delta**2*dm + gmol
-                END DO
-            END DO
-        END DO
-        !$omp end do
-    END SUBROUTINE efvisc_gc
-
-
     PURE ELEMENTAL REAL(realk) FUNCTION smagorinsky(dudx, dudy, dudz, dvdx, &
-    dvdy, dvdz, dwdx, dwdy, dwdz)
+            dvdy, dvdz, dwdx, dwdy, dwdz, model_constant)
         !$omp declare target
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(smagorinsky)
@@ -506,6 +372,7 @@ CONTAINS
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
+        REAL(realk), INTENT(in) :: model_constant
 
         ! Local variables
         REAL(realk) :: S_abs
@@ -515,17 +382,18 @@ CONTAINS
         ! sabs = |S_ij| = sqrt(Sij*Sij)
         S_abs = sabs(dudx, dudy, dudz, &
             dvdx, dvdy, dvdz, dwdx, dwdy, dwdz)
-        smagorinsky = Cm**2*root2*S_abs
+        smagorinsky = model_constant**2*root2*S_abs
     END FUNCTION smagorinsky
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION wale(dudx, dudy, dudz, dvdx, &
-            dvdy, dvdz, dwdx, dwdy, dwdz)
+            dvdy, dvdz, dwdx, dwdy, dwdz, model_constant)
         !$omp declare target
 
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
+        REAL(realk), INTENT(in) :: model_constant
 
         ! Local variables
         REAL(realk) :: tr
@@ -615,7 +483,7 @@ CONTAINS
         IF (Sd_abs_root < sabs_tol*S_abs) THEN
             wale = 0.0
         ELSE
-            wale = Cm**2*Sd_abs_root/ &
+            wale = model_constant**2*Sd_abs_root/ &
                 (divide0(S_abs, Sd_abs_root)**5 + 1.0)
         END IF
 
@@ -623,10 +491,12 @@ CONTAINS
 
 
     PURE ELEMENTAL REAL(realk) FUNCTION sigma(dudx, dudy, dudz, &
-            dvdx, dvdy, dvdz, dwdx, dwdy, dwdz)
+            dvdx, dvdy, dvdz, dwdx, dwdy, dwdz, model_constant)
+        !$omp declare target
         ! Function arguments
         REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
+        REAL(realk), INTENT(in) :: model_constant
 
         ! Local variables
         TYPE(tensor_t) :: gij, G
@@ -648,7 +518,7 @@ CONTAINS
         sigma2 = SQRT(eig2)
         sigma3 = SQRT(eig3)
 
-        sigma = Cm**2*divide0( &
+        sigma = model_constant**2*divide0( &
             sigma3*(sigma1-sigma2)*(sigma2-sigma3), sigma1**2)
     END FUNCTION sigma
 
