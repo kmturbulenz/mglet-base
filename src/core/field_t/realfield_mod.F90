@@ -1,7 +1,7 @@
 MODULE realfield_mod
     USE err_mod, ONLY: errr
     USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
-    USE pointers_mod, ONLY: idimbb, get_ipbb
+    USE pointers_mod, ONLY: idimbb, get_ip3, get_ipbb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
     USE utils_mod, ONLY: get_stag_shift
     USE basefield_mod
@@ -262,14 +262,15 @@ CONTAINS
     !
     ! Prior content in the field is discarded, but the staggering of the
     ! destination determine the interpolation of the source fields.
-    SUBROUTINE multiply2(this, a, b)
+    SUBROUTINE multiply2(this, a, b, device)
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
         CLASS(field_t), INTENT(in) :: a
         CLASS(field_t), INTENT(in) :: b
+        LOGICAL, INTENT(in), OPTIONAL :: device
 
         ! Local variables
-        INTEGER(intk) :: igr, ilevel, igrid
+        INTEGER(intk) :: igr, igrid
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: kstart, jstart, istart
@@ -278,17 +279,25 @@ CONTAINS
         INTEGER(intk) :: k2, j2, i2
         REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), phi1(:, :, :), &
             phi2(:, :, :)
+        LOGICAL :: device2
+
+        device2 = .FALSE.
+        IF (PRESENT(device)) device2 = device
+
+        IF (.NOT. ALL(this%active_level) .OR. .NOT. ALL(a%active_level) .OR. &
+                .NOT. ALL(b%active_level)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        IF (device2) THEN
+            CALL multiply2_device(this%arr, a%arr, b%arr, this%istag, &
+                this%jstag, this%kstag, a%istag, a%jstag, a%kstag, &
+                b%istag, b%jstag, b%kstag)
+            RETURN
+        END IF
 
         DO igr = 1, nmygrids
             igrid = mygrids(igr)
-            ilevel = level(igrid)
-
-            ! All fields must be defiend on the same levels
-            IF (.NOT. this%active_level(ilevel)) CYCLE
-            IF (a%active_level(ilevel) .EQV. .FALSE. .OR. &
-                    b%active_level(ilevel) .EQV. .FALSE.) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
 
             CALL get_mgdims(kk, jj, ii, igrid)
 
@@ -324,15 +333,16 @@ CONTAINS
     END SUBROUTINE multiply2
 
 
-    SUBROUTINE multiply3(this, a, b, c)
+    SUBROUTINE multiply3(this, a, b, c, device)
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
         CLASS(field_t), INTENT(in) :: a
         CLASS(field_t), INTENT(in) :: b
         CLASS(field_t), INTENT(in) :: c
+        LOGICAL, INTENT(in), OPTIONAL :: device
 
         ! Local variables
-        INTEGER(intk) :: igr, ilevel, igrid
+        INTEGER(intk) :: igr, igrid
         INTEGER(intk) :: kk, jj, ii
         INTEGER(intk) :: k, j, i
         INTEGER(intk) :: kstart, jstart, istart
@@ -342,18 +352,25 @@ CONTAINS
         INTEGER(intk) :: k3, j3, i3
         REAL(realk), POINTER, CONTIGUOUS :: out(:, :, :), phi1(:, :, :), &
             phi2(:, :, :), phi3(:, :, :)
+        LOGICAL :: device2
+
+        device2 = .FALSE.
+        IF (PRESENT(device)) device2 = device
+
+        IF (.NOT. ALL(this%active_level) .OR. .NOT. ALL(a%active_level) .OR. &
+                .NOT. ALL(b%active_level) .OR. .NOT. ALL(c%active_level)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        IF (device2) THEN
+            CALL multiply3_device(this%arr, a%arr, b%arr, c%arr, this%istag, &
+                this%jstag, this%kstag, a%istag, a%jstag, a%kstag, &
+                b%istag, b%jstag, b%kstag, c%istag, c%jstag, c%kstag)
+            RETURN
+        END IF
 
         DO igr = 1, nmygrids
             igrid = mygrids(igr)
-            ilevel = level(igrid)
-
-            ! All fields must be defiend on the same levels
-            IF (.NOT. this%active_level(ilevel)) CYCLE
-            IF (a%active_level(ilevel) .EQV. .FALSE. .OR. &
-                    b%active_level(ilevel) .EQV. .FALSE. .OR. &
-                    c%active_level(ilevel) .EQV. .FALSE.) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
 
             CALL get_mgdims(kk, jj, ii, igrid)
 
@@ -392,6 +409,131 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE multiply3
+
+
+    SUBROUTINE multiply2_device(out, phi1, phi2, istag, jstag, kstag, &
+            i1stag, j1stag, k1stag, i2stag, j2stag, k2stag)
+        REAL(realk), INTENT(inout) :: out(*)
+        REAL(realk), INTENT(in) :: phi1(*), phi2(*)
+        INTEGER(intk), INTENT(in) :: istag, jstag, kstag
+        INTEGER(intk), INTENT(in) :: i1stag, j1stag, k1stag
+        INTEGER(intk), INTENT(in) :: i2stag, j2stag, k2stag
+
+        INTEGER(intk) :: igr, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, j, k, idx, idx1, idx2, stride_i
+        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: ishift1, jshift1, kshift1
+        INTEGER(intk) :: ishift2, jshift2, kshift2
+
+        ishift1 = istag - i1stag
+        jshift1 = jstag - j1stag
+        kshift1 = kstag - k1stag
+        ishift2 = istag - i2stag
+        jshift2 = jstag - j2stag
+        kshift2 = kstag - k2stag
+
+        !$omp target teams distribute firstprivate(ishift1, jshift1, kshift1, &
+        !$omp& ishift2, jshift2, kshift2) private(igr, igrid, kk, jj, ii, &
+        !$omp& ip3, stride_i, istart, istop, jstart, jstop, kstart, kstop)
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+
+            istart = 1 + MAX(0, -ishift1, -ishift2)
+            istop = ii - MAX(0, ishift1, ishift2)
+            jstart = 1 + MAX(0, -jshift1, -jshift2)
+            jstop = jj - MAX(0, jshift1, jshift2)
+            kstart = 1 + MAX(0, -kshift1, -kshift2)
+            kstop = kk - MAX(0, kshift1, kshift2)
+            stride_i = kk*jj
+
+            !$omp parallel do collapse(3) private(i, j, k, idx, idx1, idx2)
+            DO i = istart, istop
+                DO j = jstart, jstop
+                    DO k = kstart, kstop
+                        idx = ip3 + k - 1 + (j - 1)*kk + (i - 1)*stride_i
+                        idx1 = idx + kshift1 + jshift1*kk &
+                            + ishift1*stride_i
+                        idx2 = idx + kshift2 + jshift2*kk &
+                            + ishift2*stride_i
+                        out(idx) = 0.25_realk*(phi1(idx) + phi1(idx1)) &
+                            *(phi2(idx) + phi2(idx2))
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE multiply2_device
+
+
+    SUBROUTINE multiply3_device(out, phi1, phi2, phi3, istag, jstag, kstag, &
+            i1stag, j1stag, k1stag, i2stag, j2stag, k2stag, i3stag, j3stag, &
+            k3stag)
+        REAL(realk), INTENT(inout) :: out(*)
+        REAL(realk), INTENT(in) :: phi1(*), phi2(*), phi3(*)
+        INTEGER(intk), INTENT(in) :: istag, jstag, kstag
+        INTEGER(intk), INTENT(in) :: i1stag, j1stag, k1stag
+        INTEGER(intk), INTENT(in) :: i2stag, j2stag, k2stag
+        INTEGER(intk), INTENT(in) :: i3stag, j3stag, k3stag
+
+        INTEGER(intk) :: igr, igrid, kk, jj, ii, ip3
+        INTEGER(intk) :: i, j, k, idx, idx1, idx2, idx3, stride_i
+        INTEGER(intk) :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk) :: ishift1, jshift1, kshift1
+        INTEGER(intk) :: ishift2, jshift2, kshift2
+        INTEGER(intk) :: ishift3, jshift3, kshift3
+
+        ishift1 = istag - i1stag
+        jshift1 = jstag - j1stag
+        kshift1 = kstag - k1stag
+        ishift2 = istag - i2stag
+        jshift2 = jstag - j2stag
+        kshift2 = kstag - k2stag
+        ishift3 = istag - i3stag
+        jshift3 = jstag - j3stag
+        kshift3 = kstag - k3stag
+
+        !$omp target teams distribute firstprivate(ishift1, jshift1, kshift1, &
+        !$omp& ishift2, jshift2, kshift2, ishift3, jshift3, kshift3) &
+        !$omp& private(igr, igrid, kk, jj, ii, ip3, stride_i, istart, istop, &
+        !$omp& jstart, jstop, kstart, kstop)
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+
+            istart = 1 + MAX(0, -ishift1, -ishift2, -ishift3)
+            istop = ii - MAX(0, ishift1, ishift2, ishift3)
+            jstart = 1 + MAX(0, -jshift1, -jshift2, -jshift3)
+            jstop = jj - MAX(0, jshift1, jshift2, jshift3)
+            kstart = 1 + MAX(0, -kshift1, -kshift2, -kshift3)
+            kstop = kk - MAX(0, kshift1, kshift2, kshift3)
+            stride_i = kk*jj
+
+            !$omp parallel do collapse(3) &
+            !$omp& private(i, j, k, idx, idx1, idx2, idx3)
+            DO i = istart, istop
+                DO j = jstart, jstop
+                    DO k = kstart, kstop
+                        idx = ip3 + k - 1 + (j - 1)*kk + (i - 1)*stride_i
+                        idx1 = idx + kshift1 + jshift1*kk &
+                            + ishift1*stride_i
+                        idx2 = idx + kshift2 + jshift2*kk &
+                            + ishift2*stride_i
+                        idx3 = idx + kshift3 + jshift3*kk &
+                            + ishift3*stride_i
+                        out(idx) = 0.125_realk*(phi1(idx) + phi1(idx1)) &
+                            *(phi2(idx) + phi2(idx2)) &
+                            *(phi3(idx) + phi3(idx3))
+                    END DO
+                END DO
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE multiply3_device
 
     ! Shift position (staggering) of field. The destination field istag, jstag,
     ! kstag determine the interpolation of the source fields

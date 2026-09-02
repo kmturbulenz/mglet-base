@@ -90,7 +90,7 @@ CONTAINS
     ! Routine to compute the UV_AVG, UW_AVG and VW_AVG fields
     SUBROUTINE comp_uv_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -122,9 +122,10 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL field%multiply(in1, in2)
+        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%multiply(in1, in2, device=.TRUE.)
     END SUBROUTINE comp_uv_avg
 
 
@@ -132,7 +133,7 @@ CONTAINS
     ! UVW_AVG, UWW_AVG, VVW_AVG and VWW_AVG fields
     SUBROUTINE comp_uvw_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -195,26 +196,22 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL field%multiply(in1, in2, in3)
+        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%multiply(in1, in2, in3, device=.TRUE.)
     END SUBROUTINE comp_uvw_avg
 
 
     SUBROUTINE comp_laplacep_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
         ! Local variables
         TYPE(field_t), POINTER :: p_f, bp_f, dx_f, dy_f, dz_f
-        REAL(realk), CONTIGUOUS, POINTER :: p(:, :, :), bp(:, :, :), &
-            lpp(:, :, :), dx(:), dy(:), dz(:)
         INTEGER(intk), PARAMETER :: units(*) = [1, -3, -2, 0, 0, 0, 0]
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: nfro, nbac, nlft, nrgt, ntop, nbot
-        INTEGER(intk) :: kk, jj, ii
 
         IF (name /= "laplaceP_AVG") CALL errr(__FILE__, __LINE__)
 
@@ -225,30 +222,17 @@ CONTAINS
         CALL get_field(dz_f, "DZ")
 
         ! Create a field to store the result, this creates an empty field
-        CALL field%init(name, units=units)
+        CALL push_field(field, name, units=units)
+        CALL zero_field_arr(field, device=.TRUE.)
 
-        ! Compute laplaceP
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL field%get_ptr(lpp, igrid)
-            CALL p_f%get_ptr(p, igrid)
-            CALL bp_f%get_ptr(bp, igrid)
-            CALL dx_f%get_ptr(dx, igrid)
-            CALL dy_f%get_ptr(dy, igrid)
-            CALL dz_f%get_ptr(dz, igrid)
-            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL calclpp_grid(kk, jj, ii, lpp, p, bp, dx, dy, dz, &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
-        END DO
+        CALL calclpp(field%arr, p_f%arr, bp_f%arr, dx_f%arr, dy_f%arr, &
+            dz_f%arr)
     END SUBROUTINE comp_laplacep_avg
 
 
     SUBROUTINE comp_laplacep_sqr_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -258,14 +242,44 @@ CONTAINS
         IF (name /= "laplaceP_SQR_AVG") CALL errr(__FILE__, __LINE__)
 
         CALL comp_laplacep_avg(field, "laplaceP_AVG", dt)
-        field%arr = field%arr(:)**2
+        CALL power_stat_field(field, 2_intk)
         field%name = "laplaceP_SQR_AVG"
         field%units = field%units*2
     END SUBROUTINE comp_laplacep_sqr_avg
 
 
+    SUBROUTINE calclpp(lpp, p, bp, dx, dy, dz)
+        REAL(realk), INTENT(inout) :: lpp(*)
+        REAL(realk), INTENT(in) :: p(*), bp(*), dx(*), dy(*), dz(*)
+
+        INTEGER(intk) :: igr, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
+        INTEGER(intk) :: nfro, nbac, nlft, nrgt, ntop, nbot
+
+        !$omp target teams distribute private(igr, igrid, kk, jj, ii, ip3, &
+        !$omp& ipx, ipy, ipz, nfro, nbac, nlft, nrgt, ntop, nbot)
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+
+            !$omp parallel
+            CALL calclpp_grid(kk, jj, ii, lpp(ip3), p(ip3), bp(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), nfro, nbac, nrgt, nlft, nbot, &
+                ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE calclpp
+
+
     SUBROUTINE calclpp_grid(kk, jj, ii, lpp, p, bp, dx, dy, dz, &
             nfro, nbac, nrgt, nlft, nbot, ntop)
+        !$omp declare target
+
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(inout) :: lpp(kk, jj, ii)
@@ -281,6 +295,12 @@ CONTAINS
         REAL(realk) :: d2pdx2, d2pdy2, d2pdz2
 
         ! 2 = FIX, 5 = NOS, 6 = SLI, 19 = CO1
+        ifr = 0
+        iba = 0
+        jri = 0
+        jle = 0
+        kbo = 0
+        kto = 0
         IF (nfro == 2 .OR. nfro == 5 .OR. nfro == 6 .OR. nfro == 19) ifr = 1
         IF (nrgt == 2 .OR. nrgt == 5 .OR. nrgt == 6 .OR. nrgt == 19) jri = 1
         IF (nbot == 2 .OR. nbot == 5 .OR. nbot == 6 .OR. nbot == 19) kbo = 1
@@ -293,40 +313,26 @@ CONTAINS
         ! the entire field should have been completely defined inside this
         ! routine
 
+        !$omp do collapse(3) private(k, j, i, flfr, flba, flri, flle, &
+        !$omp& flto, flbo, d2pdx2, d2pdy2, d2pdz2)
         DO i = 3, ii-2
-            IF (ifr == 1 .AND. i == 3) THEN
-                flfr = 1.0
-            ELSE
-                flfr = 0.0
-            END IF
-            IF (iba == 1 .AND. i == ii-2) THEN
-                flba = 1.0
-            ELSE
-                flba = 0.0
-            END IF
-
             DO j = 3, jj-2
-                IF (jri == 1 .AND. j == 3) THEN
-                    flri = 1.0
-                ELSE
-                    flri = 0.0
-                END IF
-                IF (jle == 1 .AND. j == jj-2) THEN
-                    flle = 1.0
-                ELSE
-                    flle = 0.0
-                END IF
-
                 DO k = 3, kk-2
+                    flfr = 0.0
+                    flba = 0.0
+                    flri = 0.0
+                    flle = 0.0
+                    flbo = 0.0
+                    flto = 0.0
+                    IF (ifr == 1 .AND. i == 3) flfr = 1.0
+                    IF (iba == 1 .AND. i == ii-2) flba = 1.0
+                    IF (jri == 1 .AND. j == 3) flri = 1.0
+                    IF (jle == 1 .AND. j == jj-2) flle = 1.0
                     IF (kbo == 1 .AND. k == 3) THEN
                         flbo = 1.0
-                    ELSE
-                        flbo = 0.0
                     END IF
                     IF(kto == 1 .AND. k == kk-2) THEN
                         flto = 1.0
-                    ELSE
-                        flto = 0.0
                     END IF
 
                     d2pdx2 = ((1.0-flba)*bp(k, j, i+1)*p(k, j, i+1) &
@@ -348,12 +354,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE calclpp_grid
 
 
     SUBROUTINE comp_dissip_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -363,15 +370,7 @@ CONTAINS
         TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
         TYPE(field_t), POINTER :: rddx_f, rddy_f, rddz_f
 
-        REAL(realk), POINTER, CONTIGUOUS :: u(:, :, :), v(:, :, :), &
-            w(:, :, :), dfg(:, :, :), bp(:, :, :), g(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: dx(:), dy(:), dz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-        REAL(realk), POINTER, CONTIGUOUS :: rddx(:), rddy(:), rddz(:)
-
         INTEGER(intk), PARAMETER :: units(*) = [0, 2, -3, 0, 0, 0, 0]
-        INTEGER(intk) :: i, igrid
-        INTEGER(intk) :: kk, jj, ii
 
         IF (name /= "DISSIP_AVG") CALL errr(__FILE__, __LINE__)
 
@@ -396,41 +395,48 @@ CONTAINS
         CALL get_field(rddz_f, "RDDZ")
 
         ! Create a field to store the result, this creates an empty field
-        CALL field%init(name, units=units)
+        CALL push_field(field, name, units=units)
+        CALL zero_field_arr(field, device=.TRUE.)
 
-        ! Compute Dissipation (It considers only molecular viscosity so far)
-        DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL field%get_ptr(dfg, igrid)
-
-            CALL u_f%get_ptr(u, igrid)
-            CALL v_f%get_ptr(v, igrid)
-            CALL w_f%get_ptr(w, igrid)
-            CALL bp_f%get_ptr(bp, igrid)
-            CALL g_f%get_ptr(g, igrid)
-
-            CALL dx_f%get_ptr(dx, igrid)
-            CALL dy_f%get_ptr(dy, igrid)
-            CALL dz_f%get_ptr(dz, igrid)
-
-            CALL ddx_f%get_ptr(ddx, igrid)
-            CALL ddy_f%get_ptr(ddy, igrid)
-            CALL ddz_f%get_ptr(ddz, igrid)
-
-            CALL rddx_f%get_ptr(rddx, igrid)
-            CALL rddy_f%get_ptr(rddy, igrid)
-            CALL rddz_f%get_ptr(rddz, igrid)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-            CALL calc_dissip(kk, jj, ii, dfg, u, v, w, bp, g, &
-                dx, dy, dz, ddx, ddy, ddz, rddx, rddy, rddz)
-        END DO
+        CALL calc_dissip_impl(field%arr, u_f%arr, v_f%arr, w_f%arr, &
+            bp_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, ddx_f%arr, &
+            ddy_f%arr, ddz_f%arr, rddx_f%arr, rddy_f%arr, rddz_f%arr)
     END SUBROUTINE comp_dissip_avg
+
+
+    SUBROUTINE calc_dissip_impl(dfg, u, v, w, bp, g, dx, dy, dz, ddx, ddy, &
+            ddz, rddx, rddy, rddz)
+        REAL(realk), INTENT(inout) :: dfg(*)
+        REAL(realk), INTENT(in) :: u(*), v(*), w(*), bp(*), g(*)
+        REAL(realk), INTENT(in) :: dx(*), dy(*), dz(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(in) :: rddx(*), rddy(*), rddz(*)
+
+        INTEGER(intk) :: igr, igrid, kk, jj, ii, ip3, ipx, ipy, ipz
+
+        !$omp target teams distribute private(igr, igrid, kk, jj, ii, ip3, &
+        !$omp& ipx, ipy, ipz)
+        DO igr = 1, nmygrids
+            igrid = mygrids(igr)
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL calc_dissip(kk, jj, ii, dfg(ip3), u(ip3), v(ip3), w(ip3), &
+                bp(ip3), g(ip3), dx(ipx), dy(ipy), dz(ipz), ddx(ipx), &
+                ddy(ipy), ddz(ipz), rddx(ipx), rddy(ipy), rddz(ipz))
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+    END SUBROUTINE calc_dissip_impl
 
 
     SUBROUTINE calc_dissip(kk, jj, ii, dfg, u, v, w, bp, g, &
         dx, dy, dz, ddx, ddy, ddz, rddx, rddy, rddz)
+        !$omp declare target
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -448,13 +454,14 @@ CONTAINS
         REAL(realk) :: dxf, dyf, dzf
         REAL(realk) :: dudx, dudy, dudz, dvdx, dvdy, dvdz, dwdx, dwdy, dwdz
 
+        !$omp do collapse(3) private(k, j, i, rddxpl, rddypl, rddzpl, &
+        !$omp& dxf, dyf, dzf, dudx, dudy, dudz, dvdx, dvdy, dvdz, dwdx, &
+        !$omp& dwdy, dwdz)
         DO i = 3, ii-2
-            dxf = 0.5*dx(i-1)*rddx(i)
-
             DO j = 3, jj-2
-                dyf = 0.5*dy(j-1)*rddy(j)
-
                 DO k = 3, kk-2
+                    dxf = 0.5*dx(i-1)*rddx(i)
+                    dyf = 0.5*dy(j-1)*rddy(j)
                     dzf = 0.5*dz(k-1)*rddz(k)
 
                     rddxpl = 1.0/(ddx(i) + 0.5*dx(i+1) + 0.5*dx(i-1))
@@ -500,12 +507,13 @@ CONTAINS
                 END DO
             END DO
         END DO
+        !$omp end do
     END SUBROUTINE calc_dissip
 
 
     SUBROUTINE comp_up_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -537,16 +545,17 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL field%multiply(in1, in2)
+        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%multiply(in1, in2, device=.TRUE.)
     END SUBROUTINE comp_up_avg
 
 
     ! This subroutine computes the term du_i/dx_i * P
     SUBROUTINE comp_uxp_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -588,22 +597,22 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f)
+        CALL zero_field_arr(ux_f, device=.TRUE.)
 
         CALL differentiate(ux_f, u_f, ivar)
 
-        CALL field%multiply(ux_f, p_f)
+        CALL field%multiply(ux_f, p_f, device=.TRUE.)
         CALL pop_field(ux_f)
     END SUBROUTINE comp_uxp_avg
 
 
     SUBROUTINE comp_uxux_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -684,21 +693,21 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f)
+        CALL zero_field_arr(ux_f, device=.TRUE.)
         CALL differentiate(ux_f, u_f, ivar)
 
-        field%arr = ux_f%arr**2
+        CALL product_stat_fields(field, ux_f, ux_f)
         CALL pop_field(ux_f)
     END SUBROUTINE comp_uxux_avg
 
 
     SUBROUTINE comp_uxvx_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -811,14 +820,14 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
         CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f)
-        CALL zero_field_arr(vx_f)
+        CALL zero_field_arr(ux_f, device=.TRUE.)
+        CALL zero_field_arr(vx_f, device=.TRUE.)
 
         CALL differentiate(ux_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
@@ -827,7 +836,7 @@ CONTAINS
         ! multiply method won't be used.
         ! TO DO: if location is not the same multiply method should be used.
 
-        field%arr = ux_f%arr * vx_f%arr
+        CALL product_stat_fields(field, ux_f, vx_f)
         CALL pop_field(vx_f)
         CALL pop_field(ux_f)
     END SUBROUTINE comp_uxvx_avg
@@ -835,7 +844,7 @@ CONTAINS
 
     SUBROUTINE comp_uyvxp_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -883,24 +892,25 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
+        CALL zero_field_arr(field, device=.TRUE.)
         CALL push_field(uy_f, name_uy, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
         CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
         CALL push_field(temp_f, 'tmp', istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(uy_f)
-        CALL zero_field_arr(vx_f)
-        CALL zero_field_arr(temp_f)
+        CALL zero_field_arr(uy_f, device=.TRUE.)
+        CALL zero_field_arr(vx_f, device=.TRUE.)
+        CALL zero_field_arr(temp_f, device=.TRUE.)
 
         CALL differentiate(uy_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
-        temp_f%arr = uy_f%arr + vx_f%arr
+        CALL add_stat_fields(temp_f, uy_f, vx_f)
 
         CALL get_field(p_f, "P")
-        CALL field%multiply(temp_f, p_f)
+        CALL field%multiply(temp_f, p_f, device=.TRUE.)
 
         CALL pop_field(temp_f)
         CALL pop_field(vx_f)
