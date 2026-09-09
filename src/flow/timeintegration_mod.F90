@@ -742,6 +742,10 @@ CONTAINS
         INTEGER(intk) :: i, ip3, igrid
         INTEGER(intk) :: kk, jj, ii
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("maskbp_impl")
+#endif
+
         !$omp target teams distribute private(i, ip3, igrid, kk, jj, ii)
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -754,6 +758,10 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE maskbp_impl
 
 

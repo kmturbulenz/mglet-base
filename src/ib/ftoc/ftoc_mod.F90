@@ -30,10 +30,10 @@ CONTAINS
         LOGICAL :: device2
 #endif
 
+        IF (.NOT. is_ftoc_core_init) CALL errr(__FILE__, __LINE__)
+
         ! The coarsest level cannot restrict values to a coarser level
         IF (ilevel == minlevel) RETURN
-
-        IF (.NOT. is_ftoc_core_init) CALL errr(__FILE__, __LINE__)
 
         CALL start_timer(220)
 
@@ -68,9 +68,12 @@ CONTAINS
         LOGICAL :: device2
 #endif
 
-        CALL start_timer(220)
-
         IF (.NOT. is_ftoc_core_init) CALL errr(__FILE__, __LINE__)
+
+        ! The coarsest level cannot restrict values to a coarser level
+        IF (ilevel == minlevel) RETURN
+
+        CALL start_timer(220)
 
 #ifdef _MGLET_OFFLOAD_
         IF (PRESENT(device)) THEN

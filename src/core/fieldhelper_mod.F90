@@ -132,6 +132,10 @@ CONTAINS
         REAL(realk), INTENT(inout) :: dest(:)
         REAL(realk), INTENT(in) :: source(:)
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("copy_arr")
+#endif
+
 #ifdef _MGLET_WORKAROUNDS_
         CALL copyarr_real_c(SIZE(dest, kind=c_size_t), dest, source)
 #else
@@ -143,6 +147,10 @@ CONTAINS
             END DO
             !$omp end target teams loop
         END BLOCK
+#endif
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
 #endif
     END SUBROUTINE copy_arr
 

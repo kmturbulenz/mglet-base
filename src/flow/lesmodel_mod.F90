@@ -181,6 +181,10 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("lesmodel_gc_impl")
+#endif
+
         !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, &
         !$omp& ipz, kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
         DO i = 1, nmygrids
@@ -202,6 +206,10 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE lesmodel_gc_impl
 
 
@@ -210,6 +218,10 @@ CONTAINS
         REAL(realk), INTENT(in) :: bp(*)
 
         INTEGER(intk) :: i, igrid, ip3, kk, jj, ii
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("setginbody_impl")
+#endif
 
         !$omp target teams distribute private(i, igrid, ip3, kk, jj, ii)
         DO i = 1, nmygrids
@@ -221,6 +233,10 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE setginbody_impl
 
 
@@ -311,6 +327,10 @@ CONTAINS
 
         INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii, ip3, ipbb
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_push("apply_boundg_impl")
+#endif
+
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipbb)
         DO itask = 1, ntasks
@@ -352,6 +372,10 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
+        CALL profile_range_pop()
+#endif
     END SUBROUTINE apply_boundg_impl
 
 
