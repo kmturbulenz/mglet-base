@@ -24,16 +24,12 @@ CONTAINS
         CALL get_field(gsap, "GSAP")
         CALL get_field(bp_f, "BP")
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi")
-#endif
 
         CALL laplacephi_impl(res_f%arr, phi_f%arr, gsaw%arr, gsae%arr, &
             gsas%arr, gsan%arr, gsab%arr, gsat%arr, gsap%arr, bp_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE laplacephi
 
 
@@ -86,17 +82,13 @@ CONTAINS
         CALL get_field(gsap, "GSAP")
         CALL get_field(bp_f, "BP")
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("laplacephi_level")
-#endif
 
         CALL laplacephi_level_impl(ilevel, res_f%arr, phi_f%arr, gsaw%arr, &
             gsae%arr, gsas%arr, gsan%arr, gsab%arr, gsat%arr, gsap%arr, &
             bp_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
         END SUBROUTINE laplacephi_level
 
 

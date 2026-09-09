@@ -1016,6 +1016,8 @@ CONTAINS
         INTEGER :: iop
         INTEGER(c_size_t) :: count
 
+        CALL profile_range_push("wmxpolquadvel")
+
         iop = IACHAR(ityp)
         SELECT CASE (cmp)
         CASE(1)
@@ -1030,6 +1032,8 @@ CONTAINS
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
+
+        CALL profile_range_pop()
     END SUBROUTINE wmxpolquadvel
 
 
@@ -1047,6 +1051,8 @@ CONTAINS
         sstart = stencil_start(cmp, ilevel) - 1_c_size_t
         count = stencil_end(cmp, ilevel) - sstart
 
+        CALL profile_range_push("wmxpolquad")
+
         SELECT CASE (cmp)
         CASE(1)
             CALL wmxpolquad_c(iop, sstart, count, ustencils, u)
@@ -1057,6 +1063,8 @@ CONTAINS
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
+
+        CALL profile_range_pop()
     END SUBROUTINE wmxpolquad
 
 
@@ -1071,7 +1079,11 @@ CONTAINS
         sstart = fcorr_start(ilevel) - 1_c_size_t
         count = fcorr_end(ilevel) - sstart
 
+        CALL profile_range_push("wmxpolquadfcorr")
+
         CALL wmxpolquadfcorr_c(sstart, count, fcorrstencils, u, v, w)
+
+        CALL profile_range_pop()
     END SUBROUTINE wmxpolquadfcorr
 
 

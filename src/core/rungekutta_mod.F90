@@ -336,9 +336,7 @@ CONTAINS
         REAL(realk), INTENT(in) :: frhs
         REAL(realk), INTENT(in) :: dtfu
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rkstep")
-#endif
 
 #ifdef _MGLET_WORKAROUNDS_
         CALL rkstep_c(SIZE(p, kind=c_size_t), p, dp, rhsp, frhs, dtfu)
@@ -356,9 +354,7 @@ CONTAINS
         END BLOCK
 #endif
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE rkstep
 
 END MODULE rungekutta_mod

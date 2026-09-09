@@ -299,9 +299,7 @@ CONTAINS
         ! Leaving immediately if there are no tasks to process
         IF (nmpirtasks < 1) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpirecv")
-#endif
 
         !$omp target data use_device_addr(recvbuf)
         DO i = 1, nmpirtasks
@@ -318,9 +316,7 @@ CONTAINS
         END DO
         !$omp end target data
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         ! Checking for the dummy entry at position (end+1)
         IF (mpirtasks(1, nmpirtasks+1) /= -1) THEN
@@ -452,15 +448,11 @@ CONTAINS
         ! Leaving immediately if there are no tasks to process
         IF (nselftasks < 1) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks")
-#endif
 
         CALL process_selftasks_impl(fc%arr, ff%arr, nselftasks, etasks)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         ! Checking for the dummy entry at position (end+1)
         IF (etasks(1, nselftasks+1) /= -1) THEN
@@ -564,9 +556,7 @@ CONTAINS
         ! Leaving immediately if there are no tasks to process
         IF (nmpistasks < 1) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpisend")
-#endif
 
         !$omp target data use_device_addr(sendbuf)
         DO i = 1, nmpistasks
@@ -592,9 +582,7 @@ CONTAINS
         ! Setting the number of posted receives
         nsend = nmpistasks
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_mpisendtasks
 
 
@@ -610,15 +598,11 @@ CONTAINS
         ! Leaving immediately if there are no tasks to process
         IF (nstasks < 1) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks")
-#endif
 
         CALL process_sendtasks_impl(fc%arr, nstasks, stasks)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
         END SUBROUTINE process_sendtasks
 
 
@@ -820,15 +804,11 @@ CONTAINS
         ! Leaving immediately if there are no tasks to process
         IF (nrtasks < 1) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
-#endif
 
         CALL process_recvtasks_impl(ff%arr, nrtasks, rtasks)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
         END SUBROUTINE process_recvtasks
 
 

@@ -109,10 +109,7 @@ CONTAINS
         IF (idx > maxtimers) CALL errr(__FILE__, __LINE__)
 
         IF (timers(idx)%tic < 0.0) THEN
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            ! Only call if annotations are enabled to minimize overhead
             CALL profile_range_push(timers(idx)%desc)
-#endif
             tic = MPI_Wtime()
 
             timers(idx)%tic = tic
@@ -154,10 +151,7 @@ CONTAINS
         END IF
 
         toc = MPI_Wtime()
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-        ! Only call if annotations are enabled to minimize overhead
         CALL profile_range_pop()
-#endif
         timers(idx)%n = timers(idx)%n + 1
 
         ! Update current "inclusivce" time

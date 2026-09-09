@@ -153,6 +153,8 @@ CONTAINS
         INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
         REAL(realk) :: pinf
 
+        CALL profile_range_push("apply_bound_flow_impl")
+
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb, pinf)
         DO itask = 1, ntasks
@@ -222,6 +224,8 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+        CALL profile_range_pop()
     END SUBROUTINE apply_bound_flow_impl
 
 
@@ -234,6 +238,8 @@ CONTAINS
 
         INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii
         INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
+
+        CALL profile_range_push("apply_bound_flow_velocity_impl")
 
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb)
@@ -291,6 +297,8 @@ CONTAINS
             !$omp end parallel
         END DO
         !$omp end target teams distribute
+
+        CALL profile_range_pop()
     END SUBROUTINE apply_bound_flow_velocity_impl
 
 

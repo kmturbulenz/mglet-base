@@ -512,17 +512,13 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter1_hp")
-#endif
 
         CALL sipiter1_hyperplane_level_impl(ilevel, rhs_f%arr, res_f%arr, &
             siplw%arr, sipls%arr, siplb%arr, siplpr%arr, mip_hp_f%arr, &
             idx_hp_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE sipiter1_hyperplane_level
 
 
@@ -599,17 +595,13 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("sipiter2_hp")
-#endif
 
         CALL sipiter2_hyperplane_level_impl(ilevel, dp_f%arr, res_f%arr, &
             sipue_f%arr, sipun_f%arr, siput_f%arr, mip_hp_f%arr, &
             idx_hp_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE sipiter2_hyperplane_level
 
 
@@ -654,15 +646,11 @@ CONTAINS
         maxabs = 0.0
         maxabslevel = 0.0
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maxabscal")
-#endif
 
         CALL maxabscal_impl(phi_f%arr, maxabsgrid)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         DO imygrid = 1, nmygrids
             igrid = mygrids(imygrid)
@@ -731,15 +719,11 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("rescal")
-#endif
 
         CALL rescal_impl(rhs_f%arr, res_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE rescal
 
 
@@ -803,16 +787,12 @@ CONTAINS
         CALL get_field(rdz_f, "RDZ")
         CALL get_field(bp_f, "BP")
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("mgpcorr")
-#endif
 
         CALL mgpcorr_impl(u_f%arr, v_f%arr, w_f%arr, p_f%arr, dp_f%arr, &
             bp_f%arr, rdx_f%arr, rdy_f%arr, rdz_f%arr, rfak)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE mgpcorr
 
 
@@ -920,9 +900,7 @@ CONTAINS
 
         IF (SIZE(dp%arr) /= SIZE(hilf%arr)) CALL errr(__FILE__, __LINE__)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("accumulate_pcorr")
-#endif
 
 #ifdef _MGLET_WORKAROUNDS_
         CALL accumulate_pcorr_c(SIZE(dp%arr, kind=c_size_t), dp%arr, hilf%arr)
@@ -939,9 +917,7 @@ CONTAINS
         END BLOCK
 #endif
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE accumulate_pcorr
 
 END MODULE pressuresolver_mod

@@ -30,12 +30,14 @@ CONTAINS
         ! Subroutine arguments
         CHARACTER(*), INTENT(in) :: name
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
         ! Local variables
         CHARACTER(c_char), DIMENSION(LEN(name)+1) :: c_name
 
         c_name(1:LEN(name)) = TRANSFER(name, c_name)
         c_name(LEN_TRIM(name)+1) = c_null_char
         CALL profile_range_push_c(c_name)
+#endif
     END SUBROUTINE profile_range_push
 
     SUBROUTINE profile_range_pop()
@@ -44,19 +46,22 @@ CONTAINS
 
         ! Local variables
         ! none...
-
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop_c()
+#endif
     END SUBROUTINE profile_range_pop
 
     SUBROUTINE profile_mark(name)
         ! Subroutine arguments
         CHARACTER(*), INTENT(in) :: name
 
+#ifdef _MGLET_PROFILE_ANNOTATIONS_
         ! Local variables
         CHARACTER(c_char), DIMENSION(LEN(name)+1) :: c_name
 
         c_name(1:LEN(name)) = TRANSFER(name, c_name)
         c_name(LEN_TRIM(name)+1) = c_null_char
         CALL profile_mark_c(c_name)
+#endif
     END SUBROUTINE profile_mark
 END MODULE profile_tools_mod

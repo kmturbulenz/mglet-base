@@ -144,17 +144,13 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("bound_pressure_impl_bp")
-#endif
 
         CALL bound_pressure_impl_bp_arr(nboundtasks, ilevel_index, dp_f%arr, &
             dp_f%buffers, bp_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
             ddx_f%arr, ddy_f%arr, ddz_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE bound_pressure_impl_bp
 
 
@@ -233,17 +229,13 @@ CONTAINS
         CALL level_index(ilevel_index, ilevel)
         nboundtasks = nboundtaskslvl(ilevel_index)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("bound_pressure_impl_nobp")
-#endif
 
         CALL bound_pressure_impl_nobp_arr(nboundtasks, ilevel_index, &
             dp_f%arr, dp_f%buffers, dx_f%arr, dy_f%arr, dz_f%arr, &
             ddx_f%arr, ddy_f%arr, ddz_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE bound_pressure_impl_nobp
 
 
