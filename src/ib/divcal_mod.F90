@@ -35,17 +35,13 @@ CONTAINS
 
         active_levels = u_f%active_level(minlevel:maxlevel)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("divcal")
-#endif
 
         CALL divcal_impl(div_f%arr, u_f%arr, v_f%arr, w_f%arr, &
             rddx_f%arr, rddy_f%arr, rddz_f%arr, bp_f%arr, active_levels, &
             fak, device2)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         CALL stop_timer(240)
     END SUBROUTINE divcal

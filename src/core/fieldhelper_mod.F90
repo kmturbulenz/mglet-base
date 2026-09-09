@@ -55,9 +55,7 @@ CONTAINS
             device2 = .FALSE.
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_push("zero_field_arr_realk")
-#endif
+        CALL profile_range_push("zero_field_arr_realk")
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
@@ -78,9 +76,7 @@ CONTAINS
             field%arr = 0.0_realk
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_pop()
-#endif
+        CALL profile_range_pop()
     END SUBROUTINE zero_field_arr_realk
 
 
@@ -98,9 +94,7 @@ CONTAINS
             device2 = .FALSE.
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("zero_field_arr_ifk")
-#endif
 
         IF (device2) THEN
 #ifdef _MGLET_WORKAROUNDS_
@@ -121,9 +115,7 @@ CONTAINS
             field%arr = 0_intk
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
-            CALL profile_range_pop()
-#endif
+        CALL profile_range_pop()
     END SUBROUTINE zero_field_arr_ifk
 
 
@@ -132,9 +124,7 @@ CONTAINS
         REAL(realk), INTENT(inout) :: dest(:)
         REAL(realk), INTENT(in) :: source(:)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("copy_arr")
-#endif
 
 #ifdef _MGLET_WORKAROUNDS_
         CALL copyarr_real_c(SIZE(dest, kind=c_size_t), dest, source)
@@ -149,9 +139,7 @@ CONTAINS
         END BLOCK
 #endif
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE copy_arr
 
 
@@ -167,11 +155,7 @@ CONTAINS
         has_message = PRESENT(message)
 
         IF (has_message) THEN
-        ! Can not wrap the IF statement or the compiler will complain about
-        ! an unused variable...
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
             CALL profile_range_push(message)
-#endif
         END IF
 
         !$omp target update to(f1%arr)
@@ -195,11 +179,9 @@ CONTAINS
             !$omp target update to(f7%arr)
         END IF
 
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
             CALL profile_range_pop()
         END IF
-#endif
     END SUBROUTINE map_arr_to_device
 
 
@@ -215,11 +197,7 @@ CONTAINS
         has_message = PRESENT(message)
 
         IF (has_message) THEN
-        ! Can not wrap the IF statement or the compiler will complain about
-        ! an unused variable...
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
             CALL profile_range_push(message)
-#endif
         END IF
 
         !$omp target update to(f1%buffers)
@@ -231,11 +209,9 @@ CONTAINS
             !$omp target update to(f3%buffers)
         END IF
 
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
             CALL profile_range_pop()
         END IF
-#endif
     END SUBROUTINE map_buffers_to_device
 
 
@@ -251,11 +227,7 @@ CONTAINS
         has_message = PRESENT(message)
 
         IF (has_message) THEN
-        ! Can not wrap the IF statement or the compiler will complain about
-        ! an unused variable...
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
             CALL profile_range_push(message)
-#endif
         END IF
 
         !$omp target update from(f1%arr)
@@ -279,11 +251,9 @@ CONTAINS
             !$omp target update from(f7%arr)
         END IF
 
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
             CALL profile_range_pop()
         END IF
-#endif
     END SUBROUTINE map_arr_from_device
 
 
@@ -299,11 +269,7 @@ CONTAINS
         has_message = PRESENT(message)
 
         IF (has_message) THEN
-        ! Can not wrap the IF statement or the compiler will complain about
-        ! an unused variable...
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
             CALL profile_range_push(message)
-#endif
         END IF
 
         !$omp target update from(f1%buffers)
@@ -315,10 +281,8 @@ CONTAINS
             !$omp target update from(f3%buffers)
         END IF
 
-#if defined(_MGLET_PROFILE_ANNOTATIONS_) && defined(_MGLET_OFFLOAD_)
         IF (has_message) THEN
             CALL profile_range_pop()
         END IF
-#endif
     END SUBROUTINE map_buffers_from_device
 END MODULE fieldhelper_mod

@@ -1016,9 +1016,7 @@ CONTAINS
         INTEGER :: iop
         INTEGER(c_size_t) :: count
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("wmxpolquadvel")
-#endif
 
         iop = IACHAR(ityp)
         SELECT CASE (cmp)
@@ -1035,9 +1033,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE wmxpolquadvel
 
 
@@ -1055,9 +1051,7 @@ CONTAINS
         sstart = stencil_start(cmp, ilevel) - 1_c_size_t
         count = stencil_end(cmp, ilevel) - sstart
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("wmxpolquad")
-#endif
 
         SELECT CASE (cmp)
         CASE(1)
@@ -1070,9 +1064,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE wmxpolquad
 
 
@@ -1087,15 +1079,11 @@ CONTAINS
         sstart = fcorr_start(ilevel) - 1_c_size_t
         count = fcorr_end(ilevel) - sstart
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("wmxpolquadfcorr")
-#endif
 
         CALL wmxpolquadfcorr_c(sstart, count, fcorrstencils, u, v, w)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE wmxpolquadfcorr
 
 

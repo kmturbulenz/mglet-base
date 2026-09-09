@@ -153,9 +153,7 @@ CONTAINS
         INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
         REAL(realk) :: pinf
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("apply_bound_flow_impl")
-#endif
 
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb, pinf)
@@ -227,9 +225,7 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE apply_bound_flow_impl
 
 
@@ -243,9 +239,7 @@ CONTAINS
         INTEGER(intk) :: itask, igrid, iface, ityp, kk, jj, ii
         INTEGER(intk) :: ip3, ipx, ipy, ipz, ipbb
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("apply_bound_flow_velocity_impl")
-#endif
 
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb)
@@ -304,9 +298,7 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE apply_bound_flow_velocity_impl
 
 

@@ -405,16 +405,12 @@ CONTAINS
 
         IF (nrtasks == 0) RETURN
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_recvtasks")
-#endif
 
         CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         CALL check_recvtasks_dummy(nrtasks, rtasks)
         END SUBROUTINE process_recvtasks
@@ -521,9 +517,7 @@ CONTAINS
         TYPE(MPI_Status) :: recvstatus
         INTEGER(int32) :: idx, i, recvmessagelen, unpacklen
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("prepare_recvtasks_all")
-#endif
 
         irtask = 0
         DO WHILE(.TRUE.)
@@ -555,9 +549,7 @@ CONTAINS
         nrtasks = irtask
         rtasks(:, nrtasks+1) = -1
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE prepare_recvtasks_all
 
 
@@ -680,16 +672,12 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_noib")
-#endif
 
         CALL process_selftasks_noib_impl(netasks, etasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx%arr, ddy%arr, ddz%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_selftasks_noib
 
 
@@ -815,17 +803,13 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_selftasks_gc")
-#endif
 
         CALL process_selftasks_gc_impl(netasks, etasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
             ddz_f%arr, bp_f%arr, bt_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_selftasks_gc
 
 
@@ -1066,9 +1050,7 @@ CONTAINS
         INTEGER(intk) :: itask
         INTEGER(int32) :: iprocnbr, messagelength, sendcounter
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpisend")
-#endif
 
         DO itask = 1, nmpistasks
             iprocnbr = INT(mpistasks(1, itask), kind=int32)
@@ -1091,9 +1073,7 @@ CONTAINS
             END IF
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_mpisend
 
 
@@ -1144,17 +1124,13 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_noib")
-#endif
 
         CALL process_sendtasks_noib_impl(nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
             ddz_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_sendtasks_noib
 
 
@@ -1242,17 +1218,13 @@ CONTAINS
         ! Local variables
         ! none...
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_sendtasks_gc")
-#endif
 
         CALL process_sendtasks_gc_impl(nstasks, stasks, f1%arr, f2%arr, &
             f3%arr, f4%arr, f5%arr, f6%arr, ddx_f%arr, ddy_f%arr, &
             ddz_f%arr, bp_f%arr, bt_f%arr)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_sendtasks_gc
 
 
@@ -1339,9 +1311,7 @@ CONTAINS
         INTEGER(intk) :: itask
         INTEGER(int32) :: iprocnbr, messagelength, recvcounter
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("process_mpirecv")
-#endif
 
         DO itask = 1, nmpirtasks
             iprocnbr = INT(mpirtasks(1, itask), kind=int32)
@@ -1362,9 +1332,7 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END IF
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE process_mpirecv
 
 
@@ -1440,9 +1408,7 @@ CONTAINS
         INTEGER(int32) :: ncells, ncells_total, messagelength, sendcounter, &
             selfcounter
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("prepare_tasks_all")
-#endif
 
         ! Pack all buffers and send data
         sendcounter = 0
@@ -1500,9 +1466,7 @@ CONTAINS
         etasks(:, netasks+1) = -1
         mpistasks(:, nmpistasks+1) = -1
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE prepare_tasks_all
 
 

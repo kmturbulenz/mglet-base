@@ -253,18 +253,14 @@ CONTAINS
         ALLOCATE(cflmax_grid(nmygrids))
         ALLOCATE(cflmax_pos_grid(3, nmygrids))
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compcflmax")
-#endif
 
         CALL compcflmax_impl(u_f%arr, v_f%arr, w_f%arr, bp_f%arr, &
             x_f%arr, y_f%arr, z_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, &
             ddx_f%arr, ddy_f%arr, ddz_f%arr, cflmax_grid, &
             cflmax_pos_grid, dt)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -415,17 +411,13 @@ CONTAINS
         ALLOCATE(divmax_grid(nmygrids))
         ALLOCATE(divmax_pos_grid(3, nmygrids))
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compdivmax")
-#endif
 
         CALL compdivmax_impl(u_f%arr, v_f%arr, w_f%arr, bp_f%arr, &
             x_f%arr, y_f%arr, z_f%arr, rddx_f%arr, rddy_f%arr, &
             rddz_f%arr, sdiv_f%arr, divmax_grid, divmax_pos_grid)
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
 
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -609,9 +601,7 @@ CONTAINS
         ! Local variables
         INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("compenergy")
-#endif
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
         !$omp& ip1y, ip1z) &
@@ -647,10 +637,7 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
-
     END SUBROUTINE compenergy_impl
 
 
@@ -742,9 +729,7 @@ CONTAINS
         INTEGER(intk) :: i, ip3, igrid
         INTEGER(intk) :: kk, jj, ii
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_push("maskbp_impl")
-#endif
 
         !$omp target teams distribute private(i, ip3, igrid, kk, jj, ii)
         DO i = 1, nmygrids
@@ -759,9 +744,7 @@ CONTAINS
         END DO
         !$omp end target teams distribute
 
-#ifdef _MGLET_PROFILE_ANNOTATIONS_
         CALL profile_range_pop()
-#endif
     END SUBROUTINE maskbp_impl
 
 
