@@ -1,5 +1,4 @@
 MODULE gc_flowstencils_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_size_t, c_int
     USE bound_flow_mod
     USE core_mod
     USE ib_mod, ONLY: gc_t, parent, ftoc, wmindexlistn, findinterface2, &
@@ -11,49 +10,32 @@ MODULE gc_flowstencils_mod
 
     INTEGER(intk), PARAMETER :: nvelpts = 6
 
-    TYPE, BIND(C) :: flowstencil_t
-        INTEGER(c_intk) :: icell
-        INTEGER(c_intk) :: npts
-        INTEGER(c_intk) :: pts(nvelpts)
-        REAL(c_realk) :: coeff(nvelpts)
-        REAL(c_realk) :: acoeff
-        REAL(c_realk) :: oldsol
+    TYPE :: flowstencil_t
+        INTEGER(intk) :: icell
+        INTEGER(intk) :: npts
+        INTEGER(intk) :: pts(nvelpts)
+        REAL(realk) :: coeff(nvelpts)
+        REAL(realk) :: acoeff
+        REAL(realk) :: oldsol
     END TYPE flowstencil_t
 
-    TYPE, BIND(C) :: fcorrstencil_t
-        INTEGER(c_intk) :: pts(6)
-        REAL(c_realk) :: area(6)
-        REAL(c_realk) :: darea(3)
-        REAL(c_realk) :: dvol
-        REAL(c_realk) :: acoeff
+    TYPE :: fcorrstencil_t
+        INTEGER(intk) :: pts(6)
+        REAL(realk) :: area(6)
+        REAL(realk) :: darea(3)
+        REAL(realk) :: dvol
+        REAL(realk) :: acoeff
     END TYPE fcorrstencil_t
 
     TYPE(fcorrstencil_t), ALLOCATABLE, TARGET :: fcorrstencils(:)
     TYPE(flowstencil_t), ALLOCATABLE, TARGET :: ustencils(:), &
         uvelstencils(:), vstencils(:), vvelstencils(:), wstencils(:), &
         wvelstencils(:)
-    INTEGER(c_size_t), ALLOCATABLE :: stencil_start(:, :), stencil_end(:, :)
-    INTEGER(c_size_t), ALLOCATABLE :: fcorr_start(:), fcorr_end(:)
+    INTEGER(intk), ALLOCATABLE :: stencil_start(:, :), stencil_end(:, :)
+    INTEGER(intk), ALLOCATABLE :: fcorr_start(:), fcorr_end(:)
 
     !$omp declare target(fcorrstencils, ustencils, uvelstencils, vstencils, &
     !$omp& vvelstencils, wstencils, wvelstencils)
-
-    INTERFACE
-        SUBROUTINE wmxpolquad_c(iop, first, count, stencils, var) BIND(C)
-            IMPORT :: c_int, c_size_t, flowstencil_t, c_realk
-            INTEGER(c_int), VALUE, INTENT(in) :: iop
-            INTEGER(c_size_t), VALUE, INTENT(in) :: first, count
-            TYPE(flowstencil_t), INTENT(inout) :: stencils(*)
-            REAL(c_realk), INTENT(inout) :: var(*)
-        END SUBROUTINE wmxpolquad_c
-
-        SUBROUTINE wmxpolquadfcorr_c(first, count, stencils, u, v, w) BIND(C)
-            IMPORT :: c_size_t, fcorrstencil_t, c_realk
-            INTEGER(c_size_t), VALUE, INTENT(in) :: first, count
-            TYPE(fcorrstencil_t), INTENT(in) :: stencils(*)
-            REAL(c_realk), INTENT(inout) :: u(*), v(*), w(*)
-        END SUBROUTINE wmxpolquadfcorr_c
-    END INTERFACE
 
     PUBLIC :: create_flowstencils, setpointvalues, setibvalues, getibvalues, &
         finish_flowstencils
@@ -1006,6 +988,110 @@ CONTAINS
     END SUBROUTINE calcflux
 
 
+    SUBROUTINE wmxpolquad_impl(ityp, first, count, stencils, var)
+        ! Subroutine arguments
+        CHARACTER(len=1), INTENT(in) :: ityp
+        INTEGER(intk), INTENT(in) :: first, count
+        TYPE(flowstencil_t), INTENT(inout) :: stencils(*)
+        REAL(realk), INTENT(inout) :: var(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, j, pt, icell
+        REAL(realk) :: flux
+
+        IF (count == 0) RETURN
+
+        CALL profile_range_push("wmxpolquad_impl")
+
+        IF (ityp == 'F' .OR. ityp == 'X') THEN
+            !$omp target teams loop private(flux, j, pt, icell)
+            DO i = first, first + count - 1
+                flux = 0.0_realk
+                DO j = 1, stencils(i)%npts
+                    pt = stencils(i)%pts(j)
+                    flux = flux + var(pt)*stencils(i)%coeff(j)
+                END DO
+                icell = stencils(i)%icell
+                var(icell) = flux + stencils(i)%acoeff
+            END DO
+            !$omp end target teams loop
+        ELSE IF (ityp == 'R' .OR. ityp == 'Y') THEN
+            !$omp target teams loop private(icell)
+            DO i = first, first + count - 1
+                icell = stencils(i)%icell
+                var(icell) = stencils(i)%oldsol
+            END DO
+            !$omp end target teams loop
+        ELSE IF (ityp == 'S' .OR. ityp == 'Z') THEN
+            !$omp target teams loop private(icell)
+            DO i = first, first + count - 1
+                icell = stencils(i)%icell
+                stencils(i)%oldsol = var(icell)
+            END DO
+            !$omp end target teams loop
+        ELSE
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL profile_range_pop()
+    END SUBROUTINE wmxpolquad_impl
+
+
+    SUBROUTINE wmxpolquadfcorr_impl(first, count, stencils, u, v, w)
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: first, count
+        TYPE(fcorrstencil_t), INTENT(in) :: stencils(*)
+        REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, u1, u2, v1, v2, w1, w2
+        REAL(realk) :: ax1, ax2, ay1, ay2, az1, az2
+        REAL(realk) :: div, sarea
+
+        IF (count == 0) RETURN
+
+        CALL profile_range_push("wmxpolquadfcorr_impl")
+
+        !$omp target teams loop &
+        !$omp& private(ax1, ax2, ay1, ay2, az1, az2, u1, u2, v1, v2, &
+        !$omp& w1, w2, div, sarea)
+        DO i = first, first + count - 1
+            ax1 = stencils(i)%area(1)
+            ax2 = stencils(i)%area(2)
+            ay1 = stencils(i)%area(3)
+            ay2 = stencils(i)%area(4)
+            az1 = stencils(i)%area(5)
+            az2 = stencils(i)%area(6)
+
+            u1 = stencils(i)%pts(1)
+            u2 = stencils(i)%pts(2)
+            v1 = stencils(i)%pts(3)
+            v2 = stencils(i)%pts(4)
+            w1 = stencils(i)%pts(5)
+            w2 = stencils(i)%pts(6)
+
+            div = stencils(i)%darea(1)*(u(u1) - u(u2))
+            div = div + stencils(i)%darea(2)*(v(v1) - v(v2))
+            div = div + stencils(i)%darea(3)*(w(w1) - w(w2))
+            div = div + stencils(i)%acoeff
+
+            sarea = ax1 + ax2 + ay1 + ay2 + az1 + az2
+            IF (sarea < TINY(0.0_realk)) ERROR STOP
+            div = div/sarea
+
+            u(u1) = u(u1) - ax1*div/stencils(i)%darea(1)
+            u(u2) = u(u2) + ax2*div/stencils(i)%darea(1)
+            v(v1) = v(v1) - ay1*div/stencils(i)%darea(2)
+            v(v2) = v(v2) + ay2*div/stencils(i)%darea(2)
+            w(w1) = w(w1) - az1*div/stencils(i)%darea(3)
+            w(w2) = w(w2) + az2*div/stencils(i)%darea(3)
+        END DO
+        !$omp end target teams loop
+
+        CALL profile_range_pop()
+    END SUBROUTINE wmxpolquadfcorr_impl
+
+
     SUBROUTINE wmxpolquadvel(cmp, ityp, u, v, w)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: cmp
@@ -1013,27 +1099,21 @@ CONTAINS
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
         ! Local variables
-        INTEGER :: iop
-        INTEGER(c_size_t) :: count
+        INTEGER(intk) :: count
 
-        CALL profile_range_push("wmxpolquadvel")
-
-        iop = IACHAR(ityp)
         SELECT CASE (cmp)
         CASE(1)
-            count = SIZE(uvelstencils, kind=c_size_t)
-            CALL wmxpolquad_c(iop, 0_c_size_t, count, uvelstencils, u)
+            count = SIZE(uvelstencils, kind=intk)
+            CALL wmxpolquad_impl(ityp, 1_intk, count, uvelstencils, u)
         CASE(2)
-            count = SIZE(vvelstencils, kind=c_size_t)
-            CALL wmxpolquad_c(iop, 0_c_size_t, count, vvelstencils, v)
+            count = SIZE(vvelstencils, kind=intk)
+            CALL wmxpolquad_impl(ityp, 1_intk, count, vvelstencils, v)
         CASE(3)
-            count = SIZE(wvelstencils, kind=c_size_t)
-            CALL wmxpolquad_c(iop, 0_c_size_t, count, wvelstencils, w)
+            count = SIZE(wvelstencils, kind=intk)
+            CALL wmxpolquad_impl(ityp, 1_intk, count, wvelstencils, w)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
-
-        CALL profile_range_pop()
     END SUBROUTINE wmxpolquadvel
 
 
@@ -1044,27 +1124,21 @@ CONTAINS
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
         ! Local variables
-        INTEGER :: iop
-        INTEGER(c_size_t) :: sstart, count
+        INTEGER(intk) :: sstart, count
 
-        iop = IACHAR(ityp)
-        sstart = stencil_start(cmp, ilevel) - 1_c_size_t
-        count = stencil_end(cmp, ilevel) - sstart
-
-        CALL profile_range_push("wmxpolquad")
+        sstart = stencil_start(cmp, ilevel)
+        count = stencil_end(cmp, ilevel) - sstart + 1
 
         SELECT CASE (cmp)
         CASE(1)
-            CALL wmxpolquad_c(iop, sstart, count, ustencils, u)
+            CALL wmxpolquad_impl(ityp, sstart, count, ustencils, u)
         CASE(2)
-            CALL wmxpolquad_c(iop, sstart, count, vstencils, v)
+            CALL wmxpolquad_impl(ityp, sstart, count, vstencils, v)
         CASE(3)
-            CALL wmxpolquad_c(iop, sstart, count, wstencils, w)
+            CALL wmxpolquad_impl(ityp, sstart, count, wstencils, w)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
         END SELECT
-
-        CALL profile_range_pop()
     END SUBROUTINE wmxpolquad
 
 
@@ -1074,16 +1148,12 @@ CONTAINS
         REAL(realk), INTENT(inout) :: u(*), v(*), w(*)
 
         ! Local variables
-        INTEGER(c_size_t) :: sstart, count
+        INTEGER(intk) :: sstart, count
 
-        sstart = fcorr_start(ilevel) - 1_c_size_t
-        count = fcorr_end(ilevel) - sstart
+        sstart = fcorr_start(ilevel)
+        count = fcorr_end(ilevel) - sstart + 1
 
-        CALL profile_range_push("wmxpolquadfcorr")
-
-        CALL wmxpolquadfcorr_c(sstart, count, fcorrstencils, u, v, w)
-
-        CALL profile_range_pop()
+        CALL wmxpolquadfcorr_impl(sstart, count, fcorrstencils, u, v, w)
     END SUBROUTINE wmxpolquadfcorr
 
 
