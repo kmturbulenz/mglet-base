@@ -217,14 +217,19 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+            ! Crashes or explodes simulation since afar-24.2.0-10.1.0
+#ifndef _MGLET_WORKAROUNDS_
             !$omp parallel
+#endif
             CALL tstle4_par(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
                 v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
                 dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
                 rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
                 wcu(ip3), wcv(ip3), wcw(ip3), &
                 nfro, nbac, nrgt, nlft, nbot, ntop)
+#ifndef _MGLET_WORKAROUNDS_
             !$omp end parallel
+#endif
         END DO
         !$omp end target teams distribute
     END SUBROUTINE tstle4_par_impl
