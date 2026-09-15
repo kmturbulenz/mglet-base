@@ -810,6 +810,7 @@ CONTAINS
                 s%pts = [globalcell, globalcell-jj*kk, &
                     globalcell, globalcell-kk, globalcell, globalcell-1]
                 s%area = xpolr(pntxpolr:pntxpolr + 5)
+                IF (SUM(s%area) < TINY(0.0_realk)) CALL errr(__FILE__, __LINE__)
                 s%darea = [ddy(j)*ddz(k), ddx(i)*ddz(k), &
                     ddx(i)*ddy(j)]
                 s%dvol = ddx(i)*ddy(j)*ddz(k)
@@ -1074,10 +1075,17 @@ CONTAINS
             div = div + stencils(i)%darea(3)*(w(w1) - w(w2))
             div = div + stencils(i)%acoeff
 
+            ! Stencils already checked for zero total area upon creation.
             sarea = ax1 + ax2 + ay1 + ay2 + az1 + az2
-            IF (sarea < TINY(0.0_realk)) ERROR STOP
             div = div/sarea
 
+            ! By definition of the flux correction algorithm, no two adjacent
+            ! closed cells can modify the velocity on their shared face.
+            ! However, if a closed cell has an open neighbor cell as well,
+            ! it gets a correction stencil, which triggers the velocity
+            ! modifications below. This may write to the same velocity field
+            ! on a shared face of two closed cells. But the value written to
+            ! that shared face is always zero by definition of the algorithm.
             u(u1) = u(u1) - ax1*div/stencils(i)%darea(1)
             u(u2) = u(u2) + ax2*div/stencils(i)%darea(1)
             v(v1) = v(v1) - ay1*div/stencils(i)%darea(2)
