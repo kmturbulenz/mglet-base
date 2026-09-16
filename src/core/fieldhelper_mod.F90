@@ -18,28 +18,6 @@ MODULE fieldhelper_mod
 
     PUBLIC :: zero_field_arr, map_arr_to_device, map_arr_from_device, &
         map_buffers_to_device, map_buffers_from_device, copy_arr
-
-    INTERFACE
-        SUBROUTINE setzero_real_c(n, arr) BIND(C)
-            IMPORT :: c_size_t, c_realk
-            INTEGER(c_size_t), INTENT(in), VALUE :: n
-            REAL(c_realk), INTENT(inout) :: arr(*)
-        END SUBROUTINE setzero_real_c
-
-        SUBROUTINE setzero_ifk_c(n, arr) BIND(C)
-            IMPORT :: c_size_t, c_ifk
-            INTEGER(c_size_t), INTENT(in), VALUE :: n
-            INTEGER(c_ifk), INTENT(inout) :: arr(*)
-        END SUBROUTINE setzero_ifk_c
-
-        SUBROUTINE copyarr_real_c(n, dest, source) BIND(C)
-            IMPORT :: c_size_t, c_realk
-            INTEGER(c_size_t), INTENT(in), VALUE :: n
-            REAL(c_realk), INTENT(inout) :: dest(*)
-            REAL(c_realk), INTENT(in) :: source(*)
-        END SUBROUTINE copyarr_real_c
-    END INTERFACE
-
 CONTAINS
     SUBROUTINE zero_field_arr_realk(field, device)
         ! Subroutine arguments
@@ -58,26 +36,29 @@ CONTAINS
         CALL profile_range_push("zero_field_arr_realk")
 
         IF (device2) THEN
-#ifdef _MGLET_WORKAROUNDS_
-            CALL setzero_real_c(SIZE(field%arr, kind=c_size_t), field%arr)
-#else
-            BLOCK
-                INTEGER(intk) :: i
-                ASSOCIATE(arr => field%arr)
-                    !$omp target teams loop
-                    DO i = 1, SIZE(arr)
-                        arr(i) = 0.0_realk
-                    END DO
-                    !$omp end target teams loop
-                END ASSOCIATE
-            END BLOCK
-#endif
+            CALL zero_field_arr_realk_impl(field%arr, SIZE(field%arr))
         ELSE
             field%arr = 0.0_realk
         END IF
 
         CALL profile_range_pop()
     END SUBROUTINE zero_field_arr_realk
+
+
+    SUBROUTINE zero_field_arr_realk_impl(arr, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE zero_field_arr_realk_impl
 
 
     SUBROUTINE zero_field_arr_ifk(field, device)
@@ -97,26 +78,29 @@ CONTAINS
         CALL profile_range_push("zero_field_arr_ifk")
 
         IF (device2) THEN
-#ifdef _MGLET_WORKAROUNDS_
-            CALL setzero_ifk_c(SIZE(field%arr, kind=c_size_t), field%arr)
-#else
-            BLOCK
-                INTEGER(intk) :: i
-                ASSOCIATE(arr => field%arr)
-                    !$omp target teams loop
-                    DO i = 1, SIZE(arr)
-                        arr(i) = 0_intk
-                    END DO
-                    !$omp end target teams loop
-                END ASSOCIATE
-            END BLOCK
-#endif
+            CALL zero_field_arr_ifk_impl(field%arr, SIZE(field%arr))
         ELSE
-            field%arr = 0_intk
+            field%arr = 0_ifk
         END IF
 
         CALL profile_range_pop()
     END SUBROUTINE zero_field_arr_ifk
+
+
+    SUBROUTINE zero_field_arr_ifk_impl(arr, n)
+        ! Subroutine arguments
+        INTEGER(ifk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            arr(i) = 0_ifk
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE zero_field_arr_ifk_impl
 
 
     SUBROUTINE copy_arr(dest, source)
@@ -124,23 +108,31 @@ CONTAINS
         REAL(realk), INTENT(inout) :: dest(:)
         REAL(realk), INTENT(in) :: source(:)
 
+        IF (SIZE(dest) /= SIZE(source)) CALL errr(__FILE__, __LINE__)
+
         CALL profile_range_push("copy_arr")
 
-#ifdef _MGLET_WORKAROUNDS_
-        CALL copyarr_real_c(SIZE(dest, kind=c_size_t), dest, source)
-#else
-        BLOCK
-            INTEGER(intk) :: i
-            !$omp target teams loop
-            DO i = 1, SIZE(dest)
-                dest(i) = source(i)
-            END DO
-            !$omp end target teams loop
-        END BLOCK
-#endif
+        CALL copy_arr_impl(dest, source, SIZE(dest))
 
         CALL profile_range_pop()
     END SUBROUTINE copy_arr
+
+
+    SUBROUTINE copy_arr_impl(dest, source, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: dest(*)
+        REAL(realk), INTENT(in) :: source(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            dest(i) = source(i)
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE copy_arr_impl
 
 
     SUBROUTINE map_arr_to_device(f1, f2, f3, f4, f5, f6, f7, message)

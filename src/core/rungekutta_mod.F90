@@ -47,19 +47,6 @@ MODULE rungekutta_mod
     END TYPE rk_2n_t
 
     PUBLIC :: rk_2n_t, rkstep
-
-    INTERFACE
-        SUBROUTINE rkstep_c(n, p, dp, rhsp, frhs, dtfu) BIND(C)
-            IMPORT :: c_size_t, c_realk
-            INTEGER(c_size_t), INTENT(in), VALUE :: n
-            REAL(c_realk), INTENT(inout) :: p(*)
-            REAL(c_realk), INTENT(inout) :: dp(*)
-            REAL(c_realk), INTENT(in) :: rhsp(*)
-            REAL(c_realk), INTENT(in), VALUE :: frhs
-            REAL(c_realk), INTENT(in), VALUE :: dtfu
-        END SUBROUTINE rkstep_c
-    END INTERFACE
-
 CONTAINS
 
     SUBROUTINE init_2n(this, ctyp)
@@ -336,25 +323,35 @@ CONTAINS
         REAL(realk), INTENT(in) :: frhs
         REAL(realk), INTENT(in) :: dtfu
 
+        IF (SIZE(p) /= SIZE(dp) .OR. SIZE(p) /= SIZE(rhsp)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
         CALL profile_range_push("rkstep")
 
-#ifdef _MGLET_WORKAROUNDS_
-        CALL rkstep_c(SIZE(p, kind=c_size_t), p, dp, rhsp, frhs, dtfu)
-#else
-        BLOCK
-            ! Local variables
-            INTEGER(intk) :: i
-
-            !$omp target teams loop
-            DO i = 1, SIZE(p)
-                dp(i) = frhs*dp(i) + rhsp(i)
-                p(i) = p(i) + dtfu*dp(i)
-            END DO
-            !$omp end target teams loop
-        END BLOCK
-#endif
+        CALL rkstep_impl(p, dp, rhsp, frhs, dtfu, SIZE(p))
 
         CALL profile_range_pop()
     END SUBROUTINE rkstep
 
+
+    SUBROUTINE rkstep_impl(p, dp, rhsp, frhs, dtfu, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: p(*)
+        REAL(realk), INTENT(inout) :: dp(*)
+        REAL(realk), INTENT(in) :: rhsp(*)
+        REAL(realk), INTENT(in) :: frhs
+        REAL(realk), INTENT(in) :: dtfu
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            dp(i) = frhs*dp(i) + rhsp(i)
+            p(i) = p(i) + dtfu*dp(i)
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE rkstep_impl
 END MODULE rungekutta_mod
