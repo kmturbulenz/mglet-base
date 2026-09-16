@@ -45,15 +45,6 @@ MODULE pressuresolver_mod
     INTEGER(intk), PROTECTED :: loglevel = 0
 
     PUBLIC :: init_pressuresolver, finish_pressuresolver, mgpoisl
-
-    INTERFACE
-        SUBROUTINE accumulate_pcorr_c(n, dp, hilf) BIND(C)
-            IMPORT :: c_size_t, c_realk
-            INTEGER(c_size_t), INTENT(in), VALUE :: n
-            REAL(c_realk), INTENT(inout) :: dp(*)
-            REAL(c_realk), INTENT(in) :: hilf(*)
-        END SUBROUTINE accumulate_pcorr_c
-    END INTERFACE
 CONTAINS
     SUBROUTINE init_pressuresolver()
         ! Subroutine arguments
@@ -902,22 +893,25 @@ CONTAINS
 
         CALL profile_range_push("accumulate_pcorr")
 
-#ifdef _MGLET_WORKAROUNDS_
-        CALL accumulate_pcorr_c(SIZE(dp%arr, kind=c_size_t), dp%arr, hilf%arr)
-#else
-        BLOCK
-            INTEGER(intk) :: i
-            ASSOCIATE (dp_arr => dp%arr, hilf_arr => hilf%arr)
-                !$omp target teams loop
-                DO i = 1, SIZE(dp_arr)
-                    dp_arr(i) = dp_arr(i) + hilf_arr(i)
-                END DO
-                !$omp end target teams loop
-            END ASSOCIATE
-        END BLOCK
-#endif
+        CALL accumulate_pcorr_impl(dp%arr, hilf%arr, SIZE(dp%arr))
 
         CALL profile_range_pop()
     END SUBROUTINE accumulate_pcorr
 
+
+    SUBROUTINE accumulate_pcorr_impl(dp_arr, hilf_arr, n)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: dp_arr(*)
+        REAL(realk), INTENT(in) :: hilf_arr(*)
+        INTEGER(intk), INTENT(in) :: n
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        !$omp target teams loop
+        DO i = 1, n
+            dp_arr(i) = dp_arr(i) + hilf_arr(i)
+        END DO
+        !$omp end target teams loop
+    END SUBROUTINE accumulate_pcorr_impl
 END MODULE pressuresolver_mod

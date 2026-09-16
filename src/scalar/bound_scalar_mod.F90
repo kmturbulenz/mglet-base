@@ -165,13 +165,17 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
+#ifndef _MGLET_WORKAROUNDS_
             !$omp parallel
+#endif
             CALL bound_scalar_device(kk, jj, ii, iface, ityp, bctype, &
                 prmol, qtu(ip3), qtv(ip3), qtw(ip3), t(ip3), u(ip3), &
                 v(ip3), w(ip3), bt(ip3), qtubuf(ipbb), qtvbuf(ipbb), &
                 qtwbuf(ipbb), tbuf(ipbb), dx(ipx), dy(ipy), dz(ipz), &
                 ddx(ipx), ddy(ipy), ddz(ipz))
+#ifndef _MGLET_WORKAROUNDS_
             !$omp end parallel
+#endif
         END DO
         !$omp end target teams distribute
     END SUBROUTINE apply_bound_scalar_impl
