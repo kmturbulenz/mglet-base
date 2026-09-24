@@ -495,6 +495,7 @@ CONTAINS
             ncellstot)
 
         ! Write field data
+        CALL sync_statistics_to_host()
         CALL fields_write()
 
         ! Close file

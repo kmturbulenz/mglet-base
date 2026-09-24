@@ -78,7 +78,7 @@ CONTAINS
     !
     SUBROUTINE  comp_txtx_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -121,16 +121,16 @@ CONTAINS
         ! units of square of spatial derivative, i.e. TxTx
         units_txtx = 2*units_tx
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_txtx)
         CALL push_field(tx_f, 'tmp', istag=istag, jstag=jstag, kstag=kstag, &
             units=units_tx)
-        CALL zero_field_arr(tx_f)
+        CALL zero_field_arr(tx_f, device=.TRUE.)
 
         ! central difference on scalar (= no staggering)
         CALL differentiate(tx_f, t_f, ivar)
 
-        field%arr = tx_f%arr**2
+        CALL product_stat_fields(field, tx_f, tx_f)
         CALL pop_field(tx_f)
     END SUBROUTINE comp_txtx_avg
 
@@ -140,7 +140,7 @@ CONTAINS
     !
     SUBROUTINE comp_ut_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -182,11 +182,12 @@ CONTAINS
         ! velocity * scalar
         units_ut = u_f%units + t_f%units
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_ut)
+        CALL zero_field_arr(field, device=.TRUE.)
 
         ! multiplication at staggered positions
-        CALL field%multiply(u_f, t_f)
+        CALL field%multiply(u_f, t_f, device=.TRUE.)
     END SUBROUTINE comp_ut_avg
 
 
@@ -195,7 +196,7 @@ CONTAINS
     !
     SUBROUTINE comp_utt_avg(field, name, dt)
         ! Subroutine arguments
-        TYPE(field_t), INTENT(inout) :: field
+        TYPE(field_t), POINTER, INTENT(out) :: field
         CHARACTER(len=*), INTENT(in) :: name
         REAL(realk), INTENT(in) :: dt
 
@@ -240,11 +241,12 @@ CONTAINS
         ! velocity * 2*scalar
         units_utt = u_f%units + 2*t_f%units
 
-        CALL field%init(name, istag=istag, jstag=jstag, kstag=kstag, &
+        CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_utt)
+        CALL zero_field_arr(field, device=.TRUE.)
 
         ! multiplication at staggered positions
-        CALL field%multiply(u_f, t_f, t_f)
+        CALL field%multiply(u_f, t_f, t_f, device=.TRUE.)
     END SUBROUTINE comp_utt_avg
 
 END MODULE scastat_mod
