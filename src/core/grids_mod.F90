@@ -340,7 +340,6 @@ CONTAINS
         IF (myid == 0) CALL setmpi_info()
     END SUBROUTINE setmpi
 
-
     SUBROUTINE dist_grids()
         USE comms_mod, ONLY: numprocs
 
@@ -349,47 +348,108 @@ CONTAINS
         INTEGER(intk) :: grdProc
 
         INTEGER(intk), ALLOCATABLE :: nGrdsOfProc(:)
+        INTEGER(intk), PARAMETER :: saturation = 500
+        INTEGER(intk) :: ndistr
 
         ALLOCATE(nGrdsOfProc(0:numprocs-1))
 
-        restProc = 0
+
         DO ilevel = minlevel, maxlevel
+
             ! Reset number of grids per process
             nGrdsOfProc = 0
 
-            ! STEP 1: Distribute even part of grids
-            n = noflevel(ilevel)/numprocs
-            nGrdsOfProc = n
+            ! Check between how many ranks the grids are to be distributed
+            ndistr = noflevel(ilevel) / saturation + 1
 
-            ! STEP 2: Distribute rest grids
-            rest = MOD(noflevel(ilevel), numprocs)
-            DO i = 1, rest
-                nGrdsOfProc(restProc) = nGrdsOfProc(restProc) + 1
-                restProc = restProc + 1
-                IF (restProc > numprocs - 1) restProc = 0
-            END DO
+            ! Case: Enough work = follow the standard algorithm and distribute
+            ! the grids among all available ranks
+            IF (ndistr > numprocs) THEN
 
-            ! Hand out specific grids to processes
-            iproc = 0     ! Rank we are handing out grids to
-            grdProc = 0   ! Grids handed out to current rank
-            DO i = 1, noflevel(ilevel)
-                igrid = igrdoflevel(i, ilevel)
+                ! STEP 1: Determine the base number of grids per process
+                n = noflevel(ilevel) / numprocs
+                nGrdsOfProc(0:numprocs-1) = n
 
-                DO WHILE (nGrdsOfProc(iproc) < 1)
-                    iproc = iproc + 1
+                ! STEP 2: Distribute rest grids
+                restProc = 0
+                rest = MOD(noflevel(ilevel), numprocs)
+                DO i = 1, rest
+                    nGrdsOfProc(restProc) = nGrdsOfProc(restProc) + 1
+                    restProc = restProc + 1
+                    ! - Restart once "numprocs" would be reached
+                    IF (restProc > numprocs - 1) restProc = 0
                 END DO
-                IF (iproc > numprocs - 1) THEN
+
+                ! Hand out specific grids to processes
+                iproc = 0     ! Rank we are handing out grids to
+                grdProc = 0   ! Grids handed out to current rank
+                DO i = 1, noflevel(ilevel)
+                    igrid = igrdoflevel(i, ilevel)
+
+                    DO WHILE (nGrdsOfProc(iproc) < 1)
+                        iproc = iproc + 1
+                    END DO
+                    IF (iproc > numprocs - 1) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    IF (grdProc < nGrdsOfProc(iproc)) THEN
+                        idprocofgrd(igrid) = iproc
+                        grdproc = grdproc + 1
+                    END IF
+                    IF (grdProc == nGrdsOfProc(iproc)) THEN
+                        iproc = iproc + 1
+                        grdproc = 0
+                    END IF
+                END DO
+
+            ELSE
+
+                ! Case: Not enough work = only hand out grids to a subset of
+                ! the available ranks from rank 0 to ndistr - 1
+
+                ! STEP 1: Determine the base number of grids per process
+                n = noflevel(ilevel) / ndistr
+                nGrdsOfProc(0:ndistr-1) = n
+
+                ! STEP 2: Distribute rest grids
+                restProc = 0
+                rest = MOD(noflevel(ilevel), ndistr)
+                DO i = 1, rest
+                    nGrdsOfProc(restProc) = nGrdsOfProc(restProc) + 1
+                    restProc = restProc + 1
+                    ! - Restart once "ndistr" would be reached
+                    IF (restProc > ndistr - 1) restProc = 0
+                END DO
+
+                ! STEP 3: Check that the distribution is correct
+                IF (SUM(nGrdsOfProc(0:ndistr-1)) /= noflevel(ilevel)) THEN
                     CALL errr(__FILE__, __LINE__)
                 END IF
-                IF (grdProc < nGrdsOfProc(iproc)) THEN
-                    idprocofgrd(igrid) = iproc
-                    grdproc = grdproc + 1
-                END IF
-                IF (grdProc == nGrdsOfProc(iproc)) THEN
-                    iproc = iproc + 1
-                    grdproc = 0
-                END IF
-            END DO
+
+                ! Hand out specific grids to processes
+                iproc = 0     ! Rank we are handing out grids to
+                grdProc = 0   ! Grids handed out to current rank
+                DO i = 1, noflevel(ilevel)
+                    igrid = igrdoflevel(i, ilevel)
+
+                    DO WHILE (nGrdsOfProc(iproc) < 1)
+                        iproc = iproc + 1
+                    END DO
+                    IF (iproc > ndistr - 1) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
+                    IF (grdProc < nGrdsOfProc(iproc)) THEN
+                        idprocofgrd(igrid) = iproc
+                        grdproc = grdproc + 1
+                    END IF
+                    IF (grdProc == nGrdsOfProc(iproc)) THEN
+                        iproc = iproc + 1
+                        grdproc = 0
+                    END IF
+                END DO
+
+            END IF
+
         END DO
     END SUBROUTINE dist_grids
 
