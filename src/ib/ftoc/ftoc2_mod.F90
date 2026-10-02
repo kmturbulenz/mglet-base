@@ -733,6 +733,7 @@ CONTAINS
                     a1(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -742,6 +743,7 @@ CONTAINS
                     a2(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -751,6 +753,7 @@ CONTAINS
                     a3(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -760,6 +763,7 @@ CONTAINS
                     a4(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -769,6 +773,7 @@ CONTAINS
                     a5(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -778,6 +783,7 @@ CONTAINS
                     a6(ip3f), ddx(ipx), ddy(ipy), ddz(ipz), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -865,6 +871,7 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a1(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -874,6 +881,7 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a2(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -883,6 +891,7 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a3(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -892,6 +901,7 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a4(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -901,6 +911,7 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a5(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
@@ -910,12 +921,15 @@ CONTAINS
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3f), bt(ip3f), &
                     scratchidx, tasksize, istart, istop, jstart, jstop, &
                     kstart, kstop)
+                !$omp barrier
                 CALL unpack_restricted_buffer(flag, kkc, jjc, iic, &
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
+#ifdef _MGLET_DEBUG_
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
+#endif
             END SELECT
             !$omp end parallel
         END DO

@@ -183,6 +183,7 @@ CONTAINS
                     -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddy(ipy), ddz(ipz))
+                !$omp barrier
                 CALL bfront_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
                     ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             CASE (2)
@@ -190,6 +191,7 @@ CONTAINS
                     ii-3, ii-1, ii-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddy(ipy), ddz(ipz))
+                !$omp barrier
                 CALL bfront_pressure_device(kk, jj, ii, ii-1, ii-2, &
                     ii-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             CASE (3)
@@ -197,6 +199,7 @@ CONTAINS
                     -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddz(ipz))
+                !$omp barrier
                 CALL bright_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
                     ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             CASE (4)
@@ -204,6 +207,7 @@ CONTAINS
                     jj-3, jj-1, jj-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddz(ipz))
+                !$omp barrier
                 CALL bright_pressure_device(kk, jj, ii, jj-1, jj-2, &
                     jj-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             CASE (5)
@@ -211,6 +215,7 @@ CONTAINS
                     -1, ityp, u(ip3), v(ip3), w(ip3), bp(ip3), &
                     ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddy(ipy))
+                !$omp barrier
                 CALL bbottom_pressure_device(kk, jj, ii, 2, 3, 2, -1, &
                     ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             CASE (6)
@@ -218,6 +223,7 @@ CONTAINS
                     kk-3, kk-1, kk-2, 1, ityp, u(ip3), v(ip3), w(ip3), &
                     bp(ip3), ubuffer(ipbb), vbuffer(ipbb), wbuffer(ipbb), &
                     ddx(ipx), ddy(ipy))
+                !$omp barrier
                 CALL bbottom_pressure_device(kk, jj, ii, kk-1, kk-2, &
                     kk-2, 1, ityp, pinf, u(ip3), v(ip3), w(ip3), p(ip3))
             END SELECT
