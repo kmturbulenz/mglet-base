@@ -1,4 +1,5 @@
 # Add separate libraries/subdirectories
+add_subdirectory("backend")
 add_subdirectory("core")
 add_subdirectory("flow")
 add_subdirectory("ib")
@@ -17,6 +18,7 @@ target_include_directories(mgletlib
     PRIVATE ${HDF5_Fortran_INCLUDE_DIRS}
 )
 target_link_libraries(mgletlib
+    PUBLIC backend
     PUBLIC core
     PUBLIC flow
     PUBLIC ib

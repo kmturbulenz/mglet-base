@@ -17,7 +17,7 @@ MODULE pointers_mod
     !$omp declare target(ip3d, ipbb, ip1dx, ip1dy, ip1dz)
 
     PUBLIC :: init_pointers, finish_pointers, get_ip3, get_ip3n, get_ipbb, &
-        idim3d, idimbb, get_len3, get_ip1x, get_ip1y, get_ip1z
+        idim3d, idimbb, get_len3, get_ip1x, get_ip1y, get_ip1z, ip3d
 
 CONTAINS
     SUBROUTINE init_pointers()
