@@ -62,7 +62,7 @@ MODULE grids_mod
     ! Public data arrays
     PUBLIC :: ngrid, minlevel, maxlevel, maxgrdsoflvl, noflevel, igrdoflevel, &
         nmygrids, mygrids, nmygridslvl, mygridslvl, nboconds, itypboconds, &
-        idprocofgrd
+        idprocofgrd, gridinfo
 
 CONTAINS
 

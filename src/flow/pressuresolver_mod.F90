@@ -16,6 +16,45 @@ MODULE pressuresolver_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    INTERFACE
+        SUBROUTINE sipiter1_hyperplane_level_backend(res, rhs, &
+                siplw, sipls, siplb, siplpr, miphp, idxhp, &
+                mygridsonlvl_, gridinfo_, ip3d_) &
+                BIND(C, name="sipiter1_hyperplane_level_c")
+            USE gridio_mod, ONLY: gridinfo_t
+            IMPORT realk, intk, ifk
+            REAL(realk), INTENT(inout) :: res(:)
+            REAL(realk), INTENT(in) :: rhs(:)
+            REAL(realk), INTENT(in) :: siplw(:)
+            REAL(realk), INTENT(in) :: sipls(:)
+            REAL(realk), INTENT(in) :: siplb(:)
+            REAL(realk), INTENT(in) :: siplpr(:)
+            INTEGER(ifk), INTENT(in) :: miphp(:)
+            INTEGER(ifk), INTENT(in) :: idxhp(:)
+            INTEGER(intk), INTENT(in) :: mygridsonlvl_(:)
+            TYPE(gridinfo_t), INTENT(in) :: gridinfo_(:)
+            INTEGER(intk), INTENT(in) :: ip3d_(:)
+        END SUBROUTINE sipiter1_hyperplane_level_backend
+
+        SUBROUTINE sipiter2_hyperplane_level_backend(dp, res, &
+                sipue, sipun, siput, miphp, idxhp, &
+                mygridsonlvl_, gridinfo_, ip3d_) &
+                BIND(C, name="sipiter2_hyperplane_level_c")
+            USE gridio_mod, ONLY: gridinfo_t
+            IMPORT realk, intk, ifk
+            REAL(realk), INTENT(inout) :: dp(:)
+            REAL(realk), INTENT(inout) :: res(:)
+            REAL(realk), INTENT(in) :: sipue(:)
+            REAL(realk), INTENT(in) :: sipun(:)
+            REAL(realk), INTENT(in) :: siput(:)
+            INTEGER(ifk), INTENT(in) :: miphp(:)
+            INTEGER(ifk), INTENT(in) :: idxhp(:)
+            INTEGER(intk), INTENT(in) :: mygridsonlvl_(:)
+            TYPE(gridinfo_t), INTENT(in) :: gridinfo_(:)
+            INTEGER(intk), INTENT(in) :: ip3d_(:)
+        END SUBROUTINE sipiter2_hyperplane_level_backend
+    END INTERFACE
+
     ! Type of pressure solver
     !   0 : Hyperplane SIP
     !   1 : SIP on coarsest level, then SOR on subsequent levels
@@ -509,9 +548,15 @@ CONTAINS
 
         CALL profile_range_push("sipiter1_hp")
 
+#ifdef _MGLET_USE_BACKEND_
+        CALL sipiter1_hyperplane_level_backend(res_f%arr, rhs_f%arr, &
+            siplw%arr, sipls%arr, siplb%arr, siplpr%arr, mip_hp_f%arr, &
+            idx_hp_f%arr, mygridslvl(:, ilevel), gridinfo, ip3d)
+#else
         CALL sipiter1_hyperplane_level_impl(ilevel, rhs_f%arr, res_f%arr, &
             siplw%arr, sipls%arr, siplb%arr, siplpr%arr, mip_hp_f%arr, &
             idx_hp_f%arr)
+#endif
 
         CALL profile_range_pop()
     END SUBROUTINE sipiter1_hyperplane_level
@@ -592,9 +637,15 @@ CONTAINS
 
         CALL profile_range_push("sipiter2_hp")
 
+#ifdef _MGLET_USE_BACKEND_
+        CALL sipiter2_hyperplane_level_backend(dp_f%arr, res_f%arr, &
+            sipue_f%arr, sipun_f%arr, siput_f%arr, mip_hp_f%arr, &
+            idx_hp_f%arr, mygridslvl(:, ilevel), gridinfo, ip3d)
+#else
         CALL sipiter2_hyperplane_level_impl(ilevel, dp_f%arr, res_f%arr, &
             sipue_f%arr, sipun_f%arr, siput_f%arr, mip_hp_f%arr, &
             idx_hp_f%arr)
+#endif
 
         CALL profile_range_pop()
     END SUBROUTINE sipiter2_hyperplane_level
