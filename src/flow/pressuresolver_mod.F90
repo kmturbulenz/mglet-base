@@ -527,11 +527,14 @@ CONTAINS
         INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: i, igrid, ngridslvl
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
-        DO i = 1, nmygridslvl(ilevel)
+        ngridslvl = nmygridslvl(ilevel)
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3) &
+        !$omp& num_teams(ngridslvl) thread_limit(512)
+        DO i = 1, ngridslvl
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
@@ -609,11 +612,14 @@ CONTAINS
         INTEGER(ifk), INTENT(in) :: mip(*), idx(*)
 
         ! Local variables
-        INTEGER(intk) :: i, igrid
+        INTEGER(intk) :: i, igrid, ngridslvl
         INTEGER(intk) :: kk, jj, ii, ip3
 
-        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3)
-        DO i = 1, nmygridslvl(ilevel)
+        ngridslvl = nmygridslvl(ilevel)
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3) &
+        !$omp& num_teams(ngridslvl) thread_limit(512)
+        DO i = 1, ngridslvl
             igrid = mygridslvl(i, ilevel)
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
