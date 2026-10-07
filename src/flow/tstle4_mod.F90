@@ -8,7 +8,6 @@ MODULE tstle4_mod
     PRIVATE
 
     PUBLIC :: tstle4
-
 CONTAINS
     SUBROUTINE tstle4(uo_f, vo_f, wo_f, u_f, v_f, w_f, ut_f, vt_f, wt_f, &
             p_f, g_f)
@@ -204,8 +203,57 @@ CONTAINS
         INTEGER(intk) :: i, igrid, ip3, ipx, ipy, ipz
         INTEGER(intk) :: kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop
 
-        !$omp target teams distribute &
-        !$omp& private(i, igrid, ip3, ipx, ipy, ipz, &
+        ! The following kernels were previously merged in one single kernel.
+        ! Due to the length of the combined kernel, the stack on the GPU was
+        ! exceeded, which caused crashes or explosions of the simulation.
+        ! Thus, split the kernels into multiple smaller ones, even though
+        ! logically they could fit into one larger subroutine.
+
+        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp& kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_par_upwind(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), &
+                u(ip3), v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), &
+                dx(ipx), dy(ipy), dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), &
+                rdx(ipx), rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                nfro, nbac, nrgt, nlft, nbot, ntop)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp& kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_par_flux_correction_bf(kk, jj, ii, &
+                vo(ip3), wo(ip3), v(ip3), w(ip3), ut(ip3), &
+                dy(ipy), dz(ipz), ddy(ipy), ddz(ipz), &
+                rdy(ipy), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                wcv(ip3), wcw(ip3), nfro, nbac)
+            !$omp end parallel
+        END DO
+        !$omp end target teams distribute
+
+        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, ipz, &
         !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
         DO i = 1, nmygrids
             igrid = mygrids(i)
@@ -217,19 +265,35 @@ CONTAINS
             CALL get_ip1y(ipy, igrid)
             CALL get_ip1z(ipz, igrid)
 
-            ! Crashes or explodes simulation since afar-24.2.0-10.1.0
-#ifndef _MGLET_WORKAROUNDS_
             !$omp parallel
-#endif
-            CALL tstle4_par(kk, jj, ii, uo(ip3), vo(ip3), wo(ip3), u(ip3), &
-                v(ip3), w(ip3), ut(ip3), vt(ip3), wt(ip3), dx(ipx), dy(ipy), &
-                dz(ipz), ddx(ipx), ddy(ipy), ddz(ipz), rdx(ipx), rdy(ipy), &
-                rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
-                wcu(ip3), wcv(ip3), wcw(ip3), &
-                nfro, nbac, nrgt, nlft, nbot, ntop)
-#ifndef _MGLET_WORKAROUNDS_
+            CALL tstle4_par_flux_correction_tb(kk, jj, ii, &
+                uo(ip3), vo(ip3), u(ip3), v(ip3), wt(ip3), &
+                dx(ipx), dy(ipy), ddx(ipx), ddy(ipy), &
+                rdx(ipx), rdy(ipy), rddx(ipx), rddy(ipy), rddz(ipz), &
+                wcu(ip3), wcv(ip3), nbot, ntop)
             !$omp end parallel
-#endif
+        END DO
+        !$omp end target teams distribute
+
+        !$omp target teams distribute private(i, igrid, ip3, ipx, ipy, ipz, &
+        !$omp&  kk, jj, ii, nfro, nbac, nrgt, nlft, nbot, ntop)
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_mgbasb(nfro, nbac, nrgt, nlft, nbot, ntop, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ipx, igrid)
+            CALL get_ip1y(ipy, igrid)
+            CALL get_ip1z(ipz, igrid)
+
+            !$omp parallel
+            CALL tstle4_par_flux_correction_lr(kk, jj, ii, &
+                uo(ip3), wo(ip3), u(ip3), w(ip3), vt(ip3), &
+                dx(ipx), dz(ipz), ddx(ipx), ddz(ipz), &
+                rdx(ipx), rdz(ipz), rddx(ipx), rddy(ipy), rddz(ipz), &
+                wcu(ip3), wcw(ip3), nrgt, nlft)
+            !$omp end parallel
         END DO
         !$omp end target teams distribute
     END SUBROUTINE tstle4_par_impl
@@ -671,9 +735,9 @@ CONTAINS
     END SUBROUTINE tstle4_gradp
 
 
-    SUBROUTINE tstle4_par(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
+    SUBROUTINE tstle4_par_upwind(kk, jj, ii, uo, vo, wo, u, v, w, ut, vt, wt, &
             dx, dy, dz, ddx, ddy, ddz, rdx, rdy, rdz, rddx, rddy, rddz, &
-            wcu, wcv, wcw, nfro, nbac, nrgt, nlft, nbot, ntop)
+            nfro, nbac, nrgt, nlft, nbot, ntop)
         !$omp declare target
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: kk, jj, ii
@@ -686,8 +750,6 @@ CONTAINS
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
         REAL(realk), INTENT(in) :: rdx(ii), rdy(jj), rdz(kk)
         REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
-        REAL(realk), INTENT(inout) :: wcu(kk, jj, ii), wcv(kk, jj, ii), &
-            wcw(kk, jj, ii)
         INTEGER, INTENT(in) :: nfro, nbac, nrgt, nlft, nbot, ntop
 
         ! Local variables
@@ -696,11 +758,8 @@ CONTAINS
         REAL(realk) :: qkubadd, qkusadd, qkvbadd
         REAL(realk) :: qkvwadd, qkwsadd, qkwwadd
 
-        REAL(realk) :: qkut, qkub, qkun, qkus, qkvw, qkve, qkvt, qkvb, &
-            qkww, qkwe, qkwn, qkws, &
-            fut, fub, fun, fus, auy, auz, &
-            fvw, fve, fvt, fvb, avx, avz, &
-            fww, fwe, fwn, fws, awx, awy
+        REAL(realk) :: fub, fus, auy, auz, fvw, fvb, avx, avz, fww, fws, &
+            awx, awy
         REAL(realk) :: dxi, ddxi, dyj, ddyj, dzk, ddzk, rdzk, rddzk
         REAL(realk), PARAMETER :: wkon = 1.0
 
@@ -939,6 +998,32 @@ CONTAINS
             !$omp end do
             !$omp barrier
         END IF
+    END SUBROUTINE tstle4_par_upwind
+
+
+    SUBROUTINE tstle4_par_flux_correction_bf(kk, jj, ii, &
+            vo, wo, v, w, ut, dy, dz, ddy, ddz, rdy, rdz, rddx, rddy, rddz, &
+            wcv, wcw, nfro, nbac)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: vo(kk, jj, ii), wo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: v(kk, jj, ii), w(kk, jj, ii), &
+            ut(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dy(jj), dz(kk), ddy(jj), ddz(kk)
+        REAL(realk), INTENT(in) :: rdy(jj), rdz(kk), rddx(ii), rddy(jj)
+        REAL(realk), INTENT(in) :: rddz(kk)
+        REAL(realk), INTENT(inout) :: wcv(kk, jj, ii), &
+            wcw(kk, jj, ii)
+        INTEGER, INTENT(in) :: nfro, nbac
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: fkdtv, fkdtw
+        REAL(realk) :: qkvw, qkve, qkww, qkwe
+        REAL(realk) :: fvw, fve, avx, fww, fwe, awx
+        REAL(realk) :: dyj, ddyj, dzk, ddzk, rdzk, rddzk
+        REAL(realk), PARAMETER :: wkon = 1.0
 
         ! PAR-RB Impulserhaltend BACK
         IF (nbac == 8) THEN
@@ -1313,6 +1398,31 @@ CONTAINS
             !$omp end do
             !$omp barrier
         END IF
+    END SUBROUTINE tstle4_par_flux_correction_bf
+
+
+    SUBROUTINE tstle4_par_flux_correction_tb(kk, jj, ii, &
+            uo, vo, u, v, wt, dx, dy, ddx, ddy, rdx, rdy, rddx, rddy, rddz, &
+            wcu, wcv, nbot, ntop)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: uo(kk, jj, ii), vo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), v(kk, jj, ii), &
+            wt(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dy(jj), ddx(ii), ddy(jj)
+        REAL(realk), INTENT(in) :: rdx(ii), rdy(jj)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        REAL(realk), INTENT(inout) :: wcu(kk, jj, ii), wcv(kk, jj, ii)
+        INTEGER, INTENT(in) :: nbot, ntop
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: fkdtu, fkdtv
+        REAL(realk) :: qkut, qkub, qkvt, qkvb
+        REAL(realk) :: fut, fub, auz, fvt, fvb, avz
+        REAL(realk) :: dxi, ddxi, dyj, ddyj, rddzk
+        REAL(realk), PARAMETER :: wkon = 1.0
 
         ! PAR-RB Impulserhaltend TOP
         IF (ntop == 8) THEN
@@ -1701,6 +1811,31 @@ CONTAINS
             !$omp end do
             !$omp barrier
         END IF
+    END SUBROUTINE tstle4_par_flux_correction_tb
+
+
+    SUBROUTINE tstle4_par_flux_correction_lr(kk, jj, ii, &
+            uo, wo, u, w, vt, dx, dz, ddx, ddz, rdx, rdz, rddx, rddy, rddz, &
+            wcu, wcw, nrgt, nlft)
+        !$omp declare target
+        ! Subroutine arguments
+        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        REAL(realk), INTENT(inout) :: uo(kk, jj, ii), wo(kk, jj, ii)
+        REAL(realk), INTENT(in) :: u(kk, jj, ii), w(kk, jj, ii), &
+            vt(kk, jj, ii)
+        REAL(realk), INTENT(in) :: dx(ii), dz(kk), ddx(ii), ddz(kk)
+        REAL(realk), INTENT(in) :: rdx(ii), rdz(kk)
+        REAL(realk), INTENT(in) :: rddx(ii), rddy(jj), rddz(kk)
+        REAL(realk), INTENT(inout) :: wcu(kk, jj, ii), wcw(kk, jj, ii)
+        INTEGER, INTENT(in) :: nrgt, nlft
+
+        ! Local variables
+        INTEGER(intk) :: k, j, i
+        REAL(realk) :: fkdtu, fkdtw
+        REAL(realk) :: qkun, qkus, qkwn, qkws
+        REAL(realk) :: fun, fus, auy, fwn, fws, awy
+        REAL(realk) :: dxi, ddxi, dzk, ddzk, rdzk, rddzk
+        REAL(realk), PARAMETER :: wkon = 1.0
 
         ! PAR-RB Impulserhaltend LEFT
         IF (nlft == 8) THEN
@@ -2092,7 +2227,7 @@ CONTAINS
             ! no need for a barrier here since this is the last operation in
             ! the subroutine
         END IF
-    END SUBROUTINE tstle4_par
+    END SUBROUTINE tstle4_par_flux_correction_lr
 
 
     SUBROUTINE swcle3d(kk, jj, ii, uo, vo, wo, u, v, w, ddx, ddy, ddz, &
