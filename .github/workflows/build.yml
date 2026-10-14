@@ -37,7 +37,7 @@ jobs:
         cd build
         IMAGE=${{ matrix.image }}
         TOOLCHAIN=${IMAGE%%-*}
-        cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" ..
+        cmake -GNinja --preset=${TOOLCHAIN}-${{ matrix.build }} -DMGLET_REAL64="${{ matrix.prec == 'Double' && 'ON' || 'OFF' }}" -DMGLET_TEST_Additional=OFF ..
         ninja
 
     - name: Run testcases

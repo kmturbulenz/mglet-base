@@ -1,5 +1,15 @@
 enable_testing()
 
+# By default more expensive testcases are also enabled - but can be disabled
+# to make testing quicker
+option(MGLET_TEST_Additional "Enable additional testcases" ON)
+if(MGLET_TEST_Additional)
+    message(STATUS "Enabling additional testcases")
+    add_subdirectory("Additional-tests")
+else()
+    message(STATUS "Disabling additional testcases")
+endif()
+
 SUBDIRLIST(MGLET_TESTCASES ${CMAKE_CURRENT_SOURCE_DIR})
 FOREACH(test ${MGLET_TESTCASES})
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${test}/run.sh)
