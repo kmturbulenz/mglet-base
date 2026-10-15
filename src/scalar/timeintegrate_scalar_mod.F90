@@ -132,44 +132,39 @@ CONTAINS
         INTEGER(intk), INTENT(inout) :: exploded
 
         ! Local variables
-        INTEGER(intk) :: i, l, igrid
-        INTEGER(intk) :: kk, jj, ii
-        TYPE(field_t), POINTER :: ddx_f, ddy_f, ddz_f
-
-        REAL(realk), POINTER, CONTIGUOUS :: t(:, :, :)
-        REAL(realk), POINTER, CONTIGUOUS :: ddx(:), ddy(:), ddz(:)
-
-        REAL(realk) :: tmean(nsca), tmeansqr(nsca)
+        INTEGER(intk) :: i, l
+        TYPE(field_t), POINTER :: t_f, ddx_f, ddy_f, ddz_f
+        REAL(realk), ALLOCATABLE :: tmean_grid(:, :), tmeansqr_grid(:, :)
+        REAL(realk), ALLOCATABLE :: vsum_grid(:)
 
         IF (.NOT. solve_scalar) RETURN
         CALL start_timer(400)
         CALL start_timer(420)
 
-        ! Get fields
+        ALLOCATE(tmean_grid(nmygrids, nsca))
+        ALLOCATE(tmeansqr_grid(nmygrids, nsca))
+        ALLOCATE(vsum_grid(nmygrids))
+
         CALL get_field(ddx_f, "DDX")
         CALL get_field(ddy_f, "DDY")
         CALL get_field(ddz_f, "DDZ")
 
-        ! Compute CFL, divergence and kinetic energy
+        DO l = 1, nsca
+            CALL get_field(t_f, scalar(l)%name)
+            CALL comp_tmean_impl(t_f%arr, ddx_f%arr, ddy_f%arr, ddz_f%arr, &
+                tmean_grid(:, l), tmeansqr_grid(:, l), vsum_grid)
+        END DO
+
         DO i = 1, nmygrids
-            igrid = mygrids(i)
-
-            CALL get_mgdims(kk, jj, ii, igrid)
-
-            CALL ddx_f%get_ptr(ddx, igrid)
-            CALL ddy_f%get_ptr(ddy, igrid)
-            CALL ddz_f%get_ptr(ddz, igrid)
-
-            DO l = 1, nsca
-                CALL get_fieldptr(t, scalar(l)%name, igrid)
-                CALL comp_tmean(tmean(l), tmeansqr(l), kk, jj, ii, t, ddx, &
-                    ddy, ddz)
-            END DO
-
-            CALL itinfo_scalar_sample(igrid, tmean, tmeansqr)
+            CALL itinfo_scalar_sample(mygrids(i), tmean_grid(i, :), &
+                tmeansqr_grid(i, :))
         END DO
 
         CALL itinfo_scalar_print(itstep, ittot, timeph, exploded)
+
+        DEALLOCATE(vsum_grid)
+        DEALLOCATE(tmeansqr_grid)
+        DEALLOCATE(tmean_grid)
 
         CALL stop_timer(420)
         CALL stop_timer(400)
@@ -725,33 +720,76 @@ CONTAINS
     END SUBROUTINE sourceterm_field
 
 
-    SUBROUTINE comp_tmean(tmean, tmeansqr, kk, jj, ii, t, ddx, ddy, ddz)
+    SUBROUTINE comp_tmean_impl(t, ddx, ddy, ddz, tmeangrid, tmeansqrgrid, &
+            vsumgrid)
         ! Subroutine arguments
-        REAL(realk), INTENT(out) :: tmean, tmeansqr
+        REAL(realk), INTENT(in) :: t(*)
+        REAL(realk), INTENT(in) :: ddx(*), ddy(*), ddz(*)
+        REAL(realk), INTENT(inout) :: tmeangrid(*), tmeansqrgrid(*)
+        REAL(realk), INTENT(inout) :: vsumgrid(*)
+
+        ! Local variables
+        INTEGER(intk) :: i, igrid, kk, jj, ii, ip3, ip1x, ip1y, ip1z
+
+        CALL profile_range_push("comp_tmean")
+
+        !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
+        !$omp& ip1y, ip1z) &
+        !$omp& map(from: tmeangrid(1:nmygrids), tmeansqrgrid(1:nmygrids)) &
+        !$omp& map(alloc: vsumgrid(1:nmygrids))
+        DO i = 1, nmygrids
+            igrid = mygrids(i)
+            tmeangrid(i) = 0.0_realk
+            tmeansqrgrid(i) = 0.0_realk
+            vsumgrid(i) = 0.0_realk
+
+            CALL get_mgdims(kk, jj, ii, igrid)
+            CALL get_ip3(ip3, igrid)
+            CALL get_ip1x(ip1x, igrid)
+            CALL get_ip1y(ip1y, igrid)
+            CALL get_ip1z(ip1z, igrid)
+
+            !$omp parallel
+            CALL comp_tmean_grid(tmeangrid(i), tmeansqrgrid(i), vsumgrid(i), &
+                kk, jj, ii, t(ip3), ddx(ip1x), ddy(ip1y), ddz(ip1z))
+            !$omp end parallel
+
+            IF (vsumgrid(i) > 0.0_realk) THEN
+                tmeangrid(i) = tmeangrid(i)/vsumgrid(i)
+                tmeansqrgrid(i) = tmeansqrgrid(i)/vsumgrid(i)
+            END IF
+        END DO
+        !$omp end target teams distribute
+
+        CALL profile_range_pop()
+    END SUBROUTINE comp_tmean_impl
+
+
+    SUBROUTINE comp_tmean_grid(tsum, tsqrsum, vsum, kk, jj, ii, t, &
+            ddx, ddy, ddz)
+        !$omp declare target
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: tsum, tsqrsum, vsum
         INTEGER(intk), INTENT(in) :: kk, jj, ii
         REAL(realk), INTENT(in) :: t(kk, jj, ii)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
 
         ! Local variables
-        REAL(realk) :: vsum, vol
+        REAL(realk) :: vol
         INTEGER(intk) :: k, j, i
 
-        tmean = 0.0
-        tmeansqr = 0.0
-        vsum = 0.0
-
+        !$omp do collapse(3) private(i, j, k, vol) &
+        !$omp& reduction(+:tsum, tsqrsum, vsum)
         DO i = 3, ii-2
             DO j = 3, jj-2
                 DO k = 3, kk-2
                     vol = ddx(i)*ddy(j)*ddz(k)
-                    tmean = tmean + vol*t(k, j, i)
-                    tmeansqr = tmeansqr + vol*t(k, j, i)**2
+                    tsum = tsum + vol*t(k, j, i)
+                    tsqrsum = tsqrsum + vol*t(k, j, i)**2
                     vsum = vsum + vol
                 END DO
             END DO
         END DO
-
-        tmean = tmean/vsum
-        tmeansqr = tmeansqr/vsum
-    END SUBROUTINE comp_tmean
+        !$omp end do
+    END SUBROUTINE comp_tmean_grid
 END MODULE timeintegrate_scalar_mod
