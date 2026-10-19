@@ -28,12 +28,21 @@ CONTAINS
 
         ! Local variables
         TYPE(field_t), POINTER :: u, v, w
+        TYPE(field_t), POINTER :: p
         TYPE(field_t), POINTER :: pwu, pwv, pww
 
         CALL init_flowcore()
         IF (.NOT. has_flow) RETURN
 
+        CALL get_field(u, "U")
+        CALL get_field(v, "V")
+        CALL get_field(w, "W")
+        CALL get_field(p, "P")
+
         CALL init_uvwp()
+        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p")
+        CALL map_buffers_to_device(u, v, w, message="to:u|v|w buffers")
+
         CALL init_bound_flow()
         CALL init_flowstat()
 
@@ -70,12 +79,6 @@ CONTAINS
         CALL init_boussinesqterm()
         CALL init_coriolisterm()
         CALL init_itinfo(dcont)
-
-        CALL get_field(u, "U")
-        CALL get_field(v, "V")
-        CALL get_field(w, "W")
-        CALL map_arr_to_device(u, v, w, message="to:init_flow")
-        CALL map_buffers_to_device(u, v, w, message="to:init_flow")
 
         ! Need to call this here - cannot be in flowcore because that
         ! create a circular dependency
