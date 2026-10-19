@@ -256,25 +256,39 @@ CONTAINS
             minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
-        !$omp target update to( &
-        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+        ! Master thread handles MPI receive and send tasks, while
+        ! the other thread controls the offloading to GPU.
 
+        !$omp parallel num_threads(2)
+
+        !$omp masked filter(0)
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars)
+        !$omp end masked
 
-        !$omp taskwait
-
+        !$omp masked filter(1)
+        !$omp target update to(sendtasks(1:buffertasksize, 1:nsendtasks+1))
         CALL process_sendtasks(nsendtasks, sendtasks)
-        CALL process_mpisend(nmpisendtasks, mpisendtasks)
-        CALL process_selftasks(nselftasks, selftasks)
+        !$omp end masked
 
+        !$omp barrier
+
+        !$omp masked filter(0)
+        CALL process_mpisend(nmpisendtasks, mpisendtasks)
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
+        !$omp end masked
+
+        !$omp masked filter(1)
+        !$omp target update to(selftasks(1:selftasksize, 1:nselftasks+1))
+        CALL process_selftasks(nselftasks, selftasks)
+        !$omp end masked
+
+        !$omp end parallel
 
         !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
-
         CALL process_recvtasks(nrecvtasks, recvtasks)
+
     END SUBROUTINE jit_conn
 
 
@@ -294,10 +308,29 @@ CONTAINS
         nselftasks = SIZE(wptr%selftasks, 2) - 1
         nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
 
+        ! Master thread handles MPI receive and send tasks, while
+        ! the other thread controls the offloading to GPU.
+
+        !$omp parallel num_threads(2)
+
+        !$omp masked filter(0)
         CALL process_mpirecv(nmpirecvtasks, wptr%mpirecvtasks)
+        !$omp end masked
+        !$omp masked filter(1)
         CALL process_sendtasks(nsendtasks, wptr%sendtasks)
+        !$omp end masked
+
+        !$omp barrier
+
+        !$omp masked filter(0)
         CALL process_mpisend(nmpisendtasks, wptr%mpisendtasks)
+        !$omp end masked
+        !$omp masked filter(1)
         CALL process_selftasks(nselftasks, wptr%selftasks)
+        !$omp end masked
+
+        !$omp end parallel
+
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
