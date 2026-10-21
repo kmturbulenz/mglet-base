@@ -22,6 +22,12 @@ MODULE lesmodel_mod
         PROCEDURE, NOPASS :: top => bbottom
     END TYPE boundg_t
 
+    TYPE :: boundgtask_t
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: iface
+        INTEGER(intk) :: ityp
+    END TYPE boundgtask_t
+
     ! LES model constant
     REAL(realk) :: Cm
     !$omp declare target(Cm)
@@ -29,8 +35,9 @@ MODULE lesmodel_mod
     ! Bound operation
     TYPE(boundg_t) :: bound
 
-    INTEGER(intk), PARAMETER :: boundgtasksize = 3
-    INTEGER(intk), ALLOCATABLE :: boundgtasks(:, :, :)
+    ! Dim 1: task index
+    ! Dim 2: ilevel_index: ilevel-minlevel+1
+    TYPE(boundgtask_t), ALLOCATABLE :: boundgtasks(:, :)
     INTEGER(intk), ALLOCATABLE :: nboundgtaskslvl(:)
     !$omp declare target(boundgtasks)
 
@@ -256,8 +263,7 @@ CONTAINS
             END DO
         END DO
 
-        ALLOCATE(boundgtasks(boundgtasksize, MAXVAL(nboundgtaskslvl), &
-            nlevels), source=-1_intk)
+        ALLOCATE(boundgtasks(MAXVAL(nboundgtaskslvl), nlevels))
 
         DO ilevel = minlevel, maxlevel
             ilevel_index = ilevel - minlevel + 1
@@ -270,8 +276,8 @@ CONTAINS
                         CALL get_bc_ctyp(ctyp, ibocd, iface, igrid)
                         IF (boundg_ctyp(ctyp) == 0) CYCLE
                         itask = itask + 1
-                        boundgtasks(:, itask, ilevel_index) = &
-                            [igrid, iface, boundg_ctyp(ctyp)]
+                        boundgtasks(itask, ilevel_index) = &
+                            boundgtask_t(igrid, iface, boundg_ctyp(ctyp))
                     END DO
                 END DO
             END DO
@@ -324,9 +330,9 @@ CONTAINS
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipbb)
         DO itask = 1, ntasks
-            igrid = boundgtasks(1, itask, ilevel_index)
-            iface = boundgtasks(2, itask, ilevel_index)
-            ityp = boundgtasks(3, itask, ilevel_index)
+            igrid = boundgtasks(itask, ilevel_index)%igrid
+            iface = boundgtasks(itask, ilevel_index)%iface
+            ityp = boundgtasks(itask, ilevel_index)%ityp
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
