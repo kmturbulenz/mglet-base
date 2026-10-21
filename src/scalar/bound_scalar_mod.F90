@@ -18,17 +18,25 @@ MODULE bound_scalar_mod
     END TYPE bound_scaflux_t
     TYPE(bound_scaflux_t) :: bound_scaflux
 
-    INTEGER(intk), PARAMETER :: boundscatasksize = 4
+    TYPE :: boundscatask_t
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: iface
+        INTEGER(intk) :: ityp
+        INTEGER(intk) :: bctype
+    END TYPE boundscatask_t
 
-    ! Dim 1: 1=igrid, 2=iface, 3=ityp, 4=bctype
-    ! Dim 2: face direction 1: (1,2), 2: (3,4), 3: (5,6)
-    ! Dim 3: task index
-    ! Dim 4: ilevel_index: ilevel - minlevel + 1
-    ! Dim 5: scalar index
-    INTEGER(intk), ALLOCATABLE :: boundscatasks(:, :, :, :, :)
-    ! nboundscataskslvl(idir, ilevel_index, isca): number of tasks
-    INTEGER(intk), ALLOCATABLE :: nboundscataskslvl(:, :, :)
+    ! Dim 1: face direction 1: (1,2), 2: (3,4), 3: (5,6)
+    ! Dim 2: task index
+    ! Dim 3: ilevel_index: ilevel-minlevel+1
+    ! Dim 4: scalar index
+    TYPE(boundscatask_t), ALLOCATABLE :: boundscatasks(:, :, :, :)
     !$omp declare target(boundscatasks)
+
+    ! Number of tasks
+    ! Dim 1: face direction 1: (1,2), 2: (3,4), 3: (5,6)
+    ! Dim 2: ilevel_index: ilevel-minlevel+1
+    ! Dim 3: scalar index
+    INTEGER(intk), ALLOCATABLE :: nboundscataskslvl(:, :, :)
 
     PUBLIC :: bound_scaflux, init_bound_scalar, apply_bound_scalar, &
         finish_bound_scalar
@@ -64,8 +72,7 @@ CONTAINS
         END DO
 
         maxntasks = MAX(1_intk, MAXVAL(nboundscataskslvl))
-        ALLOCATE(boundscatasks(boundscatasksize, 3, maxntasks, nlevels, &
-            nsca), source=-1_intk)
+        ALLOCATE(boundscatasks(3, maxntasks, nlevels, nsca))
 
         DO l = 1, nsca
             DO ilevel = minlevel, maxlevel
@@ -81,15 +88,13 @@ CONTAINS
                             ityp = boundsca_type(ctyp)
                             IF (ityp == 0) CYCLE
                             itask(idir) = itask(idir) + 1
-                            boundscatasks(1:3, idir, itask(idir), &
-                                ilevel_index, l) = [igrid, iface, ityp]
-                            IF (ityp == 1) THEN
-                                boundscatasks(4, idir, itask(idir), &
-                                    ilevel_index, l) = -1
-                            ELSE
+                            boundscatasks(idir, itask(idir), &
+                                ilevel_index, l) = &
+                                boundscatask_t(igrid, iface, ityp, -1)
+                            IF (ityp /= 1) THEN
                                 CALL get_bcprms(scbtype, igrid, iface, ibocd)
-                                boundscatasks(4, idir, itask(idir), &
-                                    ilevel_index, l) = scbtype(l)
+                                boundscatasks(idir, itask(idir), &
+                                    ilevel_index, l)%bctype = scbtype(l)
                             END IF
                         END DO
                     END DO
@@ -172,10 +177,10 @@ CONTAINS
             !$omp target teams distribute private(itask, igrid, iface, &
             !$omp& ityp, bctype, kk, jj, ii, ip3, ipbb, ipx, ipy, ipz)
             DO itask = 1, ntx
-                igrid = boundscatasks(1, 1, itask, ilevel_index, isca)
-                iface = boundscatasks(2, 1, itask, ilevel_index, isca)
-                ityp = boundscatasks(3, 1, itask, ilevel_index, isca)
-                bctype = boundscatasks(4, 1, itask, ilevel_index, isca)
+                igrid = boundscatasks(1, itask, ilevel_index, isca)%igrid
+                iface = boundscatasks(1, itask, ilevel_index, isca)%iface
+                ityp = boundscatasks(1, itask, ilevel_index, isca)%ityp
+                bctype = boundscatasks(1, itask, ilevel_index, isca)%bctype
                 CALL get_mgdims(kk, jj, ii, igrid)
                 CALL get_ip3(ip3, igrid)
                 CALL get_ipbb(ipbb, iface, igrid)
@@ -197,10 +202,10 @@ CONTAINS
             !$omp target teams distribute private(itask, igrid, iface, &
             !$omp& ityp, bctype, kk, jj, ii, ip3, ipbb, ipx, ipy, ipz)
             DO itask = 1, nty
-                igrid = boundscatasks(1, 2, itask, ilevel_index, isca)
-                iface = boundscatasks(2, 2, itask, ilevel_index, isca)
-                ityp = boundscatasks(3, 2, itask, ilevel_index, isca)
-                bctype = boundscatasks(4, 2, itask, ilevel_index, isca)
+                igrid = boundscatasks(2, itask, ilevel_index, isca)%igrid
+                iface = boundscatasks(2, itask, ilevel_index, isca)%iface
+                ityp = boundscatasks(2, itask, ilevel_index, isca)%ityp
+                bctype = boundscatasks(2, itask, ilevel_index, isca)%bctype
                 CALL get_mgdims(kk, jj, ii, igrid)
                 CALL get_ip3(ip3, igrid)
                 CALL get_ipbb(ipbb, iface, igrid)
@@ -222,10 +227,10 @@ CONTAINS
             !$omp target teams distribute private(itask, igrid, iface, &
             !$omp& ityp, bctype, kk, jj, ii, ip3, ipbb, ipx, ipy, ipz)
             DO itask = 1, ntz
-                igrid = boundscatasks(1, 3, itask, ilevel_index, isca)
-                iface = boundscatasks(2, 3, itask, ilevel_index, isca)
-                ityp = boundscatasks(3, 3, itask, ilevel_index, isca)
-                bctype = boundscatasks(4, 3, itask, ilevel_index, isca)
+                igrid = boundscatasks(3, itask, ilevel_index, isca)%igrid
+                iface = boundscatasks(3, itask, ilevel_index, isca)%iface
+                ityp = boundscatasks(3, itask, ilevel_index, isca)%ityp
+                bctype = boundscatasks(3, itask, ilevel_index, isca)%bctype
                 CALL get_mgdims(kk, jj, ii, igrid)
                 CALL get_ip3(ip3, igrid)
                 CALL get_ipbb(ipbb, iface, igrid)

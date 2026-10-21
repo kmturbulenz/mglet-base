@@ -17,11 +17,18 @@ MODULE bound_flow_mod
     END TYPE bound_flow_t
     TYPE(bound_flow_t) :: bound_flow
 
-    INTEGER(intk), PARAMETER :: boundtasksize = 3
-    INTEGER(intk), ALLOCATABLE :: boundtasks(:, :, :)
+    TYPE :: boundtask_t
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: iface
+        INTEGER(intk) :: ityp
+        REAL(realk) :: pinf
+    END TYPE boundtask_t
+
+    ! Dim 1: task index
+    ! Dim 2: ilevel_index: ilevel-minlevel+1
+    TYPE(boundtask_t), ALLOCATABLE :: boundtasks(:, :)
     INTEGER(intk), ALLOCATABLE :: nboundtaskslvl(:)
-    REAL(realk), ALLOCATABLE :: boundtaskpinf(:, :)
-    !$omp declare target(boundtasks, boundtaskpinf)
+    !$omp declare target(boundtasks)
 
     PUBLIC :: bound_flow, init_bound_flow, apply_bound_flow, finish_bound_flow
 
@@ -53,10 +60,7 @@ CONTAINS
             END DO
         END DO
 
-        ALLOCATE(boundtasks(boundtasksize, MAXVAL(nboundtaskslvl), nlevels), &
-            source=-1_intk)
-        ALLOCATE(boundtaskpinf(MAXVAL(nboundtaskslvl), nlevels), &
-            source=0.0_realk)
+        ALLOCATE(boundtasks(MAXVAL(nboundtaskslvl), nlevels))
 
         DO ilevel = minlevel, maxlevel
             ilevel_index = ilevel - minlevel + 1
@@ -70,8 +74,8 @@ CONTAINS
                         ityp = bound_type(ctyp)
                         IF (ityp == 0) CYCLE
                         itask = itask + 1
-                        boundtasks(:, itask, ilevel_index) = &
-                            [igrid, iface, ityp]
+                        boundtasks(itask, ilevel_index) = &
+                            boundtask_t(igrid, iface, ityp, 0.0_realk)
                         IF (ityp == 2) THEN
                             CALL get_nbcprms(igrid, iface, ibocd, nreal=nop1)
                             IF (nop1 == 0) THEN
@@ -81,14 +85,14 @@ CONTAINS
                             ELSE
                                 CALL errr(__FILE__, __LINE__)
                             END IF
-                            boundtaskpinf(itask, ilevel_index) = pinf(1)
+                            boundtasks(itask, ilevel_index)%pinf = pinf(1)
                         END IF
                     END DO
                 END DO
             END DO
         END DO
 
-        !$omp target enter data map(always, to: boundtasks, boundtaskpinf)
+        !$omp target enter data map(always, to: boundtasks)
         CALL get_field(u_f, "U")
         CALL get_field(v_f, "V")
         CALL get_field(w_f, "W")
@@ -158,10 +162,10 @@ CONTAINS
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb, pinf)
         DO itask = 1, ntasks
-            igrid = boundtasks(1, itask, ilevel_index)
-            iface = boundtasks(2, itask, ilevel_index)
-            ityp = boundtasks(3, itask, ilevel_index)
-            pinf = boundtaskpinf(itask, ilevel_index)
+            igrid = boundtasks(itask, ilevel_index)%igrid
+            iface = boundtasks(itask, ilevel_index)%iface
+            ityp = boundtasks(itask, ilevel_index)%ityp
+            pinf = boundtasks(itask, ilevel_index)%pinf
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             IF (ityp == 3 .OR. ityp == 4) THEN
@@ -250,9 +254,9 @@ CONTAINS
         !$omp target teams distribute private(itask, igrid, iface, ityp, &
         !$omp& kk, jj, ii, ip3, ipx, ipy, ipz, ipbb)
         DO itask = 1, ntasks
-            igrid = boundtasks(1, itask, ilevel_index)
-            iface = boundtasks(2, itask, ilevel_index)
-            ityp = boundtasks(3, itask, ilevel_index)
+            igrid = boundtasks(itask, ilevel_index)%igrid
+            iface = boundtasks(itask, ilevel_index)%iface
+            ityp = boundtasks(itask, ilevel_index)%ityp
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ip3(ip3, igrid)
             IF (ityp == 3 .OR. ityp == 4) THEN
@@ -309,8 +313,7 @@ CONTAINS
 
 
     SUBROUTINE finish_bound_flow()
-        !$omp target exit data map(always, delete: boundtasks, boundtaskpinf)
-        DEALLOCATE(boundtaskpinf)
+        !$omp target exit data map(always, delete: boundtasks)
         DEALLOCATE(boundtasks)
         DEALLOCATE(nboundtaskslvl)
     END SUBROUTINE finish_bound_flow

@@ -17,13 +17,15 @@ MODULE bound_pressure_mod
         END SUBROUTINE boundary_callback_t
     END INTERFACE
 
-    INTEGER(intk), PARAMETER :: boundtasksize = 2
+    TYPE :: boundtask_t
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: iface
+    END TYPE boundtask_t
 
     ! Tasks for parallel processing of boundary pressure
     ! Avoids repeated loops over all faces and checks for 'PAR' boundaries
-    !   Field 1: grid index
-    !   Field 2: face index
-    INTEGER(intk), ALLOCATABLE :: boundtasks(:, :, :)
+    ! Second dimension indexes refinement levels: ilevel-minlevel+ 1.
+    TYPE(boundtask_t), ALLOCATABLE :: boundtasks(:, :)
     INTEGER(intk), ALLOCATABLE :: nboundtaskslvl(:)
     !$omp declare target(boundtasks)
 
@@ -42,8 +44,7 @@ CONTAINS
         ALLOCATE(nboundtaskslvl(nlevels), source=0_intk)
 
         CALL for_all_par_boundaries(boundary_counter=nboundtaskslvl)
-        ALLOCATE(boundtasks(boundtasksize, &
-            MAXVAL(nboundtaskslvl), nlevels), source=-1_intk)
+        ALLOCATE(boundtasks(MAXVAL(nboundtaskslvl), nlevels))
 
         CALL for_all_par_boundaries(on_boundary=add_par_boundary_task)
 
@@ -98,8 +99,7 @@ CONTAINS
         ! Local variables
         ! none...
 
-        boundtasks(1, itask, ilevel_index) = igrid
-        boundtasks(2, itask, ilevel_index) = iface
+        boundtasks(itask, ilevel_index) = boundtask_t(igrid, iface)
     END SUBROUTINE add_par_boundary_task
 
 
@@ -172,8 +172,8 @@ CONTAINS
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
-            igrid = boundtasks(1, i, ilevel_index)
-            iface = boundtasks(2, i, ilevel_index)
+            igrid = boundtasks(i, ilevel_index)%igrid
+            iface = boundtasks(i, ilevel_index)%iface
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ipbb(ipbb, iface, igrid)
@@ -257,8 +257,8 @@ CONTAINS
         !$omp target teams distribute private(i, igrid, iface, kk, jj, ii, &
         !$omp& ip3, ipx, ipy, ipz, ipbb)
         DO i = 1, nboundtasks
-            igrid = boundtasks(1, i, ilevel_index)
-            iface = boundtasks(2, i, ilevel_index)
+            igrid = boundtasks(i, ilevel_index)%igrid
+            iface = boundtasks(i, ilevel_index)%iface
 
             CALL get_mgdims(kk, jj, ii, igrid)
             CALL get_ipbb(ipbb, iface, igrid)
