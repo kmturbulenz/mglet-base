@@ -12,16 +12,16 @@ MODULE gc_scastencils_mod
 
     ! Stores both coeff and coeffp since MGLET does not decide which one is used
     ! upon initialization. It is only seen once set_scastencils is called.
-    TYPE, BIND(C) :: scastencil_t
-        INTEGER(c_intk) :: icell
-        INTEGER(c_intk) :: body
-        INTEGER(c_intk) :: npts
-        INTEGER(c_intk) :: pts(nperi)
-        REAL(c_realk) :: areabyvol
-        REAL(c_realk) :: acoeff
-        REAL(c_realk) :: coeff(nperi)
-        REAL(c_realk) :: acoeffp
-        REAL(c_realk) :: coeffp(nperi)
+    TYPE :: scastencil_t
+        INTEGER(intk) :: icell
+        INTEGER(intk) :: body
+        INTEGER(intk) :: npts
+        INTEGER(intk) :: pts(nperi)
+        REAL(realk) :: areabyvol
+        REAL(realk) :: acoeff
+        REAL(realk) :: coeff(nperi)
+        REAL(realk) :: acoeffp
+        REAL(realk) :: coeffp(nperi)
     END TYPE scastencil_t
 
     TYPE(scastencil_t), ALLOCATABLE, TARGET :: scastencils(:)
@@ -50,33 +50,6 @@ MODULE gc_scastencils_mod
     ! -> therefore: rsize = 2 + nperi
     INTEGER(intk), PARAMETER :: isize = 3 + nperi
     INTEGER(intk), PARAMETER :: rsize = 2 + nperi
-
-    INTERFACE
-        SUBROUTINE set_scastencils_t_c(ctyp, nstencils, stencils, &
-                geometries, t) BIND(C)
-            USE, INTRINSIC :: iso_c_binding, ONLY: c_char
-            USE precision_mod, ONLY: c_realk, c_intk
-            USE scacore_mod, ONLY: scalar_bc_t
-            IMPORT :: scastencil_t
-            CHARACTER(c_char), VALUE, INTENT(in) :: ctyp
-            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
-            TYPE(scastencil_t), INTENT(in) :: stencils(*)
-            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
-            REAL(c_realk), INTENT(inout) :: t(*)
-        END SUBROUTINE set_scastencils_t_c
-
-        SUBROUTINE set_scastencils_qtt_c(nstencils, stencils, &
-                geometries, qtt) BIND(C)
-            USE, INTRINSIC :: iso_c_binding, ONLY: c_ptr
-            USE scacore_mod, ONLY: scalar_bc_t
-            USE precision_mod, ONLY: c_realk, c_intk
-            IMPORT :: scastencil_t
-            INTEGER(c_intk), VALUE, INTENT(in) :: nstencils
-            TYPE(scastencil_t), INTENT(in) :: stencils(*)
-            TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
-            REAL(c_realk), INTENT(inout) :: qtt(*)
-        END SUBROUTINE set_scastencils_qtt_c
-    END INTERFACE
 
     PUBLIC :: init_scastencils, finish_scastencils, set_scastencils
 CONTAINS
@@ -1099,41 +1072,87 @@ CONTAINS
         CALL start_timer(412)
 
         IF (PRESENT(t)) THEN
-            CALL set_scastencils_t(ctyp, sca, t%arr)
+            CALL set_scastencils_t(ctyp, SIZE(scastencils), scastencils, &
+                sca%geometries, t%arr)
         END IF
 
         IF (PRESENT(qtt)) THEN
-            CALL set_scastencils_qtt(sca, qtt%arr)
+            CALL set_scastencils_qtt(SIZE(scastencils), scastencils, &
+                sca%geometries, qtt%arr)
         END IF
 
         CALL stop_timer(412)
     END SUBROUTINE set_scastencils
 
 
-    SUBROUTINE set_scastencils_t(ctyp, sca, t)
+    SUBROUTINE set_scastencils_t(ctyp, nstencils, stencils, geometries, t)
         ! Subroutine arguments
         CHARACTER(len=1), INTENT(in) :: ctyp
-        TYPE(scalar_t), TARGET, INTENT(in) :: sca
+        INTEGER(intk), INTENT(in) :: nstencils
+        TYPE(scastencil_t), INTENT(in) :: stencils(*)
+        TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
         REAL(realk), INTENT(inout) :: t(*)
 
         ! Local variables
-        ! none...
+        INTEGER(intk) :: i, n, body, icell, pt
+        REAL(realk) :: val
 
-        CALL set_scastencils_t_c(ctyp, SIZE(scastencils), scastencils, &
-            sca%geometries, t)
+        IF (ctyp == "C") THEN
+            !$omp target teams loop private(n, body, icell, pt, val)
+            DO i = 1, nstencils
+                body = stencils(i)%body + 1
+                IF (geometries(body)%flag == 0) THEN
+                    val = 0.0_realk
+                    DO n = 1, stencils(i)%npts
+                        pt = stencils(i)%pts(n)
+                        val = val + t(pt)*stencils(i)%coeff(n)
+                    END DO
+
+                    icell = stencils(i)%icell
+                    t(icell) = val + stencils(i)%acoeff*geometries(body)%value
+                END IF
+            END DO
+            !$omp end target teams loop
+        ELSE IF (ctyp == "P") THEN
+            !$omp target teams loop private(n, body, icell, pt, val)
+            DO i = 1, nstencils
+                body = stencils(i)%body + 1
+                IF (geometries(body)%flag == 0) THEN
+                    val = 0.0_realk
+                    DO n = 1, stencils(i)%npts
+                        pt = stencils(i)%pts(n)
+                        val = val + t(pt)*stencils(i)%coeffp(n)
+                    END DO
+
+                    icell = stencils(i)%icell
+                    t(icell) = val + stencils(i)%acoeffp*geometries(body)%value
+                END IF
+            END DO
+            !$omp end target teams loop
+        END IF
     END SUBROUTINE set_scastencils_t
 
 
-    SUBROUTINE set_scastencils_qtt(sca, qtt)
+    SUBROUTINE set_scastencils_qtt(nstencils, stencils, geometries, qtt)
         ! Subroutine arguments
-        TYPE(scalar_t), TARGET, INTENT(in) :: sca
+        INTEGER(intk), INTENT(in) :: nstencils
+        TYPE(scastencil_t), INTENT(in) :: stencils(*)
+        TYPE(scalar_bc_t), INTENT(in) :: geometries(*)
         REAL(realk), INTENT(inout) :: qtt(*)
 
         ! Local variables
-        ! none...
+        INTEGER(intk) :: i, body, icell
 
-        CALL set_scastencils_qtt_c(SIZE(scastencils), scastencils, &
-            sca%geometries, qtt)
+        !$omp target teams loop private(body, icell)
+        DO i = 1, nstencils
+            body = stencils(i)%body + 1
+            IF (geometries(body)%flag == 1) THEN
+                icell = stencils(i)%icell
+                qtt(icell) = qtt(icell) &
+                    + stencils(i)%areabyvol*geometries(body)%value
+            END IF
+        END DO
+        !$omp end target teams loop
     END SUBROUTINE set_scastencils_qtt
 
 
