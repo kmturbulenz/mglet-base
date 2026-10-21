@@ -17,6 +17,42 @@ MODULE conn2_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    TYPE :: mpitask_t
+        INTEGER(intk) :: iprocnbr
+        INTEGER(intk) :: messagelength
+        INTEGER(intk) :: counter
+    END TYPE mpitask_t
+
+    TYPE :: buffertask_t
+        INTEGER(intk) :: fieldid
+        INTEGER(intk) :: icount
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: istart
+        INTEGER(intk) :: istop
+        INTEGER(intk) :: jstart
+        INTEGER(intk) :: jstop
+        INTEGER(intk) :: kstart
+        INTEGER(intk) :: kstop
+    END TYPE buffertask_t
+
+    TYPE :: selftask_t
+        INTEGER(intk) :: fieldid
+        INTEGER(intk) :: igrid
+        INTEGER(intk) :: igrid_d
+        INTEGER(intk) :: istart
+        INTEGER(intk) :: istop
+        INTEGER(intk) :: jstart
+        INTEGER(intk) :: jstop
+        INTEGER(intk) :: kstart
+        INTEGER(intk) :: kstop
+        INTEGER(intk) :: istart_d
+        INTEGER(intk) :: istop_d
+        INTEGER(intk) :: jstart_d
+        INTEGER(intk) :: jstop_d
+        INTEGER(intk) :: kstart_d
+        INTEGER(intk) :: kstop_d
+    END TYPE selftask_t
+
     ! Lists that hold the send and receive request arrays
     TYPE(MPI_Request), ALLOCATABLE :: sendreqs(:), recvreqs(:)
     INTEGER(int32), ALLOCATABLE :: sendlist(:), recvlist(:)
@@ -24,27 +60,24 @@ MODULE conn2_mod
     INTEGER(intk) :: nsend, nrecv
 
     ! Task extents
-    INTEGER(intk), PARAMETER :: buffertasksize = 9
-    INTEGER(intk), PARAMETER :: selftasksize = 15
-    INTEGER(intk), PARAMETER :: mpitasksize = 3
     INTEGER(intk) :: maxsendtasks, maxrecvtasks
     INTEGER(intk) :: maxselftasks
     INTEGER(intk) :: maxmpisendtasks, maxmpirecvtasks
 
     ! Workpackages containing individual tasks for packing / unpacking
-    INTEGER(intk), ALLOCATABLE :: sendtasks(:, :), recvtasks(:, :)
-    INTEGER(intk), ALLOCATABLE :: selftasks(:, :)
-    INTEGER(intk), ALLOCATABLE :: mpisendtasks(:, :), mpirecvtasks(:, :)
+    TYPE(buffertask_t), ALLOCATABLE :: sendtasks(:), recvtasks(:)
+    TYPE(selftask_t), ALLOCATABLE :: selftasks(:)
+    TYPE(mpitask_t), ALLOCATABLE :: mpisendtasks(:), mpirecvtasks(:)
     !$omp declare target(sendtasks, recvtasks, selftasks)
 
     ! Type to hold condensed task arrays to execute a certain type of conn
     TYPE :: work_t
         LOGICAL :: is_init = .FALSE.
-        INTEGER(intk), ALLOCATABLE :: sendtasks(:, :)
-        INTEGER(intk), ALLOCATABLE :: recvtasks(:, :)
-        INTEGER(intk), ALLOCATABLE :: selftasks(:, :)
-        INTEGER(intk), ALLOCATABLE :: mpisendtasks(:, :)
-        INTEGER(intk), ALLOCATABLE :: mpirecvtasks(:, :)
+        TYPE(buffertask_t), ALLOCATABLE :: sendtasks(:)
+        TYPE(buffertask_t), ALLOCATABLE :: recvtasks(:)
+        TYPE(selftask_t), ALLOCATABLE :: selftasks(:)
+        TYPE(mpitask_t), ALLOCATABLE :: mpisendtasks(:)
+        TYPE(mpitask_t), ALLOCATABLE :: mpirecvtasks(:)
     END TYPE work_t
 
     ! Multidimensional array to store work_t for different conn types
@@ -257,8 +290,8 @@ CONTAINS
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to( &
-        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1)) nowait
+        !$omp&  sendtasks(1:nsendtasks+1), &
+        !$omp&  selftasks(1:nselftasks+1)) nowait
 
         CALL recv_mpi_all(minconlvl, maxconlvl, nplane, vertices, &
             normal2, fwd, flag, nvars)
@@ -272,7 +305,7 @@ CONTAINS
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        !$omp target update to(recvtasks(1:nrecvtasks+1))
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
     END SUBROUTINE jit_conn
@@ -288,11 +321,11 @@ CONTAINS
         INTEGER(intk) :: nmpisendtasks, nmpirecvtasks
 
         ! Using the (offloaded) workpackage from the workrecords array
-        nmpirecvtasks = SIZE(wptr%mpirecvtasks, 2) - 1
-        nmpisendtasks = SIZE(wptr%mpisendtasks, 2) - 1
-        nsendtasks = SIZE(wptr%sendtasks, 2) - 1
-        nselftasks = SIZE(wptr%selftasks, 2) - 1
-        nrecvtasks = SIZE(wptr%recvtasks, 2) - 1
+        nmpirecvtasks = SIZE(wptr%mpirecvtasks) - 1
+        nmpisendtasks = SIZE(wptr%mpisendtasks) - 1
+        nsendtasks = SIZE(wptr%sendtasks) - 1
+        nselftasks = SIZE(wptr%selftasks) - 1
+        nrecvtasks = SIZE(wptr%recvtasks) - 1
 
         CALL process_mpirecv(nmpirecvtasks, wptr%mpirecvtasks)
         CALL process_sendtasks(nsendtasks, wptr%sendtasks)
@@ -338,8 +371,8 @@ CONTAINS
             normal2, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         !$omp target update to( &
-        !$omp&  sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp&  selftasks(1:selftasksize, 1:nselftasks+1))
+        !$omp&  sendtasks(1:nsendtasks+1), &
+        !$omp&  selftasks(1:nselftasks+1))
 
         CALL process_mpirecv(nmpirecvtasks, mpirecvtasks)
         CALL process_sendtasks(nsendtasks, sendtasks)
@@ -348,27 +381,27 @@ CONTAINS
         CALL prepare_recvtasks_all(recvtasks, nrecvtasks, &
             nplane, normal2, flag, v1, v2, v3, s1, s2, s3)
 
-        !$omp target update to(recvtasks(1:buffertasksize, 1:nrecvtasks+1))
+        !$omp target update to(recvtasks(1:nrecvtasks+1))
         CALL process_recvtasks(nrecvtasks, recvtasks)
 
         ! Allocate the workpackage arrays in the exact sizes
-        ALLOCATE(wptr%sendtasks(buffertasksize, nsendtasks+1))
-        ALLOCATE(wptr%recvtasks(buffertasksize, nrecvtasks+1))
-        ALLOCATE(wptr%selftasks(selftasksize, nselftasks+1))
-        ALLOCATE(wptr%mpisendtasks(mpitasksize, nmpisendtasks+1))
-        ALLOCATE(wptr%mpirecvtasks(mpitasksize, nmpirecvtasks+1))
+        ALLOCATE(wptr%sendtasks(nsendtasks+1))
+        ALLOCATE(wptr%recvtasks(nrecvtasks+1))
+        ALLOCATE(wptr%selftasks(nselftasks+1))
+        ALLOCATE(wptr%mpisendtasks(nmpisendtasks+1))
+        ALLOCATE(wptr%mpirecvtasks(nmpirecvtasks+1))
 
         ! Store the workpackage in the workrecords array and map
-        wptr%sendtasks = sendtasks(:, 1:nsendtasks+1)
-        wptr%recvtasks = recvtasks(:, 1:nrecvtasks+1)
-        wptr%selftasks = selftasks(:, 1:nselftasks+1)
-        wptr%mpisendtasks = mpisendtasks(:, 1:nmpisendtasks+1)
-        wptr%mpirecvtasks = mpirecvtasks(:, 1:nmpirecvtasks+1)
+        wptr%sendtasks = sendtasks(1:nsendtasks+1)
+        wptr%recvtasks = recvtasks(1:nrecvtasks+1)
+        wptr%selftasks = selftasks(1:nselftasks+1)
+        wptr%mpisendtasks = mpisendtasks(1:nmpisendtasks+1)
+        wptr%mpirecvtasks = mpirecvtasks(1:nmpirecvtasks+1)
 
         !$omp target enter data map(to: &
-        !$omp&  wptr%sendtasks(1:buffertasksize, 1:nsendtasks+1), &
-        !$omp&  wptr%recvtasks(1:buffertasksize, 1:nrecvtasks+1), &
-        !$omp&  wptr%selftasks(1:selftasksize, 1:nselftasks+1))
+        !$omp&  wptr%sendtasks(1:nsendtasks+1), &
+        !$omp&  wptr%recvtasks(1:nrecvtasks+1), &
+        !$omp&  wptr%selftasks(1:nselftasks+1))
 
         ! Mark the workpackage as initialized
         wptr%is_init = .TRUE.
@@ -401,8 +434,8 @@ CONTAINS
         ! Upper bound: 6*irecv+1 or 6*isend+1
         maxsendtasks = 6 * isend + 1
         maxrecvtasks = 6 * irecv + 1
-        ALLOCATE(sendtasks(buffertasksize, maxsendtasks))
-        ALLOCATE(recvtasks(buffertasksize, maxrecvtasks))
+        ALLOCATE(sendtasks(maxsendtasks))
+        ALLOCATE(recvtasks(maxrecvtasks))
         !$omp target enter data map(always, to: sendtasks, recvtasks)
 
         ! One grid has up to 26 neighbors that may live on the same rank.
@@ -413,14 +446,14 @@ CONTAINS
         ! bound for 6 fields
         CALL count_selftasks(nselfsend, nselfrecv)
         maxselftasks = 6 * (nselfsend + nselfrecv) + 1
-        ALLOCATE(selftasks(selftasksize, maxselftasks))
+        ALLOCATE(selftasks(maxselftasks))
         !$omp target enter data map(always, to: selftasks)
 
         ! MPI tasks are only used on the host and do not exceed isend/irecv+1
         maxmpisendtasks = isend + 1
         maxmpirecvtasks = irecv + 1
-        ALLOCATE(mpisendtasks(mpitasksize, maxmpisendtasks))
-        ALLOCATE(mpirecvtasks(mpitasksize, maxmpirecvtasks))
+        ALLOCATE(mpisendtasks(maxmpisendtasks))
+        ALLOCATE(mpirecvtasks(maxmpirecvtasks))
 
         ! Allocate the workrecords array for all possible types of conn
         ! dimension 1 = ilevel (including maxlevel+1 for "all levels")
@@ -575,11 +608,11 @@ CONTAINS
             normal, fwd, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxsendtasks)
+        TYPE(buffertask_t), INTENT(inout) :: stasks(maxsendtasks)
         INTEGER(intk), INTENT(out) :: nstasks
-        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxselftasks)
+        TYPE(selftask_t), INTENT(inout) :: etasks(maxselftasks)
         INTEGER(intk), INTENT(out) :: netasks
-        INTEGER(intk), INTENT(inout) :: mpistasks(mpitasksize, maxmpisendtasks)
+        TYPE(mpitask_t), INTENT(inout) :: mpistasks(maxmpisendtasks)
         INTEGER(intk), INTENT(out) :: nmpistasks
 
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
@@ -662,9 +695,10 @@ CONTAINS
         nmpistasks = impistasks
 
         ! Add a harmful dummy task at (ntasks+1) for checking
-        stasks(:, nstasks+1) = -1
-        etasks(:, netasks+1) = -1
-        mpistasks(:, nmpistasks+1) = -1
+        stasks(nstasks+1) = buffertask_t(-1, -1, -1, -1, -1, -1, -1, -1, -1)
+        etasks(netasks+1) = selftask_t(-1, -1, -1, -1, -1, -1, -1, -1, &
+            -1, -1, -1, -1, -1, -1, -1)
+        mpistasks(nmpistasks+1) = mpitask_t(-1, -1, -1)
 
         CALL profile_range_pop()
     END SUBROUTINE prepare_tasks_all
@@ -674,7 +708,7 @@ CONTAINS
             sendcounter, nplane, normal, flag, nvars, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: stasks(buffertasksize, maxsendtasks)
+        TYPE(buffertask_t), INTENT(inout) :: stasks(maxsendtasks)
         INTEGER(intk), INTENT(inout) :: istask
         INTEGER(intk), INTENT(in) :: sendid
         INTEGER(intk), INTENT(inout) :: messagelength
@@ -734,7 +768,7 @@ CONTAINS
         IF (PRESENT(v1) .AND. exU) THEN
             fieldid = 1   ! (for v1)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -747,7 +781,7 @@ CONTAINS
         IF (PRESENT(v2) .AND. exV) THEN
             fieldid = 2   ! (for v2)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -759,7 +793,7 @@ CONTAINS
         IF (PRESENT(v3) .AND. exW) THEN
             fieldid = 3   ! (for v3)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -772,21 +806,21 @@ CONTAINS
         IF (PRESENT(s1) .AND. exp1) THEN
             fieldid = 4   ! (for s1)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
         IF (PRESENT(s2)) THEN
             fieldid = 5   ! (for s2)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
         IF (PRESENT(s3)) THEN
             fieldid = 6   ! (for s3)
             istask = istask + 1
-            CALL add_single_task(stasks(:, istask), fieldid, icount, &
+            CALL add_single_task(stasks(istask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -806,7 +840,7 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: etasks(selftasksize, maxselftasks)
+        TYPE(selftask_t), INTENT(inout) :: etasks(maxselftasks)
         INTEGER(intk), INTENT(inout) :: ietask
         INTEGER(int32), INTENT(in) :: sendid
         INTEGER(int32), INTENT(in) :: nplane
@@ -866,7 +900,7 @@ CONTAINS
         IF (PRESENT(v1) .AND. exU) THEN
             fieldid = 1   ! (for v1)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -880,7 +914,7 @@ CONTAINS
         IF (PRESENT(v2) .AND. exV) THEN
             fieldid = 2   ! (for v2)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -893,7 +927,7 @@ CONTAINS
         IF (PRESENT(v3) .AND. exW) THEN
             fieldid = 3   ! (for v3)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -907,7 +941,7 @@ CONTAINS
         IF (PRESENT(s1) .AND. exp1) THEN
             fieldid = 4   ! (for s1)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -915,7 +949,7 @@ CONTAINS
         IF (PRESENT(s2)) THEN
             fieldid = 5   ! (for s2)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -923,7 +957,7 @@ CONTAINS
         IF (PRESENT(s3)) THEN
             fieldid = 6   ! (for s3)
             ietask = ietask + 1
-            CALL add_self_task(etasks(:, ietask), fieldid, igrid, &
+            CALL add_self_task(etasks(ietask), fieldid, igrid, &
                 igrid_d, istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
         END IF
@@ -936,7 +970,7 @@ CONTAINS
         messagelength, counter, type)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpitasks(mpitasksize, *)
+        TYPE(mpitask_t), INTENT(inout) :: mpitasks(*)
         INTEGER(intk), INTENT(inout) :: impitask
         INTEGER(intk), INTENT(in) :: iprocnbr
         INTEGER(intk), INTENT(inout) :: messagelength
@@ -959,9 +993,9 @@ CONTAINS
         ! Add the MPI send task to the mpitasks array
         impitask = impitask + 1
 
-        mpitasks(1, impitask) = iprocnbr
-        mpitasks(2, impitask) = messagelength
-        mpitasks(3, impitask) = counter
+        mpitasks(impitask)%iprocnbr = iprocnbr
+        mpitasks(impitask)%messagelength = messagelength
+        mpitasks(impitask)%counter = counter
 
         counter = counter + messagelength
         messagelength = 0
@@ -975,7 +1009,7 @@ CONTAINS
             flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxrecvtasks)
+        TYPE(buffertask_t), INTENT(inout) :: rtasks(maxrecvtasks)
         INTEGER(intk), INTENT(out) :: nrtasks
         INTEGER(int32), INTENT(in) :: nplane
         LOGICAL, INTENT(in) :: normal
@@ -1033,7 +1067,7 @@ CONTAINS
         nrtasks = irtask
 
         ! Add a harmful dummy task at (ntasks+1) to detect execution overshoot
-        rtasks(:, nrtasks+1) = -1
+        rtasks(nrtasks+1) = buffertask_t(-1, -1, -1, -1, -1, -1, -1, -1, -1)
 
         CALL profile_range_pop()
     END SUBROUTINE prepare_recvtasks_all
@@ -1045,7 +1079,7 @@ CONTAINS
             normal, flag, v1, v2, v3, s1, s2, s3)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: rtasks(buffertasksize, maxrecvtasks)
+        TYPE(buffertask_t), INTENT(inout) :: rtasks(maxrecvtasks)
         INTEGER(intk), INTENT(inout) :: irtask
         INTEGER(intk), INTENT(in) :: recvid
         INTEGER(int32), INTENT(in) :: nplane
@@ -1093,7 +1127,7 @@ CONTAINS
         IF (PRESENT(v1) .AND. exU) THEN
             irtask = irtask + 1
             fieldid = 1   ! (for v1)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -1106,7 +1140,7 @@ CONTAINS
         IF (PRESENT(v2) .AND. exV) THEN
             irtask = irtask + 1
             fieldid = 2   ! (for v2)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -1118,7 +1152,7 @@ CONTAINS
         IF (PRESENT(v3) .AND. exW) THEN
             irtask = irtask + 1
             fieldid = 3   ! (for v3)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -1131,21 +1165,21 @@ CONTAINS
         IF (PRESENT(s1) .AND. exp1) THEN
             irtask = irtask + 1
             fieldid = 4   ! (for s1)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
         IF (PRESENT(s2)) THEN
             irtask = irtask + 1
             fieldid = 5   ! (for s2)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
         IF (PRESENT(s3)) THEN
             irtask = irtask + 1
             fieldid = 6   ! (for s3)
-            CALL add_single_task(rtasks(:, irtask), fieldid, icount, &
+            CALL add_single_task(rtasks(irtask), fieldid, icount, &
                 igrid, istart, istop, jstart, jstop, kstart, kstop)
         END IF
 
@@ -1168,29 +1202,29 @@ CONTAINS
             istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: selftask(selftasksize)
+        TYPE(selftask_t), INTENT(inout) :: selftask
         INTEGER(intk), INTENT(in) :: fieldid, igrid, igrid_d, istart, istop, &
             jstart, jstop, kstart, kstop, istart_d, istop_d, jstart_d, &
             jstop_d, kstart_d, kstop_d
 
         ! Filling the task
-        selftask(1) = fieldid
-        selftask(2) = igrid
-        selftask(3) = igrid_d
+        selftask%fieldid = fieldid
+        selftask%igrid = igrid
+        selftask%igrid_d = igrid_d
         ! for the source grid (igrid) = for packing
-        selftask(4) = istart
-        selftask(5) = istop
-        selftask(6) = jstart
-        selftask(7) = jstop
-        selftask(8) = kstart
-        selftask(9) = kstop
+        selftask%istart = istart
+        selftask%istop = istop
+        selftask%jstart = jstart
+        selftask%jstop = jstop
+        selftask%kstart = kstart
+        selftask%kstop = kstop
         ! for the destination grid (igrid_d) = for unpacking
-        selftask(10) = istart_d
-        selftask(11) = istop_d
-        selftask(12) = jstart_d
-        selftask(13) = jstop_d
-        selftask(14) = kstart_d
-        selftask(15) = kstop_d
+        selftask%istart_d = istart_d
+        selftask%istop_d = istop_d
+        selftask%jstart_d = jstart_d
+        selftask%jstop_d = jstop_d
+        selftask%kstart_d = kstart_d
+        selftask%kstop_d = kstop_d
 
     END SUBROUTINE add_self_task
 
@@ -1201,7 +1235,7 @@ CONTAINS
             istart, istop, jstart, jstop, kstart, kstop)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(out) :: task(9)
+        TYPE(buffertask_t), INTENT(out) :: task
         INTEGER(intk), INTENT(in) :: fieldid
         INTEGER(intk), INTENT(inout) :: icount
         INTEGER(intk), INTENT(in) :: igrid, istart, istop, jstart, jstop, &
@@ -1211,15 +1245,15 @@ CONTAINS
         INTEGER(intk) :: tasksize
 
         ! Filling the task
-        task(1) = fieldid
-        task(2) = icount
-        task(3) = igrid
-        task(4) = istart
-        task(5) = istop
-        task(6) = jstart
-        task(7) = jstop
-        task(8) = kstart
-        task(9) = kstop
+        task%fieldid = fieldid
+        task%icount = icount
+        task%igrid = igrid
+        task%istart = istart
+        task%istop = istop
+        task%jstart = jstart
+        task%jstop = jstop
+        task%kstart = kstart
+        task%kstop = kstop
 
         ! Increment the icount by the number of elements in the task
         tasksize = (istop-istart+1)*(jstop-jstart+1)*(kstop-kstart+1)
@@ -1237,7 +1271,7 @@ CONTAINS
     SUBROUTINE process_sendtasks(nstasks, stasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
-        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
+        TYPE(buffertask_t), INTENT(in) :: stasks(nstasks)
 
         ! Local variables
         ! none...
@@ -1258,7 +1292,7 @@ CONTAINS
     SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
-        INTEGER(intk), INTENT(in) :: stasks(buffertasksize, nstasks)
+        TYPE(buffertask_t), INTENT(in) :: stasks(nstasks)
         REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
 
         ! Local variables
@@ -1271,15 +1305,15 @@ CONTAINS
         DO itask = 1, nstasks
 
             ! Set variables from sendtasks workpackage
-            fieldid = stasks(1, itask)
-            icount = stasks(2, itask)
-            igrid = stasks(3, itask)
-            istart = stasks(4, itask)
-            istop = stasks(5, itask)
-            jstart = stasks(6, itask)
-            jstop = stasks(7, itask)
-            kstart = stasks(8, itask)
-            kstop = stasks(9, itask)
+            fieldid = stasks(itask)%fieldid
+            icount = stasks(itask)%icount
+            igrid = stasks(itask)%igrid
+            istart = stasks(itask)%istart
+            istop = stasks(itask)%istop
+            jstart = stasks(itask)%jstart
+            jstop = stasks(itask)%jstop
+            kstart = stasks(itask)%kstart
+            kstop = stasks(itask)%kstop
 
             ! The following replaces "read_single_buffer"
             CALL get_ip3(ip3, igrid)
@@ -1350,7 +1384,7 @@ CONTAINS
     SUBROUTINE process_recvtasks(nrtasks, rtasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
-        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
+        TYPE(buffertask_t), INTENT(in) :: rtasks(nrtasks)
 
         ! Local variables
         ! none...
@@ -1371,7 +1405,7 @@ CONTAINS
     SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
-        INTEGER(intk), INTENT(in) :: rtasks(buffertasksize, nrtasks)
+        TYPE(buffertask_t), INTENT(in) :: rtasks(nrtasks)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
 
         ! Local variables
@@ -1384,15 +1418,15 @@ CONTAINS
         DO itask = 1, nrtasks
 
             ! Set variables from recvtasks workpackage
-            fieldid = rtasks(1, itask)
-            icount  = rtasks(2, itask)
-            igrid   = rtasks(3, itask)
-            istart  = rtasks(4, itask)
-            istop   = rtasks(5, itask)
-            jstart  = rtasks(6, itask)
-            jstop   = rtasks(7, itask)
-            kstart  = rtasks(8, itask)
-            kstop   = rtasks(9, itask)
+            fieldid = rtasks(itask)%fieldid
+            icount  = rtasks(itask)%icount
+            igrid   = rtasks(itask)%igrid
+            istart  = rtasks(itask)%istart
+            istop   = rtasks(itask)%istop
+            jstart  = rtasks(itask)%jstart
+            jstop   = rtasks(itask)%jstop
+            kstart  = rtasks(itask)%kstart
+            kstop   = rtasks(itask)%kstop
 
             ! The following replaces "read_single_buffer"
             CALL get_ip3(ip3, igrid)
@@ -1464,7 +1498,7 @@ CONTAINS
     SUBROUTINE process_selftasks(nstasks, stasks)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
-        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
+        TYPE(selftask_t), INTENT(in) :: stasks(nstasks)
 
         ! Local variables
         ! none...
@@ -1486,7 +1520,7 @@ CONTAINS
     SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
-        INTEGER(intk), INTENT(in) :: stasks(selftasksize, nstasks)
+        TYPE(selftask_t), INTENT(in) :: stasks(nstasks)
         REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
 
         ! Local variables
@@ -1501,21 +1535,21 @@ CONTAINS
         DO itask = 1, nstasks
 
             ! Set variables from selftasks workpackage
-            fieldid  = stasks(1, itask)
-            igrid    = stasks(2, itask)
-            igrid_d  = stasks(3, itask)
-            istart   = stasks(4, itask)
-            istop    = stasks(5, itask)
-            jstart   = stasks(6, itask)
-            jstop    = stasks(7, itask)
-            kstart   = stasks(8, itask)
-            kstop    = stasks(9, itask)
-            istart_d = stasks(10, itask)
-            istop_d  = stasks(11, itask)
-            jstart_d = stasks(12, itask)
-            jstop_d  = stasks(13, itask)
-            kstart_d = stasks(14, itask)
-            kstop_d  = stasks(15, itask)
+            fieldid  = stasks(itask)%fieldid
+            igrid    = stasks(itask)%igrid
+            igrid_d  = stasks(itask)%igrid_d
+            istart   = stasks(itask)%istart
+            istop    = stasks(itask)%istop
+            jstart   = stasks(itask)%jstart
+            jstop    = stasks(itask)%jstop
+            kstart   = stasks(itask)%kstart
+            kstop    = stasks(itask)%kstop
+            istart_d = stasks(itask)%istart_d
+            istop_d  = stasks(itask)%istop_d
+            jstart_d = stasks(itask)%jstart_d
+            jstop_d  = stasks(itask)%jstop_d
+            kstart_d = stasks(itask)%kstart_d
+            kstop_d  = stasks(itask)%kstop_d
 
             ! The following replaces "read_single_buffer"
             CALL get_ip3(ip3, igrid)
@@ -1623,7 +1657,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nmpistasks
-        INTEGER(intk), INTENT(in) :: mpistasks(mpitasksize, nmpistasks+1)
+        TYPE(mpitask_t), INTENT(in) :: mpistasks(nmpistasks+1)
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, sendcounter
@@ -1633,9 +1667,9 @@ CONTAINS
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpistasks
 
-            iprocnbr      = INT(mpistasks(1, itask), int32)
-            messagelength = INT(mpistasks(2, itask), int32)
-            sendcounter   = INT(mpistasks(3, itask), int32)
+            iprocnbr      = INT(mpistasks(itask)%iprocnbr, int32)
+            messagelength = INT(mpistasks(itask)%messagelength, int32)
+            sendcounter   = INT(mpistasks(itask)%counter, int32)
 
             !$omp target data use_device_addr(sendbuf)
             CALL MPI_Isend(sendbuf(sendcounter + 1), messagelength, &
@@ -1648,7 +1682,9 @@ CONTAINS
 
         ! Safety check based on final dummy entry
         IF (nmpistasks < maxmpisendtasks) THEN
-            IF (.NOT. ALL(mpistasks(:, nmpistasks+1) == -1)) THEN
+            IF (mpistasks(nmpistasks+1)%iprocnbr /= -1 .OR. &
+                    mpistasks(nmpistasks+1)%messagelength /= -1 .OR. &
+                    mpistasks(nmpistasks+1)%counter /= -1) THEN
                 WRITE(*, *) "Did not encounter the expected dummy task."
                 CALL errr(__FILE__, __LINE__)
             END IF
@@ -1664,7 +1700,7 @@ CONTAINS
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nmpirtasks
-        INTEGER(intk), INTENT(in) :: mpirtasks(mpitasksize, nmpirtasks+1)
+        TYPE(mpitask_t), INTENT(in) :: mpirtasks(nmpirtasks+1)
 
         ! Local variables
         INTEGER(int32) :: itask, iprocnbr, messagelength, recvcounter
@@ -1674,9 +1710,9 @@ CONTAINS
         ! Iterate over task and post all non-blocking MPI send calls
         DO itask = 1, nmpirtasks
 
-            iprocnbr      = INT(mpirtasks(1, itask), int32)
-            messagelength = INT(mpirtasks(2, itask), int32)
-            recvcounter   = INT(mpirtasks(3, itask), int32)
+            iprocnbr      = INT(mpirtasks(itask)%iprocnbr, int32)
+            messagelength = INT(mpirtasks(itask)%messagelength, int32)
+            recvcounter   = INT(mpirtasks(itask)%counter, int32)
 
             !$omp target data use_device_addr(recvbuf)
             CALL MPI_Irecv(recvbuf(recvcounter+1), messagelength, &
@@ -1689,7 +1725,9 @@ CONTAINS
 
         ! Safety check based on final dummy entry
         IF (nmpirtasks < maxmpirecvtasks) THEN
-            IF (.NOT. ALL(mpirtasks(:, nmpirtasks+1) == -1)) THEN
+            IF (mpirtasks(nmpirtasks+1)%iprocnbr /= -1 .OR. &
+                    mpirtasks(nmpirtasks+1)%messagelength /= -1 .OR. &
+                    mpirtasks(nmpirtasks+1)%counter /= -1) THEN
                 WRITE(*, *) "Did not encounter the expected dummy task."
                 CALL errr(__FILE__, __LINE__)
             END IF
@@ -1706,7 +1744,7 @@ CONTAINS
             normal, fwd, flag, nvars)
 
         ! Subroutine arguments
-        INTEGER(intk), INTENT(inout) :: mpirtasks(mpitasksize, maxmpirecvtasks)
+        TYPE(mpitask_t), INTENT(inout) :: mpirtasks(maxmpirecvtasks)
         INTEGER(intk), INTENT(out) :: nmpirtasks
         INTEGER(intk), INTENT(in) :: minconlvl, maxconlvl, nplane
         LOGICAL, INTENT(in) :: vertices, normal
@@ -1766,7 +1804,7 @@ CONTAINS
         nmpirtasks = impirtask
 
         ! Add a harmful dummy task at (ntasks+1) for checking
-        mpirtasks(:, nmpirtasks+1) = -1
+        mpirtasks(nmpirtasks+1) = mpitask_t(-1, -1, -1)
 
     END SUBROUTINE prepare_mpirecvtasks
 
