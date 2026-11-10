@@ -803,7 +803,7 @@ CONTAINS
                 CALL pack_face(kk, jj, ii, tasksize, a3(ip3), &
                     sbuf(sendidx), ddx(ipx), ddy(ipy), ddz(ipz), iface, &
                     sumflag, kstart, kstop, jstart, jstop, istart, istop)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -854,7 +854,7 @@ CONTAINS
                 CALL pack_face_sum_z(kk, jj, ii, tasksize, arr, sbuf, &
                     kstart, kstop, jstart, jstop, istart, istop)
             END IF
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
 #endif
@@ -1141,7 +1141,7 @@ CONTAINS
             CASE (3)
                 CALL unpack_face(kk, jj, ii, tasksize, a3(ip3), rbuf(recvidx), &
                     kstart, kstop, jstart, jstop, istart, istop)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1179,7 +1179,7 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (nk*nj*(istop-istart+1) /= tasksize) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -1290,7 +1290,7 @@ CONTAINS
                     kkf, jjf, iif, kkc, jjc, iic, ip3f, ip3c, iface, &
                     sumflag, kstart, kstop, jstart, jstop, istart, istop, &
                     kpos, jpos, ipos)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1347,7 +1347,7 @@ CONTAINS
                     arr(ip3f), arr(ip3c), kstart, kstop, jstart, jstop, &
                     istart, istop, kpos, jpos, ipos)
             END IF
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
 #endif

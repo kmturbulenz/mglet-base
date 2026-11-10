@@ -531,7 +531,7 @@ CONTAINS
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a6(ip3), &
                     recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -870,7 +870,7 @@ CONTAINS
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1008,7 +1008,7 @@ CONTAINS
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1089,7 +1089,7 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
 #endif
     END SUBROUTINE unpack_restricted_buffer_open
@@ -1131,7 +1131,7 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
 #endif
     END SUBROUTINE unpack_restricted_buffer_n
@@ -1305,7 +1305,7 @@ CONTAINS
                 CALL restrict_noib_flag(flag, kk, jj, ii, a6(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1399,7 +1399,7 @@ CONTAINS
                 CALL restrict_gc_flag(flag, kk, jj, ii, a6(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif

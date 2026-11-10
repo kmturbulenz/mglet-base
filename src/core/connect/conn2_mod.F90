@@ -1352,7 +1352,7 @@ CONTAINS
             CASE (6)
                 CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1465,7 +1465,7 @@ CONTAINS
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -1594,7 +1594,7 @@ CONTAINS
                 CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif

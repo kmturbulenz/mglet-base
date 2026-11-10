@@ -460,7 +460,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: kk, jj, ii
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -481,7 +481,7 @@ CONTAINS
 
         imygrid = globalgrids(igrid)
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (imygrid == -1_intk) CALL errr(__FILE__, __LINE__)
 #endif
     END SUBROUTINE get_imygrid
@@ -492,7 +492,7 @@ CONTAINS
         REAL(realk), INTENT(OUT) :: minx, maxx, miny, maxy, minz, maxz
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -530,7 +530,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: flag
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -705,7 +705,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: level
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -721,7 +721,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -737,7 +737,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -753,7 +753,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -769,7 +769,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -785,7 +785,7 @@ CONTAINS
         !$omp declare target
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -802,7 +802,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: neighbours(26)
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -819,7 +819,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: kk
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -836,7 +836,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: jj
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -853,7 +853,7 @@ CONTAINS
         INTEGER(intk), INTENT(OUT) :: ii
         INTEGER(intk), INTENT(IN) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -870,7 +870,7 @@ CONTAINS
         INTEGER(intk), INTENT(out) :: nfro, nbac, nrgt, nlft, nbot, ntop
         INTEGER(intk), INTENT(in) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid
@@ -892,7 +892,7 @@ CONTAINS
         INTEGER(intk), INTENT(out) :: bconds(6)
         INTEGER(intk), INTENT(in) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (igrid > ngrid .OR. igrid < 0) THEN
             WRITE(*, *) "Invalid igrid: ", igrid
             WRITE(*, *) "ngrid: ", ngrid

@@ -557,7 +557,7 @@ CONTAINS
                     jc = (j-1)/2 + jsta
                     kc = (k-1)/2 + ksta
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
                     ! Checking that the coarse grid indices are within bounds
                     IF (ic > isto .OR. jc > jsto .OR. kc > ksto) THEN
                         CALL errr(__FILE__, __LINE__)

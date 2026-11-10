@@ -15,7 +15,6 @@ MODULE err_mod
 
 CONTAINS
     SUBROUTINE err_print(errorcode, message, fname, line)
-        !$omp declare target
         ! Prints error message to standard error. Does not abort execution.
         USE comms_mod, ONLY: myid
 #if defined __INTEL_COMPILER
@@ -40,9 +39,6 @@ CONTAINS
         END IF
         write(error_unit, '()')
 
-        ! Likely does not run on target - disable backtraces if one
-        ! decides to run on Intel/GNU offload
-#ifndef _MGLET_OFFLOAD_
         ! Produce backtrace to indicate from where the error comming from
 #ifdef __INTEL_COMPILER
         CALL TRACEBACKQQ(user_exit_code=-1)
@@ -50,12 +46,10 @@ CONTAINS
 #ifdef __GFORTRAN__
         CALL BACKTRACE()
 #endif
-#endif
     END SUBROUTINE err_print
 
 
     SUBROUTINE err_abort(errorcode, message, fname, line)
-        !$omp declare target
         ! Generic error handler if something happens on an arbitrary single
         ! rank. Aborts execution of MGLET.
 
@@ -74,16 +68,11 @@ CONTAINS
         IF (mpicode > maxcode) THEN
             mpicode = maxcode
         END IF
-#ifdef _MGLET_OFFLOAD_
-        CALL EXIT(mpicode)
-#else
         CALL MPI_Abort(MPI_COMM_WORLD, mpicode)
-#endif
     END SUBROUTINE err_abort
 
 
     SUBROUTINE errr(fname, line)
-        !$omp declare target
         ! Generic error handler if something happens on an arbitrary single
         ! rank. Aborts execution of MGLET.
 

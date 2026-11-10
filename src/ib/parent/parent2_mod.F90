@@ -503,7 +503,7 @@ CONTAINS
             CASE (6)
                 CALL arr_to_sendbuf(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -605,7 +605,7 @@ CONTAINS
             CASE (6)
                 CALL recvbuf_to_buffers(a6, icount, ibb, jjc2d, jj2d, ii2d, &
                     stag1, stag2)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -689,7 +689,7 @@ CONTAINS
             ELSE
                 val = val_c
             END IF
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
 #endif
@@ -717,7 +717,7 @@ CONTAINS
             ELSE
                 val = val_c
             END IF
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         CASE DEFAULT
             CALL errr(__FILE__, __LINE__)
 #endif
@@ -805,7 +805,7 @@ CONTAINS
                 CALL arr_to_buffers(kk, jj, ii, a6(ip3), &
                     b6, ibb, istart, istop, jstart, jstop, kstart, kstop, &
                     jj2d, ii2d, stag1, stag2)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
             CASE DEFAULT
                 CALL errr(__FILE__, __LINE__)
 #endif
@@ -905,7 +905,7 @@ CONTAINS
             value = arr(kstart+jc-1, jstart, istart+ic-1)
         ELSE IF (kstart == kstop) THEN
             value = arr(kstart, jstart+jc-1, istart+ic-1)
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         ELSE
             CALL errr(__FILE__, __LINE__)
 #endif
