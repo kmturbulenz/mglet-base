@@ -970,9 +970,6 @@ CONTAINS
         ! Subroutine arguments
         ! none...
 
-        ! Local variables
-        INTEGER(intk) :: ilevel
-
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         DEALLOCATE(sendreqs)
@@ -980,24 +977,43 @@ CONTAINS
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
 
-        ! Deallocate the workpackage components for each level
-        DO ilevel = minlevel+1, maxlevel
-            IF (workrecords(ilevel)%is_init) THEN
-                !$omp target exit data map(delete: &
-                !$omp&  workrecords(ilevel)%sendtasks(:), &
-                !$omp&  workrecords(ilevel)%recvtasks(:), &
-                !$omp&  workrecords(ilevel)%selftasks(:))
-
-                DEALLOCATE(workrecords(ilevel)%sendtasks)
-                DEALLOCATE(workrecords(ilevel)%recvtasks)
-                DEALLOCATE(workrecords(ilevel)%selftasks)
-                DEALLOCATE(workrecords(ilevel)%mpisendtasks)
-                DEALLOCATE(workrecords(ilevel)%mpirecvtasks)
-                workrecords(ilevel)%is_init = .FALSE.
-            END IF
-        END DO
+        CALL purge_workrecords()
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
     END SUBROUTINE finish_ctof2
+
+
+    SUBROUTINE purge_workrecords()
+        ! Local variables
+        TYPE(work_t), POINTER :: wrptr(:)
+        INTEGER(intk) :: i
+
+        wrptr(1:SIZE(workrecords)) => workrecords
+
+        DO i = 1, SIZE(workrecords)
+            IF (.NOT. wrptr(i)%is_init) CYCLE
+
+            CALL unmap_work(wrptr(i))
+        END DO
+    END SUBROUTINE purge_workrecords
+
+
+    SUBROUTINE unmap_work(wptr)
+        ! Unmap the work package through a dummy argument of type work_t, i.e.
+        ! through the same access path that recording_pass uses for the
+        ! "target enter data"
+
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(inout) :: wptr
+
+        !$omp target exit data map(delete: wptr%sendtasks, &
+        !$omp& wptr%recvtasks, wptr%selftasks)
+        DEALLOCATE(wptr%sendtasks)
+        DEALLOCATE(wptr%recvtasks)
+        DEALLOCATE(wptr%selftasks)
+        DEALLOCATE(wptr%mpisendtasks)
+        DEALLOCATE(wptr%mpirecvtasks)
+        wptr%is_init = .FALSE.
+    END SUBROUTINE unmap_work
 END MODULE ctof2_mod

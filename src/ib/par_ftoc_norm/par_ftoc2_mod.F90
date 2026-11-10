@@ -1686,14 +1686,26 @@ CONTAINS
         DO i = 1, SIZE(records)
             IF (.NOT. records(i)%is_init) CYCLE
 
-            !$omp target exit data map(delete: records(i)%sendtasks, &
-            !$omp& records(i)%recvtasks, records(i)%selftasks)
-            DEALLOCATE(records(i)%sendtasks)
-            DEALLOCATE(records(i)%recvtasks)
-            DEALLOCATE(records(i)%selftasks)
-            DEALLOCATE(records(i)%mpisendtasks)
-            DEALLOCATE(records(i)%mpirecvtasks)
-            records(i)%is_init = .FALSE.
+            CALL unmap_work(records(i))
         END DO
     END SUBROUTINE purge_workrecords
+
+
+    SUBROUTINE unmap_work(wptr)
+        ! Unmap the work package through a dummy argument of type work_t, i.e.
+        ! through the same access path that recording_pass uses for the
+        ! "target enter data"
+
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(inout) :: wptr
+
+        !$omp target exit data map(delete: wptr%sendtasks, &
+        !$omp& wptr%recvtasks, wptr%selftasks)
+        DEALLOCATE(wptr%sendtasks)
+        DEALLOCATE(wptr%recvtasks)
+        DEALLOCATE(wptr%selftasks)
+        DEALLOCATE(wptr%mpisendtasks)
+        DEALLOCATE(wptr%mpirecvtasks)
+        wptr%is_init = .FALSE.
+    END SUBROUTINE unmap_work
 END MODULE par_ftoc2_mod

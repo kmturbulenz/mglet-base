@@ -587,16 +587,28 @@ CONTAINS
         DO i = 1, SIZE(workrecords)
             IF (.NOT. wrptr(i)%is_init) CYCLE
 
-            !$omp target exit data map(delete: wrptr(i)%sendtasks, &
-            !$omp& wrptr(i)%recvtasks, wrptr(i)%selftasks)
-            DEALLOCATE(wrptr(i)%sendtasks)
-            DEALLOCATE(wrptr(i)%recvtasks)
-            DEALLOCATE(wrptr(i)%selftasks)
-            DEALLOCATE(wrptr(i)%mpisendtasks)
-            DEALLOCATE(wrptr(i)%mpirecvtasks)
-            wrptr(i)%is_init = .FALSE.
+            CALL unmap_work(wrptr(i))
         END DO
     END SUBROUTINE purge_workrecords
+
+
+    SUBROUTINE unmap_work(wptr)
+        ! Unmap the work package through a dummy argument of type work_t, i.e.
+        ! through the same access path that recording_pass uses for the
+        ! "target enter data"
+
+        ! Subroutine arguments
+        TYPE(work_t), INTENT(inout) :: wptr
+
+        !$omp target exit data map(delete: wptr%sendtasks, &
+        !$omp& wptr%recvtasks, wptr%selftasks)
+        DEALLOCATE(wptr%sendtasks)
+        DEALLOCATE(wptr%recvtasks)
+        DEALLOCATE(wptr%selftasks)
+        DEALLOCATE(wptr%mpisendtasks)
+        DEALLOCATE(wptr%mpirecvtasks)
+        wptr%is_init = .FALSE.
+    END SUBROUTINE unmap_work
 
 
     ! Host routine for preparing the sendtasks, selftasks and mpisendtasks

@@ -232,8 +232,24 @@ CONTAINS
     END SUBROUTINE init_scacore
 
 
-    SUBROUTINE finish_scacore
-        IF (ALLOCATED(scalar)) DEALLOCATE(scalar)
+    SUBROUTINE finish_scacore()
+        ! Subroutine arguments
+        ! none...
+
+        ! Local variables
+        INTEGER(intk) :: l
+
+        IF (ALLOCATED(scalar)) THEN
+            DO l = 1, nsca
+                ! Host side allocations are deallocated automatically by
+                ! deallocating the scalar allocatable
+                IF (ALLOCATED(scalar(l)%geometries)) THEN
+                    !$omp target exit data map(delete: scalar(l)%geometries)
+                END IF
+            END DO
+
+            DEALLOCATE(scalar)
+        END IF
     END SUBROUTINE finish_scacore
 
 
