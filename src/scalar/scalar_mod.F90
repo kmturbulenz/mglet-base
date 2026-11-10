@@ -69,8 +69,7 @@ CONTAINS
 
 
     SUBROUTINE init_tfield()
-        USE core_mod, ONLY: conn, copy_arr, get_field, field_t, &
-            map_arr_to_device, map_buffers_to_device, minlevel, maxlevel, &
+        USE core_mod, ONLY: conn, get_field, field_t, minlevel, maxlevel, &
             zero_ghostlayers
         USE ib_mod
         USE setboundarybuffers_scalar_mod, ONLY: setboundarybuffers_scalar
@@ -89,8 +88,8 @@ CONTAINS
             ! TODO: set initial condition when not dread
 
             CALL zero_ghostlayers(t)
-            CALL map_arr_to_device(t, message="to:init_scalar")
-            CALL map_buffers_to_device(t, message="to:init_scalar_buffers")
+            CALL t%copy_arr_to_device()
+            CALL t%copy_buffers_to_device()
 
             DO ilevel = minlevel, maxlevel
                 CALL conn(ilevel, 2, s1=t, corners=.TRUE.)
@@ -101,7 +100,7 @@ CONTAINS
             END DO
 
             CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")
-            CALL copy_arr(t_old%arr, t%arr)
+            CALL t_old%copy_arr(t)
         END DO
     END SUBROUTINE init_tfield
 END MODULE scalar_mod

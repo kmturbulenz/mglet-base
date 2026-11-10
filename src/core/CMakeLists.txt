@@ -18,7 +18,6 @@ add_library(core STATIC
     err_mod.F90
     expression_mod.F90
     exprtk_wrapper.cxx
-    fieldhelper_mod.F90
     fieldio2_mod.F90
     fieldpool_mod.F90
     field_t/basefield_mod.F90

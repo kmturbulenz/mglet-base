@@ -30,9 +30,9 @@ CONTAINS
         TYPE(field_t), POINTER :: wcu_f, wcv_f, wcw_f
         CALL start_timer(310)
 
-        CALL zero_field_arr(uo_f, device=.TRUE.)
-        CALL zero_field_arr(vo_f, device=.TRUE.)
-        CALL zero_field_arr(wo_f, device=.TRUE.)
+        CALL uo_f%zero()
+        CALL vo_f%zero()
+        CALL wo_f%zero()
 
         CALL get_field(dx_f, "DX")
         CALL get_field(dy_f, "DY")

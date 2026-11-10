@@ -133,7 +133,9 @@ CONTAINS
                 timerk = timeph + dt*dtrk
                 CALL setboundarybuffers%bound(ilevel, u, v, w, timeph=timerk)
             END DO
-            CALL map_buffers_to_device(u, v, w)
+            CALL u%copy_buffers_to_device()
+            CALL v%copy_buffers_to_device()
+            CALL w%copy_buffers_to_device()
         END IF
 
         ! For divergence computation
@@ -163,8 +165,11 @@ CONTAINS
         ! sampling.
         IF (irk == rkscheme%nrk) THEN
             ! TODO: Can this be made asynchronous?
-            CALL map_arr_from_device(u, v, w, p, g, &
-                message="from:u|v|w|p|g")
+            CALL u%copy_arr_from_device()
+            CALL v%copy_arr_from_device()
+            CALL w%copy_arr_from_device()
+            CALL p%copy_arr_from_device()
+            CALL g%copy_arr_from_device()
         END IF
 
         CALL stop_timer(300)
@@ -227,7 +232,11 @@ CONTAINS
             CALL get_field(p, "P")
             ! TODO: Remove as soon as sample_compbodyforce is offloaded to
             ! device.
-            CALL map_arr_from_device(u, v, w, p, g, message="from:u|v|w")
+            CALL u%copy_arr_from_device()
+            CALL v%copy_arr_from_device()
+            CALL w%copy_arr_from_device()
+            CALL p%copy_arr_from_device()
+            CALL g%copy_arr_from_device()
             CALL sample_compbodyforce(u, v, w, p, g, ittot, timeph)
         END IF
 
@@ -290,8 +299,7 @@ CONTAINS
 
         !$omp target teams distribute private(i, igrid, kk, jj, ii, ip3, ip1x, &
         !$omp& ip1y, ip1z, maxvalpos) &
-        !$omp& map(from: cflmaxgrid(1:nmygrids), &
-        !$omp& cflmaxposgrid(1:3, 1:nmygrids))
+        !$omp& map(from: cflmaxgrid(1:nmygrids), cflmaxposgrid(1:3, 1:nmygrids))
         DO i = 1, nmygrids
             igrid = mygrids(i)
             cflmaxgrid(i) = -HUGE(1.0_realk)

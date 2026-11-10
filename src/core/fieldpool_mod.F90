@@ -2,6 +2,7 @@ MODULE fieldpool_mod
     USE precision_mod
     USE err_mod, ONLY: errr
     USE field_mod, ONLY: basefield_t, field_t, intfield_t, nchar_name
+    USE profile_tools_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -54,8 +55,6 @@ CONTAINS
 
         DO i = 1, max_realfields
             IF (realfields(i)%is_init) THEN
-                !$omp target exit data map(delete: realfields(i)%arr)
-                !$omp target exit data map(delete: realfields(i)%buffers)
                 CALL realfields(i)%finish()
             END IF
         END DO
@@ -63,7 +62,6 @@ CONTAINS
 
         DO i = 1, max_intfields
             IF (intfields(i)%is_init) THEN
-                !$omp target exit data map(delete: intfields(i)%arr)
                 CALL intfields(i)%finish()
             END IF
         END DO
@@ -95,11 +93,11 @@ CONTAINS
         field => realfields(stackptr_real)
 
         IF (.NOT. field%is_init) THEN
+            CALL profile_range_push("init_pool_field")
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=.FALSE.)
+                units=units, zero=.FALSE., device=.TRUE.)
             CALL field%init_buffers()
-            !$omp target enter data map(alloc: realfields(stackptr_real)%arr, &
-            !$omp& realfields(stackptr_real)%buffers)
+            CALL profile_range_pop()
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
         END IF
@@ -124,11 +122,11 @@ CONTAINS
             ! Define NaN and set that value in the array
             nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
             field%arr = nan
-            !$omp target update to(realfields(stackptr_real)%arr)
+            CALL realfields(stackptr_real)%copy_arr_to_device()
 
             IF (ALLOCATED(field%buffers)) THEN
                 field%buffers = nan
-                !$omp target update to(realfields(stackptr_real)%buffers)
+                CALL realfields(stackptr_real)%copy_buffers_to_device()
             END IF
 
             ! Restore the previous floating point exception mode
@@ -164,9 +162,10 @@ CONTAINS
         field => intfields(stackptr_int)
 
         IF (.NOT. field%is_init) THEN
+            CALL profile_range_push("init_pool_field")
             CALL field%init(name=name, istag=istag, jstag=jstag, kstag=kstag, &
-                units=units, zero=.FALSE.)
-                !$omp target enter data map(alloc: intfields(stackptr_int)%arr)
+                units=units, zero=.FALSE., device=.TRUE.)
+            CALL profile_range_pop()
         ELSE
             CALL set_field_properties(field, name, istag, jstag, kstag, units)
         END IF

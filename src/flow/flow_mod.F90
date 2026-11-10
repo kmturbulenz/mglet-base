@@ -40,8 +40,13 @@ CONTAINS
         CALL get_field(p, "P")
 
         CALL init_uvwp()
-        CALL map_arr_to_device(u, v, w, p, message="to:u|v|w|p")
-        CALL map_buffers_to_device(u, v, w, message="to:u|v|w buffers")
+        CALL u%copy_arr_to_device()
+        CALL v%copy_arr_to_device()
+        CALL w%copy_arr_to_device()
+        CALL p%copy_arr_to_device()
+        CALL u%copy_buffers_to_device()
+        CALL v%copy_buffers_to_device()
+        CALL w%copy_buffers_to_device()
 
         CALL init_bound_flow()
         CALL init_flowstat()

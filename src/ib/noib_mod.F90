@@ -1,7 +1,6 @@
 MODULE noib_mod
     USE core_mod
     USE ibmodel_mod, ONLY: ibmodel_t
-    USE fieldhelper_mod, ONLY: map_arr_to_device
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -40,12 +39,12 @@ CONTAINS
         CALL set_field("BP")
         CALL get_field(bp, "BP")
         bp%arr = 1.0
-        CALL map_arr_to_device(bp, message="to:bp%arr")
+        CALL bp%copy_arr_to_device()
 
         CALL set_field("SDIV")
         CALL get_field(sdiv, "SDIV")
         sdiv%arr = 0.0
-        CALL map_arr_to_device(sdiv, message="to:sdiv%arr")
+        CALL sdiv%copy_arr_to_device()
     END SUBROUTINE constructor
 
 
@@ -238,8 +237,12 @@ CONTAINS
             END IF
         END DO
 
-        CALL map_arr_to_device(gsaw, gsae, gsas, gsan, gsab, gsat, &
-            message="to:gs-neighbors")
-        CALL map_arr_to_device(gsap, message="to:gs-ap")
+        CALL gsaw%copy_arr_to_device()
+        CALL gsae%copy_arr_to_device()
+        CALL gsas%copy_arr_to_device()
+        CALL gsan%copy_arr_to_device()
+        CALL gsab%copy_arr_to_device()
+        CALL gsat%copy_arr_to_device()
+        CALL gsap%copy_arr_to_device()
     END SUBROUTINE giteig
 END MODULE noib_mod

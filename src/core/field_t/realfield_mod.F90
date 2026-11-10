@@ -1,10 +1,12 @@
 MODULE realfield_mod
+    USE basefield_mod
     USE err_mod, ONLY: errr
-    USE grids_mod, ONLY: get_mgdims, mygrids, nmygrids, level
+    USE grids_mod, ONLY: get_mgdims, get_imygrid, mygrids, mygridslvl, &
+        nmygrids, nmygridslvl, level
     USE pointers_mod, ONLY: idimbb, get_ip3, get_ipbb
     USE precision_mod, ONLY: intk, realk, mglet_hdf5_real, mglet_mpi_real
+    USE profile_tools_mod, ONLY: profile_range_push, profile_range_pop
     USE utils_mod, ONLY: get_stag_shift
-    USE basefield_mod
 
     IMPLICIT NONE(type, external)
     PRIVATE
@@ -14,18 +16,27 @@ MODULE realfield_mod
         REAL(realk), ALLOCATABLE :: buffers(:)
     CONTAINS
         PROCEDURE :: init
+        PROCEDURE :: init_buffers
+
+        ! Support device offloading and default to device
+        PROCEDURE :: copy_arr_to_device
+        PROCEDURE :: copy_arr_from_device
+        PROCEDURE :: copy_buffers_to_device
+        PROCEDURE :: copy_buffers_from_device
+        GENERIC, PUBLIC :: multiply => multiply2, multiply3
+        PROCEDURE, PRIVATE, NON_OVERRIDABLE :: multiply2, multiply3
+        PROCEDURE :: zero
+        PROCEDURE :: zero_buffers
+        PROCEDURE :: copy_arr
+        PROCEDURE :: copy_buffers
+        PROCEDURE :: copy_from
 
         GENERIC, PUBLIC :: get_ptr => get_grid1, get_grid3
-        GENERIC, PUBLIC :: multiply => multiply2, multiply3
-
         PROCEDURE, PRIVATE, NON_OVERRIDABLE :: get_grid1, get_grid3
-        PROCEDURE, PRIVATE, NON_OVERRIDABLE :: multiply2, multiply3
-
         PROCEDURE, NON_OVERRIDABLE :: get_value
         PROCEDURE, NON_OVERRIDABLE :: get_buffer
-        PROCEDURE :: copy_from
-        PROCEDURE :: shift
-        PROCEDURE :: init_buffers
+        PROCEDURE, NON_OVERRIDABLE :: shift
+
         PROCEDURE :: finish
         FINAL :: destructor
     END TYPE field_t
@@ -34,7 +45,7 @@ MODULE realfield_mod
 
 CONTAINS
     SUBROUTINE init(this, name, description, ndim, istag, jstag, kstag, &
-            units, dread, required, dwrite, active_level, get_len, zero)
+            units, dread, required, dwrite, active_level, get_len, zero, device)
         ! Subroutine arguments
         CLASS(field_t), INTENT(out) :: this
         CHARACTER(len=*), INTENT(in) :: name
@@ -50,6 +61,7 @@ CONTAINS
         LOGICAL, INTENT(in), OPTIONAL :: active_level(:)
         PROCEDURE(get_len_i), OPTIONAL :: get_len
         LOGICAL, INTENT(in), OPTIONAL :: zero
+        LOGICAL, INTENT(in), OPTIONAL :: device
 
         ! Local variables
         LOGICAL :: zero2
@@ -66,9 +78,21 @@ CONTAINS
             zero2 = .TRUE.
         END IF
 
+        this%device = .TRUE.
+        IF (PRESENT(device)) THEN
+            this%device = device
+        END IF
+
         ALLOCATE(this%arr(this%idim))
+        IF (this%device) THEN
+            CALL device_alloc(this%arr)
+        END IF
+
         IF (zero2) THEN
             this%arr = 0.0_realk
+            IF (this%device) THEN
+                CALL this%copy_arr_to_device()
+            END IF
         END IF
 
 #ifdef _MGLET_DEBUG_
@@ -88,6 +112,9 @@ CONTAINS
                 ! Define NaN and set that value in the array
                 nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
                 this%arr = nan
+                IF (this%device) THEN
+                    CALL this%copy_arr_to_device()
+                END IF
 
                 ! Restore the previous floating point exception mode
                 CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
@@ -98,11 +125,23 @@ CONTAINS
     END SUBROUTINE init
 
 
-    ELEMENTAL SUBROUTINE finish(this)
+    SUBROUTINE finish(this)
+        ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
 
         IF (.NOT. this%is_init) RETURN
         CALL this%finish_corefield()
+
+        IF (this%device) THEN
+            CALL device_free(this%arr)
+            IF (ALLOCATED(this%buffers)) THEN
+                CALL device_free(this%buffers)
+            END IF
+            this%device = .FALSE.
+        END IF
 
         DEALLOCATE(this%arr)
         IF (ALLOCATED(this%buffers)) THEN
@@ -111,11 +150,79 @@ CONTAINS
     END SUBROUTINE finish
 
 
-    ELEMENTAL SUBROUTINE destructor(this)
+    IMPURE ELEMENTAL SUBROUTINE destructor(this)
+        ! Subroutine arguments
         TYPE(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
 
         CALL this%finish()
     END SUBROUTINE destructor
+
+
+    SUBROUTINE copy_arr_to_device(this)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. this%device) THEN
+            WRITE(*, *) "Field was not device initialized: ", TRIM(this%name)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL copy_to_device(this%arr)
+    END SUBROUTINE copy_arr_to_device
+
+
+    SUBROUTINE copy_arr_from_device(this)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. this%device) THEN
+            WRITE(*, *) "Field was not device initialized: ", TRIM(this%name)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL copy_from_device(this%arr)
+    END SUBROUTINE copy_arr_from_device
+
+
+    SUBROUTINE copy_buffers_to_device(this)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. this%device) THEN
+            WRITE(*, *) "Field was not device initialized: ", TRIM(this%name)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL copy_to_device(this%buffers)
+    END SUBROUTINE copy_buffers_to_device
+
+
+    SUBROUTINE copy_buffers_from_device(this)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+
+        ! Local variables
+        ! none...
+
+        IF (.NOT. this%device) THEN
+            WRITE(*, *) "Field was not device initialized: ", TRIM(this%name)
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL copy_from_device(this%buffers)
+    END SUBROUTINE copy_buffers_from_device
 
 
     SUBROUTINE get_grid1(this, ptr, igrid)
@@ -199,11 +306,183 @@ CONTAINS
     END FUNCTION get_value
 
 
+    SUBROUTINE zero(this, ilevel, device)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+        INTEGER(intk), OPTIONAL, INTENT(in) :: ilevel
+        LOGICAL, OPTIONAL, INTENT(in) :: device
+
+        ! Local variables
+        LOGICAL :: device2
+
+        device2 = .TRUE.
+        IF (PRESENT(device)) THEN
+            device2 = device
+        END IF
+
+        IF (PRESENT(ilevel)) THEN
+            CALL zero_lvl_impl(this%arr, this%ptr, this%length, ilevel, device2)
+        ELSE
+            CALL zero_impl(this%arr, SIZE(this%arr), device2, &
+                "realfield_zero_arr")
+        END IF
+    END SUBROUTINE zero
+
+
+    SUBROUTINE zero_impl(arr, n, device, message)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: n
+        LOGICAL, INTENT(in) :: device
+        CHARACTER(*), INTENT(in) :: message
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        CALL profile_range_push(message)
+
+        !$omp target teams loop if(device)
+        DO i = 1, n
+            arr(i) = 0.0_realk
+        END DO
+        !$omp end target teams loop
+
+        CALL profile_range_pop()
+    END SUBROUTINE zero_impl
+
+
+    SUBROUTINE zero_lvl_impl(arr, ptr, length, ilevel, device)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: arr(*)
+        INTEGER(intk), INTENT(in) :: ptr(*), length(*), ilevel
+        LOGICAL, INTENT(in) :: device
+
+        ! Local variables
+        INTEGER(intk) :: i, il, igrid, imygrid, ip, n, ngridslvl
+
+        ngridslvl = nmygridslvl(ilevel)
+        CALL profile_range_push("realfield_zero_lvl_arr")
+
+        !$omp target teams distribute &
+        !$omp& if(device) &
+        !$omp& private(il, igrid, imygrid, ip, n) &
+        !$omp& shared(ilevel) &
+        !$omp& map(to: ptr(1:nmygrids), length(1:nmygrids))
+        DO il = 1, ngridslvl
+            igrid = mygridslvl(il, ilevel)
+            CALL get_imygrid(imygrid, igrid)
+            ip = ptr(imygrid)
+            n = length(imygrid)
+
+            !$omp parallel do
+            DO i = 1, n
+                arr(ip + i - 1) = 0.0_realk
+            END DO
+            !$omp end parallel do
+        END DO
+        !$omp end target teams distribute
+
+        CALL profile_range_pop()
+    END SUBROUTINE zero_lvl_impl
+
+
+    SUBROUTINE zero_buffers(this, device)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+        LOGICAL, OPTIONAL, INTENT(in) :: device
+
+        ! Local variables
+        LOGICAL :: device2
+
+        IF (.NOT. ALLOCATED(this%buffers)) CALL errr(__FILE__, __LINE__)
+
+        device2 = .TRUE.
+        IF (PRESENT(device)) THEN
+            device2 = device
+        END If
+
+        CALL zero_impl(this%buffers, SIZE(this%buffers), device2, &
+            "realfield_zero_buffers")
+    END SUBROUTINE zero_buffers
+
+
+    SUBROUTINE copy_arr(this, source, device)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+        CLASS(field_t), INTENT(in) :: source
+        LOGICAL, OPTIONAL, INTENT(in) :: device
+
+        ! Local variables
+        LOGICAL :: device2
+
+        IF (SIZE(this%arr) /= SIZE(source%arr)) CALL errr(__FILE__, __LINE__)
+
+        device2 = .TRUE.
+        IF (PRESENT(device)) THEN
+            device2 = device
+        END If
+
+        CALL copy_data_impl(this%arr, source%arr, SIZE(source%arr), device2, &
+            "copy_arr")
+    END SUBROUTINE copy_arr
+
+
+    SUBROUTINE copy_buffers(this, source, device)
+        ! Subroutine arguments
+        CLASS(field_t), INTENT(inout) :: this
+        CLASS(field_t), INTENT(in) :: source
+        LOGICAL, OPTIONAL, INTENT(in) :: device
+
+        ! Local variables
+        LOGICAL :: device2
+
+        IF (SIZE(this%buffers) /= SIZE(source%buffers)) THEN
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        device2 = .TRUE.
+        IF (PRESENT(device)) THEN
+            device2 = device
+        END If
+
+        CALL copy_data_impl(this%buffers, source%buffers, &
+            SIZE(source%buffers), device2, "copy_buffers")
+    END SUBROUTINE copy_buffers
+
+
+    SUBROUTINE copy_data_impl(dest, source, n, device, message)
+        ! Subroutine arguments
+        REAL(realk), INTENT(inout) :: dest(*)
+        REAL(realk), INTENT(in) :: source(*)
+        INTEGER(intk), INTENT(in) :: n
+        LOGICAL, INTENT(in) :: device
+        CHARACTER(*), INTENT(in) :: message
+
+        ! Local variables
+        INTEGER(intk) :: i
+
+        CALL profile_range_push(message)
+
+        !$omp target teams loop if(device)
+        DO i = 1, n
+            dest(i) = source(i)
+        END DO
+        !$omp end target teams loop
+
+        CALL profile_range_pop()
+    END SUBROUTINE copy_data_impl
+
+
     ! Make a deep copy of another field
     SUBROUTINE copy_from(this, that)
         ! Subroutine arguments
         CLASS(field_t), INTENT(inout) :: this
         CLASS(field_t), INTENT(in) :: that
+
+        IF (this%device) THEN
+            CALL device_free(this%arr)
+            IF (ALLOCATED(this%buffers)) CALL device_free(this%buffers)
+        END IF
 
         this%is_init = that%is_init
         this%name = that%name
@@ -244,6 +523,18 @@ CONTAINS
         END IF
         this%arr = that%arr
 
+        this%device = that%device
+#ifdef _MGLET_OFFLOAD_
+        IF (this%device) THEN
+            CALL device_alloc(this%arr)
+            CALL this%copy_arr(that, device=.TRUE.)
+            IF (ALLOCATED(this%buffers)) THEN
+                CALL device_alloc(this%buffers)
+                CALL copy_to_device(this%buffers)
+            END IF
+        END IF
+#endif
+
         ! TODO: buffers???
 
         this%n_iattr = that%n_iattr
@@ -281,7 +572,7 @@ CONTAINS
             phi2(:, :, :)
         LOGICAL :: device2
 
-        device2 = .FALSE.
+        device2 = .TRUE.
         IF (PRESENT(device)) device2 = device
 
         IF (.NOT. ALL(this%active_level) .OR. .NOT. ALL(a%active_level) .OR. &
@@ -354,7 +645,7 @@ CONTAINS
             phi2(:, :, :), phi3(:, :, :)
         LOGICAL :: device2
 
-        device2 = .FALSE.
+        device2 = .TRUE.
         IF (PRESENT(device)) device2 = device
 
         IF (.NOT. ALL(this%active_level) .OR. .NOT. ALL(a%active_level) .OR. &
@@ -598,10 +889,17 @@ CONTAINS
         ! Subroutine arguments
         CLASS(field_t), TARGET, INTENT(inout) :: this
 
+        ! Local variables
+        ! none...
+
         IF (ALLOCATED(this%buffers)) THEN
             RETURN
         END IF
+
         ALLOCATE(this%buffers(idimbb))
+        IF (this%device) THEN
+            CALL device_alloc(this%buffers)
+        END IF
 
 #ifdef _MGLET_DEBUG_
         BLOCK
@@ -619,6 +917,9 @@ CONTAINS
             ! Define NaN and set that value in the array
             nan = IEEE_VALUE(0.0_realk, IEEE_SIGNALING_NAN)
             this%buffers = nan
+            IF (this%device) THEN
+                CALL this%copy_buffers_to_device()
+            END IF
 
             ! Restore the previous floating point exception mode
             CALL IEEE_SET_FLAG(IEEE_ALL, .FALSE.)
@@ -667,4 +968,48 @@ CONTAINS
             CALL errr(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE get_buffer
+
+
+    SUBROUTINE device_alloc(data)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(in) :: data(:)
+
+        ! Local variables
+        ! none...
+
+        !$omp target enter data map(alloc: data)
+    END SUBROUTINE device_alloc
+
+
+    SUBROUTINE device_free(data)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: data(:)
+
+        ! Local variables
+        ! none...
+
+        !$omp target exit data map(delete: data)
+    END SUBROUTINE device_free
+
+
+    SUBROUTINE copy_to_device(data)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(in) :: data(:)
+
+        ! Local variables
+        ! none...
+
+        !$omp target update to(data)
+    END SUBROUTINE copy_to_device
+
+
+    SUBROUTINE copy_from_device(data)
+        ! Subroutine arguments
+        REAL(realk), CONTIGUOUS, INTENT(inout) :: data(:)
+
+        ! Local variables
+        ! none...
+
+        !$omp target update from(data)
+    END SUBROUTINE copy_from_device
 END MODULE realfield_mod

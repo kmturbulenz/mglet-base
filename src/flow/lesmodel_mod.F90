@@ -100,9 +100,9 @@ CONTAINS
                 CALL bound%bound(ilevel, g)
             END DO
 
-            CALL map_arr_to_device(g, message="to:init_lesmodel")
+            CALL g%copy_arr_to_device()
         ELSE
-            CALL map_arr_to_device(g, message="to:init_lesmodel")
+            CALL g%copy_arr_to_device()
             CALL lesmodel(g)
         END IF
     END SUBROUTINE init_lesmodel

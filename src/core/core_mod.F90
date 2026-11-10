@@ -16,7 +16,6 @@ MODULE core_mod
     USE expression_mod
     USE fieldio2_mod
     USE field_mod
-    USE fieldhelper_mod
     USE fieldpool_mod
     USE fields_mod
     USE fort7_mod
