@@ -96,7 +96,7 @@ CONTAINS
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, t, t, 'T', device=.TRUE.)
+                CALL ftoc(ilevel, t, t, 'T')
             END DO
 
             CALL get_field(t_old, TRIM(scalar(l)%name)//"_OLD")

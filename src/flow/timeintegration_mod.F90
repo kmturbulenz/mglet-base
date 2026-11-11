@@ -141,7 +141,7 @@ CONTAINS
         ! For divergence computation
         DO ilevel = minlevel, maxlevel
             CALL conn(ilevel, 1, v1=u, v2=v, v3=w, normal=.true., forward=1)
-            CALL parent(ilevel, u, v, w, p, device=.TRUE.)
+            CALL parent(ilevel, u, v, w, p)
             CALL apply_bound_flow(ilevel, u, v, w, p)
         END DO
 

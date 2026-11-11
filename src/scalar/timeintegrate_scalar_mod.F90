@@ -61,7 +61,7 @@ CONTAINS
             ! This operation apply boundary conditions to qtu, qtv, qtw ONLY!
             ! Does not modify t-field at all!
             DO ilevel = minlevel, maxlevel
-                CALL parent(ilevel, qtu, qtv, qtw, device=.TRUE.)
+                CALL parent(ilevel, qtu, qtv, qtw)
                 CALL apply_bound_scalar(ilevel, l, qtu, qtv, qtw, t)
             END DO
 
@@ -90,7 +90,7 @@ CONTAINS
             END IF
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, t, t, 'T', device=.TRUE.)
+                CALL ftoc(ilevel, t, t, 'T')
             END DO
 
             CALL conn(layers=2, s1=t, corners=.TRUE.)

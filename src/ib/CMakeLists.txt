@@ -11,8 +11,8 @@ add_library(ib STATIC
     checkblock_mod.F90
     checkzelle_mod.F90
     ctof/ctof_mod.F90
-    ctof/ctof1_mod.F90
-    ctof/ctof2_mod.F90
+    ctof/ctof_cpu_mod.F90
+    ctof/ctof_gpu_mod.F90
     ctof/ctof_core_mod.F90
     cutcorner_mod.F90
     divcal_mod.F90
@@ -23,8 +23,8 @@ add_library(ib STATIC
     freekante_mod.F90
     freepressure_mod.F90
     ftoc/ftoc_mod.F90
-    ftoc/ftoc1_mod.F90
-    ftoc/ftoc2_mod.F90
+    ftoc/ftoc_cpu_mod.F90
+    ftoc/ftoc_gpu_mod.F90
     ftoc/ftoc_core_mod.F90
     gc_blockbpfeld_mod.F90
     gc_blockbp_mod.F90
@@ -45,13 +45,13 @@ add_library(ib STATIC
     noib_restrict_mod.F90
     openbubvbw_mod.F90
     parent/parent_mod.F90
-    parent/parent1_mod.F90
-    parent/parent2_mod.F90
+    parent/parent_cpu_mod.F90
+    parent/parent_gpu_mod.F90
     parent/parent_core_mod.F90
     par_ftoc_norm/par_ftoc_core_mod.F90
     par_ftoc_norm/par_ftoc_mod.F90
-    par_ftoc_norm/par_ftoc1_mod.F90
-    par_ftoc_norm/par_ftoc2_mod.F90
+    par_ftoc_norm/par_ftoc_cpu_mod.F90
+    par_ftoc_norm/par_ftoc_gpu_mod.F90
     punktekoordinaten_mod.F90
     restrict_mod.F90
     stencils_mod.F90

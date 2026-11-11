@@ -283,7 +283,7 @@ CONTAINS
         DO iloop = 1, 3
             DO ilevel = minlevel, maxlevel
                 CALL connect(ilevel, 2, s1=bp)
-                CALL parent(ilevel, s1=bp)
+                CALL parent(ilevel, s1=bp, device=.FALSE.)
 
                 DO i = 1, nmygridslvl(ilevel)
                     igrid = mygridslvl(i, ilevel)
@@ -303,7 +303,7 @@ CONTAINS
             END DO
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, bp, bp, 'E')
+                CALL ftoc(ilevel, bp, bp, 'E', device=.FALSE.)
             END DO
         END DO
     END SUBROUTINE blockluecken_closetoboundary
@@ -344,7 +344,7 @@ CONTAINS
 
         ! Update parent boundaries in field
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, s1=bodyid_3d_f)
+            CALL parent(ilevel, s1=bodyid_3d_f, device=.FALSE.)
 
             DO i = 1, nmygridslvl(ilevel)
                 igrid = mygridslvl(i, ilevel)
@@ -359,7 +359,7 @@ CONTAINS
 
         ! Fine-to-coarse
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, bodyid_3d_f, bodyid_3d_f, 'I')
+            CALL ftoc(ilevel, bodyid_3d_f, bodyid_3d_f, 'I', device=.FALSE.)
         END DO
 
         ! Connect

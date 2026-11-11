@@ -1,4 +1,4 @@
-MODULE parent2_mod
+MODULE parent_gpu_mod
     USE MPI_f08
     USE core_mod
     USE parent_core_mod
@@ -84,15 +84,15 @@ MODULE parent2_mod
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :)
     LOGICAL :: is_recording = .FALSE.
 
-    ! Pointers to fields passed to parent2, point to dummy field if not present
+    ! Pointers to fields passed to parent_gpu, point to dummy field if not present
     TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
         f4 => NULL(), f5 => NULL(), f6 => NULL()
 
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: parent2, init_parent2, finish_parent2
+    PUBLIC :: parent_gpu, init_parent_gpu, finish_parent_gpu
 CONTAINS
-    SUBROUTINE parent2(ilevel, v1, v2, v3, s1, s2, s3, normal)
+    SUBROUTINE parent_gpu(ilevel, v1, v2, v3, s1, s2, s3, normal)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
@@ -123,7 +123,7 @@ CONTAINS
             IF (normal2) idx_normal = 1
         END IF
 
-        CALL push_field(dummy, "PARENT2_DUMMY")
+        CALL push_field(dummy, "PARENT_GPU_DUMMY")
 
         f1 => dummy
         f2 => dummy
@@ -202,7 +202,7 @@ CONTAINS
         f6 => NULL()
 
         CALL pop_field(dummy)
-    END SUBROUTINE parent2
+    END SUBROUTINE parent_gpu
 
 
     SUBROUTINE jit_parent(ilevel, normal, nvars, v1, v2, v3, s1, s2, s3)
@@ -1530,7 +1530,7 @@ CONTAINS
     END SUBROUTINE add_mpi_task
 
 
-    SUBROUTINE init_parent2()
+    SUBROUTINE init_parent_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -1580,7 +1580,7 @@ CONTAINS
 
         ! Record relevant conn calls for later efficient reuse on device
         CALL run_recording_pass()
-    END SUBROUTINE init_parent2
+    END SUBROUTINE init_parent_gpu
 
 
     SUBROUTINE run_recording_pass()
@@ -1606,17 +1606,17 @@ CONTAINS
         !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr, &
         !$omp&  udummy%buffers, vdummy%buffers, wdummy%buffers, pdummy%buffers)
 
-        ! START -- This section defines the record variants of parent2 ---
+        ! START -- This section defines the record variants of parent_gpu ---
 
         DO ilevel = minlevel, maxlevel
             ! Inner pressuresolver iterations
-            CALL parent2(ilevel, s1=pdummy)
+            CALL parent_gpu(ilevel, s1=pdummy)
         END DO
 
         ! Outer pressuresolver iterations
-        CALL parent2(minlevel, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy)
+        CALL parent_gpu(minlevel, v1=udummy, v2=vdummy, v3=wdummy, s1=pdummy)
 
-        ! END -- This section defines the record variants of parent2 ---
+        ! END -- This section defines the record variants of parent_gpu ---
 
         !$omp target exit data map(delete: &
         !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr, &
@@ -1660,7 +1660,7 @@ CONTAINS
     END SUBROUTINE count_selftasks
 
 
-    SUBROUTINE finish_parent2()
+    SUBROUTINE finish_parent_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -1690,7 +1690,7 @@ CONTAINS
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_parent2
+    END SUBROUTINE finish_parent_gpu
 
 
     SUBROUTINE purge_workrecords()
@@ -1728,4 +1728,4 @@ CONTAINS
         DEALLOCATE(wptr%mpirecvtasks)
         wptr%is_init = .FALSE.
     END SUBROUTINE unmap_work
-END MODULE parent2_mod
+END MODULE parent_gpu_mod

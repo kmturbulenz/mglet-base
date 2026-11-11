@@ -1,8 +1,8 @@
 MODULE ctof_mod
     USE core_mod
 
-    USE ctof1_mod
-    USE ctof2_mod
+    USE ctof_cpu_mod
+    USE ctof_gpu_mod
     USE ctof_core_mod
 
     IMPLICIT NONE (type, external)
@@ -10,9 +10,8 @@ MODULE ctof_mod
 
     PUBLIC :: ctof, init_ctof, finish_ctof
 CONTAINS
-    ! This subroutine acts as an interface for ctof (coarse-to-fine) calls.
-    ! Dependent on the configuration, it will call either ctof1_mod
-    ! or ctof2_mod, which are relevant for CPU and GPU, respectively.
+    ! Offload builds default to GPU execution; device=.FALSE. selects CPU.
+    ! Non-offload builds always use the CPU implementation.
     SUBROUTINE ctof(ilevel, ff_f, fc_f, device)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -33,22 +32,18 @@ CONTAINS
         CALL start_timer(230)
 
 #ifdef _MGLET_OFFLOAD_
-        ! If offloading is enabled, the optional device argument determines
-        ! whether device or host version of parent is called.
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         IF (device2) THEN
-            CALL ctof2(ilevel, ff_f, fc_f)
+            CALL ctof_gpu(ilevel, ff_f, fc_f)
         ELSE
-            CALL ctof1(ilevel, ff_f, fc_f)
+            CALL ctof_cpu(ilevel, ff_f, fc_f)
         END IF
 #else
-        ! Always call ctof1 if offloading is not enabled
-        CALL ctof1(ilevel, ff_f, fc_f)
+        CALL ctof_cpu(ilevel, ff_f, fc_f)
 #endif
 
         CALL stop_timer(230)
@@ -57,19 +52,18 @@ CONTAINS
 
     SUBROUTINE init_ctof()
         CALL init_ctof_core()
-        CALL init_ctof1()
+        CALL init_ctof_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL init_ctof2()
+        CALL init_ctof_gpu()
 #endif
     END SUBROUTINE init_ctof
 
 
     SUBROUTINE finish_ctof()
-        CALL finish_ctof1()
+        CALL finish_ctof_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL finish_ctof2()
+        CALL finish_ctof_gpu()
 #endif
         CALL finish_ctof_core()
     END SUBROUTINE finish_ctof
 END MODULE ctof_mod
-

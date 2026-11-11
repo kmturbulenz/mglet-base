@@ -1230,7 +1230,7 @@ CONTAINS
         CALL start_timer(340)
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w, device=.TRUE.)
+            CALL parent(ilevel, u, v, w)
             CALL apply_bound_flow(ilevel, u, v, w)
             CALL conn(ilevel, 2, v1=u, v2=v, v3=w)
 
@@ -1246,12 +1246,12 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u, v, w, device=.TRUE.)
-            CALL par_ftoc_norm(ilevel, u, v, w, device=.TRUE.)
+            CALL ftoc(ilevel, u, v, w)
+            CALL par_ftoc_norm(ilevel, u, v, w)
         END DO
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w, device=.TRUE.)
+            CALL parent(ilevel, u, v, w)
             CALL apply_bound_flow(ilevel, u, v, w)
 
             CALL conn(ilevel, 1, v1=u, v2=v, v3=w, corners=.TRUE.)
@@ -1320,7 +1320,7 @@ CONTAINS
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, sdiv_f, sdiv_f, 'S')
+            CALL ftoc(ilevel, sdiv_f, sdiv_f, 'S', device=.FALSE.)
         END DO
 
         CALL connect(layers=2, s1=sdiv_f, corners=.TRUE.)

@@ -47,11 +47,11 @@ CONTAINS
         nfilled_tot = 0
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, bp, bp, 'F')
+                CALL ftoc(ilevel, bp, bp, 'F', device=.FALSE.)
             END DO
 
             DO ilevel = minlevel, maxlevel
-                CALL parent(ilevel, s1=bp)
+                CALL parent(ilevel, s1=bp, device=.FALSE.)
 
                 DO i = 1, nmygridslvl(ilevel)
                     igrid = mygridslvl(i, ilevel)

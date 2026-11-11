@@ -2,8 +2,8 @@ MODULE ftoc_mod
     USE MPI_f08
     USE core_mod
     USE ftoc_core_mod
-    USE ftoc1_mod
-    USE ftoc2_mod
+    USE ftoc_cpu_mod
+    USE ftoc_gpu_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -13,7 +13,9 @@ MODULE ftoc_mod
     END INTERFACE ftoc
 
     ! No state in this module
-    ! Acts only as a dispatcher for ftoc1 and ftoc2
+    ! Acts only as a dispatcher for ftoc_cpu and ftoc_gpu
+    ! Offload builds default to GPU execution; device=.FALSE. selects CPU.
+    ! Non-offload builds always use the CPU implementation.
 
     PUBLIC :: ftoc, init_ftoc, finish_ftoc
 CONTAINS
@@ -38,19 +40,18 @@ CONTAINS
         CALL start_timer(220)
 
 #ifdef _MGLET_OFFLOAD_
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         IF (device2) THEN
-            CALL ftoc2(ilevel, ff, fc, flag)
+            CALL ftoc_gpu(ilevel, ff, fc, flag)
         ELSE
-            CALL ftoc1(ilevel, ff, fc, flag)
+            CALL ftoc_cpu(ilevel, ff, fc, flag)
         END IF
 #else
-        CALL ftoc1(ilevel, ff, fc, flag)
+        CALL ftoc_cpu(ilevel, ff, fc, flag)
 #endif
 
         CALL stop_timer(220)
@@ -76,19 +77,18 @@ CONTAINS
         CALL start_timer(220)
 
 #ifdef _MGLET_OFFLOAD_
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         IF (device2) THEN
-            CALL ftoc2(ilevel, v1, v2, v3, s1, s2, s3)
+            CALL ftoc_gpu(ilevel, v1, v2, v3, s1, s2, s3)
         ELSE
-            CALL ftoc1(ilevel, v1, v2, v3, s1, s2, s3)
+            CALL ftoc_cpu(ilevel, v1, v2, v3, s1, s2, s3)
         END IF
 #else
-        CALL ftoc1(ilevel, v1, v2, v3, s1, s2, s3)
+        CALL ftoc_cpu(ilevel, v1, v2, v3, s1, s2, s3)
 #endif
 
         CALL stop_timer(220)
@@ -103,9 +103,9 @@ CONTAINS
         ! none...
 
         CALL init_ftoc_core()
-        CALL init_ftoc1()
+        CALL init_ftoc_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL init_ftoc2()
+        CALL init_ftoc_gpu()
 #endif
     END SUBROUTINE init_ftoc
 
@@ -118,9 +118,9 @@ CONTAINS
         ! none...
 
         CALL finish_ftoc_core()
-        CALL finish_ftoc1()
+        CALL finish_ftoc_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL finish_ftoc2()
+        CALL finish_ftoc_gpu()
 #endif
     END SUBROUTINE finish_ftoc
 END MODULE ftoc_mod

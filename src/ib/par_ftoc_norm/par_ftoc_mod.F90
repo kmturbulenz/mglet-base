@@ -1,7 +1,7 @@
 MODULE par_ftoc_mod
     USE core_mod
-    USE par_ftoc1_mod
-    USE par_ftoc2_mod
+    USE par_ftoc_cpu_mod
+    USE par_ftoc_gpu_mod
     USE par_ftoc_core_mod
 
     IMPLICIT NONE (type, external)
@@ -9,6 +9,8 @@ MODULE par_ftoc_mod
 
     PUBLIC :: par_ftoc_norm, init_par_ftoc, finish_par_ftoc
 CONTAINS
+    ! Offload builds default to GPU execution; device=.FALSE. selects CPU.
+    ! Non-offload builds always use the CPU implementation.
     SUBROUTINE par_ftoc_norm(ilevel, v1, v2, v3, sum, device)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -28,19 +30,18 @@ CONTAINS
         CALL start_timer(211)
 
 #ifdef _MGLET_OFFLOAD_
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         IF (device2) THEN
-            CALL par_ftoc2(ilevel, v1, v2, v3, sum)
+            CALL par_ftoc_gpu(ilevel, v1, v2, v3, sum)
         ELSE
-            CALL par_ftoc1(ilevel, v1, v2, v3, sum)
+            CALL par_ftoc_cpu(ilevel, v1, v2, v3, sum)
         END IF
 #else
-        CALL par_ftoc1(ilevel, v1, v2, v3, sum)
+        CALL par_ftoc_cpu(ilevel, v1, v2, v3, sum)
 #endif
 
         CALL stop_timer(211)
@@ -55,9 +56,9 @@ CONTAINS
         ! none...
 
         CALL init_par_ftoc_core()
-        CALL init_par_ftoc1()
+        CALL init_par_ftoc_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL init_par_ftoc2()
+        CALL init_par_ftoc_gpu()
 #endif
     END SUBROUTINE init_par_ftoc
 
@@ -69,9 +70,9 @@ CONTAINS
         ! Local variables
         ! none...
 
-        CALL finish_par_ftoc1()
+        CALL finish_par_ftoc_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL finish_par_ftoc2()
+        CALL finish_par_ftoc_gpu()
 #endif
         CALL finish_par_ftoc_core()
     END SUBROUTINE finish_par_ftoc

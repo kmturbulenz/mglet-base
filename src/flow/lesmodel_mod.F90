@@ -96,7 +96,7 @@ CONTAINS
             END DO
 
             DO ilevel = minlevel+1, maxlevel
-                CALL parent(ilevel, s1=g)
+                CALL parent(ilevel, s1=g, device=.FALSE.)
                 CALL bound%bound(ilevel, g)
             END DO
 
@@ -165,7 +165,7 @@ CONTAINS
             rddx_f%arr, rddy_f%arr, rddz_f%arr)
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, s1=g_f, device=.TRUE.)
+            CALL parent(ilevel, s1=g_f)
             CALL apply_boundg(ilevel, g_f, bp_f)
             CALL conn(ilevel, 1, s1=g_f)
         END DO

@@ -167,7 +167,7 @@ CONTAINS
         ! Do not overwrite flow fields read from a restart file.
         IF (dread) THEN
             DO ilevel = minlevel, maxlevel
-                CALL parent(ilevel, u, v, w, p)
+                CALL parent(ilevel, u, v, w, p, device=.FALSE.)
                 CALL bound_flow%bound(ilevel, u, v, w, p)
                 CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
             END DO
@@ -187,13 +187,13 @@ CONTAINS
         CALL zero_ghostlayers(w)
 
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w, p)
+            CALL parent(ilevel, u, v, w, p, device=.FALSE.)
             CALL bound_flow%bound(ilevel, u, v, w, p)
             CALL connect(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, u, v, w, p)
+            CALL ftoc(ilevel, u, v, w, p, device=.FALSE.)
         END DO
 
         ! connect after ftoc (minlevel:maxlevel-1 would be enough)
@@ -304,7 +304,7 @@ CONTAINS
         CALL bwcoarse%copy_from(bw)
 
         DO ilevel = maxlevel, minlevel+1, -1
-            CALL ftoc(ilevel, bucoarse, bvcoarse, bwcoarse)
+            CALL ftoc(ilevel, bucoarse, bvcoarse, bwcoarse, device=.FALSE.)
         END DO
 
         DO i = 1, nmygrids
