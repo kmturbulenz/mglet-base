@@ -32,7 +32,7 @@ MODULE connect_core_mod
     INTEGER(intk), ALLOCATABLE, PROTECTED :: sendconns(:, :), recvconns(:, :)
 
     ! Number of send and receive connections
-    ! (not used from conn1_mod so not declare target)
+    ! Only used on the host, so not declare target.
     INTEGER(intk), PROTECTED :: isend = 0, irecv = 0
 
     INTEGER(intk), PARAMETER :: facelist(4, 26) = RESHAPE([ &
