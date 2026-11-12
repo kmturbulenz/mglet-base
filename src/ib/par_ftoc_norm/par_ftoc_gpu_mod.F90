@@ -281,14 +281,16 @@ CONTAINS
             iprocnbr = recvconns(1, i)
             igridf = recvconns(3, i)
             iface = recvconns(5, i)
-            IF (iprocnbr /= myid .AND. ilevel == level(igridf)) THEN
-                facearea = face_area(igridf, iface)
-                recvidxlist(1, i) = iprocnbr
-                recvidxlist(2, i) = facearea
-                recvidxlist(3, i) = recvcounter + messagelength
-                messagelength = messagelength + facearea
-                IF (recvcounter + messagelength > idim_mg_bufs) THEN
-                    CALL errr(__FILE__, __LINE__)
+            IF (ilevel == level(igridf)) THEN
+                IF (iprocnbr /= myid) THEN
+                    facearea = face_area(igridf, iface)
+                    recvidxlist(1, i) = iprocnbr
+                    recvidxlist(2, i) = facearea
+                    recvidxlist(3, i) = recvcounter + messagelength
+                    messagelength = messagelength + facearea
+                    IF (recvcounter + messagelength > idim_mg_bufs) THEN
+                        CALL errr(__FILE__, __LINE__)
+                    END IF
                 END IF
             END IF
 
@@ -803,10 +805,8 @@ CONTAINS
                 CALL pack_face(kk, jj, ii, tasksize, a3(ip3), &
                     sbuf(sendidx), ddx(ipx), ddy(ipy), ddz(ipz), iface, &
                     sumflag, kstart, kstop, jstart, jstop, istart, istop)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -854,10 +854,8 @@ CONTAINS
                 CALL pack_face_sum_z(kk, jj, ii, tasksize, arr, sbuf, &
                     kstart, kstop, jstart, jstop, istart, istop)
             END IF
-#ifdef _MGLET_DEBUG_
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-#endif
+            CALL errr_kernel(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE pack_face
 
@@ -1141,10 +1139,8 @@ CONTAINS
             CASE (3)
                 CALL unpack_face(kk, jj, ii, tasksize, a3(ip3), rbuf(recvidx), &
                     kstart, kstop, jstart, jstop, istart, istop)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1179,11 +1175,10 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
         IF (nk*nj*(istop-istart+1) /= tasksize) THEN
-            CALL errr(__FILE__, __LINE__)
+            CALL errr_kernel(__FILE__, __LINE__)
         END IF
-#endif
+
     END SUBROUTINE unpack_face
 
 
@@ -1290,10 +1285,8 @@ CONTAINS
                     kkf, jjf, iif, kkc, jjc, iic, ip3f, ip3c, iface, &
                     sumflag, kstart, kstop, jstart, jstop, istart, istop, &
                     kpos, jpos, ipos)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1347,10 +1340,8 @@ CONTAINS
                     arr(ip3f), arr(ip3c), kstart, kstop, jstart, jstop, &
                     istart, istop, kpos, jpos, ipos)
             END IF
-#ifdef _MGLET_DEBUG_
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-#endif
+            CALL errr_kernel(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE restrict_self
 

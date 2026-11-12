@@ -503,10 +503,8 @@ CONTAINS
             CASE (6)
                 CALL arr_to_sendbuf(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -605,10 +603,8 @@ CONTAINS
             CASE (6)
                 CALL recvbuf_to_buffers(a6, icount, ibb, jjc2d, jj2d, ii2d, &
                     stag1, stag2)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -691,7 +687,8 @@ CONTAINS
             END IF
 #ifdef _MGLET_DEBUG_
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            val = 0.0_realk
+            CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END SELECT
     END SUBROUTINE prolong_face_first_direction
@@ -719,7 +716,8 @@ CONTAINS
             END IF
 #ifdef _MGLET_DEBUG_
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
+            val = 0.0_realk
+            CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END SELECT
     END SUBROUTINE prolong_face_second_direction
@@ -805,10 +803,8 @@ CONTAINS
                 CALL arr_to_buffers(kk, jj, ii, a6(ip3), &
                     b6, ibb, istart, istop, jstart, jstop, kstart, kstop, &
                     jj2d, ii2d, stag1, stag2)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -907,7 +903,8 @@ CONTAINS
             value = arr(kstart, jstart+jc-1, istart+ic-1)
 #ifdef _MGLET_DEBUG_
         ELSE
-            CALL errr(__FILE__, __LINE__)
+            value = 0.0_realk
+            CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END IF
     END SUBROUTINE get_parent_face_value
