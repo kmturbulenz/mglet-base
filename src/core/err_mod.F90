@@ -10,12 +10,83 @@ MODULE err_mod
 
     INTEGER(intk), PARAMETER :: maxcode = 255
 
-    ! Public data items
-    PUBLIC :: err_print, err_abort, errr, err_mpi
+    INTEGER(int32) :: aux_flag = 0_int32
+    !$omp declare target(aux_flag)
 
+    INTEGER(int32), PARAMETER :: maxfilelength = 512
+    INTEGER(int32), PROTECTED :: err_kernel_line = 0_int32
+    CHARACTER(len=maxfilelength), PROTECTED :: err_kernel_file = ""
+    !$omp declare target(err_kernel_line, err_kernel_file)
+
+    PUBLIC :: errr, err_print, err_abort, err_mpi, &
+        errr_kernel, err_kernel_check, init_err_kernel, finish_err_kernel
 CONTAINS
-    SUBROUTINE err_print(errorcode, message, fname, line)
+    SUBROUTINE errr_kernel(fname, line)
         !$omp declare target
+        ! Kernel error to record error information on the device side
+
+        ! Subroutine arguments
+        CHARACTER(len=*), INTENT(in) :: fname
+        INTEGER(int32), INTENT(in) :: line
+
+        ! Local variables
+        INTEGER(int32) :: access_flag
+
+        ! Set kernel error information (note that "fname" may be truncated)
+
+        !$omp atomic capture
+        access_flag = aux_flag
+        aux_flag = 1_int32
+        !$omp end atomic
+
+        IF (access_flag == 0) THEN
+            err_kernel_line = line
+            err_kernel_file = fname
+        END IF
+    END SUBROUTINE errr_kernel
+
+
+    SUBROUTINE err_kernel_check()
+        ! Kernel check error to evaluate the status from the host side
+
+        ! Local variables
+        INTEGER(intk), PARAMETER :: default_code = 254
+        CHARACTER(len=*), PARAMETER :: default_message = "MGLET Kernel Error"
+
+        !$omp target update from(err_kernel_line)
+        IF (err_kernel_line > 0_int32) THEN
+            !$omp target update from(err_kernel_file)
+            CALL err_abort(default_code, default_message, &
+                TRIM(err_kernel_file), INT(err_kernel_line, intk))
+        END IF
+    END SUBROUTINE err_kernel_check
+
+
+    SUBROUTINE init_err_kernel()
+        ! Initialize kernel error handling on the host side
+
+        err_kernel_line = -1_int32
+        err_kernel_file = REPEAT(" ", maxfilelength)
+        aux_flag = 0_int32  ! = setting active
+
+        !$omp target update to(err_kernel_line, err_kernel_file, aux_flag)
+    END SUBROUTINE init_err_kernel
+
+
+    SUBROUTINE finish_err_kernel()
+        ! Finalize kernel error handling on the host side
+
+        CALL err_kernel_check()
+
+        err_kernel_line = -1_int32
+        err_kernel_file = REPEAT(" ", maxfilelength)
+        aux_flag = 1_int32  ! = setting inactive
+
+        !$omp target update to(err_kernel_line, err_kernel_file, aux_flag)
+    END SUBROUTINE finish_err_kernel
+
+
+    SUBROUTINE err_print(errorcode, message, fname, line)
         ! Prints error message to standard error. Does not abort execution.
         USE comms_mod, ONLY: myid
 #if defined __INTEL_COMPILER
@@ -40,9 +111,6 @@ CONTAINS
         END IF
         write(error_unit, '()')
 
-        ! Likely does not run on target - disable backtraces if one
-        ! decides to run on Intel/GNU offload
-#ifndef _MGLET_OFFLOAD_
         ! Produce backtrace to indicate from where the error comming from
 #ifdef __INTEL_COMPILER
         CALL TRACEBACKQQ(user_exit_code=-1)
@@ -50,12 +118,10 @@ CONTAINS
 #ifdef __GFORTRAN__
         CALL BACKTRACE()
 #endif
-#endif
     END SUBROUTINE err_print
 
 
     SUBROUTINE err_abort(errorcode, message, fname, line)
-        !$omp declare target
         ! Generic error handler if something happens on an arbitrary single
         ! rank. Aborts execution of MGLET.
 
@@ -83,7 +149,6 @@ CONTAINS
 
 
     SUBROUTINE errr(fname, line)
-        !$omp declare target
         ! Generic error handler if something happens on an arbitrary single
         ! rank. Aborts execution of MGLET.
 
