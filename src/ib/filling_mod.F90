@@ -45,12 +45,12 @@ CONTAINS
         converged = .FALSE.
         DO iloop = 1, nloopmax
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, knoten, knoten, 'N')
+                CALL ftoc(ilevel, knoten, knoten, 'N', device=.FALSE.)
             END DO
 
             nfilled_tot = 0
             DO ilevel = minlevel, maxlevel
-                CALL parent(ilevel, s1=knoten)
+                CALL parent(ilevel, s1=knoten, device=.FALSE.)
 
                 DO i = 1, nmygridslvl(ilevel)
                     igrid = mygridslvl(i, ilevel)

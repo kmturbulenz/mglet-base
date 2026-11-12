@@ -1,4 +1,4 @@
-MODULE conn2_mod
+MODULE conn_gpu_mod
 
     USE MPI_f08
     USE precision_mod
@@ -83,18 +83,17 @@ MODULE conn2_mod
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
     LOGICAL :: is_recording = .FALSE.
 
-    ! Pointers to fields passed to conn2, point to dummy field if not present
+    ! Pointers to fields passed to conn_gpu, point to dummy field if not present
     TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
         f4 => NULL(), f5 => NULL(), f6 => NULL()
 
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: conn2, init_conn2, finish_conn2
+    PUBLIC :: conn_gpu, init_conn_gpu, finish_conn_gpu
 CONTAINS
-    ! conn2 makes conn1 available for efficient execution on GPUs.
-    ! The implementation provides the same functionality as conn1.
-    SUBROUTINE conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
-            forward, ityp)
+    ! Task-based communication for efficient execution on GPUs.
+    SUBROUTINE conn_gpu(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
+            normal, forward, ityp)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
@@ -114,7 +113,19 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        CALL push_field(dummy, "CONN2_DUMMY")
+        IF (PRESENT(v1)) THEN
+            IF (.NOT. (PRESENT(v2) .AND. PRESENT(v3))) THEN
+                WRITE(*, *) "If one vector arg is present, all three " &
+                    // "must be present."
+                CALL errr(__FILE__, __LINE__)
+            END IF
+        ELSE IF (PRESENT(v2) .OR. PRESENT(v3)) THEN
+            WRITE(*, *) "If one vector arg is present, all three " &
+                // "must be present."
+            CALL errr(__FILE__, __LINE__)
+        END IF
+
+        CALL push_field(dummy, "CONN_GPU_DUMMY")
 
         f1 => dummy
         f2 => dummy
@@ -155,23 +166,24 @@ CONTAINS
             END IF
         END IF
 
+        ! As in connect2, corners forbid explicit forward and normal arguments.
         fwd = 0
         idx_forward = 0
         IF (PRESENT(forward)) THEN
-            IF (forward < -1 .OR. forward > 1) THEN
+            IF (vertices) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
-            fwd = forward
-            idx_forward = forward
-        END IF
-
-        IF (fwd /= 0 .AND. vertices) THEN
-            CALL errr(__FILE__, __LINE__)
+            IF (forward > 0) THEN
+                fwd = 1
+            ELSE IF (forward < 0) THEN
+                fwd = -1
+            END IF
+            idx_forward = fwd
         END IF
 
         flag = ' '
         IF (PRESENT(ityp)) THEN
-            ! Radical approach
+            WRITE(*, *) "ITYP is not supported by conn_gpu."
             CALL errr(__FILE__, __LINE__)
         END IF
 
@@ -214,17 +226,17 @@ CONTAINS
         normal2 = .FALSE.
         idx_normal = 0
         IF (PRESENT(normal)) THEN
+            IF (vertices) THEN
+                CALL errr(__FILE__, __LINE__)
+            END IF
             normal2 = normal
             IF (normal) THEN
                 idx_normal = 1
             END IF
         END IF
         IF (normal2) THEN
-            IF (.NOT. PRESENT(v1) .OR. .NOT. PRESENT(v2) .OR. &
-                    .NOT. PRESENT(v3)) THEN
-                CALL errr(__FILE__, __LINE__)
-            END IF
-            IF (vertices) THEN
+            IF (.NOT. PRESENT(v1)) THEN
+                WRITE(*, *) "normal=.TRUE. require a vector v1, v2, v3."
                 CALL errr(__FILE__, __LINE__)
             END IF
             nvars = nvars - 2
@@ -264,7 +276,7 @@ CONTAINS
         f6 => NULL()
 
         CALL pop_field(dummy)
-    END SUBROUTINE conn2
+    END SUBROUTINE conn_gpu
 
 
     SUBROUTINE jit_conn(minconlvl, maxconlvl, nplane, vertices, normal2, fwd, &
@@ -407,7 +419,7 @@ CONTAINS
     END SUBROUTINE recording_pass
 
 
-    SUBROUTINE init_conn2()
+    SUBROUTINE init_conn_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -467,7 +479,7 @@ CONTAINS
 
         ! Recording relevant conn calls for later efficient reusage on device
         CALL run_recording_pass()
-    END SUBROUTINE init_conn2
+    END SUBROUTINE init_conn_gpu
 
 
     SUBROUTINE count_selftasks(nselfsend, nselfrecv)
@@ -517,18 +529,18 @@ CONTAINS
         !$omp target enter data map(to: &
         !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr)
 
-        ! START -- This section defines the recored variants of conn2 ---
+        ! START -- This section defines the recored variants of conn_gpu ---
 
         DO ilevel = minlevel, maxlevel
             ! Inner pressuresolver iterations
-            CALL conn2(ilevel, layers=1, s1=pdummy)
-            CALL conn2(ilevel, layers=1, s1=pdummy, forward=-1)
+            CALL conn_gpu(ilevel, layers=1, s1=pdummy)
+            CALL conn_gpu(ilevel, layers=1, s1=pdummy, forward=-1)
         END DO
 
         ! Outer pressuresolver iterations
-        CALL conn2(layers=1, s1=pdummy)
+        CALL conn_gpu(layers=1, s1=pdummy)
 
-        ! END -- This section defines the recored variants of conn2 ---
+        ! END -- This section defines the recored variants of conn_gpu ---
 
         !$omp target exit data map(delete: &
         !$omp&  udummy%arr, vdummy%arr, wdummy%arr, pdummy%arr)
@@ -542,7 +554,7 @@ CONTAINS
     END SUBROUTINE run_recording_pass
 
 
-    SUBROUTINE finish_conn2()
+    SUBROUTINE finish_conn_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -570,7 +582,7 @@ CONTAINS
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_conn2
+    END SUBROUTINE finish_conn_gpu
 
 
     SUBROUTINE purge_workrecords()
@@ -1877,4 +1889,4 @@ CONTAINS
         END DO
     END SUBROUTINE recv_mpi_all
 
-END MODULE conn2_mod
+END MODULE conn_gpu_mod

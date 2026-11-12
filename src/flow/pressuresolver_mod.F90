@@ -201,7 +201,7 @@ CONTAINS
         CALL divcal(rhs, u, v, w, prefak)
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, rhs, rhs, 'R', .TRUE.)
+            CALL ftoc(ilevel, rhs, rhs, 'R')
         END DO
 
         ! For debug logging
@@ -222,8 +222,8 @@ CONTAINS
             ! HINT: 'res' is passed into mgpoisit as a temporary storage!!
             CALL start_timer(322)
             DO ilevel = minlevel, maxlevel
-                CALL ctof(ilevel, hilf, hilf, device=.TRUE.)
-                CALL parent(ilevel, s1=hilf, device=.TRUE.)
+                CALL ctof(ilevel, hilf, hilf)
+                CALL parent(ilevel, s1=hilf)
                 CALL mgpoisit(ilevel, hilf, rhs, res, bp)
             END DO
             CALL stop_timer(322)
@@ -240,7 +240,7 @@ CONTAINS
             ! vom feinsten zum groebsten (fine to coarse)
             ! hilf = 0.0
             DO ilevel = maxlevel, minlevel, -1
-                CALL ftoc(ilevel, hilf, hilf, 'P', device=.TRUE.)
+                CALL ftoc(ilevel, hilf, hilf, 'P')
             END DO
 
             ! --- intermediate state ---
@@ -259,7 +259,7 @@ CONTAINS
             CALL rescal(rhs, res)
 
             DO ilevel = maxlevel, minlevel+1, -1
-                CALL ftoc(ilevel, rhs, rhs, 'R', device=.TRUE.)
+                CALL ftoc(ilevel, rhs, rhs, 'R')
             END DO
 
             ! Max of RHS scaled according to levels
@@ -312,7 +312,7 @@ CONTAINS
         ! The outer iteration has been left after
         ! a value of dp was found that leads to a acceptably small residual
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, s1=dp, device=.TRUE.)
+            CALL parent(ilevel, s1=dp)
             CALL bound_pressure(ilevel, dp, bp)
         END DO
 
@@ -321,7 +321,7 @@ CONTAINS
         CALL mgpcorr(u, v, w, p, dp, dt/rho)
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, u, v, w, p, device=.TRUE.)
+            CALL ftoc(ilevel, u, v, w, p)
         END DO
 
         ! All levels (coarse to fine)
@@ -331,7 +331,7 @@ CONTAINS
         ! - Second to connect inside the level. Now also the correct information
         !   in the the ghost layers at PAR-boundaries is used in connect.
         DO ilevel = minlevel, maxlevel
-            CALL parent(ilevel, u, v, w, p, device=.TRUE.)
+            CALL parent(ilevel, u, v, w, p)
             CALL apply_bound_flow(ilevel, u, v, w, p)
             CALL conn(ilevel, 2, v1=u, v2=v, v3=w, s1=p, corners=.TRUE.)
         END DO

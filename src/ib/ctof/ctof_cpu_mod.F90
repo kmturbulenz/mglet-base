@@ -1,4 +1,4 @@
-MODULE ctof1_mod
+MODULE ctof_cpu_mod
     USE core_mod
     USE ctof_core_mod
     USE MPI_f08
@@ -17,9 +17,9 @@ MODULE ctof1_mod
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: ctof1, init_ctof1, finish_ctof1
+    PUBLIC :: ctof_cpu, init_ctof_cpu, finish_ctof_cpu
 CONTAINS
-    SUBROUTINE ctof1(ilevel, ff, fc)
+    SUBROUTINE ctof_cpu(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         TYPE(field_t), INTENT(inout) :: ff
@@ -38,7 +38,7 @@ CONTAINS
 
         ! Querying MPI for completed receives and unpacking the recv buffer
         CALL process_bufs(ff)
-    END SUBROUTINE ctof1
+    END SUBROUTINE ctof_cpu
 
 
     SUBROUTINE recv_all(ilevel)
@@ -331,7 +331,7 @@ CONTAINS
     END SUBROUTINE unpack_single
 
 
-    SUBROUTINE init_ctof1()
+    SUBROUTINE init_ctof_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -351,10 +351,10 @@ CONTAINS
         ALLOCATE(recvidxlist(3, irecv))
 
         is_init = .TRUE.
-    END SUBROUTINE init_ctof1
+    END SUBROUTINE init_ctof_cpu
 
 
-    SUBROUTINE finish_ctof1()
+    SUBROUTINE finish_ctof_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -371,5 +371,5 @@ CONTAINS
         DEALLOCATE(recvidxlist)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_ctof1
-END MODULE ctof1_mod
+    END SUBROUTINE finish_ctof_cpu
+END MODULE ctof_cpu_mod

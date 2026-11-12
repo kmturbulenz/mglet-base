@@ -91,7 +91,7 @@ CONTAINS
         CALL hilf%zero(device=.FALSE.)
 
         DO ilevel = maxlevel, minlevel, -1
-            CALL ftoc(ilevel, hilf, finecell, 'P')
+            CALL ftoc(ilevel, hilf, finecell, 'P', device=.FALSE.)
         END DO
         CALL connect(layers=2, s1=finecell, corners=.TRUE.)
         CALL pop_field(hilf)

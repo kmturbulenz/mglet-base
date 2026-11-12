@@ -2,17 +2,19 @@ MODULE parent_mod
     USE MPI_f08
     USE core_mod
     USE parent_core_mod
-    USE parent1_mod
-    USE parent2_mod
+    USE parent_cpu_mod
+    USE parent_gpu_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
 
     ! No state in this module
-    ! Acts only as a dispatcher for parent1 and parent2
+    ! Acts only as a dispatcher for parent_cpu and parent_gpu
 
     PUBLIC :: parent, init_parent, finish_parent
 CONTAINS
+    ! Offload builds default to GPU execution; device=.FALSE. selects CPU.
+    ! Non-offload builds always use the CPU implementation.
     SUBROUTINE parent(ilevel, v1, v2, v3, s1, s2, s3, normal, device)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -33,22 +35,18 @@ CONTAINS
         CALL start_timer(210)
 
 #ifdef _MGLET_OFFLOAD_
-        ! If offloading is enabled, the optional device argument determines
-        ! whether device or host version of parent is called.
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         IF (device2) THEN
-            CALL parent2(ilevel, v1, v2, v3, s1, s2, s3, normal)
+            CALL parent_gpu(ilevel, v1, v2, v3, s1, s2, s3, normal)
         ELSE
-            CALL parent1(ilevel, v1, v2, v3, s1, s2, s3, normal)
+            CALL parent_cpu(ilevel, v1, v2, v3, s1, s2, s3, normal)
         END IF
 #else
-        ! Always call parent1 if offloading is not enabled
-        CALL parent1(ilevel, v1, v2, v3, s1, s2, s3, normal)
+        CALL parent_cpu(ilevel, v1, v2, v3, s1, s2, s3, normal)
 #endif
 
         CALL stop_timer(210)
@@ -63,9 +61,9 @@ CONTAINS
         ! none...
 
         CALL init_parent_core()
-        CALL init_parent1()
+        CALL init_parent_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL init_parent2()
+        CALL init_parent_gpu()
 #endif
     END SUBROUTINE init_parent
 
@@ -78,9 +76,9 @@ CONTAINS
         ! none...
 
         CALL finish_parent_core()
-        CALL finish_parent1()
+        CALL finish_parent_cpu()
 #ifdef _MGLET_OFFLOAD_
-        CALL finish_parent2()
+        CALL finish_parent_gpu()
 #endif
     END SUBROUTINE finish_parent
 END MODULE parent_mod

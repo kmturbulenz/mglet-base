@@ -1,4 +1,4 @@
-MODULE ftoc1_mod
+MODULE ftoc_cpu_mod
     USE MPI_f08
     USE core_mod
     USE ftoc_core_mod
@@ -19,14 +19,14 @@ MODULE ftoc1_mod
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    INTERFACE ftoc1
-        MODULE PROCEDURE :: ftoc1_one, ftoc1_multiple
-    END INTERFACE ftoc1
+    INTERFACE ftoc_cpu
+        MODULE PROCEDURE :: ftoc_cpu_one, ftoc_cpu_multiple
+    END INTERFACE ftoc_cpu
 
     ! contained functions
-    PUBLIC :: ftoc1, init_ftoc1, finish_ftoc1
+    PUBLIC :: ftoc_cpu, init_ftoc_cpu, finish_ftoc_cpu
 CONTAINS
-    SUBROUTINE ftoc1_one(ilevel, ff, fc, flag)
+    SUBROUTINE ftoc_cpu_one(ilevel, ff, fc, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(in) :: ff
@@ -44,10 +44,10 @@ CONTAINS
 
         nrecv = 0
         nsend = 0
-    END SUBROUTINE ftoc1_one
+    END SUBROUTINE ftoc_cpu_one
 
 
-    SUBROUTINE ftoc1_multiple(ilevel, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE ftoc_cpu_multiple(ilevel, v1, v2, v3, s1, s2, s3)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), INTENT(inout), OPTIONAL :: v1, v2, v3, s1, s2, s3
@@ -63,7 +63,7 @@ CONTAINS
 
         nrecv = 0
         nsend = 0
-    END SUBROUTINE ftoc1_multiple
+    END SUBROUTINE ftoc_cpu_multiple
 
 
     SUBROUTINE recv_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
@@ -385,7 +385,7 @@ CONTAINS
     END SUBROUTINE read_buffer
 
 
-    SUBROUTINE init_ftoc1()
+    SUBROUTINE init_ftoc_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -405,10 +405,10 @@ CONTAINS
         nrecv = 0
 
         is_init = .TRUE.
-    END SUBROUTINE init_ftoc1
+    END SUBROUTINE init_ftoc_cpu
 
 
-    SUBROUTINE finish_ftoc1()
+    SUBROUTINE finish_ftoc_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -425,7 +425,7 @@ CONTAINS
         nrecv = 0
 
         is_init = .FALSE.
-    END SUBROUTINE finish_ftoc1
+    END SUBROUTINE finish_ftoc_cpu
 
 
     SUBROUTINE restrict_recieve_open(kk, jj, ii, fc, buffer, igridf, flag)
@@ -516,4 +516,4 @@ CONTAINS
             END DO
         END DO
     END SUBROUTINE restrict_recieve_open_n
-END MODULE ftoc1_mod
+END MODULE ftoc_cpu_mod

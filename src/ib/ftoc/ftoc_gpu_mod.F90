@@ -1,4 +1,4 @@
-MODULE ftoc2_mod
+MODULE ftoc_gpu_mod
     USE MPI_f08
     USE core_mod
     USE ftoc_core_mod
@@ -7,7 +7,7 @@ MODULE ftoc2_mod
     USE noib_restrict_mod
     USE restrict_mod
 
-    ! FTOC2 uses the sendbuf from commbuf_mod simultaneously while packing for
+    ! FTOC_GPU uses the sendbuf from commbuf_mod simultaneously while packing for
     ! MPI sends and for self communication. Since the self communication must
     ! never overlap with packing, and to avoid allocating a temporary buffer
     ! for self communication, packing and self communication use different
@@ -15,8 +15,8 @@ MODULE ftoc2_mod
     ! the restricted grid (1/8 of the fine grid) is sent to the coarser grid,
     ! the size should not be exceeded at any point.
     ! The sendbuf is used as following:
-    ! Packing: start to max size for worst-case ftoc2 call
-    ! Self communication: max size for worst-case ftoc2 call to end
+    ! Packing: start to max size for worst-case ftoc_gpu call
+    ! Self communication: max size for worst-case ftoc_gpu call to end
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -88,7 +88,7 @@ MODULE ftoc2_mod
     INTEGER(intk) :: maxselftasks
     INTEGER(intk) :: maxmpisendtasks, maxmpirecvtasks
 
-    ! Pointers to fields passed to ftoc2, point to dummy field if not present
+    ! Pointers to fields passed to ftoc_gpu, point to dummy field if not present
     TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
         f4 => NULL(), f5 => NULL(), f6 => NULL()
 
@@ -115,14 +115,14 @@ MODULE ftoc2_mod
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    INTERFACE ftoc2
-        MODULE PROCEDURE :: ftoc2_one, ftoc2_multiple
-    END INTERFACE ftoc2
+    INTERFACE ftoc_gpu
+        MODULE PROCEDURE :: ftoc_gpu_one, ftoc_gpu_multiple
+    END INTERFACE ftoc_gpu
 
     ! contained functions
-    PUBLIC :: ftoc2, init_ftoc2, finish_ftoc2
+    PUBLIC :: ftoc_gpu, init_ftoc_gpu, finish_ftoc_gpu
 CONTAINS
-    SUBROUTINE ftoc2_one(ilevel, ff, fc, flag)
+    SUBROUTINE ftoc_gpu_one(ilevel, ff, fc, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), TARGET, INTENT(in) :: ff
@@ -135,7 +135,7 @@ CONTAINS
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
         IF (TRIM(ff%name) /= TRIM(fc%name)) THEN
-            WRITE(*, *) "ftoc2_one only supports equal ff and fc fields."
+            WRITE(*, *) "ftoc_gpu_one only supports equal ff and fc fields."
             WRITE(*, *) "Fine to coarse from a fine field to a different coarse"
             WRITE(*, *) "field is not supported on the device. Use a temporary"
             WRITE(*, *) "field instead and copy result over."
@@ -145,14 +145,14 @@ CONTAINS
         END IF
 
         ! ff and fc are the same field
-        CALL ftoc2_impl(ilevel, v1=fc, flag=flag)
+        CALL ftoc_gpu_impl(ilevel, v1=fc, flag=flag)
 
         nrecv = 0
         nsend = 0
-    END SUBROUTINE ftoc2_one
+    END SUBROUTINE ftoc_gpu_one
 
 
-    SUBROUTINE ftoc2_multiple(ilevel, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE ftoc_gpu_multiple(ilevel, v1, v2, v3, s1, s2, s3)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), TARGET, INTENT(inout), OPTIONAL :: v1, v2, v3, s1, s2, s3
@@ -162,14 +162,14 @@ CONTAINS
 
         IF (.NOT. is_init) CALL errr(__FILE__, __LINE__)
 
-        CALL ftoc2_impl(ilevel, v1, v2, v3, s1, s2, s3, flag='*')
+        CALL ftoc_gpu_impl(ilevel, v1, v2, v3, s1, s2, s3, flag='*')
 
         nrecv = 0
         nsend = 0
-    END SUBROUTINE ftoc2_multiple
+    END SUBROUTINE ftoc_gpu_multiple
 
 
-    SUBROUTINE ftoc2_impl(ilevel, v1, v2, v3, s1, s2, s3, flag)
+    SUBROUTINE ftoc_gpu_impl(ilevel, v1, v2, v3, s1, s2, s3, flag)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), TARGET, OPTIONAL, INTENT(inout) :: v1, v2, v3, s1, s2, s3
@@ -179,7 +179,7 @@ CONTAINS
         TYPE(field_t), POINTER :: dummy
         INTEGER(intk) :: nvars, idx_args, idx_flag
 
-        CALL push_field(dummy, "FTOC2_DUMMY")
+        CALL push_field(dummy, "FTOC_GPU_DUMMY")
 
         f1 => dummy
         f2 => dummy
@@ -238,9 +238,9 @@ CONTAINS
                 v1, v2, v3, s1, s2, s3)
         ELSE
             IF (wptr%is_init) THEN
-                CALL recorded_ftoc2(wptr)
+                CALL recorded_ftoc_gpu(wptr)
             ELSE
-                CALL jit_ftoc2(ilevel, flag, v1, v2, v3, s1, s2, s3)
+                CALL jit_ftoc_gpu(ilevel, flag, v1, v2, v3, s1, s2, s3)
             END IF
         END IF
 
@@ -254,10 +254,10 @@ CONTAINS
         f6 => NULL()
 
         CALL pop_field(dummy)
-    END SUBROUTINE ftoc2_impl
+    END SUBROUTINE ftoc_gpu_impl
 
 
-    SUBROUTINE jit_ftoc2(ilevel, flag, v1, v2, v3, s1, s2, s3)
+    SUBROUTINE jit_ftoc_gpu(ilevel, flag, v1, v2, v3, s1, s2, s3)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         CHARACTER(len=1), INTENT(in) :: flag
@@ -290,10 +290,10 @@ CONTAINS
         !$omp target update to(recvtasks(1:nrecvtasks+1))
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
-    END SUBROUTINE jit_ftoc2
+    END SUBROUTINE jit_ftoc_gpu
 
 
-    SUBROUTINE recorded_ftoc2(wptr)
+    SUBROUTINE recorded_ftoc_gpu(wptr)
         ! Subroutine arguments
         TYPE(work_t), INTENT(inout) :: wptr
 
@@ -316,7 +316,7 @@ CONTAINS
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-    END SUBROUTINE recorded_ftoc2
+    END SUBROUTINE recorded_ftoc_gpu
 
 
     SUBROUTINE recv_mpi_all(ilevel, flag, v1, v2, v3, s1, s2, s3)
@@ -1906,7 +1906,7 @@ CONTAINS
     END SUBROUTINE add_mpi_task
 
 
-    SUBROUTINE init_ftoc2()
+    SUBROUTINE init_ftoc_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -1956,7 +1956,7 @@ CONTAINS
 
         ! Record relevant calls for later efficient reuse on device
         CALL run_recording_pass()
-    END SUBROUTINE init_ftoc2
+    END SUBROUTINE init_ftoc_gpu
 
 
     SUBROUTINE check_sendbuf_capacity()
@@ -1992,7 +1992,7 @@ CONTAINS
         END DO
 
         IF (sendcells + selfcells > idim_mg_bufs) THEN
-            WRITE(*, *) "ftoc2 sendbuf too small for send+self upper bound."
+            WRITE(*, *) "ftoc_gpu sendbuf too small for send+self upper bound."
             WRITE(*, *) "send cells:", sendcells, " self cells:", selfcells
             WRITE(*, *) "required:", sendcells+selfcells, &
                 " available:", idim_mg_bufs
@@ -2019,18 +2019,18 @@ CONTAINS
         !$omp target enter data map(to: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
 
-        ! START -- This section defines the record variants of ftoc2 ---
+        ! START -- This section defines the record variants of ftoc_gpu ---
 
         DO ilevel = maxlevel, minlevel, -1
             ! Outer pressuresolver iterations
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='P')
+            CALL ftoc_gpu(ilevel, pdummy, pdummy, flag='P')
             ! Pre pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, pdummy, pdummy, flag='R')
+            CALL ftoc_gpu(ilevel, pdummy, pdummy, flag='R')
             ! Post pressuresolver iterations in mgpoisl
-            CALL ftoc2(ilevel, udummy, vdummy, wdummy, pdummy)
+            CALL ftoc_gpu(ilevel, udummy, vdummy, wdummy, pdummy)
         END DO
 
-        ! END -- This section defines the record variants of ftoc2 ---
+        ! END -- This section defines the record variants of ftoc_gpu ---
 
         !$omp target exit data map(delete: udummy%arr, vdummy%arr, wdummy%arr, &
         !$omp& pdummy%arr)
@@ -2073,7 +2073,7 @@ CONTAINS
     END SUBROUTINE count_selftasks
 
 
-    SUBROUTINE finish_ftoc2()
+    SUBROUTINE finish_ftoc_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -2102,7 +2102,7 @@ CONTAINS
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_ftoc2
+    END SUBROUTINE finish_ftoc_gpu
 
 
     SUBROUTINE purge_workrecords()
@@ -2140,4 +2140,4 @@ CONTAINS
         DEALLOCATE(wptr%mpirecvtasks)
         wptr%is_init = .FALSE.
     END SUBROUTINE unmap_work
-END MODULE ftoc2_mod
+END MODULE ftoc_gpu_mod

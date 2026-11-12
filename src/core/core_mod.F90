@@ -119,7 +119,7 @@ CONTAINS
         CALL init_fields()
         CALL init_fieldpool()
         CALL init_corefields()
-        CALL init_connect2()
+        CALL init_connect()
 
         ! Create log directory
         CALL create_directory(logdir)
@@ -136,7 +136,7 @@ CONTAINS
         ! Local variables
         INTEGER(int32) :: ierr
 
-        CALL finish_connect2()
+        CALL finish_connect()
         CALL finish_corefields()
         CALL finish_fieldpool()
         CALL finish_fields()

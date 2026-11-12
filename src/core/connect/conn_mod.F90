@@ -2,52 +2,58 @@ MODULE conn_mod
     USE precision_mod
     USE timer_mod, ONLY: start_timer, stop_timer
     USE field_mod
-    USE conn1_mod
-    USE conn2_mod
+    USE connect2_mod, ONLY: connect, init_connect2, finish_connect2
+    USE conn_gpu_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    PUBLIC :: conn, init_conn, finish_conn
+    PUBLIC :: conn, init_connect, finish_connect
 CONTAINS
-    ! This subroutine acts as an interface for connect calls.
-    ! Dependent on the configuration, it will call either conn1_mod
-    ! or conn2_mod, which are relevant for CPU and GPU, respectively.
+    ! Offload builds default to GPU execution; device=.FALSE. selects connect.
+    ! Non-offload builds always use the CPU implementation.
     SUBROUTINE conn(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, normal, &
-            forward, ityp)
+            forward, ityp, device)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in), OPTIONAL :: ilevel, layers
         TYPE(field_t), OPTIONAL, TARGET, INTENT(inout) :: v1, v2, v3, s1, s2, s3
         LOGICAL, OPTIONAL, INTENT(in) :: corners, normal
         INTEGER(intk), OPTIONAL, INTENT(in) :: forward
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
+        LOGICAL, OPTIONAL, INTENT(in) :: device
 
-        CALL start_timer(150)
 #ifdef _MGLET_OFFLOAD_
-        CALL conn2(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
-            normal, forward, ityp)
-#else
-        CALL conn1(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
-            normal, forward, ityp)
+        ! Local variables
+        LOGICAL :: device2
+
+        device2 = .TRUE.
+        IF (PRESENT(device)) device2 = device
+
+        IF (device2) THEN
+            CALL start_timer(150)
+            CALL conn_gpu(ilevel, layers, v1, v2, v3, s1, s2, s3, corners, &
+                normal, forward, ityp)
+            CALL stop_timer(150)
+            RETURN
+        END IF
 #endif
-        CALL stop_timer(150)
+        CALL connect(ilevel, layers, v1, v2, v3, s1, s2, s3, &
+            corners=corners, normal=normal, forward=forward, ityp=ityp)
     END SUBROUTINE conn
 
 
-    SUBROUTINE init_conn()
+    SUBROUTINE init_connect()
+        CALL init_connect2()
 #ifdef _MGLET_OFFLOAD_
-        CALL init_conn2()
-#else
-        CALL init_conn1()
+        CALL init_conn_gpu()
 #endif
-    END SUBROUTINE init_conn
+    END SUBROUTINE init_connect
 
 
-    SUBROUTINE finish_conn()
+    SUBROUTINE finish_connect()
 #ifdef _MGLET_OFFLOAD_
-        CALL finish_conn2()
-#else
-        CALL finish_conn1()
+        CALL finish_conn_gpu()
 #endif
-    END SUBROUTINE finish_conn
+        CALL finish_connect2()
+    END SUBROUTINE finish_connect
 END MODULE conn_mod

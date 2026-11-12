@@ -10,7 +10,6 @@ MODULE connect2_mod
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
     USE connect_core_mod
-    USE conn_mod, ONLY: init_conn, finish_conn
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -1040,7 +1039,6 @@ CONTAINS
     SUBROUTINE init_connect2()
 
         CALL init_connect_core()
-        CALL init_conn()
 
         ! The maximum number of concurrent communications are the number
         ! of processes
@@ -1075,7 +1073,6 @@ CONTAINS
         DEALLOCATE(sendReqs)
         DEALLOCATE(recvReqs)
 
-        CALL finish_conn()
         CALL finish_connect_core()
     END SUBROUTINE finish_connect2
 END MODULE connect2_mod

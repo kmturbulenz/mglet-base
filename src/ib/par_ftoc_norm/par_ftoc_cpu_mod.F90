@@ -1,4 +1,4 @@
-MODULE par_ftoc1_mod
+MODULE par_ftoc_cpu_mod
     USE MPI_f08
     USE core_mod
     USE par_ftoc_core_mod
@@ -18,12 +18,12 @@ MODULE par_ftoc1_mod
     ! been created.
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: par_ftoc1, init_par_ftoc1, finish_par_ftoc1
+    PUBLIC :: par_ftoc_cpu, init_par_ftoc_cpu, finish_par_ftoc_cpu
 
 CONTAINS
 
     ! Main parent function
-    SUBROUTINE par_ftoc1(ilevel, v1, v2, v3, sum)
+    SUBROUTINE par_ftoc_cpu(ilevel, v1, v2, v3, sum)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -50,7 +50,7 @@ CONTAINS
 
         nrecv = 0
         nsend = 0
-    END SUBROUTINE par_ftoc1
+    END SUBROUTINE par_ftoc_cpu
 
 
     ! Perform all Recv-calls
@@ -495,7 +495,7 @@ CONTAINS
     END SUBROUTINE process_bufs
 
 
-    SUBROUTINE init_par_ftoc1()
+    SUBROUTINE init_par_ftoc_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -518,10 +518,10 @@ CONTAINS
         nsend = 0
         nrecv = 0
         is_init = .TRUE.
-    END SUBROUTINE init_par_ftoc1
+    END SUBROUTINE init_par_ftoc_cpu
 
 
-    SUBROUTINE finish_par_ftoc1()
+    SUBROUTINE finish_par_ftoc_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -535,6 +535,6 @@ CONTAINS
         DEALLOCATE(recvlist)
         DEALLOCATE(recvidxlist)
         is_init = .FALSE.
-    END SUBROUTINE finish_par_ftoc1
+    END SUBROUTINE finish_par_ftoc_cpu
 
-END MODULE par_ftoc1_mod
+END MODULE par_ftoc_cpu_mod

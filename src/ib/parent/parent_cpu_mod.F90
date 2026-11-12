@@ -1,4 +1,4 @@
-MODULE parent1_mod
+MODULE parent_cpu_mod
     USE MPI_f08
     USE core_mod
     USE parent_core_mod
@@ -17,11 +17,11 @@ MODULE parent1_mod
     ! Variable to indicate if the connection information has been created.
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: parent1, init_parent1, finish_parent1
+    PUBLIC :: parent_cpu, init_parent_cpu, finish_parent_cpu
 CONTAINS
 
     ! Main parent function
-    SUBROUTINE parent1(ilevel, v1, v2, v3, s1, s2, s3, normal)
+    SUBROUTINE parent_cpu(ilevel, v1, v2, v3, s1, s2, s3, normal)
 
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
@@ -68,7 +68,7 @@ CONTAINS
         ! problems at next function call
         nrecv = 0
         nsend = 0
-    END SUBROUTINE parent1
+    END SUBROUTINE parent_cpu
 
 
     ! Perform all Recv-calls
@@ -583,7 +583,7 @@ CONTAINS
     END SUBROUTINE prolong2
 
 
-    SUBROUTINE init_parent1()
+    SUBROUTINE init_parent_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -604,10 +604,10 @@ CONTAINS
         nsend = 0
 
         is_init = .TRUE.
-    END SUBROUTINE init_parent1
+    END SUBROUTINE init_parent_cpu
 
 
-    SUBROUTINE finish_parent1()
+    SUBROUTINE finish_parent_cpu()
         ! Subroutine arguments
         ! none...
 
@@ -625,5 +625,5 @@ CONTAINS
         nsend = 0
 
         is_init = .FALSE.
-    END SUBROUTINE finish_parent1
-END MODULE parent1_mod
+    END SUBROUTINE finish_parent_cpu
+END MODULE parent_cpu_mod

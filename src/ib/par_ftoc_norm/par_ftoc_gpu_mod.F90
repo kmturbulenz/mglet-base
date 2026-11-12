@@ -1,4 +1,4 @@
-MODULE par_ftoc2_mod
+MODULE par_ftoc_gpu_mod
     USE MPI_f08
     USE core_mod
     USE par_ftoc_core_mod
@@ -93,9 +93,9 @@ MODULE par_ftoc2_mod
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: par_ftoc2, init_par_ftoc2, finish_par_ftoc2
+    PUBLIC :: par_ftoc_gpu, init_par_ftoc_gpu, finish_par_ftoc_gpu
 CONTAINS
-    SUBROUTINE par_ftoc2(ilevel, v1, v2, v3, sum)
+    SUBROUTINE par_ftoc_gpu(ilevel, v1, v2, v3, sum)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         TYPE(field_t), TARGET, INTENT(inout) :: v1, v2, v3
@@ -124,9 +124,9 @@ CONTAINS
                 CALL recording_pass(wptr, ilevel, sum2)
             ELSE
                 IF (wptr%is_init) THEN
-                    CALL recorded_par_ftoc2(wptr)
+                    CALL recorded_par_ftoc_gpu(wptr)
                 ELSE
-                    CALL jit_par_ftoc2(ilevel, sum2)
+                    CALL jit_par_ftoc_gpu(ilevel, sum2)
                 END IF
             END IF
         END ASSOCIATE
@@ -136,10 +136,10 @@ CONTAINS
         f3 => NULL()
         nrecv = 0
         nsend = 0
-    END SUBROUTINE par_ftoc2
+    END SUBROUTINE par_ftoc_gpu
 
 
-    SUBROUTINE jit_par_ftoc2(ilevel, sum)
+    SUBROUTINE jit_par_ftoc_gpu(ilevel, sum)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel
         LOGICAL, INTENT(in) :: sum
@@ -170,10 +170,10 @@ CONTAINS
         !$omp target update to(recvtasks(1:nrecvtasks+1))
 
         CALL process_recvtasks(nrecvtasks, recvtasks)
-    END SUBROUTINE jit_par_ftoc2
+    END SUBROUTINE jit_par_ftoc_gpu
 
 
-    SUBROUTINE recorded_par_ftoc2(wptr)
+    SUBROUTINE recorded_par_ftoc_gpu(wptr)
         ! Subroutine arguments
         TYPE(work_t), INTENT(in) :: wptr
 
@@ -196,7 +196,7 @@ CONTAINS
         CALL MPI_Waitall(nrecv, recvreqs, MPI_STATUSES_IGNORE)
         CALL process_recvtasks(nrecvtasks, wptr%recvtasks)
         CALL MPI_Waitall(nsend, sendreqs, MPI_STATUSES_IGNORE)
-    END SUBROUTINE recorded_par_ftoc2
+    END SUBROUTINE recorded_par_ftoc_gpu
 
 
     SUBROUTINE recording_pass(wptr, ilevel, sum)
@@ -1577,7 +1577,7 @@ CONTAINS
     END FUNCTION face_field
 
 
-    SUBROUTINE init_par_ftoc2()
+    SUBROUTINE init_par_ftoc_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -1614,7 +1614,7 @@ CONTAINS
 
         ! Record relevant calls for later efficient reuse on device
         CALL run_recording_pass()
-    END SUBROUTINE init_par_ftoc2
+    END SUBROUTINE init_par_ftoc_gpu
 
 
     SUBROUTINE run_recording_pass()
@@ -1625,14 +1625,14 @@ CONTAINS
         TYPE(field_t) :: u, v, w
         INTEGER(intk) :: ilevel
 
-        CALL u%init("PAR_FTOC2_U", istag=1)
-        CALL v%init("PAR_FTOC2_V", jstag=1)
-        CALL w%init("PAR_FTOC2_W", kstag=1)
+        CALL u%init("PAR_FTOC_GPU_U", istag=1)
+        CALL v%init("PAR_FTOC_GPU_V", jstag=1)
+        CALL w%init("PAR_FTOC_GPU_W", kstag=1)
         !$omp target enter data map(to: u%arr, v%arr, w%arr)
         is_recording = .TRUE.
         DO ilevel = minlevel, maxlevel
-            CALL par_ftoc2(ilevel, u, v, w, .FALSE.)
-            CALL par_ftoc2(ilevel, u, v, w, .TRUE.)
+            CALL par_ftoc_gpu(ilevel, u, v, w, .FALSE.)
+            CALL par_ftoc_gpu(ilevel, u, v, w, .TRUE.)
         END DO
         is_recording = .FALSE.
         !$omp target exit data map(delete: u%arr, v%arr, w%arr)
@@ -1642,7 +1642,7 @@ CONTAINS
     END SUBROUTINE run_recording_pass
 
 
-    SUBROUTINE finish_par_ftoc2()
+    SUBROUTINE finish_par_ftoc_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -1671,7 +1671,7 @@ CONTAINS
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_par_ftoc2
+    END SUBROUTINE finish_par_ftoc_gpu
 
 
     SUBROUTINE purge_workrecords()
@@ -1708,4 +1708,4 @@ CONTAINS
         DEALLOCATE(wptr%mpirecvtasks)
         wptr%is_init = .FALSE.
     END SUBROUTINE unmap_work
-END MODULE par_ftoc2_mod
+END MODULE par_ftoc_gpu_mod

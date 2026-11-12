@@ -1,4 +1,4 @@
-MODULE ctof2_mod
+MODULE ctof_gpu_mod
     USE core_mod
     USE ctof_core_mod
     USE MPI_f08
@@ -73,10 +73,10 @@ MODULE ctof2_mod
     ! Variable to indicate if the required data structures have been created
     LOGICAL :: is_init = .FALSE.
 
-    PUBLIC :: ctof2, init_ctof2, finish_ctof2
+    PUBLIC :: ctof_gpu, init_ctof_gpu, finish_ctof_gpu
 CONTAINS
 
-    SUBROUTINE ctof2(ilevel, ff, fc)
+    SUBROUTINE ctof_gpu(ilevel, ff, fc)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: ilevel  ! Level of the *fine* side
         TYPE(field_t), TARGET, INTENT(inout) :: ff
@@ -94,7 +94,7 @@ CONTAINS
         END IF
 
         END ASSOCIATE
-    END SUBROUTINE ctof2
+    END SUBROUTINE ctof_gpu
 
 
     SUBROUTINE recorded_ctof(wptr, ff, fc)
@@ -910,7 +910,7 @@ CONTAINS
     END SUBROUTINE write_fine
 
 
-    SUBROUTINE init_ctof2()
+    SUBROUTINE init_ctof_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -936,7 +936,7 @@ CONTAINS
 
         ! Initialization is done, now record the workpackages
         CALL run_recording_pass()
-    END SUBROUTINE init_ctof2
+    END SUBROUTINE init_ctof_gpu
 
 
     SUBROUTINE run_recording_pass()
@@ -955,7 +955,7 @@ CONTAINS
 
         ! Recording operations for all levels
         DO ilevel = minlevel+1, maxlevel
-            CALL ctof2(ilevel, dummy, dummy)
+            CALL ctof_gpu(ilevel, dummy, dummy)
         END DO
 
         is_recording = .FALSE.
@@ -966,7 +966,7 @@ CONTAINS
     END SUBROUTINE run_recording_pass
 
 
-    SUBROUTINE finish_ctof2()
+    SUBROUTINE finish_ctof_gpu()
         ! Subroutine arguments
         ! none...
 
@@ -981,7 +981,7 @@ CONTAINS
         DEALLOCATE(workrecords)
 
         is_init = .FALSE.
-    END SUBROUTINE finish_ctof2
+    END SUBROUTINE finish_ctof_gpu
 
 
     SUBROUTINE purge_workrecords()
@@ -1016,4 +1016,4 @@ CONTAINS
         DEALLOCATE(wptr%mpirecvtasks)
         wptr%is_init = .FALSE.
     END SUBROUTINE unmap_work
-END MODULE ctof2_mod
+END MODULE ctof_gpu_mod
