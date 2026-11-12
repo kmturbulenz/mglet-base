@@ -124,8 +124,8 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
-        CALL field%multiply(in1, in2, device=.TRUE.)
+        CALL field%zero()
+        CALL field%multiply(in1, in2)
     END SUBROUTINE comp_uv_avg
 
 
@@ -198,8 +198,8 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
-        CALL field%multiply(in1, in2, in3, device=.TRUE.)
+        CALL field%zero()
+        CALL field%multiply(in1, in2, in3)
     END SUBROUTINE comp_uvw_avg
 
 
@@ -223,7 +223,7 @@ CONTAINS
 
         ! Create a field to store the result, this creates an empty field
         CALL push_field(field, name, units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%zero()
 
         CALL calclpp(field%arr, p_f%arr, bp_f%arr, dx_f%arr, dy_f%arr, &
             dz_f%arr)
@@ -396,7 +396,7 @@ CONTAINS
 
         ! Create a field to store the result, this creates an empty field
         CALL push_field(field, name, units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%zero()
 
         CALL calc_dissip_impl(field%arr, u_f%arr, v_f%arr, w_f%arr, &
             bp_f%arr, g_f%arr, dx_f%arr, dy_f%arr, dz_f%arr, ddx_f%arr, &
@@ -547,8 +547,8 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
-        CALL field%multiply(in1, in2, device=.TRUE.)
+        CALL field%zero()
+        CALL field%multiply(in1, in2)
     END SUBROUTINE comp_up_avg
 
 
@@ -601,11 +601,11 @@ CONTAINS
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f, device=.TRUE.)
+        CALL ux_f%zero()
 
         CALL differentiate(ux_f, u_f, ivar)
 
-        CALL field%multiply(ux_f, p_f, device=.TRUE.)
+        CALL field%multiply(ux_f, p_f)
         CALL pop_field(ux_f)
     END SUBROUTINE comp_uxp_avg
 
@@ -697,7 +697,7 @@ CONTAINS
             units=units)
         CALL push_field(ux_f, name_ux, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f, device=.TRUE.)
+        CALL ux_f%zero()
         CALL differentiate(ux_f, u_f, ivar)
 
         CALL product_stat_fields(field, ux_f, ux_f)
@@ -826,8 +826,8 @@ CONTAINS
             kstag=kstag, units=units_ux)
         CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(ux_f, device=.TRUE.)
-        CALL zero_field_arr(vx_f, device=.TRUE.)
+        CALL ux_f%zero()
+        CALL vx_f%zero()
 
         CALL differentiate(ux_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
@@ -894,23 +894,24 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units)
-        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%zero()
+
         CALL push_field(uy_f, name_uy, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
         CALL push_field(vx_f, name_vx, istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
         CALL push_field(temp_f, 'tmp', istag=istag, jstag=jstag, &
             kstag=kstag, units=units_ux)
-        CALL zero_field_arr(uy_f, device=.TRUE.)
-        CALL zero_field_arr(vx_f, device=.TRUE.)
-        CALL zero_field_arr(temp_f, device=.TRUE.)
+        CALL uy_f%zero()
+        CALL vx_f%zero()
+        CALL temp_f%zero()
 
         CALL differentiate(uy_f, u_f, ivar1)
         CALL differentiate(vx_f, v_f, ivar2)
         CALL add_stat_fields(temp_f, uy_f, vx_f)
 
         CALL get_field(p_f, "P")
-        CALL field%multiply(temp_f, p_f, device=.TRUE.)
+        CALL field%multiply(temp_f, p_f)
 
         CALL pop_field(temp_f)
         CALL pop_field(vx_f)

@@ -191,14 +191,14 @@ CONTAINS
         CALL push_field(hilf, "HILF")
         CALL push_field(rhs, "RHS")
         CALL push_field(res, "RES")
-        CALL zero_field_arr(dp, device=.TRUE.)
-        CALL zero_field_arr(hilf, device=.TRUE.)
-        CALL zero_field_arr(rhs, device=.TRUE.)
-        CALL zero_field_arr(res, device=.TRUE.)
+        CALL dp%zero()
+        CALL hilf%zero()
+        CALL rhs%zero()
+        CALL res%zero()
 
         ! laplace(dp) = prefak * div(u) is the underlying equation
         prefak = rho/dt
-        CALL divcal(rhs, u, v, w, prefak, device=.TRUE.)
+        CALL divcal(rhs, u, v, w, prefak)
 
         DO ilevel = maxlevel, minlevel, -1
             CALL ftoc(ilevel, rhs, rhs, 'R', .TRUE.)
@@ -267,7 +267,7 @@ CONTAINS
 
             ! dp = dp + hilf
             CALL accumulate_pcorr(dp, hilf)
-            CALL zero_field_arr(hilf, device=.TRUE.)
+            CALL hilf%zero()
             ipc = ipc + ninner
 
             ! Pressure solver debug logging

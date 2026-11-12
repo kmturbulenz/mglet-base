@@ -228,7 +228,7 @@ CONTAINS
         CALL set_field("BT", dwrite=.TRUE.)
         CALL get_field(bt, "BT")
         CALL blockbt(bt)
-        CALL map_arr_to_device(bt, message="to:bt%arr")
+        CALL bt%copy_arr_to_device()
     END SUBROUTINE init_scacore
 
 

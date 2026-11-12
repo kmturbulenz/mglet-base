@@ -134,7 +134,7 @@ CONTAINS
 
         CALL get_field(bp, "BP")
         CALL this%stencils%get_bp(bp)
-        CALL map_arr_to_device(bp, message="to:bp%arr")
+        CALL bp%copy_arr_to_device()
 
         CALL get_field(bu, "BU")
         CALL get_field(bv, "BV")

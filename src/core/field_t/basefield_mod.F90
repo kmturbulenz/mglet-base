@@ -17,6 +17,7 @@ MODULE basefield_mod
 
     TYPE, ABSTRACT :: basefield_t
         LOGICAL :: is_init = .FALSE.
+        LOGICAL :: device = .FALSE.
 
         CHARACTER(len=nchar_name) :: name = REPEAT(" ", nchar_name)
         CHARACTER(len=nchar_desc) :: description = REPEAT(" ", nchar_desc)

@@ -22,10 +22,9 @@ CONTAINS
 
         ALLOCATE(active_levels(1:maxlevel-minlevel+1))
 
+        device2 = .TRUE.
         IF (PRESENT(device)) THEN
             device2 = device
-        ELSE
-            device2 = .FALSE.
         END IF
 
         CALL get_field(rddx_f, "RDDX")

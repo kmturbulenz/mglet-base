@@ -46,7 +46,7 @@ CONTAINS
         END DO
 
         CALL get_field(rap_f, "SOR_RAP")
-        CALL map_arr_to_device(rap_f, message="to:sor-rap")
+        CALL rap_f%copy_arr_to_device()
 
         is_init = .TRUE.
 

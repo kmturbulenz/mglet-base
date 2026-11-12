@@ -9,7 +9,6 @@ MODULE conn2_mod
     USE comms_mod, ONLY: myid, numprocs
     USE field_mod
     USE connect_core_mod
-    USE fieldhelper_mod
     USE fieldpool_mod
     USE pointers_mod, ONLY: get_ip3
     USE profile_tools_mod

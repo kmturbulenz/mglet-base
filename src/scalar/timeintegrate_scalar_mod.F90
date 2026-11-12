@@ -53,7 +53,7 @@ CONTAINS
             CALL get_field(told, TRIM(scalar(l)%name)//"_OLD")
 
             ! Copy to "T_OLD" (not needed here but used for Boussinesq)
-            CALL copy_arr(told%arr, t%arr)
+            CALL told%copy_arr(t)
 
             ! TSTSCA4 zeroize qtu, qtv, qtw before use internally
             CALL tstsca4(qtu, qtv, qtw, t, scalar(l))
@@ -118,7 +118,7 @@ CONTAINS
 
         DO l = 1, nsca
             CALL get_field(t, scalar(l)%name)
-            CALL map_arr_from_device(t, message="from:scalar")
+            CALL t%copy_arr_from_device()
         END DO
     END SUBROUTINE sync_scalars_to_host
 
@@ -183,9 +183,9 @@ CONTAINS
 
         CALL start_timer(410)
 
-        CALL zero_field_arr(qtu_f, device=.TRUE.)
-        CALL zero_field_arr(qtv_f, device=.TRUE.)
-        CALL zero_field_arr(qtw_f, device=.TRUE.)
+        CALL qtu_f%zero()
+        CALL qtv_f%zero()
+        CALL qtw_f%zero()
 
         CALL get_field(u_f, "U")
         CALL get_field(v_f, "V")
@@ -533,7 +533,7 @@ CONTAINS
 
         CALL start_timer(411)
 
-        CALL zero_field_arr(qtt_f, device=.TRUE.)
+        CALL qtt_f%zero()
 
         CALL get_field(rddx_f, "RDDX")
         CALL get_field(rddy_f, "RDDY")

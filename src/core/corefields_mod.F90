@@ -2,7 +2,6 @@ MODULE corefields_mod
     USE comms_mod
     USE err_mod, ONLY: errr
     USE field_mod
-    USE fieldhelper_mod
     USE fieldio2_mod
     USE fields_mod
     USE fort7_mod
@@ -81,12 +80,26 @@ CONTAINS
         CALL read_gridspacing()
         CALL calc_reciprocals()
 
-        CALL map_arr_to_device(rddx, rddy, rddz, rdx, rdy, rdz, &
-            message="to:reciprocals")
-        CALL map_arr_to_device(ddx, ddy, ddz, dx, dy, dz, &
-            message="to:cellspacing")
-        CALL map_arr_to_device(x, y, z, xstag, ystag, zstag, &
-            message="to:coordinates")
+        CALL rddx%copy_arr_to_device()
+        CALL rddy%copy_arr_to_device()
+        CALL rddz%copy_arr_to_device()
+        CALL rdx%copy_arr_to_device()
+        CALL rdy%copy_arr_to_device()
+        CALL rdz%copy_arr_to_device()
+
+        CALL ddx%copy_arr_to_device()
+        CALL ddy%copy_arr_to_device()
+        CALL ddz%copy_arr_to_device()
+        CALL dx%copy_arr_to_device()
+        CALL dy%copy_arr_to_device()
+        CALL dz%copy_arr_to_device()
+
+        CALL x%copy_arr_to_device()
+        CALL y%copy_arr_to_device()
+        CALL z%copy_arr_to_device()
+        CALL xstag%copy_arr_to_device()
+        CALL ystag%copy_arr_to_device()
+        CALL zstag%copy_arr_to_device()
     END SUBROUTINE init_corefields
 
 

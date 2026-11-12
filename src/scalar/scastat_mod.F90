@@ -125,7 +125,7 @@ CONTAINS
             units=units_txtx)
         CALL push_field(tx_f, 'tmp', istag=istag, jstag=jstag, kstag=kstag, &
             units=units_tx)
-        CALL zero_field_arr(tx_f, device=.TRUE.)
+        CALL tx_f%zero()
 
         ! central difference on scalar (= no staggering)
         CALL differentiate(tx_f, t_f, ivar)
@@ -184,10 +184,10 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_ut)
-        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%zero()
 
         ! multiplication at staggered positions
-        CALL field%multiply(u_f, t_f, device=.TRUE.)
+        CALL field%multiply(u_f, t_f)
     END SUBROUTINE comp_ut_avg
 
 
@@ -243,10 +243,10 @@ CONTAINS
 
         CALL push_field(field, name, istag=istag, jstag=jstag, kstag=kstag, &
             units=units_utt)
-        CALL zero_field_arr(field, device=.TRUE.)
+        CALL field%zero()
 
         ! multiplication at staggered positions
-        CALL field%multiply(u_f, t_f, t_f, device=.TRUE.)
+        CALL field%multiply(u_f, t_f, t_f)
     END SUBROUTINE comp_utt_avg
 
 END MODULE scastat_mod

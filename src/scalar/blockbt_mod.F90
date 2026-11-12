@@ -30,7 +30,7 @@ CONTAINS
 
         CALL get_field(bp_f, "BP")
         CALL push_field(hilf_f, "HILF")
-        CALL zero_field_arr(hilf_f)
+        CALL hilf_f%zero(device=.FALSE.)
 
         ! Checking if any neighboring cell (shared face) has bp=1
         ! [only those cells can have a flux stencil associated with them]

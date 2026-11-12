@@ -79,20 +79,20 @@ CONTAINS
         CALL push_field(au, "AU", istag=1)
         CALL push_field(av, "AV", jstag=1)
         CALL push_field(aw, "AW", kstag=1)
-        CALL zero_field_arr(au)
-        CALL zero_field_arr(av)
-        CALL zero_field_arr(aw)
+        CALL au%zero(device=.FALSE.)
+        CALL av%zero(device=.FALSE.)
+        CALL aw%zero(device=.FALSE.)
 
         CALL push_field(kanteu, "KANTEU", jstag=1, kstag=1)
         CALL push_field(kantev, "KANTEV", istag=1, kstag=1)
         CALL push_field(kantew, "KANTEW", istag=1, jstag=1)
-        CALL zero_field_arr(kanteu)
-        CALL zero_field_arr(kantev)
-        CALL zero_field_arr(kantew)
+        CALL kanteu%zero(device=.FALSE.)
+        CALL kantev%zero(device=.FALSE.)
+        CALL kantew%zero(device=.FALSE.)
 
         ! Important with proper staggering for parent to work
         CALL push_field(knoten, "KNOTEN", istag=1, jstag=1, kstag=1)
-        CALL zero_field_arr(knoten)
+        CALL knoten%zero(device=.FALSE.)
 
         IF (myid == 0) THEN
             WRITE (*, '("BLOCKING: ", A40, ", WTIME:", F16.3)') &
@@ -323,7 +323,7 @@ CONTAINS
         TYPE(field_t), POINTER :: bodyid_3d_f
 
         CALL push_field(bodyid_3d_f, "BODYID")
-        CALL zero_field_arr(bodyid_3d_f)
+        CALL bodyid_3d_f%zero(device=.FALSE.)
 
         ! Copy from list to 3D field
         DO ilevel = minlevel, maxlevel

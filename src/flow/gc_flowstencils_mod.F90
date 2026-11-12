@@ -1177,12 +1177,12 @@ CONTAINS
 
         ! Copy the velocity field u, v, w into the point value
         ! velocity field pwu, pwv, pww
-        CALL copy_arr(pwu%arr, u%arr)
-        CALL copy_arr(pwv%arr, v%arr)
-        CALL copy_arr(pww%arr, w%arr)
-        CALL copy_arr(pwu%buffers, u%buffers)
-        CALL copy_arr(pwv%buffers, v%buffers)
-        CALL copy_arr(pww%buffers, w%buffers)
+        CALL pwu%copy_arr(u)
+        CALL pwv%copy_arr(v)
+        CALL pww%copy_arr(w)
+        CALL pwu%copy_buffers(u)
+        CALL pwv%copy_buffers(v)
+        CALL pww%copy_buffers(w)
 
         ! Set the immersed boundary ghost cell values of the
         ! point value velocity field
@@ -1336,7 +1336,7 @@ CONTAINS
                 fcorrstencils(istencil)%dvol
         END DO
 
-        CALL map_arr_to_device(sdiv_f, message="to:sdiv%arr")
+        CALL sdiv_f%copy_arr_to_device()
     END SUBROUTINE setsdivfield
 
 

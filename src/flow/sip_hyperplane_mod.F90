@@ -29,8 +29,8 @@ CONTAINS
         ! Setting up the hyperplane traversal infrastructure
         CALL mip_hp_f%init("SIP_MIP_HP")
         CALL idx_hp_f%init("SIP_IDX_HP")
-        CALL zero_field_arr(mip_hp_f)
-        CALL zero_field_arr(idx_hp_f)
+        CALL mip_hp_f%zero(device=.FALSE.)
+        CALL idx_hp_f%zero(device=.FALSE.)
 
         ASSOCIATE (mip => mip_hp_f%arr, idx => idx_hp_f%arr)
 
@@ -51,7 +51,8 @@ CONTAINS
 
         END ASSOCIATE
 
-        !$omp target enter data map(to: mip_hp_f%arr, idx_hp_f%arr)
+        CALL mip_hp_f%copy_arr_to_device()
+        CALL idx_hp_f%copy_arr_to_device()
 
         ! Getting the coefficient fields
         ! Coefficients in [L] of ILU (including diagonal)
@@ -98,8 +99,13 @@ CONTAINS
 
         END ASSOCIATE
 
-        CALL map_arr_to_device(lw_f, ls_f, lb_f, lpr_f, ue_f, un_f, ut_f, &
-            message="to:sip_hyperplane_init")
+        CALL lw_f%copy_arr_to_device()
+        CALL ls_f%copy_arr_to_device()
+        CALL lb_f%copy_arr_to_device()
+        CALL lpr_f%copy_arr_to_device()
+        CALL ue_f%copy_arr_to_device()
+        CALL un_f%copy_arr_to_device()
+        CALL ut_f%copy_arr_to_device()
     END SUBROUTINE sip_hyperplane_init
 
 
