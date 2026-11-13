@@ -16,6 +16,10 @@ MODULE conn_gpu_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
+    TYPE :: field_ptr_t
+        TYPE(field_t), POINTER :: fptr
+    END TYPE field_ptr_t
+
     TYPE :: mpitask_t
         INTEGER(intk) :: iprocnbr
         INTEGER(intk) :: messagelength
@@ -84,8 +88,7 @@ MODULE conn_gpu_mod
     LOGICAL :: is_recording = .FALSE.
 
     ! Pointers to fields passed to conn_gpu, point to dummy field if not present
-    TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
-        f4 => NULL(), f5 => NULL(), f6 => NULL()
+    TYPE(field_ptr_t) :: fptr_list(6)
 
     LOGICAL :: is_init = .FALSE.
 
@@ -127,12 +130,13 @@ CONTAINS
 
         CALL push_field(dummy, "CONN_GPU_DUMMY")
 
-        f1 => dummy
-        f2 => dummy
-        f3 => dummy
-        f4 => dummy
-        f5 => dummy
-        f6 => dummy
+        ! Initialize all field pointers to the dummy field
+        fptr_list(1)%fptr => dummy
+        fptr_list(2)%fptr => dummy
+        fptr_list(3)%fptr => dummy
+        fptr_list(4)%fptr => dummy
+        fptr_list(5)%fptr => dummy
+        fptr_list(6)%fptr => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -190,32 +194,32 @@ CONTAINS
         idx_args = 0
         nvars = 0
         IF (PRESENT(v1)) THEN
-            f1 => v1
+            fptr_list(1)%fptr => v1
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(0)
         END IF
         IF (PRESENT(v2)) THEN
-            f2 => v2
+            fptr_list(2)%fptr => v2
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(1)
         END IF
         IF (PRESENT(v3)) THEN
-            f3 => v3
+            fptr_list(3)%fptr => v3
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(2)
         END IF
         IF (PRESENT(s1)) THEN
-            f4 => s1
+            fptr_list(4)%fptr => s1
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(3)
         END IF
         IF (PRESENT(s2)) THEN
-            f5 => s2
+            fptr_list(5)%fptr => s2
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(4)
         END IF
         IF (PRESENT(s3)) THEN
-            f6 => s3
+            fptr_list(6)%fptr => s3
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(5)
         END IF
@@ -268,14 +272,15 @@ CONTAINS
 
         END ASSOCIATE
 
-        f1 => NULL()
-        f2 => NULL()
-        f3 => NULL()
-        f4 => NULL()
-        f5 => NULL()
-        f6 => NULL()
-
+        ! Reset all field pointers to NULL()
+        fptr_list(1)%fptr => NULL()
+        fptr_list(2)%fptr => NULL()
+        fptr_list(3)%fptr => NULL()
+        fptr_list(4)%fptr => NULL()
+        fptr_list(5)%fptr => NULL()
+        fptr_list(6)%fptr => NULL()
         CALL pop_field(dummy)
+
     END SUBROUTINE conn_gpu
 
 
@@ -1305,18 +1310,17 @@ CONTAINS
 
         CALL profile_range_push("process_sendtasks")
 
-        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_sendtasks_impl(nstasks, stasks, fptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_sendtasks_impl(nstasks, stasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         TYPE(buffertask_t), INTENT(in) :: stasks(nstasks)
-        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(field_ptr_t), INTENT(in) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1343,31 +1347,9 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            ! Assign the correct field pointer based on ifield
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (2)
-                CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (3)
-                CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (4)
-                CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (5)
-                CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (6)
-                CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
-            END SELECT
+            CALL arr_to_buf(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3), &
+                istart, istop, jstart, jstop, kstart, kstop, icount)
+
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1418,18 +1400,17 @@ CONTAINS
 
         CALL profile_range_push("process_recvtasks")
 
-        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_recvtasks_impl(nrtasks, rtasks, fptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         TYPE(buffertask_t), INTENT(in) :: rtasks(nrtasks)
-        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(field_ptr_t), INTENT(inout) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
@@ -1456,31 +1437,8 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            ! Assign the correct field pointer
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (2)
-                CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (3)
-                CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (4)
-                CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (5)
-                CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (6)
-                CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
-            END SELECT
+            CALL buf_to_arr(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3), &
+                istart, istop, jstart, jstop, kstart, kstop, icount)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1533,18 +1491,17 @@ CONTAINS
 
         CALL profile_range_push("process_selftasks")
 
-        CALL process_selftasks_impl(nstasks, stasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_selftasks_impl(nstasks, stasks, fptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_selftasks
 
 
-    SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_selftasks_impl(nstasks, stasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         TYPE(selftask_t), INTENT(in) :: stasks(nstasks)
-        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(field_ptr_t), INTENT(inout) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
@@ -1580,36 +1537,10 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (2)
-                CALL arr_to_arr(kk, jj, ii, a2(ip3_d), a2(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (3)
-                CALL arr_to_arr(kk, jj, ii, a3(ip3_d), a3(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (4)
-                CALL arr_to_arr(kk, jj, ii, a4(ip3_d), a4(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (5)
-                CALL arr_to_arr(kk, jj, ii, a5(ip3_d), a5(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (6)
-                CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-#ifdef _MGLET_DEBUG_
-            CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
-            END SELECT
+            CALL arr_to_arr(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3_d), &
+                fptrs(fieldid)%fptr%arr(ip3), &
+                istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
