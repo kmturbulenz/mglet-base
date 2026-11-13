@@ -551,22 +551,13 @@ CONTAINS
         DO i = 1, iif
             DO j = 1, jjf
                 DO k = 1, kkf
-
                     ! Computing the corresponding coarse grid indices
                     ic = (i-1)/2 + ista
                     jc = (j-1)/2 + jsta
                     kc = (k-1)/2 + ksta
 
-#ifdef _MGLET_DEBUG_
-                    ! Checking that the coarse grid indices are within bounds
-                    IF (ic > isto .OR. jc > jsto .OR. kc > ksto) THEN
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-#endif
-
                     ! Copying the value from the coarse grid to the fine grid
                     ff(k, j, i) = fc(kc, jc, ic)
-
                 END DO
             END DO
         END DO

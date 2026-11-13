@@ -98,6 +98,7 @@ CONTAINS
         CALL init_precision()
         CALL init_buildinfo()
 #ifdef _MGLET_OFFLOAD_
+        CALL init_err_kernel()
         CALL init_offload()
 #endif
         CALL init_timer()
@@ -147,6 +148,9 @@ CONTAINS
         CALL finish_hdf5common()
 
         CALL stop_timer(1)
+#ifdef _MGLET_OFFLOAD_
+        CALL finish_err_kernel()
+#endif
         CALL finish_timer()
         CALL finish_buildinfo()
         CALL finish_precision()

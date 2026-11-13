@@ -280,6 +280,9 @@ CONTAINS
             ! Postprocess, _after_ time is globally incremented
             CALL postprocess_plugins(itstep, ittot, timeph, dt)
 
+            ! Check for kernel errors on the device side
+            CALL err_kernel_check()
+
             CALL emergency_stop_plugins(stop_now)
             IF (stop_now) THEN
                 IF (myid == 0) THEN
@@ -319,6 +322,8 @@ CONTAINS
                 END IF
             END IF
         END DO timeintegration
+
+        CALL err_kernel_check()
 
         CALL stop_timer(2)
     END SUBROUTINE timeloop

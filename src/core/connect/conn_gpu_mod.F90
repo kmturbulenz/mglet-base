@@ -3,7 +3,7 @@ MODULE conn_gpu_mod
     USE MPI_f08
     USE precision_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf
-    USE err_mod, ONLY: errr
+    USE err_mod, ONLY: errr, errr_kernel
     USE grids_mod, ONLY: mygrids, nmygrids, level, idprocofgrd, itypboconds, &
         maxlevel, minlevel, get_neighbours, get_mgdims
     USE comms_mod, ONLY: myid, numprocs
@@ -1363,10 +1363,8 @@ CONTAINS
             CASE (6)
                 CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1476,10 +1474,8 @@ CONTAINS
             CASE (6)
                 CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
                     jstart, jstop, kstart, kstop, icount)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1605,10 +1601,8 @@ CONTAINS
                 CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
                     istart, istop, jstart, jstop, kstart, kstop, &
                     istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO

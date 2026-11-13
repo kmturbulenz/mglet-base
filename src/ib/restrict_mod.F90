@@ -107,10 +107,8 @@ CONTAINS
             CALL restrict_noib_s(kk, jj, ii, ff, ddx, ddy, ddz, &
                 messagelength, sendbuf(offset:targetidx), &
                 istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
         CASE DEFAULT
-            CALL errr(__FILE__, __LINE__)
-#endif
+            CALL errr_kernel(__FILE__, __LINE__)
         END SELECT
     END SUBROUTINE restrict_noib_flag
 
@@ -225,10 +223,8 @@ CONTAINS
                 CALL restrict_gc_i(kk, jj, ii, ff, messagelength, &
                     sendbuf(offset:targetidx), &
                     istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
     END SUBROUTINE restrict_gc_flag
 

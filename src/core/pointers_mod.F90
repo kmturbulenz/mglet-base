@@ -125,7 +125,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: igrid
         INTEGER(intk), INTENT(out) :: ip3
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -140,7 +140,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: ncomp
         INTEGER(intk), INTENT(out) :: ip3n
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF
@@ -183,7 +183,7 @@ CONTAINS
         INTEGER(intk), INTENT(in) :: iface
         INTEGER(intk), INTENT(in) :: igrid
 
-#ifdef _MGLET_DEBUG_
+#if defined(_MGLET_DEBUG_) && !defined(_MGLET_OFFLOAD_)
         IF (myid /= idprocofgrd(igrid)) THEN
             CALL errr(__FILE__, __LINE__)
         END IF

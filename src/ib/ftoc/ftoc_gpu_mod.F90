@@ -531,10 +531,8 @@ CONTAINS
                 CALL unpack_restricted_buffer(flag, kk, jj, ii, a6(ip3), &
                     recvbuf(recvidx:recvidx+tasksize-1), tasksize, istart, &
                     istop, jstart, jstop, kstart, kstop, ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -870,10 +868,8 @@ CONTAINS
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1008,10 +1004,8 @@ CONTAINS
                     a6(ip3c), sendbuf(scratchidx:scratchidx+tasksize-1), &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop, &
                     ipos, jpos, kpos)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1089,9 +1083,8 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
-        IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
-#endif
+        IF (ni*nj*nk /= tasksize) CALL errr_kernel(__FILE__, __LINE__)
+
     END SUBROUTINE unpack_restricted_buffer_open
 
 
@@ -1131,9 +1124,8 @@ CONTAINS
         END DO
         !$omp end do
 
-#ifdef _MGLET_DEBUG_
-        IF (ni*nj*nk /= tasksize) CALL errr(__FILE__, __LINE__)
-#endif
+        IF (ni*nj*nk /= tasksize) CALL errr_kernel(__FILE__, __LINE__)
+
     END SUBROUTINE unpack_restricted_buffer_n
 
 
@@ -1305,10 +1297,8 @@ CONTAINS
                 CALL restrict_noib_flag(flag, kk, jj, ii, a6(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), icount, tasksize, &
                     istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
@@ -1399,10 +1389,8 @@ CONTAINS
                 CALL restrict_gc_flag(flag, kk, jj, ii, a6(ip3), &
                     ddx(ipx), ddy(ipy), ddz(ipz), bp(ip3), bt(ip3), icount, &
                     tasksize, istart, istop, jstart, jstop, kstart, kstop)
-#ifdef _MGLET_DEBUG_
             CASE DEFAULT
-                CALL errr(__FILE__, __LINE__)
-#endif
+                CALL errr_kernel(__FILE__, __LINE__)
             END SELECT
             !$omp end parallel
         END DO
