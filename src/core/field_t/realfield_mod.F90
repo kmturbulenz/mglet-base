@@ -85,7 +85,9 @@ CONTAINS
 
         ALLOCATE(this%arr(this%idim))
         IF (this%device) THEN
-            CALL device_alloc(this%arr)
+            !$omp target enter data map(alloc: this%arr)
+            ! Dont use the helper because we want to see the erroneous behavior
+            ! CALL device_alloc(this%arr)
         END IF
 
         IF (zero2) THEN
