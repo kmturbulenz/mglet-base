@@ -53,6 +53,23 @@
             }
         },
         {
+            "name": "intel-spir64",
+            "displayName": "Offload architecture spir64",
+            "description": "Flags to target the spir64 architecture using the Intel compilers (icpx, ifx)",
+            "hidden": true,
+            "cacheVariables": {
+                "MGLET_OFFLOAD": "ON",
+                "MGLET_OFFLOAD_COMPILE_FLAGS": "-fiopenmp;-diag-disable=5470;-diag-disable=5452",
+                "MGLET_OFFLOAD_ARCH_FLAGS": "-fopenmp-targets=spir64"
+            }
+        },
+        {
+            "name": "intel-spir64-release",
+            "displayName": "Intel oneAPI compilers (icpx, ifx) (release)",
+            "description": "Offload release configuration using the Intel compilers (icpx, ifx)",
+            "inherits": ["intel-release", "intel-spir64"]
+        },
+        {
             "name": "gnu",
             "hidden": true,
             "displayName": "GNU compilers",

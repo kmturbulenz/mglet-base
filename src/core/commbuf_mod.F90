@@ -132,20 +132,20 @@ CONTAINS
         cptr = C_LOC(buffer)
 
         CALL C_F_POINTER(cptr, bigbuf, [idim_mg_big])
-        !$omp target update to(bigbuf)
+        !$omp target enter data map(always, to: bigbuf)
         sendbuf => bigbuf(1:idim_mg_bufs)
         recvbuf => bigbuf(idim_mg_bufs+1:2*idim_mg_bufs)
-        !$omp target update to(sendbuf, recvbuf)
+        !$omp target enter data map(always, to: sendbuf, recvbuf)
 
         CALL C_F_POINTER(cptr, intbuf, [idim_mg_intbuf])
-        !$omp target update to(intbuf)
+        !$omp target enter data map(always, to: intbuf)
 
         ifklength = corrlength/ifk_bytes
         CALL C_F_POINTER(cptr, ifkbuf, [ifklength])
-        !$omp target update to(ifkbuf)
+        !$omp target enter data map(always, to: ifkbuf)
         isendbuf => ifkbuf(1:ifklength/2)
         irecvbuf => ifkbuf(ifklength/2+1:2*(ifklength/2))
-        !$omp target update to(isendbuf, irecvbuf)
+        !$omp target enter data map(always, to: isendbuf, irecvbuf)
     END SUBROUTINE allocate_buffer
 
 END MODULE commbuf_mod

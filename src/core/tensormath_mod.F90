@@ -224,7 +224,6 @@ CONTAINS
 
 
     PURE SUBROUTINE eig_b(this, eig1, eig2, eig3)
-        !$omp declare target
         ! Eigenvalue calculation
         ! K. Hasan, P. Basser, D. Parker, and A. Alexander, "Analytical
         ! computation of the eigenvalues and eigenvectors in dt-mri,"
@@ -234,6 +233,7 @@ CONTAINS
         ! is fulfilled!
 
         USE simdfunctions_mod, ONLY: divide0
+        !$omp declare target
 
         ! Function arguments
         CLASS(tensor_t), INTENT(in) :: this

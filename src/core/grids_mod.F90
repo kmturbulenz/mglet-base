@@ -527,8 +527,8 @@ CONTAINS
 
 
     SUBROUTINE get_gradpxflag(flag, igrid)
-        !$omp declare target
         USE simdfunctions_mod, ONLY: l_to_i
+        !$omp declare target
 
         INTEGER(intk), INTENT(OUT) :: flag
         INTEGER(intk), INTENT(IN) :: igrid
