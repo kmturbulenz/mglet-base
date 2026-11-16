@@ -17,7 +17,7 @@ MODULE conn_gpu_mod
     PRIVATE
 
     TYPE :: field_ptr_t
-        TYPE(field_t), POINTER :: fptr
+        REAL(realk), POINTER, CONTIGUOUS :: arr_ptr(:)
     END TYPE field_ptr_t
 
     TYPE :: mpitask_t
@@ -131,12 +131,12 @@ CONTAINS
         CALL push_field(dummy, "CONN_GPU_DUMMY")
 
         ! Initialize all field pointers to the dummy field
-        fptr_list(1)%fptr => dummy
-        fptr_list(2)%fptr => dummy
-        fptr_list(3)%fptr => dummy
-        fptr_list(4)%fptr => dummy
-        fptr_list(5)%fptr => dummy
-        fptr_list(6)%fptr => dummy
+        fptr_list(1)%arr_ptr => dummy%arr
+        fptr_list(2)%arr_ptr => dummy%arr
+        fptr_list(3)%arr_ptr => dummy%arr
+        fptr_list(4)%arr_ptr => dummy%arr
+        fptr_list(5)%arr_ptr => dummy%arr
+        fptr_list(6)%arr_ptr => dummy%arr
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -194,32 +194,32 @@ CONTAINS
         idx_args = 0
         nvars = 0
         IF (PRESENT(v1)) THEN
-            fptr_list(1)%fptr => v1
+            fptr_list(1)%arr_ptr => v1%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(0)
         END IF
         IF (PRESENT(v2)) THEN
-            fptr_list(2)%fptr => v2
+            fptr_list(2)%arr_ptr => v2%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(1)
         END IF
         IF (PRESENT(v3)) THEN
-            fptr_list(3)%fptr => v3
+            fptr_list(3)%arr_ptr => v3%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(2)
         END IF
         IF (PRESENT(s1)) THEN
-            fptr_list(4)%fptr => s1
+            fptr_list(4)%arr_ptr => s1%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(3)
         END IF
         IF (PRESENT(s2)) THEN
-            fptr_list(5)%fptr => s2
+            fptr_list(5)%arr_ptr => s2%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(4)
         END IF
         IF (PRESENT(s3)) THEN
-            fptr_list(6)%fptr => s3
+            fptr_list(6)%arr_ptr => s3%arr
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(5)
         END IF
@@ -273,12 +273,12 @@ CONTAINS
         END ASSOCIATE
 
         ! Reset all field pointers to NULL()
-        fptr_list(1)%fptr => NULL()
-        fptr_list(2)%fptr => NULL()
-        fptr_list(3)%fptr => NULL()
-        fptr_list(4)%fptr => NULL()
-        fptr_list(5)%fptr => NULL()
-        fptr_list(6)%fptr => NULL()
+        fptr_list(1)%arr_ptr => NULL()
+        fptr_list(2)%arr_ptr => NULL()
+        fptr_list(3)%arr_ptr => NULL()
+        fptr_list(4)%arr_ptr => NULL()
+        fptr_list(5)%arr_ptr => NULL()
+        fptr_list(6)%arr_ptr => NULL()
         CALL pop_field(dummy)
 
     END SUBROUTINE conn_gpu
@@ -1347,9 +1347,8 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            CALL arr_to_buf(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3), &
+            CALL arr_to_buf(kk, jj, ii, fptrs(fieldid)%arr_ptr(ip3:), &
                 istart, istop, jstart, jstop, kstart, kstop, icount)
-
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1437,7 +1436,7 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            CALL buf_to_arr(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3), &
+            CALL buf_to_arr(kk, jj, ii, fptrs(fieldid)%arr_ptr(ip3:), &
                 istart, istop, jstart, jstop, kstart, kstop, icount)
             !$omp end parallel
         END DO
@@ -1537,8 +1536,8 @@ CONTAINS
             CALL get_mgdims(kk, jj, ii, igrid)
 
             !$omp parallel
-            CALL arr_to_arr(kk, jj, ii, fptrs(fieldid)%fptr%arr(ip3_d), &
-                fptrs(fieldid)%fptr%arr(ip3), &
+            CALL arr_to_arr(kk, jj, ii, fptrs(fieldid)%arr_ptr(ip3_d:), &
+                fptrs(fieldid)%arr_ptr(ip3:), &
                 istart, istop, jstart, jstop, kstart, kstop, &
                 istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             !$omp end parallel
