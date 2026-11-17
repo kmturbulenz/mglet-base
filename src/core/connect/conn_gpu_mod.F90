@@ -1,6 +1,7 @@
 MODULE conn_gpu_mod
 
     USE MPI_f08
+    USE ISO_C_BINDING, ONLY: C_PTR, C_LOC, C_F_POINTER, C_NULL_PTR
     USE precision_mod
     USE commbuf_mod, ONLY: sendbuf, recvbuf
     USE err_mod, ONLY: errr, errr_kernel
@@ -15,6 +16,11 @@ MODULE conn_gpu_mod
 
     IMPLICIT NONE (type, external)
     PRIVATE
+
+    TYPE :: arr_cptr_t
+        TYPE(C_PTR) :: device_addr = C_NULL_PTR
+        INTEGER(intk) :: length = 0
+    END TYPE arr_cptr_t
 
     TYPE :: mpitask_t
         INTEGER(intk) :: iprocnbr
@@ -83,9 +89,8 @@ MODULE conn_gpu_mod
     TYPE(work_t), ALLOCATABLE, TARGET :: workrecords(:, :, :, :, :, :)
     LOGICAL :: is_recording = .FALSE.
 
-    ! Pointers to fields passed to conn_gpu, point to dummy field if not present
-    TYPE(field_t), POINTER :: f1 => NULL(), f2 => NULL(), f3 => NULL(), &
-        f4 => NULL(), f5 => NULL(), f6 => NULL()
+    ! Points to device arrays for the fields passed to conn_gpu
+    TYPE(arr_cptr_t) :: arr_cptr_list(6)
 
     LOGICAL :: is_init = .FALSE.
 
@@ -102,8 +107,7 @@ CONTAINS
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
 
         ! Local variables
-        TYPE(field_t), POINTER :: dummy
-        INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
+        INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars, iter
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
 
@@ -124,15 +128,6 @@ CONTAINS
                 // "must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
-
-        CALL push_field(dummy, "CONN_GPU_DUMMY")
-
-        f1 => dummy
-        f2 => dummy
-        f3 => dummy
-        f4 => dummy
-        f5 => dummy
-        f6 => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -190,32 +185,32 @@ CONTAINS
         idx_args = 0
         nvars = 0
         IF (PRESENT(v1)) THEN
-            f1 => v1
+            arr_cptr_list(1) = get_device_arr_ptr(v1%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(0)
         END IF
         IF (PRESENT(v2)) THEN
-            f2 => v2
+            arr_cptr_list(2) = get_device_arr_ptr(v2%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(1)
         END IF
         IF (PRESENT(v3)) THEN
-            f3 => v3
+            arr_cptr_list(3) = get_device_arr_ptr(v3%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(2)
         END IF
         IF (PRESENT(s1)) THEN
-            f4 => s1
+            arr_cptr_list(4) = get_device_arr_ptr(s1%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(3)
         END IF
         IF (PRESENT(s2)) THEN
-            f5 => s2
+            arr_cptr_list(5) = get_device_arr_ptr(s2%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(4)
         END IF
         IF (PRESENT(s3)) THEN
-            f6 => s3
+            arr_cptr_list(6) = get_device_arr_ptr(s3%arr)
             nvars = nvars + 1
             idx_args = idx_args + 1 * 2**(5)
         END IF
@@ -268,14 +263,11 @@ CONTAINS
 
         END ASSOCIATE
 
-        f1 => NULL()
-        f2 => NULL()
-        f3 => NULL()
-        f4 => NULL()
-        f5 => NULL()
-        f6 => NULL()
+        ! Reset all field pointers to NULL
+        DO iter = 1, 6
+            arr_cptr_list(iter) = nullify_device_arr_ptr()
+        END DO
 
-        CALL pop_field(dummy)
     END SUBROUTINE conn_gpu
 
 
@@ -1305,26 +1297,26 @@ CONTAINS
 
         CALL profile_range_push("process_sendtasks")
 
-        CALL process_sendtasks_impl(nstasks, stasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_sendtasks_impl(nstasks, stasks, arr_cptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_sendtasks
 
 
-    SUBROUTINE process_sendtasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_sendtasks_impl(nstasks, stasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         TYPE(buffertask_t), INTENT(in) :: stasks(nstasks)
-        REAL(realk), INTENT(in) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(arr_cptr_t), INTENT(in) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        REAL(realk), POINTER, CONTIGUOUS :: arr(:)
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3)
+        !$omp&  ii, jj, kk, ip3, arr)
         DO itask = 1, nstasks
 
             ! Set variables from sendtasks workpackage
@@ -1342,30 +1334,13 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            ! Convert the device pointer to a Fortran pointer
+            CALL C_F_POINTER(fptrs(fieldid)%device_addr, arr, &
+                [fptrs(fieldid)%length])
+
             !$omp parallel
-            ! Assign the correct field pointer based on ifield
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL arr_to_buf(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (2)
-                CALL arr_to_buf(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (3)
-                CALL arr_to_buf(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (4)
-                CALL arr_to_buf(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (5)
-                CALL arr_to_buf(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (6)
-                CALL arr_to_buf(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE DEFAULT
-                CALL errr_kernel(__FILE__, __LINE__)
-            END SELECT
+            CALL arr_to_buf(kk, jj, ii, arr(ip3:), &
+                istart, istop, jstart, jstop, kstart, kstop, icount)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1416,26 +1391,26 @@ CONTAINS
 
         CALL profile_range_push("process_recvtasks")
 
-        CALL process_recvtasks_impl(nrtasks, rtasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_recvtasks_impl(nrtasks, rtasks, arr_cptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_recvtasks
 
 
-    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_recvtasks_impl(nrtasks, rtasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nrtasks
         TYPE(buffertask_t), INTENT(in) :: rtasks(nrtasks)
-        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(arr_cptr_t), INTENT(inout) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, icount, igrid, istart, istop, &
             jstart, jstop, kstart, kstop, ii, jj, kk, ip3
+        REAL(realk), POINTER, CONTIGUOUS :: arr(:)
 
         !$omp target teams distribute private(itask, fieldid, icount, &
         !$omp&  igrid, istart, istop, jstart, jstop, kstart, kstop, &
-        !$omp&  ii, jj, kk, ip3)
+        !$omp&  ii, jj, kk, ip3, arr)
         DO itask = 1, nrtasks
 
             ! Set variables from recvtasks workpackage
@@ -1453,30 +1428,13 @@ CONTAINS
             CALL get_ip3(ip3, igrid)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            ! Convert the device pointer to a Fortran pointer
+            CALL C_F_POINTER(fptrs(fieldid)%device_addr, arr, &
+                [fptrs(fieldid)%length])
+
             !$omp parallel
-            ! Assign the correct field pointer
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL buf_to_arr(kk, jj, ii, a1(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (2)
-                CALL buf_to_arr(kk, jj, ii, a2(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (3)
-                CALL buf_to_arr(kk, jj, ii, a3(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (4)
-                CALL buf_to_arr(kk, jj, ii, a4(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (5)
-                CALL buf_to_arr(kk, jj, ii, a5(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE (6)
-                CALL buf_to_arr(kk, jj, ii, a6(ip3), istart, istop, &
-                    jstart, jstop, kstart, kstop, icount)
-            CASE DEFAULT
-                CALL errr_kernel(__FILE__, __LINE__)
-            END SELECT
+            CALL buf_to_arr(kk, jj, ii, arr(ip3:), &
+                istart, istop, jstart, jstop, kstart, kstop, icount)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1529,28 +1487,28 @@ CONTAINS
 
         CALL profile_range_push("process_selftasks")
 
-        CALL process_selftasks_impl(nstasks, stasks, f1%arr, f2%arr, &
-            f3%arr, f4%arr, f5%arr, f6%arr)
+        CALL process_selftasks_impl(nstasks, stasks, arr_cptr_list)
 
         CALL profile_range_pop()
     END SUBROUTINE process_selftasks
 
 
-    SUBROUTINE process_selftasks_impl(nstasks, stasks, a1, a2, a3, a4, a5, a6)
+    SUBROUTINE process_selftasks_impl(nstasks, stasks, fptrs)
         ! Subroutine arguments
         INTEGER(intk), INTENT(in) :: nstasks
         TYPE(selftask_t), INTENT(in) :: stasks(nstasks)
-        REAL(realk), INTENT(inout) :: a1(*), a2(*), a3(*), a4(*), a5(*), a6(*)
+        TYPE(arr_cptr_t), INTENT(inout) :: fptrs(6)
 
         ! Local variables
         INTEGER(intk) :: itask, fieldid, igrid, igrid_d, ip3, ip3_d, &
             kk, jj, ii, istart, istop, jstart, jstop, kstart, kstop, &
             istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d
+        REAL(realk), POINTER, CONTIGUOUS :: arr(:)
 
         !$omp target teams distribute private(itask, fieldid, igrid, igrid_d, &
         !$omp&  istart, istop, jstart, jstop, kstart, kstop, &
         !$omp&  istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d, &
-        !$omp&  ip3, ip3_d, kk, jj, ii)
+        !$omp&  ip3, ip3_d, kk, jj, ii, arr)
         DO itask = 1, nstasks
 
             ! Set variables from selftasks workpackage
@@ -1575,35 +1533,14 @@ CONTAINS
             CALL get_ip3(ip3_d, igrid_d)
             CALL get_mgdims(kk, jj, ii, igrid)
 
+            ! Convert the device pointer to a Fortran pointer
+            CALL C_F_POINTER(fptrs(fieldid)%device_addr, arr, &
+                [fptrs(fieldid)%length])
+
             !$omp parallel
-            SELECT CASE (fieldid)
-            CASE (1)
-                CALL arr_to_arr(kk, jj, ii, a1(ip3_d), a1(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (2)
-                CALL arr_to_arr(kk, jj, ii, a2(ip3_d), a2(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (3)
-                CALL arr_to_arr(kk, jj, ii, a3(ip3_d), a3(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (4)
-                CALL arr_to_arr(kk, jj, ii, a4(ip3_d), a4(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (5)
-                CALL arr_to_arr(kk, jj, ii, a5(ip3_d), a5(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE (6)
-                CALL arr_to_arr(kk, jj, ii, a6(ip3_d), a6(ip3), &
-                    istart, istop, jstart, jstop, kstart, kstop, &
-                    istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
-            CASE DEFAULT
-                CALL errr_kernel(__FILE__, __LINE__)
-            END SELECT
+            CALL arr_to_arr(kk, jj, ii, arr(ip3_d:), arr(ip3:), &
+                istart, istop, jstart, jstop, kstart, kstop, &
+                istart_d, istop_d, jstart_d, jstop_d, kstart_d, kstop_d)
             !$omp end parallel
         END DO
         !$omp end target teams distribute
@@ -1882,5 +1819,26 @@ CONTAINS
             END IF
         END DO
     END SUBROUTINE recv_mpi_all
+
+
+    FUNCTION get_device_arr_ptr(arr) RESULT(entry)
+        ! Subroutine arguments
+        REAL(realk), TARGET, CONTIGUOUS, INTENT(inout) :: arr(:)
+        TYPE(arr_cptr_t) :: entry
+
+        entry%length = SIZE(arr, KIND=intk)
+        !$omp target data use_device_addr(arr)
+        entry%device_addr = C_LOC(arr(1))
+        !$omp end target data
+    END FUNCTION get_device_arr_ptr
+
+
+    FUNCTION nullify_device_arr_ptr() RESULT(entry)
+        ! Subroutine arguments
+        TYPE(arr_cptr_t) :: entry
+
+        entry%length = 0_intk
+        entry%device_addr = C_NULL_PTR
+    END FUNCTION nullify_device_arr_ptr
 
 END MODULE conn_gpu_mod
