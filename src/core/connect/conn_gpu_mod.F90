@@ -107,6 +107,7 @@ CONTAINS
         CHARACTER(len=1), OPTIONAL, INTENT(in) :: ityp
 
         ! Local variables
+        TYPE(field_t), POINTER :: dummy
         INTEGER(intk) :: minconlvl, maxconlvl, nplane, fwd, nvars
         LOGICAL :: vertices, normal2
         CHARACTER(len=1) :: flag
@@ -128,6 +129,15 @@ CONTAINS
                 // "must be present."
             CALL errr(__FILE__, __LINE__)
         END IF
+
+        CALL push_field(dummy, "CONN_GPU_DUMMY")
+
+        f1 => dummy
+        f2 => dummy
+        f3 => dummy
+        f4 => dummy
+        f5 => dummy
+        f6 => dummy
 
         IF (PRESENT(ilevel)) THEN
             IF (ilevel < minlevel .OR. ilevel > maxlevel) THEN
@@ -270,6 +280,7 @@ CONTAINS
         f5 => NULL()
         f6 => NULL()
 
+        CALL pop_field(dummy)
     END SUBROUTINE conn_gpu
 
 
