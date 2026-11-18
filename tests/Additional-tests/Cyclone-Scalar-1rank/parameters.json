@@ -1,0 +1,65 @@
+{
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "type": "ghostcell",
+        "stencilfile": "ib_stencils.h5",
+        "blocking": "useblock"
+    },
+    "time": {
+        "mtstep": 100,
+        "dt": 6.0e-04,
+        "itinfo": 1,
+        "tstat": 0.2,
+        "read": false,
+        "write": true,
+        "continue": true,
+        "targetcflmax": 0.8,
+        "tend": 100.0,
+        "itsamp": 1,
+        "itcheck": 0
+    },
+    "flow": {
+        "tu_level": 0.1,
+        "uinf": [0.0, 0.0, 0.0],
+        "lesmodel": {
+            "model": "smagorinsky"
+        },
+        "rho": 1.1553,
+        "gmol": 1.7676089999999998e-05,
+        "pressuresolver": {
+            "type": "sip",
+            "epcorr": 0.0083
+        },
+        "geometries": {
+            "patch_out.stl": {
+                "velocity": [0.0, 0.0, 1.0],
+                "type": "inlet"
+            }
+        },
+        "compbodyforce": false
+    },
+    "scalar": {
+        "solve": true,
+        "scalars": [
+            {
+                "name": "AGE",
+                "prmol": 1.0,
+                "sources": [
+                    {
+                        "value": 1.0
+                    }
+                ],
+                "geometries": {
+                    "patch_out.stl": {
+                        "type": "value",
+                        "value": 0.0
+                    }
+                }
+            }
+        ]
+    }
+}
