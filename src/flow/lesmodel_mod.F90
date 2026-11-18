@@ -522,7 +522,7 @@ CONTAINS
 #endif
 
         ! Function arguments
-        REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
+        REAL(realk), VALUE :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
 
         ! Local variables
@@ -542,7 +542,7 @@ CONTAINS
         !$omp declare target
 
         ! Function arguments
-        REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
+        REAL(realk), VALUE :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
 
         ! Local variables
@@ -643,7 +643,7 @@ CONTAINS
     PURE ELEMENTAL REAL(realk) FUNCTION sigma(dudx, dudy, dudz, &
             dvdx, dvdy, dvdz, dwdx, dwdy, dwdz)
         ! Function arguments
-        REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
+        REAL(realk), VALUE :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
 
         ! Local variables
@@ -679,7 +679,7 @@ CONTAINS
 #endif
 
         ! Function arguments
-        REAL(realk), INTENT(in) :: dudx, dudy, dudz, dvdx, &
+        REAL(realk), VALUE :: dudx, dudy, dudz, dvdx, &
             dvdy, dvdz, dwdx, dwdy, dwdz
 
         ! S_ij = 0.5*(du_i/dx_j + du_j/dx_i)

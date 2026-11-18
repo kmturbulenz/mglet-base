@@ -29,7 +29,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(divide00_sp)
 #endif
-        REAL(real32), INTENT(in) :: a, b, bp
+        REAL(real32), VALUE :: a, b, bp
 
         IF (bp == 0.0_real32) THEN
             res = 0.0_real32
@@ -43,7 +43,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(divide00_dp)
 #endif
-        REAL(real64), INTENT(in) :: a, b, bp
+        REAL(real64), VALUE :: a, b, bp
 
         IF (bp == 0.0_real64) THEN
             res = 0.0_real64
@@ -58,7 +58,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(divide0_sp)
 #endif
-        REAL(real32), INTENT(in) :: a, b
+        REAL(real32), VALUE :: a, b
 
         IF (b == 0.0_real32) THEN
             res = 0.0_real32
@@ -72,7 +72,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(divide0_dp)
 #endif
-        REAL(real64), INTENT(in) :: a, b
+        REAL(real64), VALUE :: a, b
 
         IF (b == 0.0_real64) THEN
             res = 0.0_real64
@@ -147,7 +147,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(cube_root_sp)
 #endif
-        REAL(real32), INTENT(in) :: a
+        REAL(real32), VALUE :: a
 
         INTERFACE
             ! float cbrtf(float arg )
@@ -167,7 +167,7 @@ CONTAINS
 #ifndef _MGLET_OFFLOAD_
         !$omp declare simd(cube_root_dp)
 #endif
-        REAL(real64), INTENT(in) :: a
+        REAL(real64), VALUE :: a
 
         INTERFACE
             ! double cbrt(double arg )

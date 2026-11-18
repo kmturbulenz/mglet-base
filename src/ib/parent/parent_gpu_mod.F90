@@ -639,7 +639,7 @@ CONTAINS
                 IF (stag1 == 1 .AND. odd_j) THEN
                     val_jm1 = recvbuf(icount + (jc-2) + (ic-1)*jjc2d + 1)
                 END IF
-                CALL prolong_face_first_direction(val_i, val_c, val_jm1, &
+                val_i = prolong_face_first_direction(val_c, val_jm1, &
                     stag1, odd_j)
 
                 val_im1 = val_i
@@ -650,11 +650,11 @@ CONTAINS
                         val_jm1 = recvbuf(icount + (jc-2) + &
                             (ic-2)*jjc2d + 1)
                     END IF
-                    CALL prolong_face_first_direction(val_im1, val_c, val_jm1, &
+                    val_im1 = prolong_face_first_direction(val_c, val_jm1, &
                         stag1, odd_j)
                 END IF
 
-                CALL prolong_face_second_direction(val_out, val_i, val_im1, &
+                val_out = prolong_face_second_direction(val_i, val_im1, &
                     stag2, odd_i)
 
                 idst = ibb + (j-1) + (i-1)*jj2d
@@ -665,13 +665,15 @@ CONTAINS
     END SUBROUTINE recvbuf_to_buffers
 
 
-    SUBROUTINE prolong_face_first_direction(val, val_c, val_m1, stag1, odd)
+    ! Workaround (afar-24.4.0, __kmpc_alloc_shared): function with VALUE
+    ! arguments instead of a subroutine with an INTENT(out) scalar
+    REAL(realk) FUNCTION prolong_face_first_direction(val_c, val_m1, stag1, odd) &
+            RESULT(val)
         !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: val
-        REAL(realk), INTENT(in) :: val_c, val_m1
-        INTEGER(intk), INTENT(in) :: stag1
-        LOGICAL, INTENT(in) :: odd
+        ! Function arguments
+        REAL(realk), VALUE :: val_c, val_m1
+        INTEGER(intk), VALUE :: stag1
+        LOGICAL, VALUE :: odd
 
         ! Local variables
         ! none...
@@ -691,16 +693,18 @@ CONTAINS
             CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END SELECT
-    END SUBROUTINE prolong_face_first_direction
+    END FUNCTION prolong_face_first_direction
 
 
-    SUBROUTINE prolong_face_second_direction(val, val_c, val_m1, stag2, odd)
+    ! Workaround (afar-24.4.0, __kmpc_alloc_shared): function with VALUE
+    ! arguments instead of a subroutine with an INTENT(out) scalar
+    REAL(realk) FUNCTION prolong_face_second_direction(val_c, val_m1, stag2, odd) &
+            RESULT(val)
         !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: val
-        REAL(realk), INTENT(in) :: val_c, val_m1
-        INTEGER(intk), INTENT(in) :: stag2
-        LOGICAL, INTENT(in) :: odd
+        ! Function arguments
+        REAL(realk), VALUE :: val_c, val_m1
+        INTEGER(intk), VALUE :: stag2
+        LOGICAL, VALUE :: odd
 
         ! Local variables
         ! none...
@@ -720,7 +724,7 @@ CONTAINS
             CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END SELECT
-    END SUBROUTINE prolong_face_second_direction
+    END FUNCTION prolong_face_second_direction
 
 
     SUBROUTINE process_selftasks(nstasks, stasks)
@@ -842,14 +846,14 @@ CONTAINS
                 ic = 2_intk + (i-1_intk) / 2_intk
 
                 ! First interpolate along the face-local j direction.
-                CALL get_parent_face_value(val_c, kk, jj, ii, arr, istart, &
+                val_c = get_parent_face_value(kk, jj, ii, arr, istart, &
                     istop, jstart, jstop, kstart, kstop, jc, ic)
                 val_jm1 = val_c
                 IF (stag1 == 1 .AND. odd_j) THEN
-                    CALL get_parent_face_value(val_jm1, kk, jj, ii, arr, &
+                    val_jm1 = get_parent_face_value(kk, jj, ii, arr, &
                         istart, istop, jstart, jstop, kstart, kstop, jc-1, ic)
                 END IF
-                CALL prolong_face_first_direction(val_i, val_c, val_jm1, &
+                val_i = prolong_face_first_direction(val_c, val_jm1, &
                     stag1, odd_j)
 
                 ! Then, if needed, interpolate the neighboring parent i line
@@ -857,19 +861,19 @@ CONTAINS
                 ! direction.
                 val_im1 = val_i
                 IF (stag2 == 1 .AND. odd_i) THEN
-                    CALL get_parent_face_value(val_c, kk, jj, ii, arr, &
+                    val_c = get_parent_face_value(kk, jj, ii, arr, &
                         istart, istop, jstart, jstop, kstart, kstop, jc, ic-1)
                     val_jm1 = val_c
                     IF (stag1 == 1 .AND. odd_j) THEN
-                        CALL get_parent_face_value(val_jm1, kk, jj, ii, arr, &
+                        val_jm1 = get_parent_face_value(kk, jj, ii, arr, &
                             istart, istop, jstart, jstop, kstart, kstop, &
                             jc-1, ic-1)
                     END IF
-                    CALL prolong_face_first_direction(val_im1, val_c, val_jm1, &
+                    val_im1 = prolong_face_first_direction(val_c, val_jm1, &
                         stag1, odd_j)
                 END IF
 
-                CALL prolong_face_second_direction(val_out, val_i, val_im1, &
+                val_out = prolong_face_second_direction(val_i, val_im1, &
                     stag2, odd_i)
 
                 idst = ibb + (j-1) + (i-1)*jj2d
@@ -880,15 +884,16 @@ CONTAINS
     END SUBROUTINE arr_to_buffers
 
 
-    SUBROUTINE get_parent_face_value(value, kk, jj, ii, arr, istart, istop, &
-            jstart, jstop, kstart, kstop, jc, ic)
+    ! Workaround (afar-24.4.0, __kmpc_alloc_shared): function with VALUE
+    ! arguments instead of a subroutine with an INTENT(out) scalar
+    REAL(realk) FUNCTION get_parent_face_value(kk, jj, ii, arr, istart, istop, &
+            jstart, jstop, kstart, kstop, jc, ic) RESULT(value)
         !$omp declare target
-        ! Subroutine arguments
-        REAL(realk), INTENT(out) :: value
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        ! Function arguments
+        INTEGER(intk), VALUE :: kk, jj, ii
         REAL(realk), INTENT(in) :: arr(kk, jj, ii)
-        INTEGER(intk), INTENT(in) :: istart, istop, jstart, jstop, kstart, kstop
-        INTEGER(intk), INTENT(in) :: jc, ic
+        INTEGER(intk), VALUE :: istart, istop, jstart, jstop, kstart, kstop
+        INTEGER(intk), VALUE :: jc, ic
 
         ! Local variables
         ! none...
@@ -907,7 +912,7 @@ CONTAINS
             CALL errr_kernel(__FILE__, __LINE__)
 #endif
         END IF
-    END SUBROUTINE get_parent_face_value
+    END FUNCTION get_parent_face_value
 
 
     SUBROUTINE process_mpisend(nmpistasks, mpistasks)

@@ -48,7 +48,7 @@ CONTAINS
         ! model
 
         ! Function arguments
-        REAL(realk), INTENT(in) :: uquer, dds
+        REAL(realk), VALUE :: uquer, dds
 
         ! Local variables
         REAL(realk) :: uquern, vz, rdds
@@ -73,7 +73,7 @@ CONTAINS
 #endif
 
         ! Function arguments
-        REAL(realk), INTENT(IN) :: uquer, dds
+        REAL(realk), VALUE :: uquer, dds
 
         ! Local variables
         REAL(realk) :: vz, uquern
@@ -103,7 +103,7 @@ CONTAINS
 #endif
 
         ! Function arguments
-        REAL(realk), INTENT(IN) :: tbound, tfluid, uquer, dds, prmol
+        REAL(realk), VALUE :: tbound, tfluid, uquer, dds, prmol
 
         ! Local variables
         REAL(realk) :: uquern, ddsb, tauwin, sm, fsm

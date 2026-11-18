@@ -4,12 +4,6 @@ MODULE bound_pressure_mod
     IMPLICIT NONE (type, external)
     PRIVATE
 
-    ! A-versions: simple versions not considering the BP field
-    ! B-versions: IB versions using the BP field
-    INTERFACE pressureftocone
-        MODULE PROCEDURE :: pressureftocone_A, pressureftocone_B
-    END INTERFACE pressureftocone
-
     ABSTRACT INTERFACE
         SUBROUTINE boundary_callback_t(ilevel_index, igrid, iface, itask)
             IMPORT :: intk
@@ -312,15 +306,15 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: k, j, i, m, n
-        REAL(realk) :: pcnew, bpc
+        REAL(realk) :: pcnew
 
         i = MIN(i3, i4)
 
-        !$omp do collapse(2) private(j, k, pcnew, bpc, m, n)
+        !$omp do collapse(2) private(j, k, pcnew, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                    ddx, ddy, ddz, pcnew, bpc)
+                pcnew = pressureftocone_A(k, j, i, kk, jj, ii, p, &
+                    ddx, ddy, ddz)
                 DO m = 0, 1
                     DO n = 0, 1
                         p(k+n, j+m, i2) = p(k+n, j+m, i3) &
@@ -355,8 +349,9 @@ CONTAINS
         !$omp& sb13, sb14, fak, m, n)
         DO j = 3, jj-2, 2
             DO k = 3, kk-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
-                    ddz, pcnew, bpc)
+                bpc = pressureftocone_B_bpc(k, j, i, kk, jj, ii, bp)
+                pcnew = pressureftocone_B(k, j, i, kk, jj, ii, p, bp, &
+                    ddx, ddy, ddz)
                 IF (bpc < 0.5) pcnew = pbuffer(k, j)
 
                 sb11 = bp(k, j, i2)*bp(k, j, i3)
@@ -395,15 +390,15 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: k, j, i, l, n
-        REAL(realk) :: pcnew, bpc
+        REAL(realk) :: pcnew
 
         j = MIN(j3, j4)
 
-        !$omp do collapse(2) private(i, k, pcnew, bpc, l, n)
+        !$omp do collapse(2) private(i, k, pcnew, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                    ddx, ddy, ddz, pcnew, bpc)
+                pcnew = pressureftocone_A(k, j, i, kk, jj, ii, p, &
+                    ddx, ddy, ddz)
                 DO l = 0, 1
                     DO n = 0, 1
                         p(k+n, j2, i+l) = p(k+n, j3, i+l) &
@@ -438,8 +433,9 @@ CONTAINS
         !$omp& sb13, sb14, fak, l, n)
         DO i = 3, ii-2, 2
             DO k = 3, kk-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
-                    ddx, ddy, ddz, pcnew, bpc)
+                bpc = pressureftocone_B_bpc(k, j, i, kk, jj, ii, bp)
+                pcnew = pressureftocone_B(k, j, i, kk, jj, ii, p, bp, &
+                    ddx, ddy, ddz)
                 IF (bpc < 0.5) pcnew = pbuffer(k, i)
 
                 sb11 = bp(k, j2, i)*bp(k, j3, i)
@@ -478,15 +474,15 @@ CONTAINS
 
         ! Local variables
         INTEGER(intk) :: k, j, i, l, m
-        REAL(realk) :: pcnew, bpc
+        REAL(realk) :: pcnew
 
         k = MIN(k3, k4)
 
-        !$omp do collapse(2) private(j, i, pcnew, bpc, l, m)
+        !$omp do collapse(2) private(j, i, pcnew, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, &
-                    ddx, ddy, ddz, pcnew, bpc)
+                pcnew = pressureftocone_A(k, j, i, kk, jj, ii, p, &
+                    ddx, ddy, ddz)
                 DO l = 0, 1
                     DO m = 0, 1
                         p(k2, j+m, i+l) = p(k3, j+m, i+l) &
@@ -521,8 +517,9 @@ CONTAINS
         !$omp& sb13, sb14, fak, l, m)
         DO i = 3, ii-2, 2
             DO j = 3, jj-2, 2
-                CALL pressureftocone(k, j, i, kk, jj, ii, p, bp, &
-                    ddx, ddy, ddz, pcnew, bpc)
+                bpc = pressureftocone_B_bpc(k, j, i, kk, jj, ii, bp)
+                pcnew = pressureftocone_B(k, j, i, kk, jj, ii, p, bp, &
+                    ddx, ddy, ddz)
                 IF (bpc < 0.5) pcnew = pbuffer(j, i)
 
                 sb11 = bp(k2, j, i)*bp(k3, j, i)
@@ -549,21 +546,20 @@ CONTAINS
     END SUBROUTINE bbottom_bp
 
 
-    PURE SUBROUTINE pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, ddy, &
-            ddz, pc, bpc)
+    ! Workaround (afar-24.4.0, __kmpc_alloc_shared): functions with VALUE
+    ! scalar arguments instead of subroutines with INTENT(out) scalars
+    PURE REAL(realk) FUNCTION pressureftocone_A(k, j, i, kk, jj, ii, p, ddx, &
+            ddy, ddz) RESULT(pc)
         !$omp declare target
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: k, j, i
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
+        ! Function arguments
+        INTEGER(intk), VALUE :: k, j, i
+        INTEGER(intk), VALUE :: kk, jj, ii
         REAL(realk), INTENT(in) :: p(kk, jj, ii)
         REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(out) :: pc, bpc
 
         ! Local variables
         INTEGER(intk) :: l, m, n
         REAL(realk) :: vol, sump, sumvol
-
-        bpc = 1.0
 
         sump = 0.0
         sumvol = 0.0
@@ -577,23 +573,20 @@ CONTAINS
             END DO
         END DO
         pc = sump/sumvol
-    END SUBROUTINE pressureftocone_A
+    END FUNCTION pressureftocone_A
 
 
-    PURE SUBROUTINE pressureftocone_B(k, j, i, kk, jj, ii, p, bp, ddx, ddy, &
-            ddz, pc, bpc)
+    PURE REAL(realk) FUNCTION pressureftocone_B_bpc(k, j, i, kk, jj, ii, bp) &
+            RESULT(bpc)
         !$omp declare target
-        ! Subroutine arguments
-        INTEGER(intk), INTENT(in) :: k, j, i
-        INTEGER(intk), INTENT(in) :: kk, jj, ii
-        REAL(realk), INTENT(in) :: p(kk, jj, ii)
+        ! Function arguments
+        INTEGER(intk), VALUE :: k, j, i
+        INTEGER(intk), VALUE :: kk, jj, ii
         REAL(realk), INTENT(in) :: bp(kk, jj, ii)
-        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
-        REAL(realk), INTENT(out) :: pc, bpc
 
         ! Local variables
         INTEGER(intk) :: l, m, n
-        REAL(realk) :: vol, sumbp, sump, sumvol
+        REAL(realk) :: sumbp
 
         sumbp = 0.0
         DO l = 0, 1
@@ -604,8 +597,24 @@ CONTAINS
             END DO
         END DO
         bpc = MIN(sumbp, 1.0_realk)
+    END FUNCTION pressureftocone_B_bpc
 
-        IF (bpc < 0.5) THEN
+
+    PURE REAL(realk) FUNCTION pressureftocone_B(k, j, i, kk, jj, ii, p, bp, &
+            ddx, ddy, ddz) RESULT(pc)
+        !$omp declare target
+        ! Function arguments
+        INTEGER(intk), VALUE :: k, j, i
+        INTEGER(intk), VALUE :: kk, jj, ii
+        REAL(realk), INTENT(in) :: p(kk, jj, ii)
+        REAL(realk), INTENT(in) :: bp(kk, jj, ii)
+        REAL(realk), INTENT(in) :: ddx(ii), ddy(jj), ddz(kk)
+
+        ! Local variables
+        INTEGER(intk) :: l, m, n
+        REAL(realk) :: vol, sump, sumvol
+
+        IF (pressureftocone_B_bpc(k, j, i, kk, jj, ii, bp) < 0.5) THEN
             pc = 0.0
         ELSE
             sump = 0.0
@@ -621,7 +630,7 @@ CONTAINS
             END DO
             pc = sump/sumvol
         END IF
-    END SUBROUTINE pressureftocone_B
+    END FUNCTION pressureftocone_B
 
 
     PURE SUBROUTINE level_index(ilevel_index, ilevel)

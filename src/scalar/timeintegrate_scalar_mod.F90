@@ -506,8 +506,8 @@ CONTAINS
     PURE ELEMENTAL REAL(realk) FUNCTION scalar_prt(gtgmol, prmol, &
             kayscrawford_flag, prturb2)
         !$omp declare target
-        REAL(realk), INTENT(in) :: gtgmol, prmol, prturb2
-        INTEGER(intk), INTENT(in) :: kayscrawford_flag
+        REAL(realk), VALUE :: gtgmol, prmol, prturb2
+        INTEGER(intk), VALUE :: kayscrawford_flag
 
         REAL(realk) :: kayscrawford
 
