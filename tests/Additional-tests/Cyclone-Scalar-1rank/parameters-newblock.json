@@ -1,0 +1,32 @@
+{
+    "io": {
+        "grids": "grids.h5",
+        "infile": "fields.h5",
+        "outfile": "fields.h5"
+    },
+    "ib": {
+        "fluidpoints": [
+            [0.01, 0.01, 2.0]
+        ],
+        "geometries": [
+            {
+                "file": "cyclon_bottom.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            },
+            {
+                "file": "cyclon_center.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            },
+            {
+                "file": "cyclon_top.stl",
+                "velocity": [0.0, 0.0, 0.0]
+            },
+            {
+                "file": "patch_out.stl",
+                "velocity": [0.0, 0.0, 1.0]
+            }
+        ],
+        "type": "ghostcell",
+        "blocking": "newblock"
+    }
+}
