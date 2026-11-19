@@ -153,6 +153,7 @@ CONTAINS
             ! float cbrtf(float arg )
             PURE FUNCTION cbrtf(arg) RESULT(res) BIND(C, NAME='cbrtf')
                 USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_FLOAT
+                !$omp declare target
                 REAL(C_FLOAT), INTENT(IN), VALUE :: arg
                 REAL(C_FLOAT) :: res
             END FUNCTION cbrtf
@@ -173,6 +174,7 @@ CONTAINS
             ! double cbrt(double arg )
             PURE FUNCTION cbrt(arg) RESULT(res) BIND(C, NAME='cbrt')
                 USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_DOUBLE
+                !$omp declare target
                 REAL(C_DOUBLE), INTENT(IN), VALUE :: arg
                 REAL(C_DOUBLE) :: res
             END FUNCTION cbrt

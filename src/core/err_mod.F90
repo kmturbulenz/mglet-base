@@ -146,11 +146,8 @@ CONTAINS
         IF (mpicode > maxcode) THEN
             mpicode = maxcode
         END IF
-#ifdef _MGLET_OFFLOAD_
-        CALL EXIT(mpicode)
-#else
+
         CALL MPI_Abort(MPI_COMM_WORLD, mpicode)
-#endif
     END SUBROUTINE err_abort
 
 
