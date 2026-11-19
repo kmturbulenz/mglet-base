@@ -1,5 +1,23 @@
 enable_testing()
 
+if(MGLET_OFFLOAD AND MGLET_OFFLOAD_BACKEND MATCHES "^(hip|cuda)$")
+    set(sip_test_source sip_hyperplane_test.cu)
+    if(MGLET_OFFLOAD_BACKEND STREQUAL "hip")
+        set_source_files_properties(${sip_test_source} PROPERTIES LANGUAGE HIP)
+    else()
+        set_source_files_properties(${sip_test_source} PROPERTIES LANGUAGE CUDA)
+    endif()
+    add_executable(sip_hyperplane_test ${sip_test_source})
+    set_target_properties(sip_hyperplane_test PROPERTIES
+        CXX_STANDARD 17 HIP_STANDARD 17 CUDA_STANDARD 17
+        LINKER_LANGUAGE Fortran)
+    target_link_libraries(sip_hyperplane_test PRIVATE mglet_openmp
+        ${CMAKE_CXX_IMPLICIT_LINK_LIBRARIES}
+        $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},hip>:hip::device>
+        $<$<STREQUAL:${MGLET_OFFLOAD_BACKEND},cuda>:CUDA::cudart>)
+    add_test(NAME sip_hyperplane COMMAND sip_hyperplane_test)
+endif()
+
 # By default more expensive testcases are also enabled - but can be disabled
 # to make testing quicker
 option(MGLET_TEST_Additional "Enable additional testcases" ON)
